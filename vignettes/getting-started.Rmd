@@ -1,0 +1,290 @@
+---
+title: "Getting Started with Rwapor"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with Rwapor}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Introduction
+
+The **Rwapor** package provides tools for downloading and processing WaPOR
+(Water Productivity Open-access portal) and AgERA5 climate data from the
+FAO GISMGR API. This vignette covers the basic workflow for:
+
+1. Downloading raster maps for a region
+2. Extracting time series with zonal statistics
+3. Converting units between temporal resolutions
+
+## Installation
+
+```{r installation}
+# Install from local source (development version)
+install.packages("path/to/Rwapor", repos = NULL, type = "source")
+
+# Load the package
+library(Rwapor)
+```
+
+## Setting Up Parallel Processing
+
+For faster downloads, set up parallel workers using the `future` package:
+
+```{r setup-parallel}
+library(future)
+library(progressr)
+
+# Use 4 parallel workers
+future::plan(future::multisession, workers = 4)
+
+# Enable progress reporting
+progressr::handlers(global = TRUE)
+```
+
+## Available Variables
+
+### WaPOR Variables
+
+WaPOR provides water productivity and related variables at different spatial
+and temporal resolutions:
+
+```{r wapor-vars}
+# List all WaPOR v3 variables
+names(WAPOR3_VARS)
+
+# Get metadata for a specific variable
+get_variable_metadata("L1-AETI-D")
+# $long_name: "Actual EvapoTranspiration and Interception"
+# $units: "mm/day"
+# $scale: 0.1
+```
+
+**Variable naming convention:** `{Level}-{Variable}-{TemporalResolution}`
+
+- **Levels:** L1 (continental ~250m), L2 (regional ~100m), L3 (local)
+- **Variables:** AETI, E, I, NPP, PCP, T, GBWP, NBWP
+- **Temporal:** D (dekadal), M (monthly), A (annual), E (daily)
+
+### AgERA5 Climate Variables
+
+```{r agera5-vars}
+# List AgERA5 variables
+names(AGERA5_VARS)
+
+# Example: Reference evapotranspiration
+get_variable_metadata("AGERA5-ET0-E")
+```
+
+## Downloading Raster Maps
+
+Use `wapor_map()` to download and save raster data for a region:
+
+### Using a Bounding Box
+
+```{r download-bbox}
+# Define region as bounding box: c(xmin, ymin, xmax, ymax)
+region <- c(35.0, 33.0, 36.0, 34.0)
+
+# Download dekadal ET for January 2023
+output_file <- wapor_map(
+  region = region,
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-01-31"),
+  folder = "output"
+)
+
+print(output_file)
+# "output/region_L1-AETI-D.tif"
+```
+
+### Using a Shapefile
+
+```{r download-shapefile}
+# Download for a shapefile region with local caching
+output_file <- wapor_map(
+  region = "path/to/my_region.shp",
+  variable = "L2-NPP-M",
+  period = c("2023-01-01", "2023-12-31"),
+  folder = "output",
+  filename = "npp_monthly_2023.tif",
+  download_locally = TRUE  # Cache files locally first
+)
+```
+
+### Using L3 Region Codes
+
+For WaPOR Level 3 data, use the 3-letter region code:
+
+```{r download-l3}
+# Download for Awash Basin (Ethiopia)
+output_file <- wapor_map(
+  region = "AWA",
+  variable = "L3-AETI-D",
+  period = c("2023-06-01", "2023-06-30"),
+  folder = "output"
+)
+```
+
+## Extracting Time Series
+
+Use `wapor_ts()` to extract zonal statistics (mean, min, max) for polygons:
+
+### Basic Time Series Extraction
+
+```{r ts-basic}
+# Extract time series for a bounding box
+df <- wapor_ts(
+  region = c(35.0, 33.0, 36.0, 34.0),
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-03-31")
+)
+
+head(df)
+#   mean   min   max start_date   end_date  number_of_days layer_index
+# 1  2.5   1.2   4.1 2023-01-01 2023-01-10             10           1
+# 2  2.8   1.5   4.3 2023-01-11 2023-01-20             10           2
+```
+
+### Time Series for Multiple Polygons
+
+```{r ts-polygons}
+# Extract for multiple fields/polygons
+df <- wapor_ts(
+  region = "fields.geojson",
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-12-31"),
+  identifier = "field_name",  # Column to identify polygons
+  download_locally = TRUE
+)
+
+# Results include statistics for each polygon at each time step
+head(df)
+```
+
+### Accessing Metadata
+
+The returned data frame includes metadata as attributes:
+
+```{r ts-metadata}
+# Get variable units
+attr(df, "units")
+# "mm/day"
+
+# Get variable description
+attr(df, "long_name")
+# "Actual EvapoTranspiration and Interception"
+```
+
+## Unit Conversion
+
+Convert values between temporal units using the `unit_conversion` parameter:
+
+```{r unit-conversion}
+# Convert dekadal data to monthly totals
+df_monthly <- wapor_ts(
+  region = c(35.0, 33.0, 36.0, 34.0),
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-03-31"),
+  unit_conversion = "month"
+)
+
+# Check the new units
+attr(df_monthly, "units")
+# "mm/month"
+
+attr(df_monthly, "original_units")
+# "mm/day"
+```
+
+Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
+
+## Working with URLs Directly
+
+For advanced use cases, generate URLs without downloading:
+
+```{r generate-urls}
+# Get download URLs for a variable and period
+urls <- wapor_generate_urls(
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-01-31")
+)
+
+length(urls)
+# 3 (one per dekad)
+
+# Use with terra directly
+library(terra)
+r <- terra::rast(urls)
+```
+
+## Parsing Regions
+
+The `parse_region()` function handles different region formats:
+```{r parse-region}
+# Bounding box
+parse_region(c(35.0, 33.0, 36.0, 34.0))
+# $type: "bbox"
+
+# L3 region code
+parse_region("AWA")
+# $type: "l3_code"
+
+# Vector file
+parse_region("path/to/region.shp")
+# $type: "vector"
+```
+
+## Error Handling
+
+All functions provide informative error messages:
+
+```{r error-handling, error=TRUE}
+# Invalid variable format
+wapor_generate_urls("INVALID")
+# Error: Invalid variable format 'INVALID'. Expected format: 'LEVEL-VAR-TRES'
+
+# Invalid date range
+wapor_generate_urls("L1-AETI-D", period = c("2023-12-31", "2023-01-01"))
+# Error: Start date must be before or equal to end date
+
+# Invalid bounding box
+parse_region(c(36, 33, 35, 34))
+# Error: Invalid bounding box: xmin must be less than xmax
+```
+
+## Best Practices
+
+1. **Use `download_locally = TRUE`** for large time series to avoid repeated
+   network requests
+
+2. **Set up parallel workers** before processing to speed up downloads:
+   ```r
+   future::plan(future::multisession, workers = 4)
+   ```
+
+3. **Check variable metadata** before downloading to understand units and
+   scale factors:
+   ```r
+   get_variable_metadata("L1-AETI-D")
+   ```
+
+4. **Use appropriate temporal resolution** for your analysis:
+   - Daily (E): Weather analysis
+   - Dekadal (D): Crop monitoring
+   - Monthly (M): Seasonal analysis
+   - Annual (A): Long-term trends
+
+## Session Info
+
+```{r session-info}
+sessionInfo()
+```

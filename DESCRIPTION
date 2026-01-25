@@ -1,12 +1,23 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
 Version: 0.1.0
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: Downloads and processes WaPOR and AgERA5 raster data, extracting time series and calculating zonal statistics for regions and polygons. Supports unit conversion and dynamic metadata fetching.
+Authors@R: c(
+    person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
+    person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
+    person("FAO", role = "cph")
+  )
+Description: Downloads and processes WaPOR (Water Productivity Open-access portal)
+    and AgERA5 raster data from the FAO GIS Manager API. Provides functions for
+    extracting time series, calculating zonal statistics for regions and polygons,
+    downloading raster maps, and unit conversion. Supports WaPOR Level 1, Level 2,
+    Level 3 data products and AgERA5 climate variables.
 License: MIT + file LICENSE
+URL: https://github.com/almutaz9000/Rwapor
+BugReports: https://github.com/almutaz9000/Rwapor/issues
 Encoding: UTF-8
 LazyData: true
-Imports: 
+Roxygen: list(markdown = TRUE)
+Imports:
     httr2,
     jsonlite,
     terra,
@@ -19,6 +30,13 @@ Imports:
     memoise,
     furrr,
     progressr
-Suggests: 
-    testthat
-RoxygenNote: 7.2.3
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    future,
+    ggplot2,
+    withr
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+RoxygenNote: 7.3.3

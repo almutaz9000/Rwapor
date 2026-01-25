@@ -1,110 +1,303 @@
 #' Parse Region Argument
 #'
-#' @param region Path to vector file, bounding box (numeric vector of 4), or L3 code
-#' @return List with type and object
-#' @importFrom sf st_read st_bbox st_crs st_transform
+#' Parses various region input formats into a standardized structure
+#' for use in other package functions.
+#'
+#' @param region One of:
+#'   * Character path to a vector file (shapefile, GeoJSON, GeoPackage, etc.)
+#'   * Character L3 region code (3 uppercase letters, e.g., "AWA")
+#'   * Numeric vector of length 4 representing bounding box: `c(xmin, ymin, xmax, ymax)` in WGS84 (EPSG:4326)
+#'
+#' @return A list with components:
+#'   * `type`: One of "l3_code", "vector", or "bbox"
+#'   * `value`: The parsed region object (character code, sf object, or st_bbox)
+#'
 #' @export
+#'
+#' @importFrom sf st_read st_bbox st_crs st_transform
+#'
+#' @examples
+#' # Parse a bounding box (xmin, ymin, xmax, ymax)
+#' region_info <- parse_region(c(35.0, 33.0, 36.0, 34.0))
+#' region_info$type
+#' # [1] "bbox"
+#'
+#' # Parse an L3 region code
+#' region_info <- parse_region("AWA")
+#' region_info$type
+#' # [1] "l3_code"
+#'
+#' \dontrun{
+#' # Parse a shapefile
+#' region_info <- parse_region("path/to/region.shp")
+#' region_info$type
+#' # [1] "vector"
+#' }
 parse_region <- function(region) {
+  if (is.null(region)) {
+    stop("'region' cannot be NULL", call. = FALSE)
+  }
+
   if (is.character(region)) {
-    if (nchar(region) == 3 && toupper(region) == region) {
-      # L3 Code
+    if (length(region) != 1) {
+      stop("'region' must be a single character string when providing a file path or L3 code", call. = FALSE)
+    }
+
+    # Check if it's an L3 code (3 uppercase letters)
+    if (nchar(region) == 3 && toupper(region) == region && grepl("^[A-Z]{3}$", region)) {
       return(list(type = "l3_code", value = region))
     } else if (file.exists(region)) {
       # Vector file
-      vect <- sf::st_read(region, quiet = TRUE)
+      vect <- tryCatch({
+        sf::st_read(region, quiet = TRUE)
+      }, error = function(e) {
+        stop(
+          sprintf("Failed to read vector file '%s': %s", region, e$message),
+          call. = FALSE
+        )
+      })
+
+      if (nrow(vect) == 0) {
+        stop(sprintf("Vector file '%s' contains no features", region), call. = FALSE)
+      }
+
       return(list(type = "vector", value = vect))
     } else {
-      stop("Region is string but not a valid file or L3 code.")
+      stop(
+        sprintf("Region '%s' is neither a valid file path nor a 3-letter L3 code", region),
+        call. = FALSE
+      )
     }
-  } else if (is.numeric(region) && length(region) == 4) {
-    # Bounding box: xmin, ymin, xmax, ymax
-    # Create sf bbox
-    bb <- sf::st_bbox(c(xmin = region[1], ymin = region[2], xmax = region[3], ymax = region[4]), crs = 4326)
+  } else if (is.numeric(region)) {
+    if (length(region) != 4) {
+      stop("Numeric 'region' must have exactly 4 elements: c(xmin, ymin, xmax, ymax)", call. = FALSE)
+    }
+
+    # Validate bounding box values
+    xmin <- region[1]
+    ymin <- region[2]
+    xmax <- region[3]
+    ymax <- region[4]
+
+    if (xmin >= xmax) {
+      stop("Invalid bounding box: xmin must be less than xmax", call. = FALSE)
+    }
+    if (ymin >= ymax) {
+      stop("Invalid bounding box: ymin must be less than ymax", call. = FALSE)
+    }
+    if (xmin < -180 || xmax > 180) {
+      stop("Invalid bounding box: longitude must be between -180 and 180", call. = FALSE)
+    }
+    if (ymin < -90 || ymax > 90) {
+      stop("Invalid bounding box: latitude must be between -90 and 90", call. = FALSE)
+    }
+
+    bb <- sf::st_bbox(c(xmin = xmin, ymin = ymin, xmax = xmax, ymax = ymax), crs = 4326)
     return(list(type = "bbox", value = bb))
   } else {
-    stop("Invalid region format.")
+    stop(
+      sprintf("Invalid 'region' type '%s'. Expected character (file path or L3 code) or numeric (bounding box)", class(region)[1]),
+      call. = FALSE
+    )
   }
+}
+
+#' Calculate Conversion Factor for Temporal Units
+#'
+#' Internal helper function to calculate the conversion factor between
+#' different temporal units.
+#'
+#' @param source_time Source temporal unit ("day", "dekad", "month", "year")
+#' @param target_unit Target temporal unit ("day", "dekad", "month", "year")
+#' @param num_days Number of days in the source period
+#' @param days_in_month Number of days in the month
+#'
+#' @return Numeric conversion factor
+#'
+#' @keywords internal
+#' @noRd
+calculate_conversion_factor <- function(source_time, target_unit, num_days, days_in_month) {
+  if (source_time == target_unit) {
+    return(1)
+  }
+
+  # Conversion matrix logic
+  factor <- switch(
+    source_time,
+    "day" = switch(
+      target_unit,
+      "day" = 1,
+      "dekad" = num_days,
+      "month" = days_in_month,
+      "year" = 365,
+      stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
+    ),
+    "dekad" = switch(
+      target_unit,
+      "day" = 1 / num_days,
+      "dekad" = 1,
+      "month" = 3,
+      "year" = 36,
+      stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
+    ),
+    "month" = switch(
+      target_unit,
+      "day" = 1 / days_in_month,
+      "dekad" = 1 / 3,
+      "month" = 1,
+      "year" = 12,
+      stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
+    ),
+    "year" = switch(
+      target_unit,
+      "day" = 1 / 365,
+      "dekad" = 1 / 36,
+      "month" = 1 / 12,
+      "year" = 1,
+      stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
+    ),
+    stop(sprintf("Unknown source unit: %s", source_time), call. = FALSE)
+  )
+
+  return(factor)
 }
 
 #' Extract Date Information from URL
 #'
-#' @param url Resource URL
-#' @param tres Temporal resolution (D, M, A, E)
-#' @return List with start_date, end_date, number_of_days
-#' @importFrom lubridate days_in_month ymd
+#' Parses WaPOR or AgERA5 raster filenames to extract date information
+#' including start date, end date, and period duration.
+#'
+#' @param url Character. Resource URL or filename containing date information.
+#' @param tres Character. Temporal resolution code:
+#'   * "D" = Dekadal (10-day periods)
+#'   * "M" = Monthly
+#'   * "A" = Annual
+#'   * "E" = Daily
+#'
+#' @return A list with components:
+#'   * `start_date`: Character date string in "YYYY-MM-DD" format
+#'   * `end_date`: Character date string in "YYYY-MM-DD" format
+#'   * `number_of_days`: Integer number of days in the period
+#'
 #' @export
+#'
+#' @importFrom lubridate days_in_month ymd
+#'
+#' @examples
+#' # Parse dekadal data URL (WaPOR format: WAPOR-3.L1-AETI-D.YYYY-MM-DX.tif)
+#' date_info <- get_date_info(
+#'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif",
+#'   tres = "D"
+#' )
+#' date_info$start_date
+#' # [1] "2023-01-01"
+#' date_info$number_of_days
+#' # [1] 10
+#'
+#' # Parse monthly data URL (WaPOR format: WAPOR-3.L1-AETI-M.YYYY-MM.tif)
+#' date_info <- get_date_info(
+#'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-06.tif",
+#'   tres = "M"
+#' )
+#' date_info$start_date
+#' # [1] "2023-06-01"
 get_date_info <- function(url, tres) {
+  # Input validation
+  if (!is.character(url) || length(url) != 1) {
+    stop("'url' must be a single character string", call. = FALSE)
+  }
+  if (!is.character(tres) || length(tres) != 1) {
+    stop("'tres' must be a single character string", call. = FALSE)
+  }
+  if (!tres %in% c("D", "M", "A", "E")) {
+    stop(
+      sprintf("Invalid temporal resolution '%s'. Must be one of: D, M, A, E", tres),
+      call. = FALSE
+    )
+  }
+
   filename <- basename(url)
-  # Expected format ..._YYYY-MM-DD.tif or similar, but Python split looks like:
-  # ...split(".")[-2].split("-")
-  # Let's try to extract based on typical WaPOR URL patterns
-  # e.g. L1_AETI_D_2021-01-D1.tif (hypothetically)
-  # Python code: year, month, dekad = os.path.split(url)[-1].split(".")[-2].split("-")
-  
-  # Remove extension
   base <- tools::file_path_sans_ext(filename)
-  parts <- strsplit(base, "-")[[1]]
-  
+
+  # WaPOR URL format: WAPOR-3.L1-AETI-D.2018-01-D1.tif
+  # The date component is the last dot-separated part before extension
+  # Split by "." first to isolate the date component
+  dot_parts <- strsplit(base, "\\.")[[1]]
+  date_component <- dot_parts[length(dot_parts)]
+
+  # Now split the date component by "-"
+  parts <- strsplit(date_component, "-")[[1]]
+
   if (tres == "D") {
-    # Expected: ...-YYYY-MM-DX
-    if (length(parts) < 3) stop("Cannot parse date from URL for Dekadal data")
-    dekad_str <- parts[length(parts)]
-    month_str <- parts[length(parts)-1]
-    year_str <- parts[length(parts)-2]
-    
-    dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21", 
-                      "1" = "01", "2" = "11", "3" = "21")
-    
-    if (!dekad_str %in% names(dekad_map)) {
-        # Fallback for simple numbering if possible or error
-        # Some URLs might differ. Let's assume standard WaPOR format.
-        stop(paste("Unknown dekad format:", dekad_str))
+    # Dekadal format: YYYY-MM-DX (e.g., 2018-01-D1)
+    if (length(parts) < 3) {
+      stop(sprintf("Cannot parse date from URL for Dekadal data: %s", filename), call. = FALSE)
     }
-    
+    year_str <- parts[1]
+    month_str <- parts[2]
+    dekad_str <- parts[3]
+
+    dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21",
+                      "1" = "01", "2" = "11", "3" = "21")
+
+    if (!dekad_str %in% names(dekad_map)) {
+      stop(sprintf("Unknown dekad format: %s", dekad_str), call. = FALSE)
+    }
+
     start_day <- dekad_map[[dekad_str]]
     start_date <- paste(year_str, month_str, start_day, sep = "-")
-    
-    # Calculate end date
+
+    # Calculate end date based on dekad
     if (dekad_str %in% c("D1", "1")) {
-      end_day <- "10"
-      end_date <- paste(year_str, month_str, end_day, sep = "-")
+      end_date <- paste(year_str, month_str, "10", sep = "-")
     } else if (dekad_str %in% c("D2", "2")) {
-      end_day <- "20"
-      end_date <- paste(year_str, month_str, end_day, sep = "-")
+      end_date <- paste(year_str, month_str, "20", sep = "-")
     } else {
-      # End of month
+      # Third dekad ends on last day of month
       date_obj <- lubridate::ymd(start_date)
       end_day <- lubridate::days_in_month(date_obj)
       end_date <- paste(year_str, month_str, end_day, sep = "-")
     }
-    
+
   } else if (tres == "M") {
-    # ...-YYYY-MM
-    month_str <- parts[length(parts)]
-    year_str <- parts[length(parts)-1]
+    # Monthly format: YYYY-MM (e.g., 2018-01)
+    if (length(parts) < 2) {
+      stop(sprintf("Cannot parse date from URL for Monthly data: %s", filename), call. = FALSE)
+    }
+    year_str <- parts[1]
+    month_str <- parts[2]
     start_date <- paste(year_str, month_str, "01", sep = "-")
     date_obj <- lubridate::ymd(start_date)
     end_date <- paste(year_str, month_str, lubridate::days_in_month(date_obj), sep = "-")
-    
+
   } else if (tres == "A") {
-    # ...-YYYY
-    year_str <- parts[length(parts)]
+    # Annual format: YYYY (e.g., 2018)
+    year_str <- parts[1]
     start_date <- paste(year_str, "01", "01", sep = "-")
     end_date <- paste(year_str, "12", "31", sep = "-")
-    
+
   } else if (tres == "E") {
-    # ...-YYYY-MM-DD
-    day_str <- parts[length(parts)]
-    month_str <- parts[length(parts)-1]
-    year_str <- parts[length(parts)-2]
+    # Daily format: YYYY-MM-DD (e.g., 2018-01-15)
+    if (length(parts) < 3) {
+      stop(sprintf("Cannot parse date from URL for Daily data: %s", filename), call. = FALSE)
+    }
+    year_str <- parts[1]
+    month_str <- parts[2]
+    day_str <- parts[3]
     start_date <- paste(year_str, month_str, day_str, sep = "-")
     end_date <- start_date
-  } else {
-    stop("Unknown temporal resolution")
   }
-  
+
+  # Validate parsed dates
+  tryCatch({
+    start_dt <- lubridate::ymd(start_date)
+    end_dt <- lubridate::ymd(end_date)
+  }, error = function(e) {
+    stop(sprintf("Failed to parse date from URL '%s': invalid date components", url), call. = FALSE)
+  })
+
   ndays <- as.numeric(difftime(lubridate::ymd(end_date), lubridate::ymd(start_date), units = "days")) + 1
-  
+
   return(list(
     start_date = start_date,
     end_date = end_date,
@@ -112,38 +305,86 @@ get_date_info <- function(url, tres) {
   ))
 }
 
-#' Download URLs in Parallel
+#' Download URLs in Parallel with Progress Reporting
 #'
-#' @param urls List of URLs to download
-#' @param folder Output directory
-#' @return Vector of local file paths
-#' @importFrom furrr future_map_chr
-#' @importFrom progressr with_progress progressor
-#' @importFrom httr2 request req_perform
+#' Downloads multiple files in parallel using the `furrr` package
+#' with progress reporting via `progressr`.
+#'
+#' @param urls Character vector of URLs to download.
+#' @param folder Character. Output directory path. Will be created if it doesn't exist.
+#'
+#' @return Character vector of local file paths (same order as input URLs).
+#'
+#' @details
+#' Files that already exist locally will be skipped. Failed downloads
+#' will generate warnings but won't stop the process. The function
+#' uses the current `future` plan for parallelization. Set up parallel
+#' workers before calling this function:
+#'
+#' ```r
+#' future::plan(future::multisession, workers = 4)
+#' ```
+#'
 #' @export
+#'
+#' @importFrom furrr future_map_chr furrr_options
+#' @importFrom progressr with_progress progressor
+#' @importFrom httr2 request req_perform req_timeout req_retry
+#'
+#' @examples
+#' \dontrun{
+#' # Set up parallel workers
+#' future::plan(future::multisession, workers = 4)
+#'
+#' # Enable progress reporting
+#' progressr::handlers(global = TRUE)
+#'
+#' # Download files
+#' urls <- c(
+#'   "https://example.com/file1.tif",
+#'   "https://example.com/file2.tif"
+#' )
+#' local_paths <- download_urls_parallel(urls, folder = "data/downloads")
+#' }
 download_urls_parallel <- function(urls, folder) {
-  if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
-  
+  # Input validation
+  if (!is.character(urls) || length(urls) == 0) {
+    stop("'urls' must be a non-empty character vector", call. = FALSE)
+  }
+  if (!is.character(folder) || length(folder) != 1) {
+    stop("'folder' must be a single character string", call. = FALSE)
+  }
+
+  # Create folder if it doesn't exist
+  if (!dir.exists(folder)) {
+    dir.create(folder, recursive = TRUE)
+  }
+
   progressr::with_progress({
     p <- progressr::progressor(steps = length(urls))
-    
+
     dl_one <- function(url) {
-        fn <- file.path(folder, basename(url))
-        if (!file.exists(fn)) {
-            tryCatch({
-                req <- httr2::request(url)
-                httr2::req_perform(req, path = fn)
-            }, error = function(e) {
-                warning('Failed to download: ', url)
-            })
-        }
-        p()
-        return(fn)
+      fn <- file.path(folder, basename(url))
+      if (!file.exists(fn)) {
+        tryCatch({
+          req <- httr2::request(url) |>
+            httr2::req_timeout(120) |>
+            httr2::req_retry(max_tries = 3, backoff = ~ 2)
+          httr2::req_perform(req, path = fn)
+        }, error = function(e) {
+          warning(sprintf("Failed to download '%s': %s", url, e$message), call. = FALSE)
+        })
+      }
+      p(sprintf("Downloaded %s", basename(url)))
+      return(fn)
     }
-    
-    local_paths <- furrr::future_map_chr(urls, dl_one)
+
+    local_paths <- furrr::future_map_chr(
+      urls,
+      dl_one,
+      .options = furrr::furrr_options(seed = TRUE)
+    )
   })
-  
+
   return(file.path(folder, basename(urls)))
 }
-
