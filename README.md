@@ -54,12 +54,14 @@ period <- c("2021-01-01", "2021-01-10")
 folder <- "output_maps"
 
 # 1. Download as a single multi-band raster (default)
-# Filename: bb_WAPOR-3.L1-AETI-D.2021-01-01_2021-01-10.tif
+# By default for Dekadal variables, this converts mm/day -> mm/dekad
 map_path <- wapor_map(region, variable, period, folder)
 
 # 2. Download as separate files per time step
-# Filenames: bb_WAPOR-3.L1-AETI-D.2021-01-01.tif, ...
 files <- wapor_map(region, variable, period, folder, separate_files = TRUE)
+
+# 3. Download raw daily rates (mm/day) without conversion to dekadal
+map_day <- wapor_map(region, variable, period, folder, unit_conversion = "day")
 
 r <- terra::rast(map_path)
 plot(r)
