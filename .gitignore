@@ -26,3 +26,4 @@ src/*.so
 # Tests
 tests/testthat/test_output/
 libs/
+nul
