@@ -19,17 +19,18 @@ It serves as an R alternative to the Python `wapordl` library, leveraging the po
 
 ## Installation
 
-You can install the package from GitHub (once uploaded) or locally.
+You can install the development version of Rwapor from [GitHub](https://github.com/almutaz9000/Rwapor) with:
 
-### Dependencies
 ```r
-install.packages(c("httr2", "jsonlite", "terra", "sf", "dplyr", "purrr", "lubridate", "stringr", "exactextractr", "memoise", "furrr", "progressr", "future"))
+# install.packages("devtools")
+devtools::install_github("almutaz9000/Rwapor")
 ```
 
-### Installing from Source
+### Dependencies
+If you encounter issues, ensure you have the necessary system dependecies (especially for `sf` and `terra`) and R packages installed:
+
 ```r
-# If you have the source files
-devtools::install("path/to/Rwapor")
+install.packages(c("httr2", "jsonlite", "terra", "sf", "dplyr", "purrr", "lubridate", "stringr", "exactextractr", "memoise", "furrr", "progressr", "future"))
 ```
 
 ## Usage
@@ -70,6 +71,14 @@ df <- wapor_ts("path/to/polygons.geojson", "L1-AETI-D", period,
 
 head(df)
 ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Issues
+
+If you encounter a bug, please report it at: https://github.com/almutaz9000/Rwapor/issues
 
 ## License
 
