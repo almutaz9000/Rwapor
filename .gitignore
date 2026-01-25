@@ -1,0 +1,28 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Rapp.history
+
+# Cache
+*_cache/
+.Rproj.user/
+
+# C/C++
+*.o
+*.so
+*.dll
+
+# Mac
+.DS_Store
+
+# Package
+*.tar.gz
+*.check/
+src/*.o
+src/*.so
+
+# Tests
+tests/testthat/test_output/
+libs/

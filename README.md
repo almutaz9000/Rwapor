@@ -1,0 +1,76 @@
+# Rwapor
+
+<!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+<!-- badges: end -->
+
+**Rwapor** is an R package designed to download and process [WaPOR](https://wapor.apps.fao.org/) (Water Productivity through Open access of Remotely sensed derived data) and [AgERA5](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) data. It provides a robust, parallelized workflow to download raster data, extract time series for regions or polygons, and calculate zonal statistics with high accuracy.
+
+It serves as an R alternative to the Python `wapordl` library, leveraging the power of `terra`, `sf`, and `exactextractr`.
+
+## Features
+
+- **Universal Data Access**: Download any WaPOR or AgERA5 variable.
+    - **Dynamic Metadata**: Automatically fetches metadata for variables not hardcoded in the package.
+    - **Parallel Downloads**: Optionally download files concurrently to a local cache for speed and robustness (`download_locally = TRUE`).
+- **Accurate Zonal Statistics**: Uses `exactextractr` to calculate weighted statistics for polygons, ensuring accuracy even for small fields that don't cover full pixels.
+- **Unit Conversion**: Built-in support for converting units (e.g., `mm/dekad` to `mm/day`) on the fly.
+- **Efficient**: Caches API responses using `memoise` to minimize network traffic.
+
+## Installation
+
+You can install the package from GitHub (once uploaded) or locally.
+
+### Dependencies
+```r
+install.packages(c("httr2", "jsonlite", "terra", "sf", "dplyr", "purrr", "lubridate", "stringr", "exactextractr", "memoise", "furrr", "progressr", "future"))
+```
+
+### Installing from Source
+```r
+# If you have the source files
+devtools::install("path/to/Rwapor")
+```
+
+## Usage
+
+### 1. Setup
+```r
+library(Rwapor)
+library(future)
+
+# Enable parallel processing for downloads
+plan(multisession)
+```
+
+### 2. Download a Map
+Download a raster map for a specific region and period.
+
+```r
+region <- c(35.75, 33.70, 35.82, 33.75) # Bounding box: xmin, ymin, xmax, ymax
+variable <- "L1-AETI-D" # Actual Evapotranspiration (Dekadal)
+period <- c("2021-01-01", "2021-01-10")
+folder <- "output_maps"
+
+# Download locally (robust parallel) and load
+map_path <- wapor_map(region, variable, period, folder, download_locally = TRUE)
+r <- terra::rast(map_path)
+plot(r)
+```
+
+### 3. Extract Time Series (Zonal Stats)
+Extract time series for polygons defined in a GeoJSON or Shapefile.
+
+```r
+# Supports robust weighted stats for small polygons
+df <- wapor_ts("path/to/polygons.geojson", "L1-AETI-D", period, 
+               identifier="id_column", 
+               unit_conversion = "day",  # Convert mm/dekad -> mm/day
+               download_locally = TRUE)
+
+head(df)
+```
+
+## License
+
+MIT
