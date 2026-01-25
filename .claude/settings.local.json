@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(dir /s /b:*)",
+      "Bash(findstr /v \".git\\\\\")",
+      "Bash(Rscript:*)",
+      "Bash(where Rscript:*)",
+      "Bash(where:*)",
+      "Bash(dir \"C:\\\\Program Files\\\\R\" /s /b)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::document\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::test\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::check\\(\\)\")",
+      "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\almut\\\\OneDrive\\\\Documents\\\\Bitbucket\\\\wapordl\\\\Rwapor && Rscript -e \"\"devtools::document\\(\\)\"\"\")",
+      "Bash(cmd.exe /c:*)",
+      "Bash(powershell -Command \"Set-Location ''c:\\\\Users\\\\almut\\\\OneDrive\\\\Documents\\\\Bitbucket\\\\wapordl\\\\Rwapor''; Rscript -e ''devtools::document\\(\\)''\")",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}
