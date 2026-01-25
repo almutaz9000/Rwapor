@@ -45,7 +45,7 @@ plan(multisession)
 ```
 
 ### 2. Download a Map
-Download a raster map for a specific region and period.
+Download a raster map for a specific region and period. The package efficiently streams and subsets data using GDAL's virtual file system (`/vsicurl/`) without downloading the entire global raster.
 
 ```r
 region <- c(35.75, 33.70, 35.82, 33.75) # Bounding box: xmin, ymin, xmax, ymax
@@ -53,8 +53,14 @@ variable <- "L1-AETI-D" # Actual Evapotranspiration (Dekadal)
 period <- c("2021-01-01", "2021-01-10")
 folder <- "output_maps"
 
-# Download locally (robust parallel) and load
-map_path <- wapor_map(region, variable, period, folder, download_locally = TRUE)
+# 1. Download as a single multi-band raster (default)
+# Filename: bb_WAPOR-3.L1-AETI-D.2021-01-01_2021-01-10.tif
+map_path <- wapor_map(region, variable, period, folder)
+
+# 2. Download as separate files per time step
+# Filenames: bb_WAPOR-3.L1-AETI-D.2021-01-01.tif, ...
+files <- wapor_map(region, variable, period, folder, separate_files = TRUE)
+
 r <- terra::rast(map_path)
 plot(r)
 ```
@@ -66,8 +72,7 @@ Extract time series for polygons defined in a GeoJSON or Shapefile.
 # Supports robust weighted stats for small polygons
 df <- wapor_ts("path/to/polygons.geojson", "L1-AETI-D", period, 
                identifier="id_column", 
-               unit_conversion = "day",  # Convert mm/dekad -> mm/day
-               download_locally = TRUE)
+               unit_conversion = "day")  # Convert mm/dekad -> mm/day
 
 head(df)
 ```

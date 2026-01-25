@@ -191,9 +191,14 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   tres <- tail(parts, 1)
 
   # Map temporal resolution code to unit name
+  # WaPOR units are generally rates per time step, except for:
+  # - Dekadal (D): WaPOR stores them as average daily rate (mm/day or similar)
+  # - Monthly (M): Stores as monthly total
+  # - Annual (A): Stores as annual total
+  # - Daily (E): Stores as daily total (rate)
   source_time <- switch(
     tres,
-    "D" = "dekad",
+    "D" = "day",   # Corrected: Dekadal rasters are in mm/day
     "M" = "month",
     "A" = "year",
     "E" = "day",
