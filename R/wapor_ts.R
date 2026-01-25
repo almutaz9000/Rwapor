@@ -73,7 +73,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = "none", download_locally = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = "none") {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -99,12 +99,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     stop("No data found for the specified variable and period.", call. = FALSE)
   }
 
-  # Download locally if requested
-  if (download_locally) {
-    temp_dl_folder <- file.path(tempdir(), "rwapor_cache")
-    message("Downloading files locally for processing (Parallel) to: ", temp_dl_folder)
-    urls <- download_urls_parallel(urls, temp_dl_folder)
-  }
+  # Use GDAL virtual file system for efficient streaming
+  urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+  message("Streaming data using GDAL virtual file system (/vsicurl/)...")
 
   message(sprintf("Found %d files. Processing...", length(urls)))
 
