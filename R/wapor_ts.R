@@ -14,10 +14,10 @@
 #' @param identifier Character. Optional column name in vector file to identify
 #'   polygons in output. If NULL, numeric IDs are used.
 #' @param unit_conversion Character. Target temporal unit for conversion.
-#'   One of: "none" (default), "day", "dekad", "month", "year".
-#' @param download_locally Logical. If TRUE, downloads files to local cache
-#'   using parallel processing before extraction. Recommended for large
-#'   time series. Default is FALSE.
+#'   One of: "none", "day", "dekad", "month", "year".
+#'   Default is NULL, which dynamically sets the default based on variable type:
+#'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
+#'   * "none" for others
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -35,12 +35,6 @@
 #' The function uses `exactextractr::exact_extract()` for accurate zonal
 #' statistics that properly handle partial pixel coverage at polygon boundaries.
 #'
-#' For parallel downloads, set up workers before calling:
-#' ```r
-#' future::plan(future::multisession, workers = 4)
-#' progressr::handlers(global = TRUE)
-#' ```
-#'
 #' @export
 #'
 #' @importFrom terra rast crop extract global nlyr vect
@@ -52,28 +46,27 @@
 #' @examples
 #' \dontrun{
 #' # Extract time series for a bounding box
+#' # For dekadal variables, defaults to mm/dekad (unit_conversion="dekad")
 #' df <- wapor_ts(
 #'   region = c(35.0, 33.0, 36.0, 34.0),
 #'   variable = "L1-AETI-D",
 #'   period = c("2023-01-01", "2023-03-31")
 #' )
 #'
-#' # Extract for polygons with unit conversion
-#' future::plan(future::multisession, workers = 4)
+#' # Extract with explicit daily units
 #' df <- wapor_ts(
 #'   region = "fields.geojson",
 #'   variable = "L1-AETI-D",
 #'   period = c("2023-01-01", "2023-12-31"),
 #'   identifier = "field_name",
-#'   unit_conversion = "month",
-#'   download_locally = TRUE
+#'   unit_conversion = "day"
 #' )
 #'
 #' # Check units
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = "none") {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -81,6 +74,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   if (!is.character(period) || length(period) != 2) {
     stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
   }
+  
+  # Determine default unit_conversion if NULL
+  if (is.null(unit_conversion)) {
+    if (grepl("-D$", variable)) {
+      unit_conversion <- "dekad"
+      message("Variable is Dekadal (stored as mm/day). Defaulting unit_conversion to 'dekad' (mm/dekad).")
+    } else {
+      unit_conversion <- "none"
+    }
+  }
+
   valid_conversions <- c("none", "day", "dekad", "month", "year")
   if (!unit_conversion %in% valid_conversions) {
     stop(

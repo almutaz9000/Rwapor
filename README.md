@@ -57,10 +57,15 @@ folder <- "output_maps"
 # By default for Dekadal variables, this converts mm/day -> mm/dekad
 map_path <- wapor_map(region, variable, period, folder)
 
-# 2. Download as separate files per time step
+# 2. Download multiple variables at once
+# Creates folders: output_maps/L1-AETI-D and output_maps/L1-NPP-D
+vars <- c("L1-AETI-D", "L1-NPP-D")
+paths <- wapor_map(region, vars, period, folder)
+
+# 3. Download as separate files per time step
 files <- wapor_map(region, variable, period, folder, separate_files = TRUE)
 
-# 3. Download raw daily rates (mm/day) without conversion to dekadal
+# 4. Download raw daily rates (mm/day) without conversion to dekadal
 map_day <- wapor_map(region, variable, period, folder, unit_conversion = "day")
 
 r <- terra::rast(map_path)

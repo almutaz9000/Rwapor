@@ -3,7 +3,7 @@
 export(AGERA5_VARS)
 export(WAPOR3_VARS)
 export(df_unit_convertor)
-export(download_urls_parallel)
+
 export(get_date_info)
 export(get_variable_metadata)
 export(parse_region)
