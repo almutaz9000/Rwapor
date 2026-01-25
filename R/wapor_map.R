@@ -56,8 +56,8 @@
 #' }
 wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL) {
   # Input validation
-  if (!is.character(variable) || length(variable) != 1) {
-    stop("'variable' must be a single character string", call. = FALSE)
+  if (!is.character(variable) || length(variable) == 0) {
+    stop("'variable' must be a character vector", call. = FALSE)
   }
   if (!is.character(period) || length(period) != 2) {
     stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
@@ -66,134 +66,149 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     stop("'folder' must be a single character string", call. = FALSE)
   }
 
-  # Determine default unit_conversion if NULL
-  if (is.null(unit_conversion)) {
-    if (grepl("-D$", variable)) {
-      unit_conversion <- "dekad"
-      message("Variable is Dekadal (stored as mm/day). Defaulting unit_conversion to 'dekad' (mm/dekad).")
-    } else {
-      unit_conversion <- "none"
-    }
-  }
-
-  # Create output directory
+  # Create base output directory
   if (!dir.exists(folder)) {
     dir.create(folder, recursive = TRUE)
   }
 
-  # Parse region
+  # Parse region once
   reg_info <- parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
-  # Get URLs
-  urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)
-  message(sprintf("Found %d files for %s.", length(urls), variable))
-
-  if (length(urls) == 0) {
-    stop("No data found for this period/region.", call. = FALSE)
-  }
-
-  # Determine naming components
-  # Base name from first file (e.g., WAPOR-3.L1-AETI-D)
-  base_fname <- basename(urls[1])
-  # Remove date and extension to get invariant part
-  # Assumes format: {Base}.{Date}.tif
-  # Split by dots
-  parts <- strsplit(base_fname, "\\.")[[1]]
-  # The product base is usually everything except the last 2 parts (Date, Extension)
-  # But simpler: we know variable is L1-AETI-D, so we can use "WAPOR-3.L1-AETI-D" if standard
-  # Let's derive it from the filename to be safe
-  if (length(parts) >= 3) {
-    product_base <- paste(parts[1:(length(parts)-2)], collapse = ".")
-  } else {
-    product_base <- variable # Fallback
-  }
-  
-  prefix <- if (reg_info$type == "bbox") "bb_" else ""
-
-  # Use GDAL virtual file system for efficient streaming
-  urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
-  message("Streaming data using GDAL virtual file system (/vsicurl/)...")
-
-  # Load as SpatRaster
-  r <- tryCatch({
-    terra::rast(urls)
-  }, error = function(e) {
-    stop(sprintf("Failed to load raster data: %s", e$message), call. = FALSE)
-  })
-
-  # Crop/Mask based on region type
-  if (reg_info$type == "vector") {
-    vect <- reg_info$value
-    # Transform vector to raster CRS if needed (WaPOR uses EPSG:4326)
-    vect_crs <- sf::st_crs(vect)
-    if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
-      vect <- sf::st_transform(vect, 4326)
-    }
-    v <- terra::vect(vect)
-    r <- terra::crop(r, v)
-    r <- terra::mask(r, v)
-  } else if (reg_info$type == "bbox") {
-    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- terra::crop(r, ext)
-  }
-
-  # Apply unit conversion if requested
-  if (unit_conversion != "none") {
-    message(sprintf("Converting units to '%s'...", unit_conversion))
-    r <- raster_unit_convertor(r, variable, urls, unit_conversion)
-  }
-
-  output_paths <- character()
-
-  if (separate_files) {
-    # Save each layer individually
-    for (i in 1:terra::nlyr(r)) {
-      # Extract date for this layer
-      # Re-parsing date from original URLs (assuming mapped 1:1)
-      # This is safer than relying on terra layer names
-      # remove /vsicurl/ prefix for parsing
-      orig_url <- sub("^/vsicurl/", "", urls[i])
-      date_info <- get_date_info(orig_url, tres = strsplit(variable, "-")[[1]][3])
-      date_str <- date_info$start_date # YYYY-MM-DD
-      
-      fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-      out_path <- file.path(folder, fname)
-      
-      terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-      output_paths <- c(output_paths, out_path)
-    }
-    message(sprintf("Saved %d raster files to: %s", length(output_paths), folder))
-    return(output_paths)
+  # Helper function to process a single variable
+  process_single_var <- function(var) {
+    message(sprintf("Processing variable: %s", var))
     
-  } else {
-    # Save as single stack
-    if (is.null(filename)) {
-      # Construct range name
-      start_url <- sub("^/vsicurl/", "", urls[1])
-      end_url <- sub("^/vsicurl/", "", urls[length(urls)])
-      
-      start_info <- get_date_info(start_url, tres = strsplit(variable, "-")[[1]][3])
-      end_info <- get_date_info(end_url, tres = strsplit(variable, "-")[[1]][3])
-      
-      if (length(urls) == 1) {
-        date_part <- start_info$start_date
+    # Create variable-specific subdirectory
+    var_folder <- file.path(folder, var)
+    if (!dir.exists(var_folder)) {
+      dir.create(var_folder, recursive = TRUE)
+    }
+
+    # Determine unit_conversion for this variable if NULL
+    current_unit_conv <- unit_conversion
+    if (is.null(current_unit_conv)) {
+      if (grepl("-D$", var)) {
+        current_unit_conv <- "dekad"
+        message(sprintf("Variable %s is Dekadal. Defaulting unit_conversion to 'dekad'.", var))
       } else {
-        date_part <- paste0(start_info$start_date, "_", end_info$end_date)
+        current_unit_conv <- "none"
       }
-      
-      filename <- paste0(prefix, product_base, ".", date_part, ".tif")
+    }
+
+    # Get URLs
+    urls <- wapor_generate_urls(var, l3_region = l3_code, period = period)
+    message(sprintf("Found %d files for %s.", length(urls), var))
+
+    if (length(urls) == 0) {
+      warning(sprintf("No data found for %s in this period/region. Skipping.", var), call. = FALSE)
+      return(NULL)
+    }
+
+    # Determine naming components
+    base_fname <- basename(urls[1])
+    parts <- strsplit(base_fname, "\\.")[[1]]
+    if (length(parts) >= 3) {
+      product_base <- paste(parts[1:(length(parts)-2)], collapse = ".")
+    } else {
+      product_base <- var 
     }
     
-    out_path <- file.path(folder, filename)
+    prefix <- if (reg_info$type == "bbox") "bb_" else ""
+
+    # Use GDAL virtual file system
+    urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
     
-    tryCatch({
-      terra::writeRaster(r, out_path, overwrite = TRUE)
+    # Load as SpatRaster
+    r <- tryCatch({
+      terra::rast(urls)
     }, error = function(e) {
-      stop(sprintf("Failed to write raster to '%s': %s", out_path, e$message), call. = FALSE)
+      warning(sprintf("Failed to load raster data for %s: %s", var, e$message), call. = FALSE)
+      return(NULL)
     })
     
-    message(sprintf("Saved raster to: %s", out_path))
-    return(out_path)
+    if (is.null(r)) return(NULL)
+
+    # Crop/Mask
+    if (reg_info$type == "vector") {
+      vect <- reg_info$value
+      vect_crs <- sf::st_crs(vect)
+      if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
+        vect <- sf::st_transform(vect, 4326)
+      }
+      v <- terra::vect(vect)
+      r <- terra::crop(r, v)
+      r <- terra::mask(r, v)
+    } else if (reg_info$type == "bbox") {
+      ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
+      r <- terra::crop(r, ext)
+    }
+
+    # Unit Conversion
+    if (current_unit_conv != "none") {
+      message(sprintf("Converting units to '%s'...", current_unit_conv))
+      r <- raster_unit_convertor(r, var, urls, current_unit_conv)
+    }
+
+    # Standardize Layer Names (Band Names)
+    # terra uses source filenames by default (e.g. ...2021-01-D1)
+    # We want standard dates (YYYY-MM-DD)
+    layer_names <- character(length(urls))
+    for (i in seq_along(urls)) {
+      orig_url <- sub("^/vsicurl/", "", urls[i])
+      date_info <- get_date_info(orig_url, tres = strsplit(var, "-")[[1]][3])
+      layer_names[i] <- date_info$start_date
+    }
+    names(r) <- layer_names
+
+    output_paths <- character()
+
+    if (separate_files) {
+      for (i in 1:terra::nlyr(r)) {
+        # use the standardized name we just created
+        date_str <- names(r)[i] 
+        # ... or keep using get_date_info if we prefer safety, but names(r) is now consistent
+        
+        fname <- paste0(prefix, product_base, ".", date_str, ".tif")
+        out_path <- file.path(var_folder, fname)
+        
+        terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
+        output_paths <- c(output_paths, out_path)
+      }
+    } else {
+      # Single stack
+      current_filename <- filename
+      if (is.null(current_filename)) {
+        start_date <- names(r)[1]
+        end_date <- names(r)[terra::nlyr(r)]
+        
+        if (terra::nlyr(r) == 1) {
+          date_part <- start_date
+        } else {
+          date_part <- paste0(start_date, "_", end_date)
+        }
+        
+        current_filename <- paste0(prefix, product_base, ".", date_part, ".tif")
+      }
+      
+      out_path <- file.path(var_folder, current_filename)
+      terra::writeRaster(r, out_path, overwrite = TRUE)
+      output_paths <- out_path
+    }
+    
+    return(output_paths)
+  }
+
+  # Process all variables
+  results <- lapply(variable, process_single_var)
+  names(results) <- variable
+  
+  # Return just the path if it's a single variable (backward compatibility/simplicity)
+  # But structured list is better if >1 variable.
+  # User requested "processing list of variables", so list return is safer.
+  if (length(variable) == 1) {
+    return(results[[1]])
+  } else {
+    return(results)
   }
 }
