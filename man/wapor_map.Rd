@@ -10,7 +10,8 @@ wapor_map(
   period,
   folder,
   filename = NULL,
-  download_locally = FALSE
+  separate_files = FALSE,
+  unit_conversion = NULL
 )
 }
 \arguments{
@@ -32,9 +33,13 @@ convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").}
 \item{filename}{Character. Optional output filename. If NULL, a default
 name is generated based on region and variable.}
 
-\item{download_locally}{Logical. If TRUE, downloads files to local cache
-using parallel processing before reading. Useful for slow connections
-or when processing large time series. Default is FALSE.}
+\item{unit_conversion}{Character. Target temporal unit for conversion.
+One of: "none", "day", "dekad", "month", "year".
+Default is NULL, which dynamically sets the default based on variable type:
+\itemize{
+\item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
+\item "none" for others
+}}
 }
 \value{
 Character. Path to the output GeoTIFF file.
@@ -45,20 +50,17 @@ optionally crops/masks to the region boundary, and saves as a GeoTIFF file.
 }
 \details{
 The function performs the following steps:
-1
-. Generates download URLs for the specified variable and period
-2. Loads raster data (remotely or locally depending on \code{download_locally})
-3. Crops to bounding box or masks to vector geometry
-4. Writes output as a multi-band GeoTIFF (one band per time step)
-
-For parallel downloads, set up workers before calling:
-
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{future::plan(future::multisession, workers = 4)
-}\if{html}{\out{</div>}}
+\enumerate{
+\item Generates download URLs for the specified variable and period
+\item Streams raster data using GDAL virtual file system (/vsicurl/)
+\item Crops to bounding box or masks to vector geometry
+\item Converts units if requested (e.g., mm/day -> mm/dekad)
+\item Writes output as a multi-band GeoTIFF (one band per time step) or separate files
+}
 }
 \examples{
 \dontrun{
-# Download dekadal ET for a bounding box
+# Download dekadal ET for a bounding box (defaults to mm/dekad)
 output_file <- wapor_map(
   region = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
@@ -66,22 +68,13 @@ output_file <- wapor_map(
   folder = "output"
 )
 
-# Download for a shapefile region with local caching
-future::plan(future::multisession, workers = 4)
+# Download daily rates (mm/day)
 output_file <- wapor_map(
-  region = "path/to/region.shp",
-  variable = "L2-NPP-M",
-  period = c("2023-01-01", "2023-12-31"),
+  region = c(35.0, 33.0, 36.0, 34.0),
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-01-31"),
   folder = "output",
-  download_locally = TRUE
-)
-
-# Download L3 data for Awash Basin
-output_file <- wapor_map(
-  region = "AWA",
-  variable = "L3-AETI-D",
-  period = c("2023-06-01", "2023-06-30"),
-  folder = "output"
+  unit_conversion = "day"
 )
 }
 }

@@ -14,7 +14,12 @@
       "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\almut\\\\OneDrive\\\\Documents\\\\Bitbucket\\\\wapordl\\\\Rwapor && Rscript -e \"\"devtools::document\\(\\)\"\"\")",
       "Bash(cmd.exe /c:*)",
       "Bash(powershell -Command \"Set-Location ''c:\\\\Users\\\\almut\\\\OneDrive\\\\Documents\\\\Bitbucket\\\\wapordl\\\\Rwapor''; Rscript -e ''devtools::document\\(\\)''\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"testthat::test_file\\(''tests/testthat/test-plan_wapor_time_slices.R''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::test\\(filter=''plan_wapor_time_slices''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/test_seasonal_comparison.R)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::load_all\\(\\); source\\(''tests/test_seasonal_comparison.R''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/test_seasonal_partial.R)"
     ]
   }
 }

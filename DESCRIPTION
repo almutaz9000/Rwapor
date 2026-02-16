@@ -27,14 +27,11 @@ Imports:
     lubridate,
     stringr,
     exactextractr,
-    memoise,
-    furrr,
-    progressr
+    memoise
 Suggests:
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    future,
     ggplot2,
     withr
 Config/testthat/edition: 3
