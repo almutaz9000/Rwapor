@@ -2,11 +2,9 @@
 library(Rwapor)
 library(terra)
 library(sf)
-library(future)
 
 # Ensure clean slate
-Sys.unsetenv("PROJ_LIB") 
-plan(multisession)
+Sys.unsetenv("PROJ_LIB")
 
 # Test Parameters
 region <- c(35.75, 33.70, 35.82, 33.75) 

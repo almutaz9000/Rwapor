@@ -18,6 +18,8 @@
 #'   Default is NULL, which dynamically sets the default based on variable type:
 #'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
 #'   * "none" for others
+#' @param download_locally Logical. Deprecated and ignored. Data are streamed
+#'   with `/vsicurl/`. Kept for backward compatibility.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -66,13 +68,19 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, download_locally = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
   }
   if (!is.character(period) || length(period) != 2) {
     stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
+  }
+  if (!is.logical(download_locally) || length(download_locally) != 1) {
+    stop("'download_locally' must be a single logical value", call. = FALSE)
+  }
+  if (isTRUE(download_locally)) {
+    warning("'download_locally' is deprecated and ignored; data are streamed with /vsicurl/.", call. = FALSE)
   }
   
   # Determine default unit_conversion if NULL

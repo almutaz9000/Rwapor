@@ -32,7 +32,7 @@
 #'
 #' @export
 #'
-#' @importFrom terra rast crop mask writeRaster vect ext
+#' @importFrom terra rast crop mask writeRaster vect ext nlyr
 #' @importFrom sf st_transform st_bbox st_crs
 #'
 #' @examples

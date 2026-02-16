@@ -9,7 +9,7 @@ wapor_ts(
   variable,
   period,
   identifier = NULL,
-  unit_conversion = "none",
+  unit_conversion = NULL,
   download_locally = FALSE
 )
 }
@@ -31,11 +31,15 @@ convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").}
 polygons in output. If NULL, numeric IDs are used.}
 
 \item{unit_conversion}{Character. Target temporal unit for conversion.
-One of: "none" (default), "day", "dekad", "month", "year".}
+One of: "none", "day", "dekad", "month", "year".
+Default is NULL, which dynamically sets the default based on variable type:
+\itemize{
+\item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
+\item "none" for others
+}}
 
-\item{download_locally}{Logical. If TRUE, downloads files to local cache
-using parallel processing before extraction. Recommended for large
-time series. Default is FALSE.}
+\item{download_locally}{Logical. Deprecated and ignored. Data are streamed
+with \verb{/vsicurl/}. Kept for backward compatibility.}
 }
 \value{
 A data.frame with columns:
@@ -61,31 +65,24 @@ statistics (mean, min, max) for specified polygons or regions.
 \details{
 The function uses \code{exactextractr::exact_extract()} for accurate zonal
 statistics that properly handle partial pixel coverage at polygon boundaries.
-
-For parallel downloads, set up workers before calling:
-
-\if{html}{\out{<div class="sourceCode r">}}\preformatted{future::plan(future::multisession, workers = 4)
-progressr::handlers(global = TRUE)
-}\if{html}{\out{</div>}}
 }
 \examples{
 \dontrun{
 # Extract time series for a bounding box
+# For dekadal variables, defaults to mm/dekad (unit_conversion="dekad")
 df <- wapor_ts(
   region = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
   period = c("2023-01-01", "2023-03-31")
 )
 
-# Extract for polygons with unit conversion
-future::plan(future::multisession, workers = 4)
+# Extract with explicit daily units
 df <- wapor_ts(
   region = "fields.geojson",
   variable = "L1-AETI-D",
   period = c("2023-01-01", "2023-12-31"),
   identifier = "field_name",
-  unit_conversion = "month",
-  download_locally = TRUE
+  unit_conversion = "day"
 )
 
 # Check units
