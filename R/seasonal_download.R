@@ -32,7 +32,7 @@
 #'
 #' @keywords internal
 #' @noRd
-download_seasonal_rasters <- function(variable, period, l3_code, reg_info) {
+download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder) {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
 
@@ -126,7 +126,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info) {
       r <- terra::crop(r, ext)
     }
 
-    groups[[length(groups) + 1]] <- list(
+    groups[[paste0(code, "_group")]] <- list(
       code = code,
       raster = r,
       multipliers = matched_multipliers

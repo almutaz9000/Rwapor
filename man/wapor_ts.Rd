@@ -10,6 +10,7 @@ wapor_ts(
   period,
   identifier = NULL,
   unit_conversion = NULL,
+  seasonal = FALSE,
   download_locally = FALSE
 )
 }
@@ -37,6 +38,9 @@ Default is NULL, which dynamically sets the default based on variable type:
 \item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
 \item "none" for others
 }}
+
+\item{seasonal}{Logical. If \code{TRUE}, calculates a single seasonal aggregate
+(sum/mean) for each polygon over the entire period. Default is \code{FALSE}.}
 
 \item{download_locally}{Logical. Deprecated and ignored. Data are streamed
 with \verb{/vsicurl/}. Kept for backward compatibility.}

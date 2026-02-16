@@ -18,6 +18,8 @@
 #'   Default is NULL, which dynamically sets the default based on variable type:
 #'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
 #'   * "none" for others
+#' @param seasonal Logical. If `TRUE`, calculates a single seasonal aggregate
+#'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
 #'   with `/vsicurl/`. Kept for backward compatibility.
 #'
@@ -68,7 +70,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, download_locally = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -104,6 +106,91 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # Parse region
   reg_info <- parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
+
+  # --- Seasonal mode ---
+  if (seasonal) {
+    if (!is.null(unit_conversion) && unit_conversion != "none") {
+      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
+    }
+
+    # Prepare region geometry for zonal stats
+    vect_data <- NULL
+    if (reg_info$type == "vector") {
+      vect_data <- reg_info$value
+      vect_crs <- sf::st_crs(vect_data)
+      if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
+        vect_data <- sf::st_transform(vect_data, 4326)
+      }
+    }
+
+    # Determine number of zones
+    if (!is.null(vect_data)) {
+      n_zones <- nrow(vect_data)
+      zone_ids <- if (!is.null(identifier) && identifier %in% names(vect_data)) {
+        sf::st_drop_geometry(vect_data)[[identifier]]
+      } else {
+        seq_len(n_zones)
+      }
+    } else {
+      n_zones <- 1L
+      zone_ids <- 1L
+    }
+
+    # Call helper. Use tempdir for intermediate raster download.
+    temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
+    if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
+    
+    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder)
+    
+    groups <- seasonal_data$groups
+    plan <- seasonal_data$plan
+    
+    # Accumulate weighted means per zone
+    sum_values <- rep(0, n_zones)
+    
+    for (g_name in names(groups)) {
+      g <- groups[[g_name]]
+      r_group <- g$raster
+      multipliers <- g$multipliers
+      
+      for (i in seq_len(terra::nlyr(r_group))) {
+        multiplier <- multipliers[i]
+        
+        if (!is.null(vect_data)) {
+          layer_means <- exactextractr::exact_extract(
+            r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+          )
+          sum_values <- sum_values + layer_means * multiplier
+        } else {
+          global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
+          sum_values <- sum_values + global_mean * multiplier
+        }
+      }
+    }
+    
+    # Build result data.frame
+    result_df <- data.frame(
+      seasonal_sum = sum_values,
+      start_date = period[1],
+      end_date = period[2],
+      n_rasters = nrow(plan),
+      ID = zone_ids,
+      stringsAsFactors = FALSE
+    )
+
+    # Determine base unit (remove temporal component)
+    source_var_meta <- get_variable_metadata(variable)
+    if (!is.null(source_var_meta)) {
+      base_unit <- sub("/[a-z]+$", "", source_var_meta$units)
+      attr(result_df, "units") <- base_unit
+      attr(result_df, "long_name") <- source_var_meta$long_name
+    } else {
+      attr(result_df, "units") <- "unknown"
+    }
+    attr(result_df, "plan") <- plan
+
+    return(result_df)
+  }
 
   # Get URLs
   urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)

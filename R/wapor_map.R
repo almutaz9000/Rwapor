@@ -19,6 +19,9 @@
 #'   Default is NULL, which dynamically sets the default based on variable type:
 #'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
 #'   * "none" for others
+#' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
+#'   entire period into a single seasonal raster (sum/mean).
+#'   Default is `FALSE`.
 #'
 #' @return Character. Path to the output GeoTIFF file.
 #'
@@ -54,7 +57,7 @@
 #'   unit_conversion = "day"
 #' )
 #' }
-wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL) {
+wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -74,6 +77,76 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
   # Parse region once
   reg_info <- parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
+
+  # --- Seasonal mode ---
+  if (seasonal) {
+    if (length(variable) != 1) {
+      stop("'seasonal' mode supports only a single variable", call. = FALSE)
+    }
+    if (!is.null(unit_conversion) && unit_conversion != "none") {
+      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
+    }
+
+    # Call internal helper to download and organize rasters
+    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, folder)
+    
+    groups <- seasonal_data$groups
+    base_var <- seasonal_data$base_var
+    
+    if (length(groups) == 0) {
+      stop("No rasters could be loaded for the seasonal sum.", call. = FALSE)
+    }
+    
+    weighted_layers <- list()
+    ref_raster <- NULL
+    
+    # Process each group (Apply multipliers and mask if needed)
+    for (g_name in names(groups)) {
+      g <- groups[[g_name]]
+      r_group <- g$raster
+      multipliers <- g$multipliers
+      
+      # wapor_map specific: Apply MASK if vector
+      if (reg_info$type == "vector") {
+        # Helper only cropped. Now we mask.
+        v <- terra::vect(reg_info$value)
+        r_group <- terra::mask(r_group, v)
+      }
+      
+      for (i in seq_len(terra::nlyr(r_group))) {
+        layer <- r_group[[i]] * multipliers[i]
+        
+        if (is.null(ref_raster)) {
+          ref_raster <- layer
+        } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
+          message("Resampling raster to align grids across temporal resolutions...")
+          layer <- terra::resample(layer, ref_raster, method = "bilinear")
+        }
+        
+        weighted_layers <- c(weighted_layers, list(layer))
+      }
+    }
+    
+    # Stack all weighted layers and sum
+    full_stack <- terra::rast(weighted_layers)
+    seasonal_sum <- terra::app(full_stack, sum, na.rm = TRUE)
+    
+    names(seasonal_sum) <- paste0("seasonal_", period[1], "_", period[2])
+    
+    # Build output filename
+    if (is.null(filename)) {
+      prefix <- if (reg_info$type == "bbox") "bb_" else ""
+      filename <- sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif",
+                          prefix, variable, period[1], period[2])
+    }
+    
+    var_folder <- file.path(folder, variable) # Helper ensures this exists
+    out_path <- file.path(var_folder, filename)
+    terra::writeRaster(seasonal_sum, out_path, overwrite = TRUE)
+    message(sprintf("Seasonal sum saved to: %s", out_path))
+    
+    return(out_path)
+  }
 
   # Helper function to process a single variable
   process_single_var <- function(var) {
