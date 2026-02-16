@@ -11,7 +11,8 @@ wapor_map(
   folder,
   filename = NULL,
   separate_files = FALSE,
-  unit_conversion = NULL
+  unit_conversion = NULL,
+  seasonal = FALSE
 )
 }
 \arguments{
@@ -40,6 +41,10 @@ Default is NULL, which dynamically sets the default based on variable type:
 \item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
 \item "none" for others
 }}
+
+\item{seasonal}{Logical. If \code{TRUE}, downloads and aggregates data for the
+entire period into a single seasonal raster (sum/mean).
+Default is \code{FALSE}.}
 }
 \value{
 Character. Path to the output GeoTIFF file.
