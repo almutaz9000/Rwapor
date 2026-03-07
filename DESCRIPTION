@@ -27,7 +27,9 @@ Imports:
     lubridate,
     stringr,
     exactextractr,
-    memoise
+    memoise,
+    future.apply,
+    progress
 Suggests:
     testthat (>= 3.0.0),
     knitr,
