@@ -22,6 +22,8 @@
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
+#'   Default is `FALSE`.
 #'
 #' @return Character. Path to the output GeoTIFF file.
 #'
@@ -58,7 +60,7 @@
 #'   unit_conversion = "day"
 #' )
 #' }
-wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE) {
+wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE, parallel = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -110,8 +112,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       # wapor_map specific: Apply MASK if vector
       if (reg_info$type == "vector") {
         # Helper only cropped. Now we mask.
-        v <- terra::vect(reg_info$value)
-        r_group <- terra::mask(r_group, v)
+        v <- suppressWarnings(terra::vect(reg_info$value))
+        r_group <- suppressWarnings(terra::mask(r_group, v))
       }
       
       for (i in seq_len(terra::nlyr(r_group))) {
@@ -143,7 +145,7 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     
     var_folder <- file.path(folder, variable) # Helper ensures this exists
     out_path <- file.path(var_folder, filename)
-    terra::writeRaster(seasonal_sum, out_path, overwrite = TRUE)
+    suppressWarnings(terra::writeRaster(seasonal_sum, out_path, overwrite = TRUE))
     message(sprintf("Seasonal sum saved to: %s", out_path))
     
     return(out_path)
@@ -198,7 +200,7 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     max_retries <- 3
     for (attempt in seq_len(max_retries)) {
       r <- tryCatch({
-        terra::rast(urls)
+        suppressWarnings(terra::rast(urls))
       }, error = function(e) {
         if (attempt < max_retries) {
           message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
@@ -223,12 +225,12 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
         vect <- sf::st_transform(vect, 4326)
       }
-      v <- terra::vect(vect)
-      r <- terra::crop(r, v)
-      r <- terra::mask(r, v)
+      v <- suppressWarnings(terra::vect(vect))
+      r <- suppressWarnings(terra::crop(r, v))
+      r <- suppressWarnings(terra::mask(r, v))
     } else if (reg_info$type == "bbox") {
       ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      r <- terra::crop(r, ext)
+      r <- suppressWarnings(terra::crop(r, ext))
     }
 
     # Unit Conversion
@@ -251,16 +253,30 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     output_paths <- character()
 
     if (separate_files) {
-      output_paths <- future.apply::future_lapply(seq_len(terra::nlyr(r)), function(i) {
-        # use the standardized name we just created
-        date_str <- names(r)[i] 
-        
-        fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-        out_path <- file.path(var_folder, fname)
-        
-        terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-        return(out_path)
-      }, future.seed = TRUE)
+      if (parallel) {
+        w_r <- terra::wrap(r)
+        output_paths <- future.apply::future_lapply(seq_len(terra::nlyr(r)), function(i) {
+          # use the standardized name we just created
+          r_worker <- terra::unwrap(w_r)
+          date_str <- names(r_worker)[i] 
+          
+          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
+          out_path <- file.path(var_folder, fname)
+          
+          suppressWarnings(terra::writeRaster(r_worker[[i]], out_path, overwrite = TRUE))
+          return(out_path)
+        }, future.seed = TRUE)
+      } else {
+        output_paths <- lapply(seq_len(terra::nlyr(r)), function(i) {
+          date_str <- names(r)[i] 
+          
+          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
+          out_path <- file.path(var_folder, fname)
+          
+          suppressWarnings(terra::writeRaster(r[[i]], out_path, overwrite = TRUE))
+          return(out_path)
+        })
+      }
       
       output_paths <- unlist(output_paths)
     } else {
@@ -280,7 +296,7 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
       
       out_path <- file.path(var_folder, current_filename)
-      terra::writeRaster(r, out_path, overwrite = TRUE)
+      suppressWarnings(terra::writeRaster(r, out_path, overwrite = TRUE))
       output_paths <- out_path
     }
     

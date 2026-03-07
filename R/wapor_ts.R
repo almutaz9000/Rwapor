@@ -22,6 +22,8 @@
 #'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
 #'   with `/vsicurl/`. Kept for backward compatibility.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
+#'   Default is `FALSE`.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -71,7 +73,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -154,20 +156,38 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       r_group <- g$raster
       multipliers <- g$multipliers
       
-      # Process each raster layer in this group in parallel
-      layer_sums <- future.apply::future_lapply(seq_len(terra::nlyr(r_group)), function(i) {
-        multiplier <- multipliers[i]
-        
-        if (!is.null(vect_data)) {
-          layer_means <- exactextractr::exact_extract(
-            r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-          )
-          return(layer_means * multiplier)
-        } else {
-          global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
-          return(global_mean * multiplier)
-        }
-      }, future.seed = TRUE)
+      # Process each raster layer in this group
+      if (parallel) {
+        w_r_group <- terra::wrap(r_group)
+        layer_sums <- future.apply::future_lapply(seq_len(terra::nlyr(r_group)), function(i) {
+          r_group_worker <- terra::unwrap(w_r_group)
+          multiplier <- multipliers[i]
+          
+          if (!is.null(vect_data)) {
+            layer_means <- exactextractr::exact_extract(
+              r_group_worker[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+            )
+            return(layer_means * multiplier)
+          } else {
+            global_mean <- terra::global(r_group_worker[[i]], fun = "mean", na.rm = TRUE)$mean
+            return(global_mean * multiplier)
+          }
+        }, future.seed = TRUE)
+      } else {
+        layer_sums <- lapply(seq_len(terra::nlyr(r_group)), function(i) {
+          multiplier <- multipliers[i]
+          
+          if (!is.null(vect_data)) {
+            layer_means <- exactextractr::exact_extract(
+              r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+            )
+            return(layer_means * multiplier)
+          } else {
+            global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
+            return(global_mean * multiplier)
+          }
+        })
+      }
       
       # Sum the parallel results into the main aggregator
       for (ls in layer_sums) {
@@ -216,7 +236,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   max_retries <- 3
   for (attempt in seq_len(max_retries)) {
     r <- tryCatch({
-      terra::rast(urls)
+      suppressWarnings(terra::rast(urls))
     }, error = function(e) {
       if (attempt < max_retries) {
         message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
@@ -238,11 +258,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
       vect <- sf::st_transform(vect, 4326)
     }
-    v <- terra::vect(vect)
-    r <- terra::crop(r, v)
+    v <- suppressWarnings(terra::vect(vect))
+    r <- suppressWarnings(terra::crop(r, v))
   } else if (reg_info$type == "bbox") {
     ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- terra::crop(r, ext)
+    r <- suppressWarnings(terra::crop(r, ext))
   }
 
   # Extract temporal resolution from variable name
@@ -280,8 +300,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       seq_len(n_poly)
     }
 
-    # Parallel processing of raster layers using future.apply
-    out_list <- future.apply::future_lapply(seq_len(n_lyr), function(i) {
+    # Optional parallel processing of raster layers using future.apply
+    apply_fn <- if (parallel) function(X, FUN) future.apply::future_lapply(X, FUN, future.seed = TRUE) else lapply
+    out_list <- apply_fn(seq_len(n_lyr), function(i) {
       lyr_name <- paste0("L", i)
 
       # Handle different column naming conventions from exactextractr
@@ -324,7 +345,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
       combined <- cbind(sub_df, m_rep)
       return(combined)
-    }, future.seed = TRUE)
+    })
 
     results <- do.call(rbind, out_list)
   } else {

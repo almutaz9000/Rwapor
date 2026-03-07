@@ -11,7 +11,8 @@ wapor_ts(
   identifier = NULL,
   unit_conversion = NULL,
   seasonal = FALSE,
-  download_locally = FALSE
+  download_locally = FALSE,
+  parallel = FALSE
 )
 }
 \arguments{
@@ -44,6 +45,9 @@ Default is NULL, which dynamically sets the default based on variable type:
 
 \item{download_locally}{Logical. Deprecated and ignored. Data are streamed
 with \verb{/vsicurl/}. Kept for backward compatibility.}
+
+\item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
+Default is \code{FALSE}.}
 }
 \value{
 A data.frame with columns:
