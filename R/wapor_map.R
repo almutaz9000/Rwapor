@@ -37,6 +37,7 @@
 #'
 #' @importFrom terra rast crop mask writeRaster vect ext nlyr
 #' @importFrom sf st_transform st_bbox st_crs
+#' @import future.apply
 #'
 #' @examples
 #' \dontrun{
@@ -192,13 +193,26 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     # Use GDAL virtual file system
     urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
     
-    # Load as SpatRaster
-    r <- tryCatch({
-      terra::rast(urls)
-    }, error = function(e) {
-      warning(sprintf("Failed to load raster data for %s: %s", var, e$message), call. = FALSE)
-      return(NULL)
-    })
+    # Load as SpatRaster with retry logic for intermittent /vsicurl/ errors
+    r <- NULL
+    max_retries <- 3
+    for (attempt in seq_len(max_retries)) {
+      r <- tryCatch({
+        terra::rast(urls)
+      }, error = function(e) {
+        if (attempt < max_retries) {
+          message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
+                          attempt, attempt * 2, e$message))
+          Sys.sleep(attempt * 2)
+          return(NULL)
+        } else {
+          warning(sprintf("Failed to load raster data for %s after %d attempts: %s", 
+                          var, max_retries, e$message), call. = FALSE)
+          return(NULL)
+        }
+      })
+      if (!is.null(r)) break
+    }
     
     if (is.null(r)) return(NULL)
 
@@ -237,17 +251,18 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     output_paths <- character()
 
     if (separate_files) {
-      for (i in 1:terra::nlyr(r)) {
+      output_paths <- future.apply::future_lapply(seq_len(terra::nlyr(r)), function(i) {
         # use the standardized name we just created
         date_str <- names(r)[i] 
-        # ... or keep using get_date_info if we prefer safety, but names(r) is now consistent
         
         fname <- paste0(prefix, product_base, ".", date_str, ".tif")
         out_path <- file.path(var_folder, fname)
         
         terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-        output_paths <- c(output_paths, out_path)
-      }
+        return(out_path)
+      }, future.seed = TRUE)
+      
+      output_paths <- unlist(output_paths)
     } else {
       # Single stack
       current_filename <- filename

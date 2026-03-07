@@ -46,6 +46,7 @@
 #' @importFrom purrr map_dfr
 #' @importFrom sf st_drop_geometry st_crs st_transform st_as_sf
 #' @importFrom exactextractr exact_extract
+#' @import future.apply
 #'
 #' @examples
 #' \dontrun{
@@ -153,18 +154,24 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       r_group <- g$raster
       multipliers <- g$multipliers
       
-      for (i in seq_len(terra::nlyr(r_group))) {
+      # Process each raster layer in this group in parallel
+      layer_sums <- future.apply::future_lapply(seq_len(terra::nlyr(r_group)), function(i) {
         multiplier <- multipliers[i]
         
         if (!is.null(vect_data)) {
           layer_means <- exactextractr::exact_extract(
             r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
           )
-          sum_values <- sum_values + layer_means * multiplier
+          return(layer_means * multiplier)
         } else {
           global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
-          sum_values <- sum_values + global_mean * multiplier
+          return(global_mean * multiplier)
         }
+      }, future.seed = TRUE)
+      
+      # Sum the parallel results into the main aggregator
+      for (ls in layer_sums) {
+        sum_values <- sum_values + ls
       }
     }
     
@@ -204,12 +211,24 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
   message(sprintf("Found %d files. Processing...", length(urls)))
 
-  # Load raster stack
-  r <- tryCatch({
-    terra::rast(urls)
-  }, error = function(e) {
-    stop(sprintf("Failed to load raster data: %s", e$message), call. = FALSE)
-  })
+  # Load raster stack with retry logic for intermittent /vsicurl/ errors
+  r <- NULL
+  max_retries <- 3
+  for (attempt in seq_len(max_retries)) {
+    r <- tryCatch({
+      terra::rast(urls)
+    }, error = function(e) {
+      if (attempt < max_retries) {
+        message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
+                        attempt, attempt * 2, e$message))
+        Sys.sleep(attempt * 2)
+        return(NULL)
+      } else {
+        stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
+      }
+    })
+    if (!is.null(r)) break
+  }
 
   # Crop based on region type
   vect <- NULL
@@ -261,9 +280,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       seq_len(n_poly)
     }
 
-    out_list <- list()
-
-    for (i in seq_len(n_lyr)) {
+    # Parallel processing of raster layers using future.apply
+    out_list <- future.apply::future_lapply(seq_len(n_lyr), function(i) {
       lyr_name <- paste0("L", i)
 
       # Handle different column naming conventions from exactextractr
@@ -305,8 +323,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       m_rep <- m[rep(1, nrow(sub_df)), ]
 
       combined <- cbind(sub_df, m_rep)
-      out_list[[i]] <- combined
-    }
+      return(combined)
+    }, future.seed = TRUE)
 
     results <- do.call(rbind, out_list)
   } else {
