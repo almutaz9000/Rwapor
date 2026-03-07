@@ -223,31 +223,23 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       r <- raster_unit_convertor(r, var, urls, current_unit_conv)
     }
 
-    # Standardize Layer Names (Band Names)
-    # terra uses source filenames by default (e.g. ...2021-01-D1)
-    # We want standard dates (YYYY-MM-DD)
-    layer_names <- character(length(urls))
-    for (i in seq_along(urls)) {
-      orig_url <- sub("^/vsicurl/", "", urls[i])
-      date_info <- get_date_info(orig_url, tres = strsplit(var, "-")[[1]][3])
-      layer_names[i] <- date_info$start_date
-    }
+    # Standardize layer names to "YYYY-MM-DD" (terra uses raw filenames by default).
+    # Compute the temporal resolution code once outside the loop.
+    tres_code <- strsplit(var, "-")[[1]][3]
+    layer_names <- vapply(urls, function(u) {
+      get_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
+    }, character(1))
     names(r) <- layer_names
 
-    output_paths <- character()
-
     if (separate_files) {
-      for (i in 1:terra::nlyr(r)) {
-        # use the standardized name we just created
-        date_str <- names(r)[i] 
-        # ... or keep using get_date_info if we prefer safety, but names(r) is now consistent
-        
-        fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-        out_path <- file.path(var_folder, fname)
-        
+      # Pre-allocate output_paths via vapply (avoids O(n²) vector growth from
+      # repeated c() calls in a loop).
+      output_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
+        out_path <- file.path(var_folder,
+                              paste0(prefix, product_base, ".", names(r)[i], ".tif"))
         terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-        output_paths <- c(output_paths, out_path)
-      }
+        out_path
+      }, character(1))
     } else {
       # Single stack
       current_filename <- filename

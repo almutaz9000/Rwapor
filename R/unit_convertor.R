@@ -205,24 +205,23 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
     stop(sprintf("Unknown temporal resolution code: %s", tres), call. = FALSE)
   )
 
-  # Apply conversion to each layer
-  for (i in seq_len(terra::nlyr(r))) {
-    url <- urls[i]
-    date_info <- get_date_info(url, tres)
+  # Compute all per-layer conversion factors up front (one date parse per URL,
+  # no repeated raster reads). terra broadcasts a numeric vector of length
+  # nlyr(r) element-wise across layers, so the multiplication below triggers
+  # a single read pass instead of nlyr separate passes.
+  date_infos <- lapply(urls, function(u) get_date_info(u, tres))
 
-    days_in_current_month <- lubridate::days_in_month(lubridate::ymd(date_info$start_date))
-    num_days <- date_info$number_of_days
-
-    factor <- calculate_conversion_factor(
+  factors <- vapply(date_infos, function(di) {
+    calculate_conversion_factor(
       source_time,
       unit_conversion,
-      num_days,
-      days_in_current_month
+      di$number_of_days,
+      lubridate::days_in_month(lubridate::ymd(di$start_date))
     )
+  }, numeric(1))
 
-    if (factor != 1) {
-      r[[i]] <- r[[i]] * factor
-    }
+  if (any(factors != 1)) {
+    r <- r * factors
   }
 
   return(r)
