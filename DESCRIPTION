@@ -19,17 +19,14 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 Imports:
     httr2,
-    jsonlite,
     terra,
     sf,
     dplyr,
     purrr,
     lubridate,
-    stringr,
     exactextractr,
     memoise,
-    future.apply,
-    progress
+    future.apply
 Suggests:
     testthat (>= 3.0.0),
     knitr,

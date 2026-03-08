@@ -432,3 +432,42 @@ guess_l3_region <- function(variable, reg_info, period) {
   
   return(NULL)
 }
+
+
+#' Crop (and Optionally Mask) a Raster to a Parsed Region
+#'
+#' Internal helper that handles CRS alignment, cropping, and optional masking
+#' for vector or bounding-box regions. Eliminates duplicated crop/mask logic
+#' across wapor_map, wapor_ts, and seasonal_download.
+#'
+#' @param r SpatRaster to crop.
+#' @param reg_info List from \code{parse_region()} with \code{$type} and \code{$value}.
+#' @param do_mask Logical. If TRUE, also mask to vector geometry (not just crop).
+#' @return Cropped (and optionally masked) SpatRaster.
+#' @keywords internal
+#' @noRd
+crop_to_region <- function(r, reg_info, do_mask = FALSE) {
+  if (reg_info$type == "vector") {
+    vect_data <- reg_info$value
+    vect_crs <- sf::st_crs(vect_data)
+    if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
+      vect_data <- sf::st_transform(vect_data, 4326)
+    }
+    v <- suppressWarnings(terra::vect(vect_data))
+    if (terra::crs(v) != terra::crs(r)) {
+      v <- safe_project(v, terra::crs(r))
+    }
+    r <- suppressWarnings(terra::crop(r, v))
+    if (do_mask) {
+      r <- suppressWarnings(terra::mask(r, v))
+    }
+  } else if (reg_info$type == "bbox") {
+    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
+    bb_poly <- terra::as.polygons(ext, crs = "EPSG:4326")
+    if (terra::crs(bb_poly) != terra::crs(r)) {
+      bb_poly <- safe_project(bb_poly, terra::crs(r))
+    }
+    r <- suppressWarnings(terra::crop(r, bb_poly))
+  }
+  r
+}

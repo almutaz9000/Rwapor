@@ -48,7 +48,7 @@
 #' @importFrom purrr map_dfr
 #' @importFrom sf st_drop_geometry st_crs st_transform st_as_sf
 #' @importFrom exactextractr exact_extract
-#' @import future.apply
+#' @importFrom future.apply future_lapply
 #'
 #' @examples
 #' \dontrun{
@@ -243,6 +243,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   message(sprintf("Found %d files. Processing...", length(urls)))
 
   # Load raster stack with retry logic for intermittent /vsicurl/ errors
+  t0_ts <- proc.time()
   r <- NULL
   max_retries <- 3
   for (attempt in seq_len(max_retries)) {
@@ -261,27 +262,10 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.null(r)) break
   }
 
-  # Crop based on region type
-  vect <- NULL
-  if (reg_info$type == "vector") {
-    vect <- reg_info$value
-    vect_crs <- sf::st_crs(vect)
-    if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
-      vect <- sf::st_transform(vect, 4326)
-    }
-    v <- suppressWarnings(terra::vect(vect))
-    if (terra::crs(v) != terra::crs(r)) {
-       v <- safe_project(v, terra::crs(r))
-    }
-    r <- suppressWarnings(terra::crop(r, v))
-  } else if (reg_info$type == "bbox") {
-    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
-    if (terra::crs(bb_poly) != terra::crs(r)) {
-       bb_poly <- safe_project(bb_poly, terra::crs(r))
-    }
-    r <- suppressWarnings(terra::crop(r, bb_poly))
-  }
+  # Crop based on region type (wapor_ts does not mask — exactextractr handles that)
+  vect <- if (reg_info$type == "vector") reg_info$value else NULL
+  r <- crop_to_region(r, reg_info, do_mask = FALSE)
+  message(sprintf("Raster loaded and cropped in %.1f seconds (%d layers)", (proc.time() - t0_ts)[["elapsed"]], terra::nlyr(r)))
 
   # Extract temporal resolution from variable name
   parts <- strsplit(variable, "-")[[1]]
@@ -393,5 +377,6 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # Apply unit conversion
   final_df <- df_unit_convertor(final_df, unit_conversion)
 
+  message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

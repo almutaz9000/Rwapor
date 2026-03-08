@@ -74,23 +74,26 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
       get_date_info(u, tres = code)$start_date
     }, character(1))
 
-    # Match plan rows to URLs and compute multipliers
-    matched_urls <- character(0)
-    matched_multipliers <- numeric(0)
+    # Match plan rows to URLs and compute multipliers (pre-allocated)
+    n_rows <- nrow(code_rows)
+    matched_urls <- character(n_rows)
+    matched_multipliers <- numeric(n_rows)
+    match_count <- 0L
 
-    for (i in seq_len(nrow(code_rows))) {
+    for (i in seq_len(n_rows)) {
       row <- code_rows[i, ]
       target_start <- format(row$slice_start, "%Y-%m-%d")
       idx <- which(url_start_dates == target_start)
 
       if (length(idx) >= 1) {
-        matched_urls <- c(matched_urls, urls[idx[1]])
+        match_count <- match_count + 1L
+        matched_urls[match_count] <- urls[idx[1]]
         # D and E rasters are daily rates: multiply by overlap_days to get total
         # M and A rasters are period totals: multiply by weight to prorate
         if (code %in% c("D", "E")) {
-          matched_multipliers <- c(matched_multipliers, row$overlap_days)
+          matched_multipliers[match_count] <- row$overlap_days
         } else {
-          matched_multipliers <- c(matched_multipliers, row$weight)
+          matched_multipliers[match_count] <- row$weight
         }
       } else {
         warning(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id),
@@ -98,9 +101,12 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
       }
     }
 
-    if (length(matched_urls) == 0) next
+    if (match_count == 0L) next
+    matched_urls <- matched_urls[seq_len(match_count)]
+    matched_multipliers <- matched_multipliers[seq_len(match_count)]
 
     # Load rasters via vsicurl
+    t_code <- proc.time()
     vsicurl_urls <- paste0("/vsicurl/", matched_urls)
     r <- tryCatch({
       terra::rast(vsicurl_urls)
@@ -113,25 +119,9 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     if (is.null(r)) next
 
     # Crop to region (crop only — wapor_map applies mask separately)
-    if (reg_info$type == "vector") {
-      vect_data <- reg_info$value
-      vect_crs <- sf::st_crs(vect_data)
-      if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
-        vect_data <- sf::st_transform(vect_data, 4326)
-      }
-      v <- suppressWarnings(terra::vect(vect_data))
-      if (terra::crs(v) != terra::crs(r)) {
-         v <- safe_project(v, terra::crs(r))
-      }
-      r <- suppressWarnings(terra::crop(r, v))
-    } else if (reg_info$type == "bbox") {
-      ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
-      if (terra::crs(bb_poly) != terra::crs(r)) {
-         bb_poly <- safe_project(bb_poly, terra::crs(r))
-      }
-      r <- suppressWarnings(terra::crop(r, bb_poly))
-    }
+    r <- crop_to_region(r, reg_info, do_mask = FALSE)
+    message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
+                    var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))
 
     groups[[paste0(code, "_group")]] <- list(
       code = code,

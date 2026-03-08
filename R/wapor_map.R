@@ -37,9 +37,9 @@
 #'
 #' @export
 #'
-#' @importFrom terra rast crop mask writeRaster vect ext nlyr
+#' @importFrom terra rast crop mask writeRaster vect ext nlyr subst app
 #' @importFrom sf st_transform st_bbox st_crs
-#' @import future.apply
+#' @importFrom future.apply future_lapply
 #'
 #' @examples
 #' \dontrun{
@@ -101,49 +101,57 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     }
 
     # Call internal helper to download and organize rasters
+    t0_seasonal <- proc.time()
     seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder)
     
     groups <- seasonal_data$groups
-    base_var <- seasonal_data$base_var
-    
+    message(sprintf("Seasonal rasters downloaded in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
+
     if (length(groups) == 0) {
       stop("No rasters could be loaded for the seasonal sum.", call. = FALSE)
     }
     
-    weighted_layers <- list()
+    # Pre-allocate layer list
+    total_layers <- sum(vapply(groups, function(g) terra::nlyr(g$raster), integer(1)))
+    weighted_layers <- vector("list", total_layers)
+    layer_idx <- 0L
     ref_raster <- NULL
-    
+
     # Process each group (Apply multipliers and mask if needed)
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
       r_group <- g$raster
       multipliers <- g$multipliers
-      
+
       # wapor_map specific: Apply MASK if vector
       if (reg_info$type == "vector") {
-        # Helper only cropped. Now we mask.
         v <- suppressWarnings(terra::vect(reg_info$value))
         r_group <- suppressWarnings(terra::mask(r_group, v))
       }
-      
+
       for (i in seq_len(terra::nlyr(r_group))) {
-        layer_clean <- terra::classify(r_group[[i]], cbind(NaN, NA))
+        layer_clean <- terra::subst(r_group[[i]], NaN, NA)
         layer <- layer_clean * multipliers[i]
-        
+
         if (is.null(ref_raster)) {
           ref_raster <- layer
         } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
           message("Resampling raster to align grids across temporal resolutions...")
           layer <- terra::resample(layer, ref_raster, method = "bilinear")
         }
-        
-        weighted_layers <- c(weighted_layers, list(layer))
+
+        layer_idx <- layer_idx + 1L
+        weighted_layers[[layer_idx]] <- layer
       }
     }
     
     # Stack all weighted layers and sum
     full_stack <- terra::rast(weighted_layers)
     seasonal_sum <- terra::app(full_stack, sum, na.rm = TRUE)
+
+    # Mask out cells where ALL layers were NA (sum with na.rm=TRUE returns 0 for these)
+    all_na_mask <- terra::app(full_stack, function(x) all(is.na(x)))
+    seasonal_sum <- terra::mask(seasonal_sum, all_na_mask, maskvalue = 1)
     
     names(seasonal_sum) <- paste0("seasonal_", period[1], "_", period[2])
     
@@ -162,12 +170,14 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     seasonal_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
     suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
     message(sprintf("Seasonal sum saved to: %s", out_path))
-    
+    message(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
+
     return(out_path)
   }
 
   # Helper function to process a single variable
   process_single_var <- function(var) {
+    t0_var <- proc.time()
     message(sprintf("Processing variable: %s", var))
     
     # Create variable-specific subdirectory
@@ -246,28 +256,10 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     }
     
     if (is.null(r)) return(NULL)
+    message(sprintf("  Raster loaded in %.1f seconds (%d layers)", (proc.time() - t0_var)[["elapsed"]], terra::nlyr(r)))
 
     # Crop/Mask
-    if (reg_info$type == "vector") {
-      vect <- reg_info$value
-      vect_crs <- sf::st_crs(vect)
-      if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
-        vect <- sf::st_transform(vect, 4326)
-      }
-      v <- suppressWarnings(terra::vect(vect))
-      if (terra::crs(v) != terra::crs(r)) {
-         v <- safe_project(v, terra::crs(r))
-      }
-      r <- suppressWarnings(terra::crop(r, v))
-      r <- suppressWarnings(terra::mask(r, v))
-    } else if (reg_info$type == "bbox") {
-      ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
-      if (terra::crs(bb_poly) != terra::crs(r)) {
-         bb_poly <- safe_project(bb_poly, terra::crs(r))
-      }
-      r <- suppressWarnings(terra::crop(r, bb_poly))
-    }
+    r <- crop_to_region(r, reg_info, do_mask = TRUE)
 
     # Unit Conversion
     if (current_unit_conv != "none") {
@@ -342,6 +334,7 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       output_paths <- out_path
     }
     
+    message(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
     return(output_paths)
   }
 
