@@ -90,8 +90,18 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
 
+    current_l3_code <- l3_code
+    if (is.null(current_l3_code) && grepl("^L3-", variable[1])) {
+       guessed_codes <- guess_l3_region(variable[1], reg_info, period)
+       if (is.null(guessed_codes)) stop(sprintf("Region does not intersect with any available WaPOR L3 data for %s.", variable[1]), call. = FALSE)
+       current_l3_code <- guessed_codes[1]
+       if (length(guessed_codes) > 1) {
+           warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s.", paste(guessed_codes, collapse=", "), current_l3_code), call. = FALSE)
+       }
+    }
+
     # Call internal helper to download and organize rasters
-    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, folder)
+    seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder)
     
     groups <- seasonal_data$groups
     base_var <- seasonal_data$base_var
@@ -172,8 +182,22 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
     }
 
+    current_l3_code <- l3_code
+    if (is.null(current_l3_code) && grepl("^L3-", var)) {
+        guessed_codes <- guess_l3_region(var, reg_info, period)
+        if (is.null(guessed_codes)) {
+            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
+            return(NULL)
+        }
+        current_l3_code <- guessed_codes[1]
+        if (length(guessed_codes) > 1) {
+            warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s for %s.", 
+                            paste(guessed_codes, collapse=", "), current_l3_code, var), call. = FALSE)
+        }
+    }
+
     # Get URLs
-    urls <- wapor_generate_urls(var, l3_region = l3_code, period = period)
+    urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
     message(sprintf("Found %d files for %s.", length(urls), var))
 
     if (length(urls) == 0) {
@@ -226,11 +250,18 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
         vect <- sf::st_transform(vect, 4326)
       }
       v <- suppressWarnings(terra::vect(vect))
+      if (terra::crs(v) != terra::crs(r)) {
+         v <- safe_project(v, terra::crs(r))
+      }
       r <- suppressWarnings(terra::crop(r, v))
       r <- suppressWarnings(terra::mask(r, v))
     } else if (reg_info$type == "bbox") {
       ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      r <- suppressWarnings(terra::crop(r, ext))
+      bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
+      if (terra::crs(bb_poly) != terra::crs(r)) {
+         bb_poly <- safe_project(bb_poly, terra::crs(r))
+      }
+      r <- suppressWarnings(terra::crop(r, bb_poly))
     }
 
     # Unit Conversion
