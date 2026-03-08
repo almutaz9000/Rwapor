@@ -21,7 +21,8 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::load_all\\(\\); source\\(''tests/test_seasonal_comparison.R''\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/test_seasonal_partial.R)",
       "Bash(wc:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "WebFetch(domain:data.apps.fao.org)"
     ]
   }
 }

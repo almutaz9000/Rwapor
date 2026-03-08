@@ -36,7 +36,7 @@ run_dashboard <- function(display.mode = "normal", launch.browser = interactive(
   }
   
   # Ensure required suggest packages are available
-  required_pkgs <- c("shiny", "leaflet")
+  required_pkgs <- c("shiny", "leaflet", "bslib")
   missing_pkgs <- required_pkgs[!vapply(required_pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
   if (!requireNamespace("shinyFiles", quietly = TRUE)) {
     missing_pkgs <- c(missing_pkgs, "shinyFiles")

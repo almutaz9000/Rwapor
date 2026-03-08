@@ -152,11 +152,8 @@ wapor_map <- function(
       r_group <- g$raster
       multipliers <- g$multipliers
 
-      # wapor_map specific: Apply MASK if vector
-      if (reg_info$type == "vector") {
-        v <- suppressWarnings(terra::vect(reg_info$value))
-        r_group <- suppressWarnings(terra::mask(r_group, v))
-      }
+      # Rasters are cropped to bbox extent (no polygon masking)
+      # so full rectangular extent is preserved for visualization
 
       for (i in seq_len(terra::nlyr(r_group))) {
         layer_clean <- terra::subst(r_group[[i]], NaN, NA)
@@ -315,8 +312,8 @@ wapor_map <- function(
       
       if (is.null(r)) return(NULL)
 
-      # Crop/Mask
-      r <- crop_to_region(r, reg_info, do_mask = TRUE)
+      # Crop to bounding box (no mask) so full rectangular extent is preserved
+      r <- crop_to_region(r, reg_info, do_mask = FALSE)
 
       # Unit Conversion
       if (current_unit_conv != "none") {

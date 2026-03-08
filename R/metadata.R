@@ -1,8 +1,8 @@
 #' WaPOR v3 Variable Metadata
 #'
 #' A named list containing metadata for WaPOR version 3 variables including
-#' Level 1 (L1) and Level 2 (L2) products. Each entry contains the variable's
-#' long name, measurement units, and scale factor.
+#' Level 1 (L1), Level 2 (L2), and Level 3 (L3) products. Each entry contains
+#' the variable's long name, measurement units, and scale factor.
 #'
 #' @format A named list where each element is a list with:
 #' \describe{
@@ -17,6 +17,7 @@
 #' **Levels:**
 #' * L1: Continental scale (~250m resolution for Africa and Near East)
 #' * L2: Country/regional scale (~100m resolution)
+#' * L3: Sub-national / irrigation scheme scale (~10-20m resolution)
 #'
 #' **Temporal Resolutions:**
 #' * A: Annual
@@ -31,11 +32,15 @@
 #' # List all available variables
 #' names(WAPOR3_VARS)
 #'
-#' @seealso [AGERA5_VARS] for climate variables, [get_variable_metadata()] for
-#'   dynamic metadata fetching
+#' # List L3 variables only
+#' grep("^L3-", names(WAPOR3_VARS), value = TRUE)
+#'
+#' @seealso [AGERA5_VARS] for climate variables, [L3_REGIONS] for L3 region
+#'   codes, [get_variable_metadata()] for dynamic metadata fetching
 #'
 #' @export
 WAPOR3_VARS <- list(
+  # ---- Level 1 (L1) - Continental scale (~250m) ----------------------------
   "L1-AETI-A" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/year", scale = 0.1),
   "L1-AETI-D" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/day", scale = 0.1),
   "L1-AETI-M" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/month", scale = 0.1),
@@ -51,6 +56,8 @@ WAPOR3_VARS <- list(
   "L1-PCP-D" = list(long_name = "Precipitation", units = "mm/day", scale = 0.1),
   "L1-PCP-E" = list(long_name = "Precipitation", units = "mm/day", scale = 0.1),
   "L1-PCP-M" = list(long_name = "Precipitation", units = "mm/month", scale = 0.1),
+
+  # ---- Level 2 (L2) - Country/regional scale (~100m) ----------------------
   "L2-AETI-A" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/year", scale = 0.1),
   "L2-AETI-D" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/day", scale = 0.1),
   "L2-AETI-M" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/month", scale = 0.1),
@@ -63,7 +70,22 @@ WAPOR3_VARS <- list(
   "L2-NPP-D" = list(long_name = "Net Primary Production", units = "gC/m\u00b2/day", scale = 0.001),
   "L2-NPP-M" = list(long_name = "Net Primary Production", units = "gC/m\u00b2/month", scale = 0.001),
   "L2-T-A" = list(long_name = "Transpiration", units = "mm/year", scale = 0.1),
-  "L2-T-D" = list(long_name = "Transpiration", units = "mm/day", scale = 0.1)
+  "L2-T-D" = list(long_name = "Transpiration", units = "mm/day", scale = 0.1),
+
+  # ---- Level 3 (L3) - Irrigation scheme scale (~10-20m) --------------------
+  "L3-AETI-D" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/day", scale = 0.1),
+  "L3-AETI-M" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/month", scale = 0.1),
+  "L3-E-A"    = list(long_name = "Evaporation", units = "mm/year", scale = 0.1),
+  "L3-E-D"    = list(long_name = "Evaporation", units = "mm/day", scale = 0.1),
+  "L3-E-E"    = list(long_name = "Evaporation", units = "mm/day", scale = 0.1),
+  "L3-I-E"    = list(long_name = "Interception", units = "mm/day", scale = 0.1),
+  "L3-NPP-D"  = list(long_name = "Net Primary Production", units = "gC/m\u00b2/day", scale = 0.001),
+  "L3-NPP-E"  = list(long_name = "Net Primary Production", units = "gC/m\u00b2/day", scale = 0.001),
+  "L3-RSM-D"  = list(long_name = "Relative Soil Moisture", units = "%", scale = 0.001),
+  "L3-RSM-E"  = list(long_name = "Relative Soil Moisture", units = "%", scale = 0.001),
+  "L3-T-D"    = list(long_name = "Transpiration", units = "mm/day", scale = 0.1),
+  "L3-T-E"    = list(long_name = "Transpiration", units = "mm/day", scale = 0.1),
+  "L3-TBP-A"  = list(long_name = "Total Biomass Production", units = "kg/ha", scale = 1.0)
 )
 
 #' AgERA5 Climate Variable Metadata
@@ -112,6 +134,119 @@ AGERA5_VARS <- list(
   "AGERA5-PF-D" = list(long_name = "Precipitation", units = "mm/dekad", scale = 1.0),
   "AGERA5-PF-M" = list(long_name = "Precipitation", units = "mm/month", scale = 1.0),
   "AGERA5-PF-A" = list(long_name = "Precipitation", units = "mm/year", scale = 1.0)
+)
+
+#' WaPOR Level 3 Region Metadata
+#'
+#' A named list containing metadata for all available WaPOR Level 3 (L3) regions.
+#' Each region represents an irrigation scheme, river basin, or study area at
+#' high resolution (~10-20m). Region codes are 3-letter uppercase identifiers
+#' used by the FAO GISMGR API.
+#'
+#' @format A named list where each element (keyed by 3-letter region code)
+#'   is a list with:
+#' \describe{
+#'   \item{name}{Character. Full name of the region/study area}
+#'   \item{country}{Character. Country where the region is located}
+#' }
+#'
+#' @details
+#' Sourced from the FAO GISMGR mosaicsets API (grid.tile.code and
+#' grid.tile.caption fields). Not all regions are available for all L3
+#' variables -- availability depends on the specific product.
+#'
+#' @examples
+#' # Get region info for Awash Basin
+#' L3_REGIONS[["AWA"]]
+#'
+#' # List all region codes
+#' names(L3_REGIONS)
+#'
+#' # Get all regions in a specific country
+#' Filter(function(r) r$country == "Kenya", L3_REGIONS)
+#'
+#' @seealso [WAPOR3_VARS] for variable metadata
+#'
+#' @export
+L3_REGIONS <- list(
+  # ---- Algeria -------------------------------------------------------------
+  "MIT" = list(name = "Mitidja", country = "Algeria"),
+
+  # ---- Colombia ------------------------------------------------------------
+  "MAG" = list(name = "Magdalena", country = "Colombia"),
+  "NDV" = list(name = "Valle del Cauca", country = "Colombia"),
+
+  # ---- Egypt ---------------------------------------------------------------
+  "ENO" = list(name = "Northern Egypt", country = "Egypt"),
+  "ZAN" = list(name = "Zankalon", country = "Egypt"),
+
+  # ---- Ethiopia ------------------------------------------------------------
+  "AWA" = list(name = "Awash", country = "Ethiopia"),
+  "KOG" = list(name = "Koga", country = "Ethiopia"),
+
+  # ---- Iraq ----------------------------------------------------------------
+  "ERB" = list(name = "Erbil", country = "Iraq"),
+  "GAR" = list(name = "West Gharraf", country = "Iraq"),
+  "NAJ" = list(name = "Najaf", country = "Iraq"),
+
+  # ---- Jordan --------------------------------------------------------------
+  "JAF" = list(name = "Jafr-Shoubak", country = "Jordan"),
+  "JVA" = list(name = "North Jordan Valley", country = "Jordan"),
+
+  # ---- Kenya ---------------------------------------------------------------
+  "BUS" = list(name = "Busia", country = "Kenya"),
+  "KMW" = list(name = "Mwea", country = "Kenya"),
+  "KTB" = list(name = "Tana and Bura", country = "Kenya"),
+
+  # ---- Lebanon -------------------------------------------------------------
+  "BKA" = list(name = "Bekaa", country = "Lebanon"),
+
+  # ---- Libya ---------------------------------------------------------------
+  "LCE" = list(name = "Fezzan", country = "Libya"),
+  "LDA" = list(name = "Waddan", country = "Libya"),
+  "LOT" = list(name = "Tarhona", country = "Libya"),
+
+  # ---- Mali ----------------------------------------------------------------
+  "ODN" = list(name = "Office du Niger", country = "Mali"),
+
+  # ---- Morocco -------------------------------------------------------------
+  "LOU" = list(name = "Moulay Bousselham", country = "Morocco"),
+
+  # ---- Mozambique ----------------------------------------------------------
+  "LAM" = list(name = "Lamego", country = "Mozambique"),
+  "MBL" = list(name = "Baixo Limpopo", country = "Mozambique"),
+
+  # ---- Pakistan ------------------------------------------------------------
+  "KWL" = list(name = "Khanewal", country = "Pakistan"),
+  "SNG" = list(name = "Sanghar", country = "Pakistan"),
+
+  # ---- Palestine -----------------------------------------------------------
+  "PAL" = list(name = "Jericho", country = "Palestine"),
+
+  # ---- Rwanda --------------------------------------------------------------
+  "LAK" = list(name = "Lower Akagera", country = "Rwanda"),
+  "MUV" = list(name = "Muvumba catchment", country = "Rwanda"),
+  "YAN" = list(name = "Yanze catchment", country = "Rwanda"),
+
+  # ---- Senegal -------------------------------------------------------------
+  "SED" = list(name = "Senegal Delta", country = "Senegal"),
+
+  # ---- Sri Lanka -----------------------------------------------------------
+  "MAL" = list(name = "Malwathu Oya West Sub Catchment", country = "Sri Lanka"),
+
+  # ---- Sudan ---------------------------------------------------------------
+  "GEZ" = list(name = "Gezira", country = "Sudan"),
+
+  # ---- Tunisia -------------------------------------------------------------
+  "JEN" = list(name = "Jendouba", country = "Tunisia"),
+  "KAI" = list(name = "Kairouan", country = "Tunisia"),
+  "THR" = list(name = "High-resolution experimental area", country = "Tunisia"),
+
+  # ---- Vietnam -------------------------------------------------------------
+  "VTM" = list(name = "Tay Nguyen", country = "Vietnam"),
+
+  # ---- Yemen ---------------------------------------------------------------
+  "SAN" = list(name = "Sanaa basin", country = "Yemen")
 )
 
 #' Get Variable Metadata (Internal)
@@ -210,7 +345,7 @@ get_variable_metadata_internal <- function(variable) {
 #' @details
 #' The function uses memoization to cache API responses, so repeated
 #' calls for the same variable are fast. Static metadata is available
-#' for all common WaPOR (L1, L2) and AgERA5 variables.
+#' for all WaPOR (L1, L2, L3) and AgERA5 variables.
 #'
 #' @export
 #'
@@ -229,8 +364,8 @@ get_variable_metadata_internal <- function(variable) {
 #' meta$units
 #' # [1] "mm/day"
 #'
-#' \dontrun{
-#' # Dynamic fetch for L3 or unknown variables
+#' # Get metadata for L3 variable (now in static list)
 #' meta <- get_variable_metadata("L3-AETI-D")
-#' }
+#' meta$units
+#' # [1] "mm/day"
 get_variable_metadata <- memoise::memoise(get_variable_metadata_internal)
