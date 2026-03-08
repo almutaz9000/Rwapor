@@ -22,6 +22,8 @@
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
+#'   Default is `FALSE`.
 #'
 #' @return Character. Path to the output GeoTIFF file.
 #'
@@ -37,6 +39,7 @@
 #'
 #' @importFrom terra rast crop mask writeRaster vect ext nlyr
 #' @importFrom sf st_transform st_bbox st_crs
+#' @import future.apply
 #'
 #' @examples
 #' \dontrun{
@@ -57,7 +60,7 @@
 #'   unit_conversion = "day"
 #' )
 #' }
-wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE) {
+wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE, parallel = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -87,8 +90,18 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
 
+    current_l3_code <- l3_code
+    if (is.null(current_l3_code) && grepl("^L3-", variable[1])) {
+       guessed_codes <- guess_l3_region(variable[1], reg_info, period)
+       if (is.null(guessed_codes)) stop(sprintf("Region does not intersect with any available WaPOR L3 data for %s.", variable[1]), call. = FALSE)
+       current_l3_code <- guessed_codes[1]
+       if (length(guessed_codes) > 1) {
+           warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s.", paste(guessed_codes, collapse=", "), current_l3_code), call. = FALSE)
+       }
+    }
+
     # Call internal helper to download and organize rasters
-    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, folder)
+    seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder)
     
     groups <- seasonal_data$groups
     base_var <- seasonal_data$base_var
@@ -109,12 +122,13 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       # wapor_map specific: Apply MASK if vector
       if (reg_info$type == "vector") {
         # Helper only cropped. Now we mask.
-        v <- terra::vect(reg_info$value)
-        r_group <- terra::mask(r_group, v)
+        v <- suppressWarnings(terra::vect(reg_info$value))
+        r_group <- suppressWarnings(terra::mask(r_group, v))
       }
       
       for (i in seq_len(terra::nlyr(r_group))) {
-        layer <- r_group[[i]] * multipliers[i]
+        layer_clean <- terra::classify(r_group[[i]], cbind(NaN, NA))
+        layer <- layer_clean * multipliers[i]
         
         if (is.null(ref_raster)) {
           ref_raster <- layer
@@ -140,9 +154,13 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
                           prefix, variable, period[1], period[2])
     }
     
-    var_folder <- file.path(folder, variable) # Helper ensures this exists
+    var_folder <- file.path(folder, variable[1]) 
+    if (!dir.exists(var_folder)) {
+      dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
+    }
     out_path <- file.path(var_folder, filename)
-    terra::writeRaster(seasonal_sum, out_path, overwrite = TRUE)
+    seasonal_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
+    suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
     message(sprintf("Seasonal sum saved to: %s", out_path))
     
     return(out_path)
@@ -169,8 +187,22 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
     }
 
+    current_l3_code <- l3_code
+    if (is.null(current_l3_code) && grepl("^L3-", var)) {
+        guessed_codes <- guess_l3_region(var, reg_info, period)
+        if (is.null(guessed_codes)) {
+            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
+            return(NULL)
+        }
+        current_l3_code <- guessed_codes[1]
+        if (length(guessed_codes) > 1) {
+            warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s for %s.", 
+                            paste(guessed_codes, collapse=", "), current_l3_code, var), call. = FALSE)
+        }
+    }
+
     # Get URLs
-    urls <- wapor_generate_urls(var, l3_region = l3_code, period = period)
+    urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
     message(sprintf("Found %d files for %s.", length(urls), var))
 
     if (length(urls) == 0) {
@@ -192,13 +224,26 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     # Use GDAL virtual file system
     urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
     
-    # Load as SpatRaster
-    r <- tryCatch({
-      terra::rast(urls)
-    }, error = function(e) {
-      warning(sprintf("Failed to load raster data for %s: %s", var, e$message), call. = FALSE)
-      return(NULL)
-    })
+    # Load as SpatRaster with retry logic for intermittent /vsicurl/ errors
+    r <- NULL
+    max_retries <- 3
+    for (attempt in seq_len(max_retries)) {
+      r <- tryCatch({
+        suppressWarnings(terra::rast(urls))
+      }, error = function(e) {
+        if (attempt < max_retries) {
+          message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
+                          attempt, attempt * 2, e$message))
+          Sys.sleep(attempt * 2)
+          return(NULL)
+        } else {
+          warning(sprintf("Failed to load raster data for %s after %d attempts: %s", 
+                          var, max_retries, e$message), call. = FALSE)
+          return(NULL)
+        }
+      })
+      if (!is.null(r)) break
+    }
     
     if (is.null(r)) return(NULL)
 
@@ -209,12 +254,19 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
         vect <- sf::st_transform(vect, 4326)
       }
-      v <- terra::vect(vect)
-      r <- terra::crop(r, v)
-      r <- terra::mask(r, v)
+      v <- suppressWarnings(terra::vect(vect))
+      if (terra::crs(v) != terra::crs(r)) {
+         v <- safe_project(v, terra::crs(r))
+      }
+      r <- suppressWarnings(terra::crop(r, v))
+      r <- suppressWarnings(terra::mask(r, v))
     } else if (reg_info$type == "bbox") {
       ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      r <- terra::crop(r, ext)
+      bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
+      if (terra::crs(bb_poly) != terra::crs(r)) {
+         bb_poly <- safe_project(bb_poly, terra::crs(r))
+      }
+      r <- suppressWarnings(terra::crop(r, bb_poly))
     }
 
     # Unit Conversion
@@ -237,17 +289,34 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     output_paths <- character()
 
     if (separate_files) {
-      for (i in 1:terra::nlyr(r)) {
-        # use the standardized name we just created
-        date_str <- names(r)[i] 
-        # ... or keep using get_date_info if we prefer safety, but names(r) is now consistent
-        
-        fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-        out_path <- file.path(var_folder, fname)
-        
-        terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-        output_paths <- c(output_paths, out_path)
+      if (parallel) {
+        w_r <- terra::wrap(r)
+        output_paths <- future.apply::future_lapply(seq_len(terra::nlyr(r)), function(i) {
+          # use the standardized name we just created
+          r_worker <- terra::unwrap(w_r)
+          date_str <- names(r_worker)[i] 
+          
+          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
+          out_path <- file.path(var_folder, fname)
+          
+          r_out <- terra::classify(r_worker[[i]], cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          return(out_path)
+        }, future.seed = TRUE)
+      } else {
+        output_paths <- lapply(seq_len(terra::nlyr(r)), function(i) {
+          date_str <- names(r)[i] 
+          
+          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
+          out_path <- file.path(var_folder, fname)
+          
+          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          return(out_path)
+        })
       }
+      
+      output_paths <- unlist(output_paths)
     } else {
       # Single stack
       current_filename <- filename
@@ -265,7 +334,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
       
       out_path <- file.path(var_folder, current_filename)
-      terra::writeRaster(r, out_path, overwrite = TRUE)
+      r_out <- terra::classify(r, cbind(NA, -9999))
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
       output_paths <- out_path
     }
     
