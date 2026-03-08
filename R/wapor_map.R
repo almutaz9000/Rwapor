@@ -127,7 +127,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
       
       for (i in seq_len(terra::nlyr(r_group))) {
-        layer <- r_group[[i]] * multipliers[i]
+        layer_clean <- terra::classify(r_group[[i]], cbind(NaN, NA))
+        layer <- layer_clean * multipliers[i]
         
         if (is.null(ref_raster)) {
           ref_raster <- layer
@@ -153,9 +154,13 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
                           prefix, variable, period[1], period[2])
     }
     
-    var_folder <- file.path(folder, variable) # Helper ensures this exists
+    var_folder <- file.path(folder, variable[1]) 
+    if (!dir.exists(var_folder)) {
+      dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
+    }
     out_path <- file.path(var_folder, filename)
-    suppressWarnings(terra::writeRaster(seasonal_sum, out_path, overwrite = TRUE))
+    seasonal_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
+    suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
     message(sprintf("Seasonal sum saved to: %s", out_path))
     
     return(out_path)
@@ -294,7 +299,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
           fname <- paste0(prefix, product_base, ".", date_str, ".tif")
           out_path <- file.path(var_folder, fname)
           
-          suppressWarnings(terra::writeRaster(r_worker[[i]], out_path, overwrite = TRUE))
+          r_out <- terra::classify(r_worker[[i]], cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
           return(out_path)
         }, future.seed = TRUE)
       } else {
@@ -304,7 +310,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
           fname <- paste0(prefix, product_base, ".", date_str, ".tif")
           out_path <- file.path(var_folder, fname)
           
-          suppressWarnings(terra::writeRaster(r[[i]], out_path, overwrite = TRUE))
+          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
           return(out_path)
         })
       }
@@ -327,7 +334,8 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
       }
       
       out_path <- file.path(var_folder, current_filename)
-      suppressWarnings(terra::writeRaster(r, out_path, overwrite = TRUE))
+      r_out <- terra::classify(r, cbind(NA, -9999))
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
       output_paths <- out_path
     }
     

@@ -175,9 +175,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           multiplier <- multipliers[i]
           
           if (!is.null(vect_data)) {
-            layer_means <- exactextractr::exact_extract(
+            layer_means <- suppressWarnings(exactextractr::exact_extract(
               r_group_worker[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-            )
+            ))
             return(layer_means * multiplier)
           } else {
             global_mean <- terra::global(r_group_worker[[i]], fun = "mean", na.rm = TRUE)$mean
@@ -189,9 +189,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           multiplier <- multipliers[i]
           
           if (!is.null(vect_data)) {
-            layer_means <- exactextractr::exact_extract(
+            layer_means <- suppressWarnings(exactextractr::exact_extract(
               r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-            )
+            ))
             return(layer_means * multiplier)
           } else {
             global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
@@ -299,12 +299,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     # Zonal statistics for polygons using exactextractr
     names(r) <- paste0("L", seq_len(terra::nlyr(r)))
 
-    ex <- exactextractr::exact_extract(
+    ex <- suppressWarnings(exactextractr::exact_extract(
       r,
       sf::st_as_sf(terra::vect(vect)),
       c("mean", "min", "max"),
       progress = FALSE
-    )
+    ))
 
     ex$ID <- seq_len(nrow(ex))
 
