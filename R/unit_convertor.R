@@ -148,6 +148,7 @@ df_unit_convertor <- function(df, unit_conversion) {
 #'
 #' @importFrom terra nlyr
 #' @importFrom lubridate days_in_month ymd
+#' @importFrom utils tail
 #'
 #' @examples
 #' \dontrun{
@@ -198,7 +199,7 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   } else {
     # Fallback to defaults if metadata not found
     source_time <- switch(
-      tres,
+      EXPR = tres,
       "D" = "day",
       "M" = "month",
       "A" = "year",

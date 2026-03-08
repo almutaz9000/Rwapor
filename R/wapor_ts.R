@@ -49,6 +49,7 @@
 #' @importFrom sf st_drop_geometry st_crs st_transform st_as_sf
 #' @importFrom exactextractr exact_extract
 #' @importFrom future.apply future_lapply
+#' @importFrom utils tail
 #'
 #' @examples
 #' \dontrun{

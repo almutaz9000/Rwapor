@@ -22,6 +22,8 @@
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
+#' @param separate_files Logical. If `TRUE`, writes each time step as a separate
+#'   GeoTIFF file instead of a multi-band stack. Default is `FALSE`.
 #' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
 #'   Default is `FALSE`.
 #'
@@ -169,6 +171,9 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     out_path <- file.path(var_folder, filename)
     seasonal_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
     suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
+    if (!file.exists(out_path)) {
+      stop(sprintf("Seasonal output was not written to disk: %s", out_path), call. = FALSE)
+    }
     message(sprintf("Seasonal sum saved to: %s", out_path))
     message(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
 
