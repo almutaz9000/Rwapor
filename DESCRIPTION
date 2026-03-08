@@ -37,7 +37,9 @@ Suggests:
     leaflet,
     leaflet.extras,
     leaflet.extras2,
-    shinyFiles
+    shinyFiles,
+    bslib,
+    raster
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3
