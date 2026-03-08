@@ -22,6 +22,8 @@
 #'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
 #'   with `/vsicurl/`. Kept for backward compatibility.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
+#'   Default is `FALSE`.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -46,6 +48,7 @@
 #' @importFrom purrr map_dfr
 #' @importFrom sf st_drop_geometry st_crs st_transform st_as_sf
 #' @importFrom exactextractr exact_extract
+#' @import future.apply
 #'
 #' @examples
 #' \dontrun{
@@ -70,7 +73,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -106,6 +109,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # Parse region
   reg_info <- parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
+
+  if (is.null(l3_code) && grepl("^L3-", variable)) {
+    guessed_codes <- guess_l3_region(variable, reg_info, period)
+    if (is.null(guessed_codes)) {
+        stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
+    }
+    l3_code <- guessed_codes[1]
+    if (length(guessed_codes) > 1) {
+        warning(sprintf("Region intersects multiple L3 areas (%s). Only extracting data from %s. To extract from others, supply their codes directly.", paste(guessed_codes, collapse=", "), l3_code), call. = FALSE)
+    }
+  }
 
   # --- Seasonal mode ---
   if (seasonal) {
@@ -153,18 +167,42 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       r_group <- g$raster
       multipliers <- g$multipliers
       
-      for (i in seq_len(terra::nlyr(r_group))) {
-        multiplier <- multipliers[i]
-        
-        if (!is.null(vect_data)) {
-          layer_means <- exactextractr::exact_extract(
-            r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-          )
-          sum_values <- sum_values + layer_means * multiplier
-        } else {
-          global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
-          sum_values <- sum_values + global_mean * multiplier
-        }
+      # Process each raster layer in this group
+      if (parallel) {
+        w_r_group <- terra::wrap(r_group)
+        layer_sums <- future.apply::future_lapply(seq_len(terra::nlyr(r_group)), function(i) {
+          r_group_worker <- terra::unwrap(w_r_group)
+          multiplier <- multipliers[i]
+          
+          if (!is.null(vect_data)) {
+            layer_means <- suppressWarnings(exactextractr::exact_extract(
+              r_group_worker[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+            ))
+            return(layer_means * multiplier)
+          } else {
+            global_mean <- terra::global(r_group_worker[[i]], fun = "mean", na.rm = TRUE)$mean
+            return(global_mean * multiplier)
+          }
+        }, future.seed = TRUE)
+      } else {
+        layer_sums <- lapply(seq_len(terra::nlyr(r_group)), function(i) {
+          multiplier <- multipliers[i]
+          
+          if (!is.null(vect_data)) {
+            layer_means <- suppressWarnings(exactextractr::exact_extract(
+              r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+            ))
+            return(layer_means * multiplier)
+          } else {
+            global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
+            return(global_mean * multiplier)
+          }
+        })
+      }
+      
+      # Sum the parallel results into the main aggregator
+      for (ls in layer_sums) {
+        sum_values <- sum_values + ls
       }
     }
     
@@ -204,12 +242,24 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
   message(sprintf("Found %d files. Processing...", length(urls)))
 
-  # Load raster stack
-  r <- tryCatch({
-    terra::rast(urls)
-  }, error = function(e) {
-    stop(sprintf("Failed to load raster data: %s", e$message), call. = FALSE)
-  })
+  # Load raster stack with retry logic for intermittent /vsicurl/ errors
+  r <- NULL
+  max_retries <- 3
+  for (attempt in seq_len(max_retries)) {
+    r <- tryCatch({
+      suppressWarnings(terra::rast(urls))
+    }, error = function(e) {
+      if (attempt < max_retries) {
+        message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
+                        attempt, attempt * 2, e$message))
+        Sys.sleep(attempt * 2)
+        return(NULL)
+      } else {
+        stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
+      }
+    })
+    if (!is.null(r)) break
+  }
 
   # Crop based on region type
   vect <- NULL
@@ -219,11 +269,18 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
       vect <- sf::st_transform(vect, 4326)
     }
-    v <- terra::vect(vect)
-    r <- terra::crop(r, v)
+    v <- suppressWarnings(terra::vect(vect))
+    if (terra::crs(v) != terra::crs(r)) {
+       v <- safe_project(v, terra::crs(r))
+    }
+    r <- suppressWarnings(terra::crop(r, v))
   } else if (reg_info$type == "bbox") {
     ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- terra::crop(r, ext)
+    bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
+    if (terra::crs(bb_poly) != terra::crs(r)) {
+       bb_poly <- safe_project(bb_poly, terra::crs(r))
+    }
+    r <- suppressWarnings(terra::crop(r, bb_poly))
   }
 
   # Extract temporal resolution from variable name
@@ -245,12 +302,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     # allocates two intermediate objects per call.
     names(r) <- paste0("L", seq_len(terra::nlyr(r)))
 
-    ex <- exactextractr::exact_extract(
+    ex <- suppressWarnings(exactextractr::exact_extract(
       r,
       vect,
       c("mean", "min", "max"),
       progress = FALSE
-    )
+    ))
 
     ex$ID <- seq_len(nrow(ex))
 
@@ -264,9 +321,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       seq_len(n_poly)
     }
 
-    out_list <- list()
-
-    for (i in seq_len(n_lyr)) {
+    # Optional parallel processing of raster layers using future.apply
+    apply_fn <- if (parallel) function(X, FUN) future.apply::future_lapply(X, FUN, future.seed = TRUE) else lapply
+    out_list <- apply_fn(seq_len(n_lyr), function(i) {
       lyr_name <- paste0("L", i)
 
       # Handle different column naming conventions from exactextractr
@@ -308,8 +365,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       m_rep <- m[rep(1, nrow(sub_df)), ]
 
       combined <- cbind(sub_df, m_rep)
-      out_list[[i]] <- combined
-    }
+      return(combined)
+    })
 
     results <- do.call(rbind, out_list)
   } else {

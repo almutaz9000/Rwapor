@@ -190,20 +190,22 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   parts <- strsplit(variable, "-")[[1]]
   tres <- tail(parts, 1)
 
-  # Map temporal resolution code to unit name
-  # WaPOR units are generally rates per time step, except for:
-  # - Dekadal (D): WaPOR stores them as average daily rate (mm/day or similar)
-  # - Monthly (M): Stores as monthly total
-  # - Annual (A): Stores as annual total
-  # - Daily (E): Stores as daily total (rate)
-  source_time <- switch(
-    tres,
-    "D" = "day",   # Corrected: Dekadal rasters are in mm/day
-    "M" = "month",
-    "A" = "year",
-    "E" = "day",
-    stop(sprintf("Unknown temporal resolution code: %s", tres), call. = FALSE)
-  )
+  # Determine source time from variable metadata units
+  meta <- get_variable_metadata(variable)
+  if (!is.null(meta) && !is.null(meta$units) && grepl("/", meta$units)) {
+    unit_parts <- strsplit(meta$units, "/")[[1]]
+    source_time <- unit_parts[length(unit_parts)]
+  } else {
+    # Fallback to defaults if metadata not found
+    source_time <- switch(
+      tres,
+      "D" = "day",
+      "M" = "month",
+      "A" = "year",
+      "E" = "day",
+      stop(sprintf("Unknown temporal resolution code: %s. Cannot determine source unit.", tres), call. = FALSE)
+    )
+  }
 
   # Compute all per-layer conversion factors up front (one date parse per URL,
   # no repeated raster reads). terra broadcasts a numeric vector of length
