@@ -119,11 +119,18 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
       if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
         vect_data <- sf::st_transform(vect_data, 4326)
       }
-      v <- terra::vect(vect_data)
-      r <- terra::crop(r, v)
+      v <- suppressWarnings(terra::vect(vect_data))
+      if (terra::crs(v) != terra::crs(r)) {
+         v <- safe_project(v, terra::crs(r))
+      }
+      r <- suppressWarnings(terra::crop(r, v))
     } else if (reg_info$type == "bbox") {
       ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-      r <- terra::crop(r, ext)
+      bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
+      if (terra::crs(bb_poly) != terra::crs(r)) {
+         bb_poly <- safe_project(bb_poly, terra::crs(r))
+      }
+      r <- suppressWarnings(terra::crop(r, bb_poly))
     }
 
     groups[[paste0(code, "_group")]] <- list(

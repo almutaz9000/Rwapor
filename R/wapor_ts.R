@@ -110,6 +110,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   reg_info <- parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
+  if (is.null(l3_code) && grepl("^L3-", variable)) {
+    guessed_codes <- guess_l3_region(variable, reg_info, period)
+    if (is.null(guessed_codes)) {
+        stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
+    }
+    l3_code <- guessed_codes[1]
+    if (length(guessed_codes) > 1) {
+        warning(sprintf("Region intersects multiple L3 areas (%s). Only extracting data from %s. To extract from others, supply their codes directly.", paste(guessed_codes, collapse=", "), l3_code), call. = FALSE)
+    }
+  }
+
   # --- Seasonal mode ---
   if (seasonal) {
     if (!is.null(unit_conversion) && unit_conversion != "none") {
@@ -259,10 +270,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       vect <- sf::st_transform(vect, 4326)
     }
     v <- suppressWarnings(terra::vect(vect))
+    if (terra::crs(v) != terra::crs(r)) {
+       v <- safe_project(v, terra::crs(r))
+    }
     r <- suppressWarnings(terra::crop(r, v))
   } else if (reg_info$type == "bbox") {
     ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- suppressWarnings(terra::crop(r, ext))
+    bb_poly <- terra::as.polygons(ext, crs="EPSG:4326")
+    if (terra::crs(bb_poly) != terra::crs(r)) {
+       bb_poly <- safe_project(bb_poly, terra::crs(r))
+    }
+    r <- suppressWarnings(terra::crop(r, bb_poly))
   }
 
   # Extract temporal resolution from variable name
