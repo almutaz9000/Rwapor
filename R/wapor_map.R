@@ -23,9 +23,12 @@
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
 #' @param separate_files Logical. If `TRUE`, writes each time step as a separate
-#'   GeoTIFF file instead of a multi-band stack. Default is `FALSE`.
+#'   GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
+#'   intermediate component rasters into `<folder>/<variable>/`. Default is `FALSE`.
 #' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
 #'   Default is `FALSE`.
+#' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
+#'   Lower values reduce memory pressure for long periods.
 #'
 #' @return Character. Path to the output GeoTIFF file.
 #'
@@ -62,7 +65,18 @@
 #'   unit_conversion = "day"
 #' )
 #' }
-wapor_map <- function(region, variable, period, folder, filename = NULL, separate_files = FALSE, unit_conversion = NULL, seasonal = FALSE, parallel = FALSE) {
+wapor_map <- function(
+  region,
+  variable,
+  period,
+  folder,
+  filename = NULL,
+  separate_files = FALSE,
+  unit_conversion = NULL,
+  seasonal = FALSE,
+  parallel = FALSE,
+  batch_size = 24L
+) {
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -72,6 +86,14 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
   }
   if (!is.character(folder) || length(folder) != 1) {
     stop("'folder' must be a single character string", call. = FALSE)
+  }
+  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
+    stop("'batch_size' must be a positive integer", call. = FALSE)
+  }
+  batch_size <- as.integer(batch_size)
+
+  if (as.Date(period[1]) > as.Date(period[2])) {
+    stop("'period' start date must be <= end date", call. = FALSE)
   }
 
   # Create base output directory
@@ -114,10 +136,15 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     }
     
     # Pre-allocate layer list
-    total_layers <- sum(vapply(groups, function(g) terra::nlyr(g$raster), integer(1)))
+    total_layers <- as.integer(sum(vapply(groups, function(g) terra::nlyr(g$raster), numeric(1))))
     weighted_layers <- vector("list", total_layers)
     layer_idx <- 0L
     ref_raster <- NULL
+    component_paths <- character(0)
+    component_folder <- file.path(folder, variable[1])
+    if (separate_files && !dir.exists(component_folder)) {
+      dir.create(component_folder, recursive = TRUE, showWarnings = FALSE)
+    }
 
     # Process each group (Apply multipliers and mask if needed)
     for (g_name in names(groups)) {
@@ -144,6 +171,22 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
 
         layer_idx <- layer_idx + 1L
         weighted_layers[[layer_idx]] <- layer
+
+        if (separate_files) {
+          src_name <- names(r_group)[i]
+          if (is.null(src_name) || !nzchar(src_name)) {
+            src_name <- sprintf("%03d", i)
+          } else {
+            src_name <- gsub("[^A-Za-z0-9_-]", "_", src_name)
+          }
+          component_file <- file.path(
+            component_folder,
+            sprintf("%s.component_%03d.%s.%s.tif", variable[1], layer_idx, g$code, src_name)
+          )
+          layer_out <- terra::classify(layer, cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(layer_out, component_file, overwrite = TRUE, NAflag = -9999))
+          component_paths <- c(component_paths, component_file)
+        }
       }
     }
     
@@ -164,7 +207,7 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
                           prefix, variable, period[1], period[2])
     }
     
-    var_folder <- file.path(folder, variable[1]) 
+    var_folder <- file.path(folder, paste0(variable[1], "_seasonal")) 
     if (!dir.exists(var_folder)) {
       dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
     }
@@ -173,6 +216,9 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
     if (!file.exists(out_path)) {
       stop(sprintf("Seasonal output was not written to disk: %s", out_path), call. = FALSE)
+    }
+    if (separate_files && length(component_paths) > 0) {
+      message(sprintf("Saved %d seasonal component raster(s) to: %s", length(component_paths), component_folder))
     }
     message(sprintf("Seasonal sum saved to: %s", out_path))
     message(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
@@ -239,103 +285,115 @@ wapor_map <- function(region, variable, period, folder, filename = NULL, separat
     # Use GDAL virtual file system
     urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
     
-    # Load as SpatRaster with retry logic for intermittent /vsicurl/ errors
-    r <- NULL
-    max_retries <- 3
-    for (attempt in seq_len(max_retries)) {
-      r <- tryCatch({
-        suppressWarnings(terra::rast(urls))
-      }, error = function(e) {
-        if (attempt < max_retries) {
-          message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
-                          attempt, attempt * 2, e$message))
-          Sys.sleep(attempt * 2)
-          return(NULL)
-        } else {
-          warning(sprintf("Failed to load raster data for %s after %d attempts: %s", 
-                          var, max_retries, e$message), call. = FALSE)
-          return(NULL)
-        }
-      })
-      if (!is.null(r)) break
-    }
-    
-    if (is.null(r)) return(NULL)
-    message(sprintf("  Raster loaded in %.1f seconds (%d layers)", (proc.time() - t0_var)[["elapsed"]], terra::nlyr(r)))
-
-    # Crop/Mask
-    r <- crop_to_region(r, reg_info, do_mask = TRUE)
-
-    # Unit Conversion
-    if (current_unit_conv != "none") {
-      message(sprintf("Converting units to '%s'...", current_unit_conv))
-      r <- raster_unit_convertor(r, var, urls, current_unit_conv)
-    }
-
-    # Standardize layer names to "YYYY-MM-DD" (terra uses raw filenames by default).
-    # Compute the temporal resolution code once outside the loop.
     tres_code <- strsplit(var, "-")[[1]][3]
-    layer_names <- vapply(urls, function(u) {
-      get_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
-    }, character(1))
-    names(r) <- layer_names
-
-    if (separate_files) {
-      # Pre-allocate output_paths via vapply (avoids O(n²) vector growth from
-      # repeated c() calls in a loop).
-      output_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
-        out_path <- file.path(var_folder,
-                              paste0(prefix, product_base, ".", names(r)[i], ".tif"))
-        terra::writeRaster(r[[i]], out_path, overwrite = TRUE)
-        out_path
-      }, character(1))
-      if (parallel) {
-        w_r <- terra::wrap(r)
-        output_paths <- future.apply::future_lapply(seq_len(terra::nlyr(r)), function(i) {
-          # use the standardized name we just created
-          r_worker <- terra::unwrap(w_r)
-          date_str <- names(r_worker)[i] 
-          
-          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-          out_path <- file.path(var_folder, fname)
-          
-          r_out <- terra::classify(r_worker[[i]], cbind(NA, -9999))
-          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-          return(out_path)
-        }, future.seed = TRUE)
-      } else {
-        output_paths <- lapply(seq_len(terra::nlyr(r)), function(i) {
-          date_str <- names(r)[i] 
-          
-          fname <- paste0(prefix, product_base, ".", date_str, ".tif")
-          out_path <- file.path(var_folder, fname)
-          
-          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
-          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-          return(out_path)
+    
+    # Split URLs into chunks based on batch_size
+    n_urls <- length(urls)
+    url_chunks <- split(urls, ceiling(seq_along(urls) / batch_size))
+    
+    message(sprintf("  Splitting %d files into %d chunk(s) formemory efficiency.", n_urls, length(url_chunks)))
+    
+    # Define a helper function to process a single chunk of URLs
+    process_chunk <- function(chunk_urls, chunk_idx) {
+      r <- NULL
+      max_retries <- 3
+      for (attempt in seq_len(max_retries)) {
+        r <- tryCatch({
+          suppressWarnings(terra::rast(chunk_urls))
+        }, error = function(e) {
+          if (attempt < max_retries) {
+            Sys.sleep(attempt * 2)
+            return(NULL)
+          } else {
+            warning(sprintf("Failed to load chunk %d raster data after %d attempts: %s", 
+                            chunk_idx, max_retries, e$message), call. = FALSE)
+            return(NULL)
+          }
         })
+        if (!is.null(r)) break
       }
       
-      output_paths <- unlist(output_paths)
+      if (is.null(r)) return(NULL)
+
+      # Crop/Mask
+      r <- crop_to_region(r, reg_info, do_mask = TRUE)
+
+      # Unit Conversion
+      if (current_unit_conv != "none") {
+        r <- raster_unit_convertor(r, var, chunk_urls, current_unit_conv)
+      }
+
+      # Standardize layer names to "YYYY-MM-DD"
+      layer_names <- vapply(chunk_urls, function(u) {
+        get_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
+      }, character(1))
+      names(r) <- layer_names
+
+      if (separate_files) {
+        # Save individual files directly
+        chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
+          out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
+          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          out_path
+        }, character(1))
+        return(list(type = "separate", paths = chunk_paths))
+      } else {
+        # Save chunk to tempfile for later stacking
+        tmp_path <- tempfile(fileext = ".tif")
+        r_out <- terra::classify(r, cbind(NA, -9999))
+        suppressWarnings(terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999))
+        return(list(type = "stack", filepath = tmp_path, layer_names = layer_names))
+      }
+    }
+    
+    # Process all chunks, using future_lapply if parallel is TRUE
+    if (parallel) {
+      message("  Processing chunks in parallel...")
+      chunk_results <- future.apply::future_lapply(seq_along(url_chunks), function(i) {
+        process_chunk(url_chunks[[i]], i)
+      }, future.seed = TRUE)
     } else {
-      # Single stack
+      chunk_results <- lapply(seq_along(url_chunks), function(i) {
+        process_chunk(url_chunks[[i]], i)
+      })
+    }
+    
+    # Filter out any failed chunks
+    chunk_results <- Filter(Negate(is.null), chunk_results)
+    
+    if (length(chunk_results) == 0) {
+      warning("All chunks failed to process.", call. = FALSE)
+      return(NULL)
+    }
+
+    if (separate_files) {
+      # Combine paths from all chunks
+      output_paths <- unlist(lapply(chunk_results, function(res) res$paths))
+    } else {
+      # Combine temporary files into a single stack
+      temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
+      all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
+      
+      message("  Merging chunks into final multi-band stack...")
+      # Load all temp files logically
+      r_all <- suppressWarnings(terra::rast(temp_files))
+      names(r_all) <- all_names
+      
       current_filename <- filename
       if (is.null(current_filename)) {
-        start_date <- names(r)[1]
-        end_date <- names(r)[terra::nlyr(r)]
-        
-        if (terra::nlyr(r) == 1) {
-          date_part <- start_date
-        } else {
-          date_part <- paste0(start_date, "_", end_date)
-        }
-        
+        start_date <- names(r_all)[1]
+        end_date <- names(r_all)[terra::nlyr(r_all)]
+        date_part <- if (terra::nlyr(r_all) == 1) start_date else paste0(start_date, "_", end_date)
         current_filename <- paste0(prefix, product_base, ".", date_part, ".tif")
       }
       
       out_path <- file.path(var_folder, current_filename)
-      r_out <- terra::classify(r, cbind(NA, -9999))
-      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+      suppressWarnings(terra::writeRaster(r_all, out_path, overwrite = TRUE, NAflag = -9999))
+      
+      # Clean up temp files
+      unlink(temp_files)
+      
       output_paths <- out_path
     }
     

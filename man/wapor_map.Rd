@@ -13,7 +13,8 @@ wapor_map(
   separate_files = FALSE,
   unit_conversion = NULL,
   seasonal = FALSE,
-  parallel = FALSE
+  parallel = FALSE,
+  batch_size = 24L
 )
 }
 \arguments{
@@ -52,6 +53,9 @@ Default is \code{FALSE}.}
 
 \item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
 Default is \code{FALSE}.}
+
+\item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
+Lower values reduce memory pressure for long periods.}
 }
 \value{
 Character. Path to the output GeoTIFF file.
