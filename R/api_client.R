@@ -18,7 +18,7 @@ collect_responses <- function(url, info = "downloadUrl") {
   }
 
   all_items <- list()
-  next_url <- url
+  next_url  <- url
 
   while (!is.null(next_url)) {
     resp <- tryCatch({
