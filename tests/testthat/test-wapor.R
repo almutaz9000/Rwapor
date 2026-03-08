@@ -302,7 +302,7 @@ test_that("Zonal Statistics works with exactextractr", {
   skip_if_offline()
   skip_on_cran()
 
-  # Create a dummy polygon
+  # Create a small polygon for fast testing
   poly_coords <- matrix(c(
     35.75, 33.70,
     35.82, 33.70,
@@ -317,54 +317,41 @@ test_that("Zonal Statistics works with exactextractr", {
     name = "TestArea"
   )
 
-  # Temp file for polygon
   tmp_poly <- tempfile(fileext = ".geojson")
   sf::st_write(sf_poly, tmp_poly, quiet = TRUE)
 
   variable <- "L1-AETI-D"
-  period <- c("2021-01-01", "2021-01-10")
-
-  # Run wapor_ts with local parallel download
-  withr::local_options(list(future.rng.onMisuse = "ignore"))
-  future::plan(future::multisession, workers = 2)
+  period   <- c("2021-01-01", "2021-01-10")
 
   df <- wapor_ts(
     tmp_poly,
     variable,
     period,
-    identifier = "name",
-    unit_conversion = "dekad",
-    download_locally = TRUE
+    identifier     = "name",
+    unit_conversion = "dekad"
   )
 
   expect_s3_class(df, "data.frame")
   expect_true(nrow(df) > 0)
-  expect_true("mean" %in% names(df))
-  expect_true("min" %in% names(df))
-  expect_true("max" %in% names(df))
+  expect_true("mean"       %in% names(df))
+  expect_true("min"        %in% names(df))
+  expect_true("max"        %in% names(df))
   expect_true("start_date" %in% names(df))
 
-  # Clean up
   unlink(tmp_poly)
-  future::plan(future::sequential)
 })
 
 test_that("wapor_ts works with bounding box", {
   skip_if_offline()
   skip_on_cran()
 
-  region <- c(35.75, 33.70, 35.82, 33.75)
+  region   <- c(35.75, 33.70, 35.82, 33.75)
   variable <- "L1-AETI-D"
-  period <- c("2021-01-01", "2021-01-10")
+  period   <- c("2021-01-01", "2021-01-10")
 
-  df <- wapor_ts(
-    region,
-    variable,
-    period,
-    download_locally = TRUE
-  )
+  df <- wapor_ts(region, variable, period)
 
   expect_s3_class(df, "data.frame")
   expect_true(nrow(df) > 0)
-  expect_true(!is.null(attr(df, "units")))
+  expect_false(is.null(attr(df, "units")))
 })

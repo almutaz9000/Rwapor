@@ -296,19 +296,22 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   results <- list()
 
   if (!is.null(vect)) {
-    # Zonal statistics for polygons using exactextractr
+    # Zonal statistics for polygons using exactextractr.
+    # Note: vect is already an sf object from parse_region(); passing it
+    # directly avoids the redundant sf -> SpatVector -> sf round-trip that
+    # allocates two intermediate objects per call.
     names(r) <- paste0("L", seq_len(terra::nlyr(r)))
 
     ex <- suppressWarnings(exactextractr::exact_extract(
       r,
-      sf::st_as_sf(terra::vect(vect)),
+      vect,
       c("mean", "min", "max"),
       progress = FALSE
     ))
 
     ex$ID <- seq_len(nrow(ex))
 
-    n_poly <- nrow(terra::vect(vect))
+    n_poly <- nrow(vect)
     n_lyr <- terra::nlyr(r)
 
     # Extract polygon identifiers
