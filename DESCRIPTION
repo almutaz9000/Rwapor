@@ -14,8 +14,8 @@ Description: Downloads and processes WaPOR (Water Productivity Open-access porta
 License: MIT + file LICENSE
 URL: https://github.com/almutaz9000/Rwapor
 BugReports: https://github.com/almutaz9000/Rwapor/issues
+Depends: R (>= 4.1.0)
 Encoding: UTF-8
-LazyData: true
 Roxygen: list(markdown = TRUE)
 Imports:
     httr2,
@@ -32,7 +32,12 @@ Suggests:
     knitr,
     rmarkdown,
     ggplot2,
-    withr
+    withr,
+    shiny,
+    leaflet,
+    leaflet.extras,
+    leaflet.extras2,
+    shinyFiles
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3

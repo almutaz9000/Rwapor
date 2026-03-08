@@ -35,6 +35,9 @@ convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").}
 \item{filename}{Character. Optional output filename. If NULL, a default
 name is generated based on region and variable.}
 
+\item{separate_files}{Logical. If \code{TRUE}, writes each time step as a separate
+GeoTIFF file instead of a multi-band stack. Default is \code{FALSE}.}
+
 \item{unit_conversion}{Character. Target temporal unit for conversion.
 One of: "none", "day", "dekad", "month", "year".
 Default is NULL, which dynamically sets the default based on variable type:

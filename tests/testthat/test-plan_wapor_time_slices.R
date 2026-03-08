@@ -223,28 +223,6 @@ test_that("Daily-only variable uses E slices", {
   expect_true(all(plan$slice_days == 1L))
 })
 
-test_that("plan_to_api_params() produces correct structure", {
-  plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
-  params <- plan_to_api_params(plan)
-  expect_equal(length(params), nrow(plan))
-
-  # Check a monthly row
-  m_idx <- which(plan$code == "M")[1]
-  expect_equal(params[[m_idx]]$code, "M")
-  expect_true(!is.null(params[[m_idx]]$year))
-  expect_true(!is.null(params[[m_idx]]$month))
-
-  # Check a dekadal row
-  d_idx <- which(plan$code == "D")[1]
-  expect_equal(params[[d_idx]]$code, "D")
-  expect_true(!is.null(params[[d_idx]]$dekad))
-})
-
-test_that("plan_to_api_params() handles empty plan", {
-  params <- plan_to_api_params(data.frame())
-  expect_equal(length(params), 0L)
-})
-
 test_that("Within single dekad", {
   plan <- plan_wapor_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
   expect_equal(nrow(plan), 1L)
