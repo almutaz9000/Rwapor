@@ -38,6 +38,16 @@ parse_region <- function(region) {
     stop("'region' cannot be NULL", call. = FALSE)
   }
 
+  if (inherits(region, c("sf", "sfc", "Spatial"))) {
+    if (inherits(region, "Spatial")) {
+      region <- sf::st_as_sf(region)
+    }
+    if (nrow(region) == 0) {
+      stop("Vector object contains no features", call. = FALSE)
+    }
+    return(list(type = "vector", value = region))
+  }
+
   if (is.character(region)) {
     if (length(region) != 1) {
       stop("'region' must be a single character string when providing a file path or L3 code", call. = FALSE)
@@ -306,3 +316,119 @@ get_date_info <- function(url, tres) {
 }
 
 
+#' Safe Terra Projection Wrapper
+#'
+#' Eliminates PROJ database collisions on some Windows environments
+#' when projecting between WGS84 and UTM.
+#'
+#' @param x SpatVector or SpatRaster
+#' @param y target CRS
+#' @return SpatVector or SpatRaster
+#' @keywords internal
+#' @noRd
+safe_project <- function(x, y) {
+  y_crs <- y
+  if (is.character(y) && grepl("ID\\[\"EPSG\"", y)) {
+    m <- regmatches(y, regexpr("ID\\[\"EPSG\",\\s*([0-9]+)\\]\\]$", y))
+    if (length(m) > 0) {
+      epsg_num <- gsub("[^0-9]", "", m)
+      y_crs <- as.integer(epsg_num)
+    }
+  }
+
+  if (inherits(x, "SpatVector")) {
+    x_sf <- sf::st_as_sf(x)
+  } else {
+    x_sf <- x
+  }
+  
+  res_sf <- tryCatch(suppressWarnings(sf::st_transform(x_sf, y_crs)), error=function(e) {
+      stop(sprintf("safe_project sf projection failed: %s", e$message), call. = FALSE)
+  })
+  
+  if (inherits(x, "SpatVector")) {
+    return(suppressWarnings(terra::vect(res_sf)))
+  }
+  return(res_sf)
+}
+
+#' Guess L3 Region from Spatial Intersection
+#'
+#' @param variable Character. The WaPOR variable name (e.g., L3-AETI-D)
+#' @param reg_info List from parse_region()
+#' @param period Date period vector
+#' @return Character vector of intersecting L3 regions, or NULL
+#' @importFrom terra rast ext as.polygons is.related crs project vect
+#' @keywords internal
+#' @noRd
+guess_l3_region <- function(variable, reg_info, period) {
+  # Temporarily suppress the warning from wapor_generate_urls
+  urls <- suppressWarnings(wapor_generate_urls(variable, period = c(period[1], period[1])))
+  
+  if (length(urls) == 0) {
+    urls <- suppressWarnings(wapor_generate_urls(variable, period = period))
+  }
+  
+  if (length(urls) == 0) return(NULL)
+  
+  extracted_codes <- character()
+  unique_urls <- character()
+  
+  # Extract distinct L3 codes from the filenames
+  for (u in urls) {
+    fname <- tools::file_path_sans_ext(basename(u))
+    parts <- strsplit(fname, "\\.")[[1]]
+    if (length(parts) >= 4) {
+      code <- parts[3]
+      if (!code %in% extracted_codes && nchar(code) == 3 && toupper(code) == code) {
+        extracted_codes <- c(extracted_codes, code)
+        unique_urls <- c(unique_urls, u)
+      }
+    }
+  }
+  
+  if (length(unique_urls) == 0) return(NULL)
+  
+  message("Dynamically scanning L3 regions for spatial intersection...")
+  intersecting_codes <- character()
+  
+  for (i in seq_along(unique_urls)) {
+    u <- unique_urls[i]
+    code <- extracted_codes[i]
+    vsi_url <- paste0("/vsicurl/", u)
+    
+    r <- tryCatch(suppressWarnings(terra::rast(vsi_url)), error = function(e) NULL)
+    if (is.null(r)) next
+    
+    r_ext <- terra::ext(r)
+    r_poly <- terra::as.polygons(r_ext, crs=terra::crs(r))
+    r_poly_4326 <- safe_project(r_poly, 4326)
+    
+    intersects <- FALSE
+    if (reg_info$type == "vector") {
+      v <- suppressWarnings(terra::vect(reg_info$value))
+      v_ext <- terra::ext(v)
+      v_bb_poly <- terra::as.polygons(v_ext, crs=terra::crs(v))
+      v_bb_4326 <- safe_project(v_bb_poly, 4326)
+      
+      intersects <- any(suppressWarnings(terra::is.related(r_poly_4326, v_bb_4326, "intersects")))
+    } else if (reg_info$type == "bbox") {
+      bbox <- reg_info$value
+      bb_ext <- terra::ext(bbox[c("xmin", "xmax", "ymin", "ymax")])
+      bb_poly <- terra::as.polygons(bb_ext, crs="EPSG:4326")
+      
+      intersects <- any(suppressWarnings(terra::is.related(r_poly_4326, bb_poly, "intersects")))
+    }
+    
+    if (intersects) {
+      intersecting_codes <- c(intersecting_codes, code)
+    }
+  }
+  
+  if (length(intersecting_codes) > 0) {
+    message(sprintf("Found intersecting L3 regions: %s", paste(intersecting_codes, collapse = ", ")))
+    return(intersecting_codes)
+  }
+  
+  return(NULL)
+}

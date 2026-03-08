@@ -12,7 +12,8 @@ wapor_map(
   filename = NULL,
   separate_files = FALSE,
   unit_conversion = NULL,
-  seasonal = FALSE
+  seasonal = FALSE,
+  parallel = FALSE
 )
 }
 \arguments{
@@ -44,6 +45,9 @@ Default is NULL, which dynamically sets the default based on variable type:
 
 \item{seasonal}{Logical. If \code{TRUE}, downloads and aggregates data for the
 entire period into a single seasonal raster (sum/mean).
+Default is \code{FALSE}.}
+
+\item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
 Default is \code{FALSE}.}
 }
 \value{
