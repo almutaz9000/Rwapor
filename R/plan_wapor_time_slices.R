@@ -309,22 +309,7 @@ plan_wapor_time_slices <- function(start_date, end_date,
   plan
 }
 
-#' Convert Plan Rows to WaPOR API Query Parameters
-#'
-#' Converts rows from a [plan_wapor_time_slices()] output to parameter lists
-#' suitable for WaPOR API queries.
-#'
-#' @param plan A data.frame as returned by [plan_wapor_time_slices()].
-#'
-#' @return A list of lists, each with `code` and a time identifier
-#'   (`year`, `month`, `dekad`, or `date` as appropriate).
-#'
-#' @export
-#'
-#' @examples
-#' plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
-#' params <- plan_to_api_params(plan)
-#' str(params[[1]])
+
 #' Get Available Temporal Codes for a Variable
 #'
 #' Determines which temporal resolutions (annual, monthly, dekadal, daily)
@@ -385,23 +370,4 @@ get_available_temporal_codes <- function(variable) {
   avail
 }
 
-plan_to_api_params <- function(plan) {
-  if (!is.data.frame(plan) || nrow(plan) == 0) {
-    return(list())
-  }
 
-  lapply(seq_len(nrow(plan)), function(i) {
-    row <- plan[i, ]
-    switch(row$code,
-      "A" = list(code = "A", year = row$period_id),
-      "M" = list(code = "M", year = substr(row$period_id, 1, 4),
-                 month = substr(row$period_id, 6, 7)),
-      "D" = {
-        parts <- strsplit(row$period_id, "-")[[1]]
-        dekad_num <- as.integer(gsub("D", "", parts[3]))
-        list(code = "D", year = parts[1], month = parts[2], dekad = dekad_num)
-      },
-      "E" = list(code = "E", date = row$period_id)
-    )
-  })
-}

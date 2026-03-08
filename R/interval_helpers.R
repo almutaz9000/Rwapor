@@ -91,14 +91,4 @@ last_day_of_month <- function(year, month) {
   }
 }
 
-#' Get the Number of Days in a Year
-#'
-#' @param year Integer year.
-#'
-#' @return Integer. 365 or 366.
-#'
-#' @keywords internal
-#' @noRd
-days_in_year <- function(year) {
-  as.integer(as.Date(paste0(year, "-12-31")) - as.Date(paste0(year, "-01-01"))) + 1L
-}
+
