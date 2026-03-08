@@ -31,24 +31,35 @@ FAO GISMGR API. This vignette covers the basic workflow for:
 # Install from local source (development version)
 install.packages("path/to/Rwapor", repos = NULL, type = "source")
 
-# Load the package
+# Or install from GitHub
+# remotes::install_github("almutaz9000/Rwapor")
+
 library(Rwapor)
 ```
 
-## Setting Up Parallel Processing
+## Performance: GDAL Configuration
 
-For faster downloads, set up parallel workers using the `future` package:
+Rwapor automatically optimises GDAL's HTTP streaming settings when the
+package loads. This dramatically reduces download times for
+Cloud-Optimized GeoTIFFs (COGs) by using 10 MB read chunks instead of
+GDAL's 16 KB default, cutting the number of HTTP round-trips by 100–1000×.
 
-```{r setup-parallel}
-library(future)
-library(progressr)
+```{r gdal-config}
+library(Rwapor)
 
-# Use 4 parallel workers
-future::plan(future::multisession, workers = 4)
+# Confirm settings were applied (called automatically on library(Rwapor))
+wapor_gdal_settings()
+# CPL_VSIL_CURL_CHUNK_SIZE     = 10485760   # 10 MB chunks
+# VSI_CACHE                    = TRUE       # in-memory block cache
+# GDAL_DISABLE_READDIR_ON_OPEN = EMPTY_DIR  # skip directory listing
+# GDAL_HTTP_MULTIPLEX          = YES        # HTTP/2 multiplexing
 
-# Enable progress reporting
-progressr::handlers(global = TRUE)
+# Increase chunk size for high-bandwidth connections (optional)
+wapor_configure_gdal(chunk_size = 32 * 1024 * 1024)  # 32 MB
 ```
+
+No parallel workers or extra packages are needed — the performance
+improvements happen automatically through the GDAL layer.
 
 ## Available Variables
 
@@ -94,29 +105,28 @@ Use `wapor_map()` to download and save raster data for a region:
 # Define region as bounding box: c(xmin, ymin, xmax, ymax)
 region <- c(35.0, 33.0, 36.0, 34.0)
 
-# Download dekadal ET for January 2023
+# Download dekadal ET for January 2023 (defaults to mm/dekad)
 output_file <- wapor_map(
-  region = region,
+  region   = region,
   variable = "L1-AETI-D",
-  period = c("2023-01-01", "2023-01-31"),
-  folder = "output"
+  period   = c("2023-01-01", "2023-01-31"),
+  folder   = "output"
 )
 
 print(output_file)
-# "output/region_L1-AETI-D.tif"
+# "output/L1-AETI-D/bb_WAPOR-3.L1-AETI-D.2023-01-01_2023-01-21.tif"
 ```
 
 ### Using a Shapefile
 
 ```{r download-shapefile}
-# Download for a shapefile region with local caching
+# Download for a shapefile region, cropped and masked to the polygon
 output_file <- wapor_map(
-  region = "path/to/my_region.shp",
+  region   = "path/to/my_region.shp",
   variable = "L2-NPP-M",
-  period = c("2023-01-01", "2023-12-31"),
-  folder = "output",
-  filename = "npp_monthly_2023.tif",
-  download_locally = TRUE  # Cache files locally first
+  period   = c("2023-01-01", "2023-12-31"),
+  folder   = "output",
+  filename = "npp_monthly_2023.tif"
 )
 ```
 
@@ -127,11 +137,41 @@ For WaPOR Level 3 data, use the 3-letter region code:
 ```{r download-l3}
 # Download for Awash Basin (Ethiopia)
 output_file <- wapor_map(
-  region = "AWA",
+  region   = "AWA",
   variable = "L3-AETI-D",
-  period = c("2023-06-01", "2023-06-30"),
-  folder = "output"
+  period   = c("2023-06-01", "2023-06-30"),
+  folder   = "output"
 )
+```
+
+### Saving Separate Files Per Time Step
+
+```{r download-separate}
+# One GeoTIFF per dekad instead of a single multi-band stack
+paths <- wapor_map(
+  region         = c(35.0, 33.0, 36.0, 34.0),
+  variable       = "L1-AETI-D",
+  period         = c("2023-01-01", "2023-03-31"),
+  folder         = "output",
+  separate_files = TRUE
+)
+
+length(paths)  # 9 files (3 dekads × 3 months)
+```
+
+### Multiple Variables
+
+```{r download-multi}
+# Download ET and NPP in one call — returns a named list
+results <- wapor_map(
+  region   = c(35.0, 33.0, 36.0, 34.0),
+  variable = c("L1-AETI-D", "L1-NPP-D"),
+  period   = c("2023-01-01", "2023-03-31"),
+  folder   = "output"
+)
+
+results[["L1-AETI-D"]]
+results[["L1-NPP-D"]]
 ```
 
 ## Extracting Time Series
@@ -141,11 +181,11 @@ Use `wapor_ts()` to extract zonal statistics (mean, min, max) for polygons:
 ### Basic Time Series Extraction
 
 ```{r ts-basic}
-# Extract time series for a bounding box
+# Extract time series for a bounding box (defaults to mm/dekad for dekadal vars)
 df <- wapor_ts(
-  region = c(35.0, 33.0, 36.0, 34.0),
+  region   = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
-  period = c("2023-01-01", "2023-03-31")
+  period   = c("2023-01-01", "2023-03-31")
 )
 
 head(df)
@@ -157,78 +197,88 @@ head(df)
 ### Time Series for Multiple Polygons
 
 ```{r ts-polygons}
-# Extract for multiple fields/polygons
+# Extract for multiple fields — identifier column names each polygon
 df <- wapor_ts(
-  region = "fields.geojson",
-  variable = "L1-AETI-D",
-  period = c("2023-01-01", "2023-12-31"),
-  identifier = "field_name",  # Column to identify polygons
-  download_locally = TRUE
+  region     = "fields.geojson",
+  variable   = "L1-AETI-D",
+  period     = c("2023-01-01", "2023-12-31"),
+  identifier = "field_name"
 )
 
-# Results include statistics for each polygon at each time step
 head(df)
 ```
 
 ### Accessing Metadata
 
-The returned data frame includes metadata as attributes:
+The returned data frame carries units and variable description as attributes:
 
 ```{r ts-metadata}
-# Get variable units
 attr(df, "units")
-# "mm/day"
+# "mm/dekad"
 
-# Get variable description
 attr(df, "long_name")
 # "Actual EvapoTranspiration and Interception"
 ```
 
 ## Unit Conversion
 
-Convert values between temporal units using the `unit_conversion` parameter:
+WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
+them automatically. Use the `unit_conversion` parameter to choose the output:
 
 ```{r unit-conversion}
-# Convert dekadal data to monthly totals
-df_monthly <- wapor_ts(
-  region = c(35.0, 33.0, 36.0, 34.0),
+# Default: mm/dekad (dekadal total)
+df_dekad <- wapor_ts(
+  region   = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
-  period = c("2023-01-01", "2023-03-31"),
+  period   = c("2023-01-01", "2023-03-31")
+)
+attr(df_dekad, "units")  # "mm/dekad"
+
+# Daily rate
+df_day <- wapor_ts(
+  region          = c(35.0, 33.0, 36.0, 34.0),
+  variable        = "L1-AETI-D",
+  period          = c("2023-01-01", "2023-03-31"),
+  unit_conversion = "day"
+)
+attr(df_day, "units")          # "mm/day"
+attr(df_day, "original_units") # "mm/day"
+
+# Monthly total
+df_monthly <- wapor_ts(
+  region          = c(35.0, 33.0, 36.0, 34.0),
+  variable        = "L1-AETI-D",
+  period          = c("2023-01-01", "2023-03-31"),
   unit_conversion = "month"
 )
-
-# Check the new units
-attr(df_monthly, "units")
-# "mm/month"
-
-attr(df_monthly, "original_units")
-# "mm/day"
+attr(df_monthly, "units")  # "mm/month"
 ```
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
 
 ## Working with URLs Directly
 
-For advanced use cases, generate URLs without downloading:
+For advanced use cases, generate download URLs without saving to disk:
 
 ```{r generate-urls}
 # Get download URLs for a variable and period
 urls <- wapor_generate_urls(
   variable = "L1-AETI-D",
-  period = c("2023-01-01", "2023-01-31")
+  period   = c("2023-01-01", "2023-01-31")
 )
 
-length(urls)
-# 3 (one per dekad)
+length(urls)  # 3 (one per dekad)
 
-# Use with terra directly
+# Stream directly with terra — GDAL settings applied by Rwapor ensure
+# these remote reads are fast
 library(terra)
-r <- terra::rast(urls)
+r <- terra::rast(paste0("/vsicurl/", urls))
 ```
 
 ## Parsing Regions
 
-The `parse_region()` function handles different region formats:
+The `parse_region()` function normalises different region formats:
+
 ```{r parse-region}
 # Bounding box
 parse_region(c(35.0, 33.0, 36.0, 34.0))
@@ -247,7 +297,7 @@ parse_region("path/to/region.shp")
 
 All functions provide informative error messages:
 
-```{r error-handling, error=TRUE}
+```{r error-handling, error = TRUE}
 # Invalid variable format
 wapor_generate_urls("INVALID")
 # Error: Invalid variable format 'INVALID'. Expected format: 'LEVEL-VAR-TRES'
@@ -263,25 +313,28 @@ parse_region(c(36, 33, 35, 34))
 
 ## Best Practices
 
-1. **Use `download_locally = TRUE`** for large time series to avoid repeated
-   network requests
+1. **GDAL is tuned automatically** — `library(Rwapor)` applies optimised HTTP
+   settings immediately. No extra setup required. Call `wapor_gdal_settings()`
+   to confirm or `wapor_configure_gdal()` to customise.
 
-2. **Set up parallel workers** before processing to speed up downloads:
-   ```r
-   future::plan(future::multisession, workers = 4)
-   ```
-
-3. **Check variable metadata** before downloading to understand units and
-   scale factors:
+2. **Check variable metadata** before downloading to understand units:
    ```r
    get_variable_metadata("L1-AETI-D")
    ```
 
-4. **Use appropriate temporal resolution** for your analysis:
-   - Daily (E): Weather analysis
+3. **Use appropriate temporal resolution** for your analysis:
+   - Daily (E): Weather / irrigation scheduling
    - Dekadal (D): Crop monitoring
    - Monthly (M): Seasonal analysis
    - Annual (A): Long-term trends
+
+4. **Use `unit_conversion`** to get the right aggregation level:
+   - `"dekad"` — 10-day total (default for dekadal variables)
+   - `"month"` — monthly total
+   - `"day"`  — daily rate
+
+5. **Use `separate_files = TRUE`** in `wapor_map()` when you need one file
+   per time step, for example to feed into external processing pipelines.
 
 ## Session Info
 

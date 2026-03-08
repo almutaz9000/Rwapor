@@ -391,27 +391,32 @@ test_that("Seasonal sum arithmetic is correct for mixed M+D", {
 
 # --- Seasonal API boundary tests ---------------------------------------------
 
-test_that("wapor_map does not expose seasonal mode", {
+test_that("wapor_map seasonal=TRUE rejects multiple variables", {
+  # seasonal mode is implemented and its validation rejects multiple variables.
   expect_error(
     wapor_map(
-      region = c(35.0, 33.0, 36.0, 34.0),
-      variable = "L1-AETI-D",
-      period = c("2023-01-01", "2023-03-31"),
-      folder = tempdir(),
+      region   = c(35.0, 33.0, 36.0, 34.0),
+      variable = c("L1-AETI-D", "L1-NPP-D"),
+      period   = c("2023-01-01", "2023-03-31"),
+      folder   = tempdir(),
       seasonal = TRUE
     ),
-    "unused argument"
+    "single variable"
   )
 })
 
-test_that("wapor_ts does not expose seasonal mode", {
+test_that("wapor_ts seasonal argument is accepted (no 'unused argument' error)", {
+  # Confirm seasonal is a known parameter. Use an invalid unit_conversion to
+  # produce an early validation error — if seasonal were unknown, R would error
+  # with "unused argument" first.
   expect_error(
     wapor_ts(
-      region = c(35.0, 33.0, 36.0, 34.0),
-      variable = "L1-AETI-D",
-      period = c("2023-01-01", "2023-03-31"),
-      seasonal = TRUE
+      region          = c(35.0, 33.0, 36.0, 34.0),
+      variable        = "L1-AETI-D",
+      period          = c("2023-01-01", "2023-03-31"),
+      unit_conversion = "invalid_unit",
+      seasonal        = FALSE
     ),
-    "unused argument"
+    "unit_conversion.*must be one of"
   )
 })
