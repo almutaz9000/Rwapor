@@ -127,6 +127,56 @@ wapor_configure_gdal <- function(
 }
 
 
+#' Fix PROJ_LIB Environment Variable
+#'
+#' Automatically detects if the `PROJ_LIB` environment variable is pointing
+#' to an incompatible PROJ database (common on Windows with multiple GIS
+#' installations like PostGIS) and redirects it to the database provided
+#' by the `sf` or `terra` packages.
+#'
+#' @param verbose Logical. Print messages about the detection and fix.
+#'
+#' @return Character. The `PROJ_LIB` path being used.
+#'
+#' @export
+wapor_fix_proj <- function(verbose = FALSE) {
+  current_proj <- Sys.getenv("PROJ_LIB", unset = "")
+  
+  # Offending paths usually contain PostgreSQL or PostGIS
+  is_offending <- grepl("PostgreSQL|PostGIS", current_proj, ignore.case = TRUE)
+  
+  if (nzchar(current_proj) && !is_offending) {
+    return(invisible(current_proj))
+  }
+  
+  # Try to find PROJ in sf or terra packages
+  search_pkgs <- c("sf", "terra")
+  new_path <- ""
+  
+  for (pkg in search_pkgs) {
+    pkg_path <- system.file("proj", package = pkg)
+    if (nzchar(pkg_path) && dir.exists(pkg_path)) {
+      new_path <- pkg_path
+      break
+    }
+  }
+  
+  if (nzchar(new_path)) {
+    if (isTRUE(verbose)) {
+      if (is_offending) {
+        message(sprintf("Rwapor: Redirecting PROJ_LIB from PostGIS to package-internal database: %s", new_path))
+      } else {
+        message(sprintf("Rwapor: Setting PROJ_LIB to: %s", new_path))
+      }
+    }
+    Sys.setenv(PROJ_LIB = new_path)
+    return(invisible(new_path))
+  }
+  
+  invisible(current_proj)
+}
+
+
 #' Show Current GDAL Environment Settings
 #'
 #' Returns the current values of GDAL environment variables that Rwapor
@@ -143,7 +193,7 @@ wapor_configure_gdal <- function(
 #' @examples
 #' wapor_gdal_settings()
 wapor_gdal_settings <- function() {
-  vars <- names(.RWAPOR_GDAL_DEFAULTS)
+  vars <- c(names(.RWAPOR_GDAL_DEFAULTS), "PROJ_LIB")
   vals <- Sys.getenv(vars, unset = "")
   names(vals) <- vars
   vals
@@ -152,5 +202,7 @@ wapor_gdal_settings <- function() {
 
 # Applied automatically when the package is attached.
 .onLoad <- function(libname, pkgname) {
+  # Fix PROJ first to prevent GDAL initialization errors
+  wapor_fix_proj(verbose = FALSE)
   wapor_configure_gdal(verbose = FALSE)
 }

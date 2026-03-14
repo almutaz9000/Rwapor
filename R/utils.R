@@ -468,6 +468,17 @@ guess_l3_region <- function(variable, reg_info, period) {
 #' @noRd
 crop_to_region <- function(r, reg_info, do_mask = FALSE) {
   r_crs <- terra::crs(r)
+  
+  # Handle empty CRS (common if PROJ DB is misconfigured or metadata is missing)
+  if (!nzchar(r_crs)) {
+    ext_r <- terra::ext(r)
+    # If the extent looks like geographic coordinates (decimal degrees), assume WGS84
+    if (ext_r$xmin >= -180 && ext_r$xmax <= 180 && ext_r$ymin >= -90 && ext_r$ymax <= 90) {
+      suppressWarnings(terra::crs(r) <- "EPSG:4326")
+      r_crs <- terra::crs(r)
+    }
+  }
+  
   has_r_crs <- nzchar(r_crs)
 
   if (reg_info$type == "vector") {
