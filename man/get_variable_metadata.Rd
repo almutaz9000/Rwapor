@@ -29,7 +29,7 @@ memoization for performance.
 \details{
 The function uses memoization to cache API responses, so repeated
 calls for the same variable are fast. Static metadata is available
-for all common WaPOR (L1, L2) and AgERA5 variables.
+for all WaPOR (L1, L2, L3) and AgERA5 variables.
 }
 \examples{
 # Get metadata for a WaPOR variable
@@ -44,8 +44,8 @@ meta <- get_variable_metadata("AGERA5-ET0-E")
 meta$units
 # [1] "mm/day"
 
-\dontrun{
-# Dynamic fetch for L3 or unknown variables
+# Get metadata for L3 variable (now in static list)
 meta <- get_variable_metadata("L3-AETI-D")
-}
+meta$units
+# [1] "mm/day"
 }

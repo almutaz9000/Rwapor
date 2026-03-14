@@ -352,6 +352,32 @@ safe_project <- function(x, y) {
   return(res_sf)
 }
 
+#' Get L3 Raster Extent (Cached)
+#'
+#' Fetches the extent of a remote raster and returns it as a WGS84 polygon.
+#' Results are memoized so each URL's extent is only fetched once per session.
+#'
+#' @param url Character. Download URL for the raster.
+#' @return A SpatVector polygon in EPSG:4326, or NULL on failure.
+#' @importFrom terra rast ext as.polygons crs
+#' @importFrom memoise memoise
+#' @keywords internal
+#' @noRd
+get_l3_raster_extent_internal <- function(url) {
+  vsi_url <- paste0("/vsicurl/", url)
+  r <- tryCatch(suppressWarnings(terra::rast(vsi_url)), error = function(e) NULL)
+  if (is.null(r)) return(NULL)
+
+  r_ext <- terra::ext(r)
+  r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
+  safe_project(r_poly, 4326)
+}
+
+#' @rdname get_l3_raster_extent_internal
+#' @keywords internal
+#' @noRd
+get_l3_raster_extent <- memoise::memoise(get_l3_raster_extent_internal)
+
 #' Guess L3 Region from Spatial Intersection
 #'
 #' @param variable Character. The WaPOR variable name (e.g., L3-AETI-D)
@@ -364,16 +390,16 @@ safe_project <- function(x, y) {
 guess_l3_region <- function(variable, reg_info, period) {
   # Temporarily suppress the warning from wapor_generate_urls
   urls <- suppressWarnings(wapor_generate_urls(variable, period = c(period[1], period[1])))
-  
+
   if (length(urls) == 0) {
     urls <- suppressWarnings(wapor_generate_urls(variable, period = period))
   }
-  
+
   if (length(urls) == 0) return(NULL)
-  
+
   extracted_codes <- character()
   unique_urls <- character()
-  
+
   # Extract distinct L3 codes from the filenames
   for (u in urls) {
     fname <- tools::file_path_sans_ext(basename(u))
@@ -386,50 +412,44 @@ guess_l3_region <- function(variable, reg_info, period) {
       }
     }
   }
-  
+
   if (length(unique_urls) == 0) return(NULL)
-  
+
   message("Dynamically scanning L3 regions for spatial intersection...")
+
+  # Build the user region polygon once (outside the loop)
+  user_poly <- NULL
+  if (reg_info$type == "vector") {
+    v <- suppressWarnings(terra::vect(reg_info$value))
+    v_ext <- terra::ext(v)
+    v_bb_poly <- terra::as.polygons(v_ext, crs = terra::crs(v))
+    user_poly <- safe_project(v_bb_poly, 4326)
+  } else if (reg_info$type == "bbox") {
+    bbox <- reg_info$value
+    bb_ext <- terra::ext(bbox[c("xmin", "xmax", "ymin", "ymax")])
+    user_poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
+  }
+
   intersecting_codes <- character()
-  
+
   for (i in seq_along(unique_urls)) {
-    u <- unique_urls[i]
     code <- extracted_codes[i]
-    vsi_url <- paste0("/vsicurl/", u)
-    
-    r <- tryCatch(suppressWarnings(terra::rast(vsi_url)), error = function(e) NULL)
-    if (is.null(r)) next
-    
-    r_ext <- terra::ext(r)
-    r_poly <- terra::as.polygons(r_ext, crs=terra::crs(r))
-    r_poly_4326 <- safe_project(r_poly, 4326)
-    
-    intersects <- FALSE
-    if (reg_info$type == "vector") {
-      v <- suppressWarnings(terra::vect(reg_info$value))
-      v_ext <- terra::ext(v)
-      v_bb_poly <- terra::as.polygons(v_ext, crs=terra::crs(v))
-      v_bb_4326 <- safe_project(v_bb_poly, 4326)
-      
-      intersects <- any(suppressWarnings(terra::is.related(r_poly_4326, v_bb_4326, "intersects")))
-    } else if (reg_info$type == "bbox") {
-      bbox <- reg_info$value
-      bb_ext <- terra::ext(bbox[c("xmin", "xmax", "ymin", "ymax")])
-      bb_poly <- terra::as.polygons(bb_ext, crs="EPSG:4326")
-      
-      intersects <- any(suppressWarnings(terra::is.related(r_poly_4326, bb_poly, "intersects")))
-    }
-    
-    if (intersects) {
+
+    # Use memoized extent lookup (cached across calls within the session)
+    r_poly_4326 <- get_l3_raster_extent(unique_urls[i])
+    if (is.null(r_poly_4326)) next
+
+    if (!is.null(user_poly) &&
+        any(suppressWarnings(terra::is.related(r_poly_4326, user_poly, "intersects")))) {
       intersecting_codes <- c(intersecting_codes, code)
     }
   }
-  
+
   if (length(intersecting_codes) > 0) {
     message(sprintf("Found intersecting L3 regions: %s", paste(intersecting_codes, collapse = ", ")))
     return(intersecting_codes)
   }
-  
+
   return(NULL)
 }
 
@@ -447,6 +467,9 @@ guess_l3_region <- function(variable, reg_info, period) {
 #' @keywords internal
 #' @noRd
 crop_to_region <- function(r, reg_info, do_mask = FALSE) {
+  r_crs <- terra::crs(r)
+  has_r_crs <- nzchar(r_crs)
+
   if (reg_info$type == "vector") {
     vect_data <- reg_info$value
     vect_crs <- sf::st_crs(vect_data)
@@ -454,8 +477,9 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
       vect_data <- sf::st_transform(vect_data, 4326)
     }
     v <- suppressWarnings(terra::vect(vect_data))
-    if (terra::crs(v) != terra::crs(r)) {
-      v <- safe_project(v, terra::crs(r))
+    v_crs <- terra::crs(v)
+    if (has_r_crs && nzchar(v_crs) && v_crs != r_crs) {
+      v <- safe_project(v, r_crs)
     }
     r <- suppressWarnings(terra::crop(r, v))
     if (do_mask) {
@@ -463,11 +487,31 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     }
   } else if (reg_info$type == "bbox") {
     ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    bb_poly <- terra::as.polygons(ext, crs = "EPSG:4326")
-    if (terra::crs(bb_poly) != terra::crs(r)) {
-      bb_poly <- safe_project(bb_poly, terra::crs(r))
+    bb_poly <- suppressWarnings(terra::as.polygons(ext, crs = "EPSG:4326"))
+    bb_crs <- terra::crs(bb_poly)
+    if (has_r_crs && nzchar(bb_crs) && bb_crs != r_crs) {
+      bb_poly <- safe_project(bb_poly, r_crs)
     }
     r <- suppressWarnings(terra::crop(r, bb_poly))
   }
   r
+}
+
+#' Get URL Chunks for Batching
+#'
+#' Internal helper to split a vector of URLs into chunks for batch processing.
+#'
+#' @param urls Character vector of URLs.
+#' @param batching Logical. If TRUE, splits URLs into chunks. If FALSE, returns all in one chunk.
+#' @param batch_size Integer. Maximum number of URLs per chunk.
+#'
+#' @return A list of character vectors.
+#' @keywords internal
+#' @noRd
+get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
+  if (!batching || length(urls) <= batch_size) {
+    return(list(urls))
+  }
+  
+  split(urls, ceiling(seq_along(urls) / batch_size))
 }

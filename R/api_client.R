@@ -112,7 +112,7 @@ collect_responses <- function(url, info = "downloadUrl") {
 #'   period = c("2023-06-01", "2023-06-30")
 #' )
 #' }
-wapor_generate_urls <- function(variable, l3_region = NULL, period = NULL) {
+wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NULL) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -187,3 +187,12 @@ wapor_generate_urls <- function(variable, l3_region = NULL, period = NULL) {
 
   return(sort(unlist(urls)))
 }
+
+#' @rdname wapor_generate_urls
+#' @details
+#' Results are cached using memoization so that repeated calls with
+#' identical arguments within the same session avoid redundant API requests.
+#'
+#' @importFrom memoise memoise
+#' @export
+wapor_generate_urls <- memoise::memoise(wapor_generate_urls_internal)
