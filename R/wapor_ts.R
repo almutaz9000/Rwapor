@@ -228,6 +228,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       ID = zone_ids,
       stringsAsFactors = FALSE
     )
+    
+    # Add custom identifier column if specified
+    if (!is.null(identifier) && identifier %in% names(vect_data)) {
+      result_df[[identifier]] <- zone_ids
+    }
 
     # Determine base unit (remove temporal component)
     source_var_meta <- get_variable_metadata(variable)
@@ -369,6 +374,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         colnames(sub_df) <- c("mean", "min", "max")
 
         sub_df$ID <- ids[ex$ID]
+        
+        # Add custom identifier column if specified
         if (!is.null(identifier) && identifier %in% names(vect)) {
           sub_df[[identifier]] <- ids[ex$ID]
         }
