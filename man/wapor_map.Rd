@@ -14,6 +14,7 @@ wapor_map(
   unit_conversion = NULL,
   seasonal = FALSE,
   parallel = FALSE,
+  batching = TRUE,
   batch_size = 12L
 )
 }
@@ -55,6 +56,9 @@ Default is \code{FALSE}.}
 \item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
 Default is \code{FALSE}.}
 
+\item{batching}{Logical. If \code{TRUE} (default), processes data in chunks of \code{batch_size}.
+If \code{FALSE}, loads all layers at once.}
+
 \item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
 Lower values reduce memory pressure for long periods. Default is \code{12L}.}
 }
@@ -92,6 +96,18 @@ output_file <- wapor_map(
   period = c("2023-01-01", "2023-01-31"),
   folder = "output",
   unit_conversion = "day"
+)
+
+# Download with parallel batching for long periods
+library(future)
+plan(multisession)
+output_file <- wapor_map(
+  region = c(35.0, 33.0, 36.0, 34.0),
+  variable = "L1-AETI-D",
+  period = c("2020-01-01", "2023-12-31"),
+  folder = "output",
+  parallel = TRUE,
+  batch_size = 12
 )
 }
 }
