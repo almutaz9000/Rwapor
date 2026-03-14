@@ -37,29 +37,53 @@ install.packages("path/to/Rwapor", repos = NULL, type = "source")
 library(Rwapor)
 ```
 
-## Performance: GDAL Configuration
+## Performance: GDAL & Batching
 
 Rwapor automatically optimises GDAL's HTTP streaming settings when the
 package loads. This dramatically reduces download times for
 Cloud-Optimized GeoTIFFs (COGs) by using 10 MB read chunks instead of
 GDAL's 16 KB default, cutting the number of HTTP round-trips by 100–1000×.
 
-```{r gdal-config}
+### Automatic Spatial Fixes (PROJ Redirection)
+
+On Windows systems with multiple GIS installations (e.g., PostGIS via PostgreSQL),
+the `PROJ_LIB` environment variable can point to incompatible databases, causing
+coordinate system errors. Rwapor automatically detects and redirects these to its
+internal, compatible database when the package loads:
+
+```r
 library(Rwapor)
-
-# Confirm settings were applied (called automatically on library(Rwapor))
-wapor_gdal_settings()
-# CPL_VSIL_CURL_CHUNK_SIZE     = 10485760   # 10 MB chunks
-# VSI_CACHE                    = TRUE       # in-memory block cache
-# GDAL_DISABLE_READDIR_ON_OPEN = EMPTY_DIR  # skip directory listing
-# GDAL_HTTP_MULTIPLEX          = YES        # HTTP/2 multiplexing
-
-# Increase chunk size for high-bandwidth connections (optional)
-wapor_configure_gdal(chunk_size = 32 * 1024 * 1024)  # 32 MB
+# This calls wapor_fix_proj() automatically
 ```
 
-No parallel workers or extra packages are needed — the performance
-improvements happen automatically through the GDAL layer.
+### Optional Batching & Parallel Processing
+
+For long time series (e.g., 5+ years of dekadal data), loading all rasters at 
+once can exceed available RAM. Both `wapor_map()` and `wapor_ts()` support 
+**optional batching** and **parallel processing** to manage resources:
+
+```r
+library(Rwapor)
+library(future)
+
+# 1. Setup parallel backend (optional)
+plan(multisession, workers = 4)
+
+# 2. Extract with parallel batching
+# This will split 36 layers into 12 batches of 3, processed in parallel.
+df_batched <- wapor_ts(
+  region     = c(35.0, 33.0, 36.0, 34.0),
+  variable   = "L1-AETI-D",
+  period     = c("2023-01-01", "2023-12-31"),
+  batching   = TRUE,
+  batch_size = 3,
+  parallel   = TRUE
+)
+```
+
+- **`batching`**: Defaults to `TRUE`. Processes data in manageable chunks.
+- **`batch_size`**: Number of layers per chunk (default `12L`).
+- **`parallel`**: If `TRUE`, batches are processed in parallel via background workers.
 
 ## Available Variables
 

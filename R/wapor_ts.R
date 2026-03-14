@@ -75,6 +75,18 @@
 #'   unit_conversion = "day"
 #' )
 #'
+#' # Parallel extraction for memory efficiency
+#' library(future)
+#' plan(multisession)
+#' df <- wapor_ts(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-12-31"),
+#'   parallel = TRUE,
+#'   batching = TRUE,
+#'   batch_size = 3
+#' )
+#'
 #' # Check units
 #' attr(df, "units")
 #' attr(df, "long_name")
