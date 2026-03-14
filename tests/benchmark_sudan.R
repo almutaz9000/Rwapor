@@ -5,8 +5,7 @@
 # ------------------------------------------------------------------
 # Setup
 # ------------------------------------------------------------------
-# During R CMD check, the package is already loaded.
-# For manual running, ensure library(Rwapor) is called before this script.
+library(Rwapor)
 
 # --- Configuration ---
 # Sudan approx bbox (large country)

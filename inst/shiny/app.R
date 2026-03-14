@@ -91,10 +91,14 @@ ui <- bslib::page_navbar(
     .card { margin-bottom: 1rem; }
     .leaflet-container { border-radius: 0.375rem; }
     .accordion-button:focus { box-shadow: none; }
-    #analysis_map_card .leaflet-container {
+    #analysis_map_card .leaflet-container, 
+    #download_map_card .leaflet-container {
       aspect-ratio: 1;
-      max-height: 700px;
+      max-height: 800px;
     }
+    #raster_info_table { font-size: 0.85rem; }
+    #raster_info_table table { margin-bottom: 0; }
+    .card-body.compact { padding: 0.5rem; }
   "))),
 
   # ---- Download Tab --------------------------------------------------------
@@ -192,10 +196,11 @@ ui <- bslib::page_navbar(
       bslib::layout_column_wrap(
         width = 1,
         bslib::card(
+          id = "download_map_card",
           bslib::card_header("Map"),
           bslib::card_body(
             class = "p-0",
-            leaflet::leafletOutput("map", height = "500px")
+            leaflet::leafletOutput("map", height = "700px")
           )
         ),
         bslib::card(
@@ -208,9 +213,9 @@ ui <- bslib::page_navbar(
     )
   ),
 
-  # ---- Analysis Tab -------------------------------------------------------
+  # ---- Visualisation Tab ---------------------------------------------------
   bslib::nav_panel(
-    "Analysis",
+    "Visualisation",
     icon = shiny::icon("chart-area"),
     bslib::layout_sidebar(
       sidebar = bslib::sidebar(
@@ -271,14 +276,15 @@ ui <- bslib::page_navbar(
           bslib::card_header("Raster Visualization"),
           bslib::card_body(
             class = "p-0",
-            leaflet::leafletOutput("analysis_map", height = "600px",
+            leaflet::leafletOutput("analysis_map", height = "700px",
               width = "100%")
           )
         ),
         bslib::card(
           bslib::card_header("Raster Information"),
           bslib::card_body(
-            shiny::tableOutput("raster_info")
+            class = "compact",
+            shiny::div(id = "raster_info_table", shiny::tableOutput("raster_info"))
           )
         )
       )
@@ -294,6 +300,12 @@ ui <- bslib::page_navbar(
       target = "_blank",
       style = "color: rgba(255,255,255,0.85);"
     )
+  ),
+  bslib::nav_item(
+    shiny::actionButton("exit_btn", "Exit", 
+      icon = shiny::icon("power-off"),
+      class = "btn-danger btn-sm",
+      style = "margin-left: 10px; color: white;")
   )
 )
 
@@ -308,6 +320,12 @@ server <- function(input, output, session) {
   manual_clicks <- shiny::reactiveVal(matrix(numeric(), ncol = 2,
     dimnames = list(NULL, c("lng", "lat"))))
   manual_active <- shiny::reactiveVal(FALSE)
+  
+  # ---- Exit Dashboard ------------------------------------------------------
+  shiny::observeEvent(input$exit_btn, {
+    shiny::showNotification("Shutting down dashboard...", type = "message")
+    shiny::stopApp()
+  })
 
   current_region <- shiny::reactive({
     # For L3 variables, use the selected L3 region code
