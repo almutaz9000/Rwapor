@@ -27,8 +27,10 @@
 #'   intermediate component rasters into `<folder>/<variable>/`. Default is `FALSE`.
 #' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
 #'   Default is `FALSE`.
+#' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
+#'   If `FALSE`, loads all layers at once.
 #' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
-#'   Lower values reduce memory pressure for long periods.
+#'   Lower values reduce memory pressure for long periods. Default is `12L`.
 #'
 #' @return Character. Path to the output GeoTIFF file.
 #'
@@ -75,7 +77,8 @@ wapor_map <- function(
   unit_conversion = NULL,
   seasonal = FALSE,
   parallel = FALSE,
-  batch_size = 24L
+  batching = TRUE,
+  batch_size = 12L
 ) {
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
@@ -86,6 +89,9 @@ wapor_map <- function(
   }
   if (!is.character(folder) || length(folder) != 1) {
     stop("'folder' must be a single character string", call. = FALSE)
+  }
+  if (!is.logical(batching) || length(batching) != 1) {
+    stop("'batching' must be a single logical value", call. = FALSE)
   }
   if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
     stop("'batch_size' must be a positive integer", call. = FALSE)
@@ -286,9 +292,9 @@ wapor_map <- function(
     
     # Split URLs into chunks based on batch_size
     n_urls <- length(urls)
-    url_chunks <- split(urls, ceiling(seq_along(urls) / batch_size))
+    url_chunks <- get_url_chunks(urls, batching = batching, batch_size = batch_size)
     
-    message(sprintf("  Splitting %d files into %d chunk(s) formemory efficiency.", n_urls, length(url_chunks)))
+    message(sprintf("  Splitting %d files into %d chunk(s) for memory efficiency.", n_urls, length(url_chunks)))
     
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {

@@ -17,8 +17,8 @@ WAPOR3_VARS
 }
 \description{
 A named list containing metadata for WaPOR version 3 variables including
-Level 1 (L1) and Level 2 (L2) products. Each entry contains the variable's
-long name, measurement units, and scale factor.
+Level 1 (L1), Level 2 (L2), and Level 3 (L3) products. Each entry contains
+the variable's long name, measurement units, and scale factor.
 }
 \details{
 Variable naming convention: \code{{Level}-{Variable}-{TemporalResolution}}
@@ -27,6 +27,7 @@ Variable naming convention: \code{{Level}-{Variable}-{TemporalResolution}}
 \itemize{
 \item L1: Continental scale (~250m resolution for Africa and Near East)
 \item L2: Country/regional scale (~100m resolution)
+\item L3: Sub-national / irrigation scheme scale (~10-20m resolution)
 }
 
 \strong{Temporal Resolutions:}
@@ -44,9 +45,12 @@ WAPOR3_VARS[["L1-AETI-D"]]
 # List all available variables
 names(WAPOR3_VARS)
 
+# List L3 variables only
+grep("^L3-", names(WAPOR3_VARS), value = TRUE)
+
 }
 \seealso{
-\link{AGERA5_VARS} for climate variables, \code{\link[=get_variable_metadata]{get_variable_metadata()}} for
-dynamic metadata fetching
+\link{AGERA5_VARS} for climate variables, \link{L3_REGIONS} for L3 region
+codes, \code{\link[=get_variable_metadata]{get_variable_metadata()}} for dynamic metadata fetching
 }
 \keyword{datasets}

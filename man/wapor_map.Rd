@@ -14,7 +14,7 @@ wapor_map(
   unit_conversion = NULL,
   seasonal = FALSE,
   parallel = FALSE,
-  batch_size = 24L
+  batch_size = 12L
 )
 }
 \arguments{
@@ -37,7 +37,8 @@ convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").}
 name is generated based on region and variable.}
 
 \item{separate_files}{Logical. If \code{TRUE}, writes each time step as a separate
-GeoTIFF file instead of a multi-band stack. Default is \code{FALSE}.}
+GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
+intermediate component rasters into \verb{<folder>/<variable>/}. Default is \code{FALSE}.}
 
 \item{unit_conversion}{Character. Target temporal unit for conversion.
 One of: "none", "day", "dekad", "month", "year".
@@ -55,7 +56,7 @@ Default is \code{FALSE}.}
 Default is \code{FALSE}.}
 
 \item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
-Lower values reduce memory pressure for long periods.}
+Lower values reduce memory pressure for long periods. Default is \code{12L}.}
 }
 \value{
 Character. Path to the output GeoTIFF file.

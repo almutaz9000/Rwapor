@@ -12,7 +12,8 @@ wapor_ts(
   unit_conversion = NULL,
   seasonal = FALSE,
   download_locally = FALSE,
-  parallel = FALSE
+  parallel = FALSE,
+  batch_size = 12L
 )
 }
 \arguments{
@@ -48,6 +49,10 @@ with \verb{/vsicurl/}. Kept for backward compatibility.}
 
 \item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
 Default is \code{FALSE}.}
+
+\item{batch_size}{Integer. Number of remote raster layers loaded and processed
+per batch. Lower values reduce peak memory usage for long time series.
+Default is \code{12L} (~4 months of dekadal data).}
 }
 \value{
 A data.frame with columns:

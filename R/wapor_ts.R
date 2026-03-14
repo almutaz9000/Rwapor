@@ -22,8 +22,13 @@
 #'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
 #'   with `/vsicurl/`. Kept for backward compatibility.
-#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
-#'   Default is `FALSE`.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing
+#'   within or across batches. Default is `FALSE`.
+#' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
+#'   If `FALSE`, loads all layers at once.
+#' @param batch_size Integer. Number of remote raster layers loaded and processed
+#'   per batch. Lower values reduce peak memory usage for long time series.
+#'   Default is `12L` (~4 months of dekadal data).
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -74,7 +79,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -88,6 +93,13 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   if (isTRUE(download_locally)) {
     warning("'download_locally' is deprecated and ignored; data are streamed with /vsicurl/.", call. = FALSE)
   }
+  if (!is.logical(batching) || length(batching) != 1) {
+    stop("'batching' must be a single logical value", call. = FALSE)
+  }
+  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
+    stop("'batch_size' must be a positive integer", call. = FALSE)
+  }
+  batch_size <- as.integer(batch_size)
   
   # Determine default unit_conversion if NULL
   if (is.null(unit_conversion)) {
@@ -242,31 +254,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   message("Streaming data using GDAL virtual file system (/vsicurl/)...")
 
   message(sprintf("Found %d files. Processing...", length(urls)))
-
-  # Load raster stack with retry logic for intermittent /vsicurl/ errors
   t0_ts <- proc.time()
-  r <- NULL
-  max_retries <- 3
-  for (attempt in seq_len(max_retries)) {
-    r <- tryCatch({
-      suppressWarnings(terra::rast(urls))
-    }, error = function(e) {
-      if (attempt < max_retries) {
-        message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)", 
-                        attempt, attempt * 2, e$message))
-        Sys.sleep(attempt * 2)
-        return(NULL)
-      } else {
-        stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
-      }
-    })
-    if (!is.null(r)) break
-  }
-
-  # Crop based on region type (wapor_ts does not mask — exactextractr handles that)
-  vect <- if (reg_info$type == "vector") reg_info$value else NULL
-  r <- crop_to_region(r, reg_info, do_mask = FALSE)
-  message(sprintf("Raster loaded and cropped in %.1f seconds (%d layers)", (proc.time() - t0_ts)[["elapsed"]], terra::nlyr(r)))
 
   # Extract temporal resolution from variable name
   parts <- strsplit(variable, "-")[[1]]
@@ -277,93 +265,141 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
   meta_df$layer_index <- seq_len(nrow(meta_df))
 
-  # Extract statistics
-  results <- list()
+  # Determine region type
 
+  vect <- if (reg_info$type == "vector") reg_info$value else NULL
+
+  # Extract polygon identifiers once
+  ids <- NULL
   if (!is.null(vect)) {
-    # Zonal statistics for polygons using exactextractr.
-    # Note: vect is already an sf object from parse_region(); passing it
-    # directly avoids the redundant sf -> SpatVector -> sf round-trip that
-    # allocates two intermediate objects per call.
-    names(r) <- paste0("L", seq_len(terra::nlyr(r)))
-
-    ex <- suppressWarnings(exactextractr::exact_extract(
-      r,
-      vect,
-      c("mean", "min", "max"),
-      progress = FALSE
-    ))
-
-    ex$ID <- seq_len(nrow(ex))
-
-    n_poly <- nrow(vect)
-    n_lyr <- terra::nlyr(r)
-
-    # Extract polygon identifiers
     ids <- if (!is.null(identifier) && identifier %in% names(vect)) {
       vect[[identifier]]
     } else {
-      seq_len(n_poly)
+      seq_len(nrow(vect))
     }
-
-    # Optional parallel processing of raster layers using future.apply
-    apply_fn <- if (parallel) function(X, FUN) future.apply::future_lapply(X, FUN, future.seed = TRUE) else lapply
-    out_list <- apply_fn(seq_len(n_lyr), function(i) {
-      lyr_name <- paste0("L", i)
-
-      # Handle different column naming conventions from exactextractr
-      # Convention 1: mean.L1, min.L1, max.L1
-      # Convention 2: L1.mean, L1.min, L1.max
-      # Convention 3 (single layer): mean, min, max
-      col_mean <- paste0("mean.", lyr_name)
-      col_min <- paste0("min.", lyr_name)
-      col_max <- paste0("max.", lyr_name)
-
-      if (!col_mean %in% names(ex)) {
-        # Try alternative naming: lyr_name.stat
-        if (paste0(lyr_name, ".mean") %in% names(ex)) {
-          col_mean <- paste0(lyr_name, ".mean")
-          col_min <- paste0(lyr_name, ".min")
-          col_max <- paste0(lyr_name, ".max")
-        } else if (n_lyr == 1 && "mean" %in% names(ex)) {
-          # Single layer case: columns are just mean, min, max
-          col_mean <- "mean"
-          col_min <- "min"
-          col_max <- "max"
-        } else {
-          stop(sprintf("Could not find expected columns for layer %d. Available: %s",
-                       i, paste(names(ex), collapse = ", ")), call. = FALSE)
-        }
-      }
-
-      cols <- c(col_mean, col_min, col_max)
-      sub_df <- ex[, cols, drop = FALSE]
-      colnames(sub_df) <- c("mean", "min", "max")
-
-      sub_df$ID <- ids[ex$ID]
-      if (!is.null(identifier) && identifier %in% names(vect)) {
-        sub_df[[identifier]] <- ids[ex$ID]
-      }
-
-      # Add metadata
-      m <- meta_df[i, ]
-      m_rep <- m[rep(1, nrow(sub_df)), ]
-
-      combined <- cbind(sub_df, m_rep)
-      return(combined)
-    })
-
-    results <- do.call(rbind, out_list)
-  } else {
-    # Global statistics for bbox or L3 code regions
-    ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
-    ex$ID <- 1
-    df_res <- cbind(meta_df, ex)
-    df_res$region_id <- 1
-    results <- df_res
   }
 
-  final_df <- if (is.data.frame(results)) results else do.call(rbind, results)
+  # Split URLs into batches for memory-efficient processing
+  n_urls <- length(urls)
+  url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
+  n_chunks <- length(url_idx_chunks)
+
+  if (n_chunks > 1) {
+    message(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
+                    n_urls, n_chunks, batch_size))
+  }
+
+  # Helper function to process a single batch
+  process_batch <- function(ci) {
+    idx <- url_idx_chunks[[ci]]
+    chunk_urls <- urls[idx]
+    chunk_meta <- meta_df[idx, , drop = FALSE]
+
+    if (n_chunks > 1 && !parallel) {
+      message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
+    }
+
+    # Load raster batch with retry logic
+    r <- NULL
+    max_retries <- 3
+    for (attempt in seq_len(max_retries)) {
+      r <- tryCatch({
+        suppressWarnings(terra::rast(chunk_urls))
+      }, error = function(e) {
+        if (attempt < max_retries) {
+          if (!parallel) {
+            message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
+                          attempt, attempt * 2, e$message))
+          }
+          Sys.sleep(attempt * 2)
+          return(NULL)
+        } else {
+          stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
+        }
+      })
+      if (!is.null(r)) break
+    }
+
+    # Crop to region
+    r <- crop_to_region(r, reg_info, do_mask = FALSE)
+
+    if (!is.null(vect)) {
+      # Zonal statistics for polygons using exactextractr
+      names(r) <- paste0("L", seq_len(terra::nlyr(r)))
+      n_lyr <- terra::nlyr(r)
+
+      ex <- suppressWarnings(exactextractr::exact_extract(
+        r,
+        vect,
+        c("mean", "min", "max"),
+        progress = FALSE
+      ))
+
+      ex$ID <- seq_len(nrow(ex))
+
+      # Reshape extracted stats into long format
+      # If processing batches in parallel, we don't further parallelize within a batch
+      # to avoid nested parallelism overhead.
+      inner_apply_fn <- if (parallel) lapply else (if (isTRUE(getOption("wapor.parallel_inner", FALSE))) future.apply::future_lapply else lapply)
+      
+      out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
+        lyr_name <- paste0("L", i)
+
+        col_mean <- paste0("mean.", lyr_name)
+        col_min <- paste0("min.", lyr_name)
+        col_max <- paste0("max.", lyr_name)
+
+        if (!col_mean %in% names(ex)) {
+          if (paste0(lyr_name, ".mean") %in% names(ex)) {
+            col_mean <- paste0(lyr_name, ".mean")
+            col_min <- paste0(lyr_name, ".min")
+            col_max <- paste0(lyr_name, ".max")
+          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
+            col_mean <- "mean"
+            col_min <- "min"
+            col_max <- "max"
+          } else {
+            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
+                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
+          }
+        }
+
+        cols <- c(col_mean, col_min, col_max)
+        sub_df <- ex[, cols, drop = FALSE]
+        colnames(sub_df) <- c("mean", "min", "max")
+
+        sub_df$ID <- ids[ex$ID]
+        if (!is.null(identifier) && identifier %in% names(vect)) {
+          sub_df[[identifier]] <- ids[ex$ID]
+        }
+
+        m <- chunk_meta[i, ]
+        m_rep <- m[rep(1, nrow(sub_df)), ]
+        cbind(sub_df, m_rep)
+      })
+
+      return(do.call(rbind, out_list))
+    } else {
+      # Global statistics for bbox or L3 code regions
+      ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
+      ex$ID <- 1
+      df_res <- cbind(chunk_meta, ex)
+      df_res$region_id <- 1
+      return(df_res)
+    }
+  }
+
+  # Process all batches: load, crop, extract stats, release memory
+  if (parallel && n_chunks > 1) {
+    message(sprintf("  Processing %d batches in parallel...", n_chunks))
+    all_batch_results <- future.apply::future_lapply(seq_len(n_chunks), process_batch, future.seed = TRUE)
+  } else {
+    all_batch_results <- lapply(seq_len(n_chunks), process_batch)
+  }
+
+  message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
+
+  final_df <- do.call(rbind, all_batch_results)
 
   # Get variable metadata for units
   source_var_meta <- get_variable_metadata(variable)
