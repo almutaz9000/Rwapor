@@ -71,52 +71,6 @@ collect_responses <- function(url, info = "downloadUrl") {
   return(all_items)
 }
 
-#' @title Generate URLs for WaPOR/AgERA5 Resources
-#' @name wapor_generate_urls
-#' @description
-#' Generates download URLs for WaPOR or AgERA5 raster data from the
-#' FAO GISMGR API based on variable name, region, and time period.
-#'
-#' @param variable Character. Variable name following WaPOR/AgERA5 naming
-#'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
-#'   The format is `{Level}-{Variable}-{TemporalResolution}` where:
-#'   * Level: L1, L2, L3 (WaPOR) or AGERA5
-#'   * Variable: AETI, E, I, NPP, PCP, T, GBWP, NBWP, ET0, TMIN, TMAX, etc.
-#'   * Temporal: D (dekadal), M (monthly), A (annual), E (daily)
-#' @param l3_region Character. Optional L3 region code for Level 3 data
-#'   (e.g., "AWA" for Awash Basin). Only applicable for L3 variables.
-#' @param period Character vector of length 2. Optional date range as
-#'   `c(start_date, end_date)` in "YYYY-MM-DD" format.
-#'
-#' @return Character vector of download URLs, sorted chronologically.
-#'
-#' @details
-#' Results are cached using memoization so that repeated calls with
-#' identical arguments within the same session avoid redundant API requests.
-#'
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' # Get URLs for dekadal evapotranspiration in January 2023
-#' urls <- wapor_generate_urls(
-#'   variable = "L1-AETI-D",
-#'   period = c("2023-01-01", "2023-01-31")
-#' )
-#'
-#' # Get URLs for L3 data in Awash Basin
-#' urls <- wapor_generate_urls(
-#'   variable = "L3-AETI-D",
-#'   l3_region = "AWA",
-#'   period = c("2023-01-01", "2023-03-31")
-#' )
-#'
-#' # Get AgERA5 reference evapotranspiration
-#' urls <- wapor_generate_urls(
-#'   variable = "AGERA5-ET0-E",
-#'   period = c("2023-06-01", "2023-06-30")
-#' )
-#' }
 wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NULL) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
@@ -193,6 +147,50 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
   return(sort(unlist(urls)))
 }
 
-#' @importFrom memoise memoise
+#' @title Generate URLs for WaPOR/AgERA5 Resources
+#' @name wapor_generate_urls
+#' @description
+#' Generates download URLs for WaPOR or AgERA5 raster data from the
+#' FAO GISMGR API based on variable name, region, and time period.
+#'
+#' @param variable Character. Variable name following WaPOR/AgERA5 naming
+#'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
+#'   The format is `{Level}-{Variable}-{TemporalResolution}` where:
+#'   * Level: L1, L2, L3 (WaPOR) or AGERA5
+#'   * Variable: AETI, E, I, NPP, PCP, T, GBWP, NBWP, ET0, TMIN, TMAX, etc.
+#'   * Temporal: D (dekadal), M (monthly), A (annual), E (daily)
+#' @param l3_region Character. Optional L3 region code for Level 3 data
+#'   (e.g., "AWA" for Awash Basin). Only applicable for L3 variables.
+#' @param period Character vector of length 2. Optional date range as
+#'   `c(start_date, end_date)` in "YYYY-MM-DD" format.
+#'
+#' @return Character vector of download URLs, sorted chronologically.
+#'
+#' @details
+#' Results are cached using memoization so that repeated calls with
+#' identical arguments within the same session avoid redundant API requests.
+#'
 #' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Get URLs for dekadal evapotranspiration in January 2023
+#' urls <- wapor_generate_urls(
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-01-31")
+#' )
+#'
+#' # Get URLs for L3 data in Awash Basin
+#' urls <- wapor_generate_urls(
+#'   variable = "L3-AETI-D",
+#'   l3_region = "AWA",
+#'   period = c("2023-01-01", "2023-03-31")
+#' )
+#'
+#' # Get AgERA5 reference evapotranspiration
+#' urls <- wapor_generate_urls(
+#'   variable = "AGERA5-ET0-E",
+#'   period = c("2023-06-01", "2023-06-30")
+#' )
+#' }
 wapor_generate_urls <- memoise::memoise(wapor_generate_urls_internal)

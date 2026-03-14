@@ -12,8 +12,10 @@ It serves as an R alternative to the Python `wapordl` library, leveraging the po
 
 - **Universal Data Access**: Download any WaPOR or AgERA5 variable.
     - **Dynamic Metadata**: Automatically fetches metadata for variables not hardcoded in the package.
-    - **Parallel Downloads**: Optionally download files concurrently to a local cache for speed and robustness (`download_locally = TRUE`).
+    - **Batching & Parallelism**: Optional batching of URLs and parallel processing of chunks for massive time series without memory crashes.
+- **Improved Windows Support**: Automatic detection and correction of `PROJ_LIB` conflicts (e.g., from PostGIS or ArcGIS).
 - **Accurate Zonal Statistics**: Uses `exactextractr` to calculate weighted statistics for polygons, ensuring accuracy even for small fields that don't cover full pixels.
+- **Interactive UI**: Built-in Shiny Dashboard (`run_dashboard()`) for visual AOI selection and code generation.
 - **Unit Conversion**: Built-in support for converting units (e.g., `mm/dekad` to `mm/day`) on the fly.
 - **Efficient**: Caches API responses using `memoise` to minimize network traffic.
 
