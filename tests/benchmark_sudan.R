@@ -2,8 +2,11 @@
 #
 # Tests batched processing in wapor_ts with a large country and long time series.
 
-# Re-load the package from source to pick up changes
-devtools::load_all(".")
+# ------------------------------------------------------------------
+# Setup
+# ------------------------------------------------------------------
+# During R CMD check, the package is already loaded.
+# For manual running, ensure library(Rwapor) is called before this script.
 
 # --- Configuration ---
 # Sudan approx bbox (large country)

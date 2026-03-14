@@ -13,6 +13,7 @@ wapor_ts(
   seasonal = FALSE,
   download_locally = FALSE,
   parallel = FALSE,
+  batching = TRUE,
   batch_size = 12L
 )
 }
@@ -47,8 +48,11 @@ Default is NULL, which dynamically sets the default based on variable type:
 \item{download_locally}{Logical. Deprecated and ignored. Data are streamed
 with \verb{/vsicurl/}. Kept for backward compatibility.}
 
-\item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
-Default is \code{FALSE}.}
+\item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing
+within or across batches. Default is \code{FALSE}.}
+
+\item{batching}{Logical. If \code{TRUE} (default), processes data in chunks of \code{batch_size}.
+If \code{FALSE}, loads all layers at once.}
 
 \item{batch_size}{Integer. Number of remote raster layers loaded and processed
 per batch. Lower values reduce peak memory usage for long time series.
@@ -96,6 +100,18 @@ df <- wapor_ts(
   period = c("2023-01-01", "2023-12-31"),
   identifier = "field_name",
   unit_conversion = "day"
+)
+
+# Parallel extraction for memory efficiency
+library(future)
+plan(multisession)
+df <- wapor_ts(
+  region = c(35.0, 33.0, 36.0, 34.0),
+  variable = "L1-AETI-D",
+  period = c("2023-01-01", "2023-12-31"),
+  parallel = TRUE,
+  batching = TRUE,
+  batch_size = 3
 )
 
 # Check units

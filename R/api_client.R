@@ -71,8 +71,9 @@ collect_responses <- function(url, info = "downloadUrl") {
   return(all_items)
 }
 
-#' Generate URLs for WaPOR/AgERA5 Resources
-#'
+#' @title Generate URLs for WaPOR/AgERA5 Resources
+#' @name wapor_generate_urls
+#' @description
 #' Generates download URLs for WaPOR or AgERA5 raster data from the
 #' FAO GISMGR API based on variable name, region, and time period.
 #'
@@ -88,6 +89,10 @@ collect_responses <- function(url, info = "downloadUrl") {
 #'   `c(start_date, end_date)` in "YYYY-MM-DD" format.
 #'
 #' @return Character vector of download URLs, sorted chronologically.
+#'
+#' @details
+#' Results are cached using memoization so that repeated calls with
+#' identical arguments within the same session avoid redundant API requests.
 #'
 #' @export
 #'
@@ -188,11 +193,6 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
   return(sort(unlist(urls)))
 }
 
-#' @rdname wapor_generate_urls
-#' @details
-#' Results are cached using memoization so that repeated calls with
-#' identical arguments within the same session avoid redundant API requests.
-#'
 #' @importFrom memoise memoise
 #' @export
 wapor_generate_urls <- memoise::memoise(wapor_generate_urls_internal)
