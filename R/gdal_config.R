@@ -150,7 +150,25 @@ wapor_gdal_settings <- function() {
 }
 
 
+# Fix PROJ database conflict: PostgreSQL ships its own proj.db and on Windows
+# it can end up on PROJ_LIB / PROJ_DATA before terra's copy, causing
+# "SQLite error" or "no such table: metadata" crashes during any projection.
+# Setting both variables to terra's bundled directory at load time ensures
+# every subsequent PROJ/GDAL call (including inside terra and sf) uses the
+# correct database, regardless of what PostgreSQL has put on the PATH.
+.fix_proj_db <- function() {
+  proj_dir <- system.file("proj", package = "terra")
+  if (!nzchar(proj_dir)) return(invisible(NULL))
+  proj_db  <- file.path(proj_dir, "proj.db")
+  if (!file.exists(proj_db)) return(invisible(NULL))
+  Sys.setenv(PROJ_DATA = proj_dir)
+  Sys.setenv(PROJ_LIB  = proj_dir)
+  invisible(proj_dir)
+}
+
+
 # Applied automatically when the package is attached.
 .onLoad <- function(libname, pkgname) {
+  .fix_proj_db()
   wapor_configure_gdal(verbose = FALSE)
 }
