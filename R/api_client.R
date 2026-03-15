@@ -107,13 +107,17 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
   # Determine base URL based on level
   if (level %in% c("L1", "L2")) {
     base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
+    mapset_id <- variable
   } else if (level == "L3") {
     base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets"
+    mapset_id <- variable
     if (is.null(l3_region)) {
       warning("L3 variable specified without l3_region - results may include all regions", call. = FALSE)
     }
   } else if (level == "AGERA5") {
     base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/C3S/mapsets"
+    # Special case: AgERA5 daily variables don't have -E suffix in mapset ID
+    mapset_id <- if (grepl("-E$", variable)) sub("-E$", "", variable) else variable
   } else {
     stop(
       sprintf("Invalid level '%s'. Must be one of: L1, L2, L3, AGERA5", level),
@@ -121,7 +125,7 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
     )
   }
 
-  url <- paste0(base_url, "/", variable, "/rasters?filter=")
+  url <- paste0(base_url, "/", mapset_id, "/rasters?filter=")
 
   if (!is.null(l3_region)) {
     if (!is.character(l3_region) || nchar(l3_region) == 0) {
