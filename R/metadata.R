@@ -122,18 +122,23 @@ WAPOR3_VARS <- list(
 #'
 #' @export
 AGERA5_VARS <- list(
-  "AGERA5-ET0-E" = list(long_name = "Reference Evapotranspiration", units = "mm/day", scale = 1.0),
-  "AGERA5-ET0-D" = list(long_name = "Reference Evapotranspiration", units = "mm/dekad", scale = 1.0),
-  "AGERA5-ET0-M" = list(long_name = "Reference Evapotranspiration", units = "mm/month", scale = 1.0),
-  "AGERA5-ET0-A" = list(long_name = "Reference Evapotranspiration", units = "mm/year", scale = 1.0),
+  "AGERA5-ET0-E"  = list(long_name = "Reference Evapotranspiration", units = "mm/day", scale = 1.0),
+  "AGERA5-ET0-D"  = list(long_name = "Reference Evapotranspiration", units = "mm/dekad", scale = 1.0),
+  "AGERA5-ET0-M"  = list(long_name = "Reference Evapotranspiration", units = "mm/month", scale = 1.0),
+  "AGERA5-ET0-A"  = list(long_name = "Reference Evapotranspiration", units = "mm/year", scale = 1.0),
   "AGERA5-TMIN-E" = list(long_name = "Minimum Air Temperature (2m)", units = "K", scale = 1.0),
   "AGERA5-TMAX-E" = list(long_name = "Maximum Air Temperature (2m)", units = "K", scale = 1.0),
-  "AGERA5-SRF-E" = list(long_name = "Solar Radiation", units = "J/m2/day", scale = 1.0),
-  "AGERA5-WS-E" = list(long_name = "Wind Speed", units = "m/s", scale = 1.0),
-  "AGERA5-PF-E" = list(long_name = "Precipitation", units = "mm/day", scale = 1.0),
-  "AGERA5-PF-D" = list(long_name = "Precipitation", units = "mm/dekad", scale = 1.0),
-  "AGERA5-PF-M" = list(long_name = "Precipitation", units = "mm/month", scale = 1.0),
-  "AGERA5-PF-A" = list(long_name = "Precipitation", units = "mm/year", scale = 1.0)
+  "AGERA5-SRF-E"  = list(long_name = "Solar Radiation", units = "J/m2/day", scale = 1.0),
+  "AGERA5-WS-E"   = list(long_name = "Wind Speed", units = "m/s", scale = 1.0),
+  "AGERA5-PF-E"   = list(long_name = "Precipitation", units = "mm/day", scale = 1.0),
+  "AGERA5-PF-D"   = list(long_name = "Precipitation", units = "mm/dekad", scale = 1.0),
+  "AGERA5-PF-M"   = list(long_name = "Precipitation", units = "mm/month", scale = 1.0),
+  "AGERA5-PF-A"   = list(long_name = "Precipitation", units = "mm/year", scale = 1.0),
+  "AGERA5-RH06-E" = list(long_name = "Relative Humidity 06h", units = "0-1", scale = 1.0),
+  "AGERA5-RH09-E" = list(long_name = "Relative Humidity 09h", units = "0-1", scale = 1.0),
+  "AGERA5-RH12-E" = list(long_name = "Relative Humidity 12h", units = "0-1", scale = 1.0),
+  "AGERA5-RH15-E" = list(long_name = "Relative Humidity 15h", units = "0-1", scale = 1.0),
+  "AGERA5-RH18-E" = list(long_name = "Relative Humidity 18h", units = "0-1", scale = 1.0)
 )
 
 #' WaPOR Level 3 Region Metadata
@@ -301,7 +306,8 @@ get_variable_metadata_internal <- function(variable) {
     return(NULL)
   }
 
-  url <- paste0(base_url, "/", variable)
+  mapset_id <- if (level == "AGERA5" && grepl("-E$", variable)) sub("-E$", "", variable) else variable
+  url <- paste0(base_url, "/", mapset_id)
 
   tryCatch({
     resp <- httr2::request(url) |>
