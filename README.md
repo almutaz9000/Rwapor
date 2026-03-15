@@ -19,6 +19,19 @@ It serves as an R alternative to the Python `wapordl` library, leveraging the po
 - **Unit Conversion**: Built-in support for converting units (e.g., `mm/dekad` to `mm/day`) on the fly.
 - **Efficient**: Caches API responses using `memoise` to minimize network traffic.
 
+## Available Data
+
+`Rwapor` provides access to a wide range of geospatial datasets from both WaPOR and AgERA5. For a complete list of variables, resolutions, scale factors, and units, please refer to the **Data Catalog** documentation:
+
+```r
+# View the data catalog in your browser
+vignette("data-catalog", package = "Rwapor")
+```
+
+The catalog includes:
+- **WaPOR (v3)**: Level 1 (Global), Level 2 (National), and Level 3 (Sub-national) variables including AETI, NPP, and Precipitation.
+- **AgERA5**: Global agro-meteorological indicators like Reference ET, Temperature, and Wind Speed.
+
 ## Installation
 
 You can install the development version of Rwapor from [GitHub](https://github.com/almutaz9000/Rwapor) with:

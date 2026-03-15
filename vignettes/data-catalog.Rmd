@@ -1,0 +1,79 @@
+---
+title: "Data Catalog: WaPOR & AgERA5"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Data Catalog: WaPOR & AgERA5}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This catalog provides a comprehensive overview of the geospatial datasets accessible through the `Rwapor` package, including variables from FAO WaPOR (Version 3) and Copernicus AgERA5.
+
+## WaPOR Variables (Version 3)
+
+WaPOR provides data at three levels of detail. Most variables follow a standard scaling of **0.1** to convert integer storage to physical units (e.g., mm).
+
+### Level 1: Continental (300m / 5km)
+Global/Continental coverage for Africa and the Near East.
+
+| Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Water** | Precipitation | `L1-PCP` | E, D, M, A | mm | 0.1 | 1981+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-PCP-E) |
+| **Water** | Reference ET | `L1-RET` | E, D | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RET-E) |
+| **Water** | Actual ET & Int. | `L1-AETI` | D, M, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-AETI-D) |
+| **Water** | Evaporation | `L1-E` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-E-D) |
+| **Water** | Transpiration | `L1-T` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-T-D) |
+| **Water** | Interception | `L1-I` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-I-D) |
+| **Biomass** | Net Primary Prod. | `L1-NPP` | D, M | gC/m² | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-NPP-D) |
+| **Biomass** | Total Biomass Prod. | `L1-TBP` | A | kg/ha | 1.0 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-TBP-A) |
+| **Moisture** | Rel. Soil Moisture | `L1-RSM` | D | % | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RSM-D) |
+
+### Level 2: National (100m)
+Country-level monitoring for selected countries.
+
+| Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Water** | Actual ET & Int. | `L2-AETI` | D, M, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-AETI-D) |
+| **Water** | Transpiration | `L2-T` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-T-D) |
+| **Biomass** | Net Primary Prod. | `L2-NPP` | D, M | gC/m² | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-NPP-D) |
+| **Moisture** | Rel. Soil Moisture | `L2-RSM` | D | % | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-RSM-D) |
+| **Productivity**| Biomass Water Prod. | `L2-GBWP` | A | kg/m³ | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-GBWP-A) |
+
+### Level 3: Sub-national (30m / 10m)
+High-resolution data for specific irrigation schemes and river basins.
+
+| Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Water** | Actual ET & Int. | `L3-AETI` | E, D, M, A | mm | 0.1 | Varies | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L3-AETI-E) |
+| **Water** | Transpiration | `L3-T` | E, D, A | mm | 0.1 | Varies | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L3-T-E) |
+| **Biomass** | Net Primary Prod. | `L3-NPP` | E, D, M | gC/m² | 0.001 | Varies | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L3-NPP-E) |
+| **Moisture** | Rel. Soil Moisture | `L3-RSM` | E, D | % | 0.001 | Varies | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L3-RSM-E) |
+| **Productivity**| Biomass Water Prod. | `L3-GBWP` | A | kg/m³ | 0.001 | Varies | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L3-GBWP-A) |
+
+---
+
+## AgERA5 Climate Variables
+
+AgERA5 provides daily agro-meteorological indicators. Data is available globally from **1979** to near real-time (~8 day lag).
+
+| Category | Variable Name | ID | Resolutions | Units | Scale | Period | Documentation |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Water** | Reference ET | `AGERA5-ET0` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Water** | Precipitation | `AGERA5-PF` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Min Temperature | `AGERA5-TMIN` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Max Temperature | `AGERA5-TMAX` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Energy** | Solar Radiation | `AGERA5-SRF` | E | J/m² | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Atmospheric** | Wind Speed (2m) | `AGERA5-WS` | E | m/s | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Atmospheric** | Rel. Humidity | `AGERA5-RHxx` | E | 0-1 | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+
+*\* Annual Temperature products are provided as average values (`AVG-A`).*
+
+### Usage Note: Daily Variables
+For daily AgERA5 variables, use the suffix `-E` (e.g., `AGERA5-ET0-E`). The package internally translates this to the mapset ID `AGERA5-ET0` required by the FAO GISMGR API.

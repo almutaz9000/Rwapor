@@ -1,0 +1,186 @@
+"V1","V2","V3","V4","V5","V6","V7","V8","V9"
+"Crop","Init. (Lini)","Dev. (Ldev)","Mid (Lmid)","Late (Llate)","Total","Plant Date","Region",NA
+"a. Small Vegetables",NA,NA,NA,NA,NA,NA,NA,NA
+"Broccoli","35","45","40","15","135","Sept","Calif. Desert, USA",NA
+"Cabbage","40","60","50","15","165","Sept","Calif. Desert, USA",NA
+"Carrots","20","30","50/30","20","100","Oct/Jan","Arid climate",NA
+"30","40","60","20","150","Feb/Mar","Mediterranean",NA,NA
+"30","50","90","30","200","Oct","Calif. Desert, USA",NA,NA
+"Cauliflower","35","50","40","15","140","Sept","Calif. Desert, USA",NA
+"Celery","25","40","95","20","180","Oct","(Semi) Arid",NA
+"25","40","45","15","125","April","Mediterranean",NA,NA
+"30","55","105","20","210","Jan","(Semi) Arid",NA,NA
+"Crucifers1","20","30","20","10","80","April","Mediterranean",NA
+"25","35","25","10","95","February","Mediterranean",NA,NA
+"30","35","90","40","195","Oct/Nov","Mediterranean",NA,NA
+"Lettuce","20","30","15","10","75","April","Mediterranean",NA
+"30","40","25","10","105","Nov/Jan","Mediterranean",NA,NA
+"25","35","30","10","100","Oct/Nov","Arid Region",NA,NA
+"35","50","45","10","140","Feb","Mediterranean",NA,NA
+"Onion (dry)","15","25","70","40","150","April","Mediterranean",NA
+"20","35","110","45","210","Oct; Jan.","Arid Region; Calif.",NA,NA
+"Onion (green)","25","30","10","5","70","April/May","Mediterranean",NA
+"20","45","20","10","95","October","Arid Region",NA,NA
+"30","55","55","40","180","March","Calif., USA",NA,NA
+"Onion (seed)","20","45","165","45","275","Sept","Calif. Desert, USA",NA
+"Spinach","20","20","15/25","5","60/70","Apr; Sep/Oct","Mediterranean",NA
+"20","30","40","10","100","November","Arid Region",NA,NA
+"Radish","5","10","15","5","35","Mar/Apr","Medit.; Europe",NA
+"10","10","15","5","40","Winter","Arid Region",NA,NA
+"b. Vegetables - Solanum Family (Solanaceae)",NA,NA,NA,NA,NA,NA,NA,NA
+"Egg plant","30","40","40","20","130\1","October","Arid Region",NA
+"30","45","40","25","40","May/June","Mediterranean",NA,NA
+"Sweet peppers (bell)","25/30","35","40","20","125","April/June","Europe and Medit.",NA
+"30","40","110","30","210","October","Arid Region",NA,NA
+"Tomato","30","40","40","25","135","January","Arid Region",NA
+"35","40","50","30","155","Apr/May","Calif., USA",NA,NA
+"25","40","60","30","155","Jan","Calif. Desert, USA",NA,NA
+"35","45","70","30","180","Oct/Nov","Arid Region",NA,NA
+"30","40","45","30","145","April/May","Mediterranean",NA,NA
+"c. Vegetables - Cucumber Family (Cucurbitaceae)",NA,NA,NA,NA,NA,NA,NA,NA
+"Cantaloupe","30","45","35","10","120","Jan","Calif., USA",NA
+"10","60","25","25","120","Aug","Calif., USA",NA,NA
+"Cucumber","20","30","40","15","105","June/Aug","Arid Region",NA
+"25","35","50","20","130","Nov; Feb","Arid Region",NA,NA
+"Pumpkin, Winter squash","20","30","30","20","100","Mar, Aug","Mediterranean",NA
+"25","35","35","25","120","June","Europe",NA,NA
+"Squash, Zucchini","25","35","25","15","100","Apr; Dec.","Medit.; Arid Reg.",NA
+"20","30","25","15","90","May/June","Medit.; Europe",NA,NA
+"Sweet melons","25","35","40","20","120","May","Mediterranean",NA
+"30","30","50","30","140","March","Calif., USA",NA,NA
+"15","40","65","15","135","Aug","Calif. Desert, USA",NA,NA
+"30","45","65","20","160","Dec/Jan","Arid Region",NA,NA
+"Water melons","20","30","30","30","110","April","Italy",NA
+"10","20","20","30","80","Mat/Aug","Near East (desert)",NA,NA
+"d. Roots and Tubers",NA,NA,NA,NA,NA,NA,NA,NA
+"Beets, table","15","25","20","10","70","Apr/May","Mediterranean",NA
+"25","30","25","10","90","Feb/Mar","Mediterranean & Arid",NA,NA
+"Cassava: year 1","20","40","90","60","210","Rainy","Tropical regions",NA
+"year 2","150","40","110","60","360","season","",NA
+"Potato","25","30","30/45","30","115/130","Jan/Nov","(Semi) Arid Climate",NA
+"25","30","45","30","130","May","Continental Climate",NA,NA
+"30","35","50","30","145","April","Europe",NA,NA
+"45","30","70","20","165","Apr/May","Idaho, USA",NA,NA
+"30","35","50","25","140","Dec","Calif. Desert, USA",NA,NA
+"Sweet potato","20","30","60","40","150","April","Mediterranean",NA
+"15","30","50","30","125","Rainy seas.","Tropical regions",NA,NA
+"Sugarbeet","30","45","90","15","180","March","Calif., USA",NA
+"25","30","90","10","155","June","Calif., USA",NA,NA
+"25","65","100","65","255","Sept","Calif. Desert, USA",NA,NA
+"50","40","50","40","180","April","Idaho, USA",NA,NA
+"25","35","50","50","160","May","Mediterranean",NA,NA
+"45","75","80","30","230","November","Mediterranean",NA,NA
+"35","60","70","40","205","November","Arid Regions",NA,NA
+"e. Legumes (Leguminosae)",NA,NA,NA,NA,NA,NA,NA,NA
+"Beans (green)","20","30","30","10","90","Feb/Mar","Calif., Mediterranean",NA
+"15","25","25","10","75","Aug/Sep","Calif., Egypt, Lebanon",NA,NA
+"Beans (dry)","20","30","40","20","110","May/June","Continental Climates",NA
+"15","25","35","20","95","June","Pakistan, Calif.",NA,NA
+"25","25","30","20","100","June","Idaho, USA",NA,NA
+"Faba bean, broad bean","15","25","35","15","90","May","Europe",NA
+"20","30","35","15","100","Mar/Apr","Mediterranean",NA,NA
+"","- dry","90","45","40","60","235","Nov","Europe"
+"","- green","90","45","40","0","175","Nov","Europe"
+"Green gram, cowpeas","20","30","30","20","110","March","Mediterranean",NA
+"Groundnut","25","35","45","25","130","Dry","West Africa",NA
+"35","35","35","35","140","season","High Latitudes",NA,NA
+"35","45","35","25","140","May May/June","Mediterranean",NA,NA
+"Lentil","20","30","60","40","150","April","Europe",NA
+"25","35","70","40","170","Oct/Nov","Arid Region",NA,NA
+"Peas","15","25","35","15","90","May","Europe",NA
+"20","30","35","15","100","Mar/Apr","Mediterranean",NA,NA
+"35","25","30","20","110","April","Idaho, USA",NA,NA
+"Soybeans","15","15","40","15","85","Dec","Tropics",NA
+"20","30/35","60","25","140","May","Central USA",NA,NA
+"20","25","75","30","150","June","Japan",NA,NA
+"f. Perennial Vegetables (with winter dormancy and initially bare or 
+        mulched soil)",NA,NA,NA,NA,NA,NA,NA,NA
+"Artichoke","40","40","250","30","360","Apr (1st yr)","California",NA
+"20","25","250","30","325","May (2nd yr)","(cut in May)",NA,NA
+"Asparagus","50","30","100","50","230","Feb","Warm Winter",NA
+"90","30","200","45","365","Feb","Mediterranean",NA,NA
+"g. Fibre Crops",NA,NA,NA,NA,NA,NA,NA,NA
+"Cotton","30","50","60","55","195","Mar-May","Egypt; Pakistan; Calif.",NA
+"45","90","45","45","225","Mar","Calif. Desert, USA",NA,NA
+"30","50","60","55","195","Sept","Yemen",NA,NA
+"30","50","55","45","180","April","Texas",NA,NA
+"Flax","25","35","50","40","150","April","Europe",NA
+"30","40","100","50","220","October","Arizona",NA,NA
+"h. Oil Crops",NA,NA,NA,NA,NA,NA,NA,NA
+"Castor beans","25","40","65","50","180","March","(Semi) Arid Climates",NA
+"20","40","50","25","135","Nov.","Indonesia",NA,NA
+"Safflower","20","35","45","25","125","April","California, USA",NA
+"25","35","55","30","145","Mar","High Latitudes",NA,NA
+"35","55","60","40","190","Oct/Nov","Arid Region",NA,NA
+"Sesame","20","30","40","20","100","June","China",NA
+"Sunflower","25","35","45","25","130","April/May","Medit.; California",NA
+"i. Cereals",NA,NA,NA,NA,NA,NA,NA,NA
+"Barley/Oats/Wheat","15","25","50","30","120","November","Central India",NA
+"20","25","60","30","135","March/Apr","35-45 °L",NA,NA
+"15","30","65","40","150","July","East Africa",NA,NA
+"40","30","40","20","130","Apr","",NA,NA
+"40","60","60","40","200","Nov","",NA,NA
+"20","50","60","30","160","Dec","Calif. Desert, USA",NA,NA
+"Winter Wheat","202","602","70","30","180","December","Calif., USA",NA
+"30","140","40","30","240","November","Mediterranean",NA,NA
+"160","75","75","25","335","October","Idaho, USA",NA,NA
+"Grains (small)","20","30","60","40","150","April","Mediterranean",NA
+"25","35","65","40","165","Oct/Nov","Pakistan; Arid Reg.",NA,NA
+"Maize (grain)","30","50","60","40","180","April","East Africa (alt.)",NA
+"25","40","45","30","140","Dec/Jan","Arid Climate",NA,NA
+"20","35","40","30","125","June","Nigeria (humid)",NA,NA
+"20","35","40","30","125","October","India (dry, cool)",NA,NA
+"30","40","50","30","150","April","Spain (spr, sum.); Calif.",NA,NA
+"30","40","50","50","170","April","Idaho, USA",NA,NA
+"Maize (sweet)","20","20","30","10","80","March","Philippines",NA
+"20","25","25","10","80","May/June","Mediterranean",NA,NA
+"20","30","50/30","10","90","Oct/Dec","Arid Climate",NA,NA
+"30","30","30","103","110","April","Idaho, USA",NA,NA
+"20","40","70","10","140","Jan","Calif. Desert, USA",NA,NA
+"Millet","15","25","40","25","105","June","Pakistan",NA
+"20","30","55","35","140","April","Central USA",NA,NA
+"Sorghum","20","35","40","30","130","May/June","USA, Pakis., Med.",NA
+"20","35","45","30","140","Mar/April","Arid Region",NA,NA
+"Rice","30","30","60","30","150","Dec; May","Tropics; Mediterranean",NA
+"30","30.","80","40","180","May","Tropics",NA,NA
+"j. Forages",NA,NA,NA,NA,NA,NA,NA,NA
+"Alfalfa, total season 4","10","30","var.","var.","var.","","last -4°C in spring until first -4°C in fall",NA
+"Alfalfa 4 1st cutting cycle","10","20","20","10","60","Jan Apr (last - 4°C)","Calif., USA.",NA
+"10","30","25","10","75","","Idaho, USA.",NA,NA
+"Alfalfa 4, other cutting cycles","5","10","10","5","30","Mar","Calif., USA.",NA
+"5","20","10","10","45","Jun","Idaho, USA.",NA,NA
+"Bermuda for seed","10","25","35","35","105","March","Calif. Desert, USA",NA
+"Bermuda for hay (several cuttings)","10","15","75","35","135","---","Calif. Desert, USA",NA
+"Grass Pasture 4","10","20","--","--","--","","7 days before last -4°C in spring until 7 days after first -4°C 
+        in fall",NA
+"Sudan, 1st cutting cycle","25","25","15","10","75","Apr","Calif. Desert, USA",NA
+"Sudan, other cutting cycles","3","15","12","7","37","June","Calif. Desert, USA",NA
+"k. Sugar Cane",NA,NA,NA,NA,NA,NA,NA,NA
+"Sugarcane, virgin","35","60","190","120","405","","Low Latitudes",NA
+"50","70","220","140","480","","Tropics",NA,NA
+"75","105","330","210","720","","Hawaii, USA",NA,NA
+"Sugarcane, ratoon","25","70","135","50","280","","Low Latitudes",NA
+"30","50","180","60","320","","Tropics",NA,NA
+"35","105","210","70","420","","Hawaii, USA",NA,NA
+"l. Tropical Fruits and Trees",NA,NA,NA,NA,NA,NA,NA,NA
+"Banana, 1st yr","120","90","120","60","390","Mar","Mediterranean",NA
+"Banana, 2nd yr","120","60","180","5","365","Feb","Mediterranean",NA
+"Pineapple","60","120","600","10","790","","Hawaii, USA",NA
+"m. Grapes and Berries",NA,NA,NA,NA,NA,NA,NA,NA
+"Grapes","20","40","120","60","240","April","Low Latitudes",NA
+"20","50","75","60","205","Mar","Calif., USA",NA,NA
+"20","50","90","20","180","May","High Latitudes",NA,NA
+"30","60","40","80","210","April","Mid Latitudes (wine)",NA,NA
+"Hops","25","40","80","10","155","April","Idaho, USA",NA
+"n. Fruit Trees",NA,NA,NA,NA,NA,NA,NA,NA
+"Citrus","60","90","120","95","365","Jan","Mediterranean",NA
+"Deciduous Orchard","20","70","90","30","210","March","High Latitudes",NA
+"20","70","120","60","270","March","Low Latitudes",NA,NA
+"30","50","130","30","240","March","Calif., USA",NA,NA
+"Olives","30","90","60","90","2705","March","Mediterranean",NA
+"Pistachios","20","60","30","40","150","Feb","Mediterranean",NA
+"Walnuts","20","10","130","30","190","April","Utah, USA",NA
+"o. Wetlands - Temperate Climate",NA,NA,NA,NA,NA,NA,NA,NA
+"Wetlands (Cattails, Bulrush)","10","30","80","20","140","May","Utah, USA; killing frost",NA
+"180","60","90","35","365","November","Florida, USA",NA,NA
+"Wetlands (short veg.)","180","60","90","35","365","November","frost-free climate",NA
