@@ -2,22 +2,39 @@
 
 <!-- badges: start -->
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-**Rwapor** is an R package designed to download and process [WaPOR](https://wapor.apps.fao.org/) (Water Productivity through Open access of Remotely sensed derived data) and [AgERA5](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) data. It provides a robust, parallelized workflow to download raster data, extract time series for regions or polygons, and calculate zonal statistics with high accuracy.
+**Rwapor** is an R package for downloading and processing data from [**FAO WaPOR**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) — the FAO portal for Water Productivity through Open access of Remotely sensed derived data — and [**AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) climate data.
 
-It serves as an R alternative to the Python `wapordl` library, leveraging the power of `terra`, `sf`, and `exactextractr`.
+It provides a robust, parallelized workflow to download raster data, extract time series for regions or polygons, and calculate zonal statistics with high accuracy. **Rwapor** serves as an R alternative to the Python [`wapordl`](https://github.com/bertcoerver/wapordl) library, leveraging the power of [`terra`](https://rspatial.org/terra/), [`sf`](https://r-spatial.github.io/sf/), and [`exactextractr`](https://isciences.gitlab.io/exactextractr/).
+
+---
+
+## About WaPOR
+
+[**WaPOR**](https://wapor.apps.fao.org/) is FAO's open-access portal that provides remote sensing data on water and biomass productivity across Africa and the Near East. The database covers a wide range of variables at multiple spatial resolutions (continental, national, and sub-national level) and temporal resolutions (dekadal, monthly, annual).
+
+- 🌐 **WaPOR Portal**: <https://wapor.apps.fao.org/>
+- 📖 **FAO WaPOR Overview**: <https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/>
+- 📊 **WaPOR Data Catalog**: <https://wapor.apps.fao.org/catalog/WAPOR_2/1>
+- 📄 **WaPOR Documentation**: <https://www.fao.org/3/ca9564en/CA9564EN.pdf>
+
+---
 
 ## Features
 
-- **Universal Data Access**: Download any WaPOR or AgERA5 variable.
-    - **Dynamic Metadata**: Automatically fetches metadata for variables not hardcoded in the package.
-    - **Batching & Parallelism**: Optional batching of URLs and parallel processing of chunks for massive time series without memory crashes.
-- **Improved Windows Support**: Automatic detection and correction of `PROJ_LIB` conflicts (e.g., from PostGIS or ArcGIS).
-- **Accurate Zonal Statistics**: Uses `exactextractr` to calculate weighted statistics for polygons, ensuring accuracy even for small fields that don't cover full pixels.
-- **Interactive UI**: Built-in Shiny Dashboard (`run_dashboard()`) for visual AOI selection and code generation.
-- **Unit Conversion**: Built-in support for converting units (e.g., `mm/dekad` to `mm/day`) on the fly.
-- **Efficient**: Caches API responses using `memoise` to minimize network traffic.
+| Feature | Description |
+|---|---|
+| 🌍 **Universal Data Access** | Download any WaPOR or AgERA5 variable by name |
+| 🔄 **Dynamic Metadata** | Automatically fetches metadata for all variables via the WaPOR API |
+| ⚡ **Batching & Parallelism** | Parallel processing of large time series without memory crashes |
+| 📐 **Accurate Zonal Statistics** | Pixel-weighted statistics via `exactextractr` for small or irregular polygons |
+| 🖥️ **Interactive Dashboard** | Built-in Shiny app (`run_dashboard()`) for visual AOI selection and code generation |
+| 🔁 **Unit Conversion** | Built-in support for converting units (e.g., `mm/dekad` → `mm/day`) on the fly |
+| 💾 **Efficient Caching** | API responses are cached with `memoise` to minimize network traffic |
+
+---
 
 ## Available Data
 
@@ -34,7 +51,7 @@ The catalog includes:
 
 ## Installation
 
-You can install the development version of Rwapor from [GitHub](https://github.com/almutaz9000/Rwapor) with:
+Install the development version from [GitHub](https://github.com/almutaz9000/Rwapor):
 
 ```r
 # install.packages("devtools")
@@ -42,15 +59,25 @@ devtools::install_github("almutaz9000/Rwapor")
 ```
 
 ### Dependencies
-If you encounter issues, ensure you have the necessary system dependecies (especially for `sf` and `terra`) and R packages installed:
+
+If you encounter issues, ensure the required R packages are installed:
 
 ```r
-install.packages(c("httr2", "jsonlite", "terra", "sf", "dplyr", "purrr", "lubridate", "stringr", "exactextractr", "memoise", "furrr", "progressr", "future"))
+install.packages(c(
+  "httr2", "jsonlite", "terra", "sf", "dplyr", "purrr",
+  "lubridate", "stringr", "exactextractr", "memoise",
+  "furrr", "progressr", "future"
+))
 ```
+
+> **Note**: `sf` and `terra` require system-level geospatial libraries (GDAL, PROJ, GEOS). See the [`sf` installation guide](https://r-spatial.github.io/sf/#installing) for platform-specific instructions.
+
+---
 
 ## Usage
 
 ### 1. Setup
+
 ```r
 library(Rwapor)
 library(future)
@@ -59,54 +86,56 @@ library(future)
 plan(multisession)
 ```
 
-### 2. Download a Map
-Download a raster map for a specific region and period. The package efficiently streams and subsets data using GDAL's virtual file system (`/vsicurl/`) without downloading the entire global raster.
+### 2. Download a Raster Map
+
+Download a raster map for a specific region and time period. The package efficiently streams and subsets data using GDAL's virtual file system (`/vsicurl/`) — no need to download the entire global raster.
 
 ```r
-region <- c(35.75, 33.70, 35.82, 33.75) # Bounding box: xmin, ymin, xmax, ymax
-variable <- "L1-AETI-D" # Actual Evapotranspiration (Dekadal)
-period <- c("2021-01-01", "2021-01-10")
-folder <- "output_maps"
+region   <- c(35.75, 33.70, 35.82, 33.75)  # xmin, ymin, xmax, ymax
+variable <- "L1-AETI-D"                     # Actual Evapotranspiration (Dekadal)
+period   <- c("2021-01-01", "2021-01-10")
+folder   <- "output_maps"
 
-# 1. Download as a single multi-band raster (default)
-# By default for Dekadal variables, this converts mm/day -> mm/dekad
+# Download as a single multi-band raster (default)
+# Dekadal variables are automatically converted: mm/day -> mm/dekad
 map_path <- wapor_map(region, variable, period, folder)
 
-# 2. Download multiple variables at once
-# Creates folders: output_maps/L1-AETI-D and output_maps/L1-NPP-D
-vars <- c("L1-AETI-D", "L1-NPP-D")
+# Download multiple variables at once
+vars  <- c("L1-AETI-D", "L1-NPP-D")
 paths <- wapor_map(region, vars, period, folder)
 
-# 3. Download as separate files per time step
+# Download as separate files per time step
 files <- wapor_map(region, variable, period, folder, separate_files = TRUE)
 
-# 4. Download raw daily rates (mm/day) without conversion to dekadal
+# Download raw daily rates (mm/day) without unit conversion
 map_day <- wapor_map(region, variable, period, folder, unit_conversion = "day")
 
 r <- terra::rast(map_path)
 plot(r)
 ```
 
-### 3. Extract Time Series (Zonal Stats)
-Extract time series for polygons defined in a GeoJSON or Shapefile.
+### 3. Extract Time Series (Zonal Statistics)
+
+Extract time series for polygons defined in a GeoJSON or Shapefile, using pixel-weighted statistics for high accuracy on small fields.
 
 ```r
-# Supports robust weighted stats for small polygons
-df <- wapor_ts("path/to/polygons.geojson", "L1-AETI-D", period, 
-               identifier="id_column", 
-               unit_conversion = "day")  # Convert mm/dekad -> mm/day
+df <- wapor_ts(
+  "path/to/polygons.geojson",
+  "L1-AETI-D",
+  period,
+  identifier     = "id_column",
+  unit_conversion = "day"    # Convert mm/dekad -> mm/day
+)
 
 head(df)
 ```
 
+---
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Issues
-
-If you encounter a bug, please report it at: https://github.com/almutaz9000/Rwapor/issues
+Contributions are welcome! Please feel free to open a [Pull Request](https://github.com/almutaz9000/Rwapor/pulls) or report issues on the [issue tracker](https://github.com/almutaz9000/Rwapor/issues).
 
 ## License
 
-MIT
+[MIT](LICENSE)
