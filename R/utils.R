@@ -554,9 +554,9 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     if (has_r_crs && nzchar(v_crs) && v_crs != r_crs) {
       v <- safe_project(v, r_crs)
     }
-    r <- suppressWarnings(terra::crop(r, v))
+    r <- suppressWarnings(terra::crop(r, v, snap = "out"))
     if (do_mask) {
-      r <- suppressWarnings(terra::mask(r, v))
+      r <- suppressWarnings(terra::mask(r, v, touches = TRUE))
     }
   } else if (reg_info$type == "bbox") {
     ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
@@ -565,7 +565,7 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     if (has_r_crs && nzchar(bb_crs) && bb_crs != r_crs) {
       bb_poly <- safe_project(bb_poly, r_crs)
     }
-    r <- suppressWarnings(terra::crop(r, bb_poly))
+    r <- suppressWarnings(terra::crop(r, bb_poly, snap = "out"))
   }
   r
 }
@@ -587,4 +587,13 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
   }
   
   split(urls, ceiling(seq_along(urls) / batch_size))
+}
+
+#' Log Message with Timestamp
+#' @param ... Passed to paste()
+#' @keywords internal
+#' @noRd
+log_msg <- function(...) {
+  msg <- paste(...)
+  message(sprintf("[%s] %s", format(Sys.time(), "%H:%M:%S"), msg))
 }

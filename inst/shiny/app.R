@@ -10,10 +10,10 @@ l3_region_labels <- vapply(names(l3_regions_meta), function(code) {
 }, character(1))
 # Sort by label (country first) and build named vector: label -> code
 l3_region_labels <- sort(l3_region_labels)
-l3_region_choices <- stats::setNames(
+l3_region_choices <- as.list(stats::setNames(
   sub(".*\\(([A-Z]{3})\\)$", "\\1", l3_region_labels),
   l3_region_labels
-)
+))
 
 draw_pkg <- if (requireNamespace("leaflet.extras", quietly = TRUE)) {
   "leaflet.extras"
@@ -94,7 +94,7 @@ ui <- bslib::page_navbar(
     #analysis_map_card .leaflet-container, 
     #download_map_card .leaflet-container {
       aspect-ratio: 1;
-      max-height: 800px;
+      max-height: 1000px;
     }
     #raster_info_table { font-size: 0.85rem; }
     #raster_info_table table { margin-bottom: 0; }
@@ -158,29 +158,28 @@ ui <- bslib::page_navbar(
           bslib::accordion_panel(
             "Area of Interest",
             icon = shiny::icon("map"),
-            shiny::conditionalPanel(
-              condition = "!input.variable.startsWith('L3-')",
-              shiny::p("Draw on map, use manual draw, or upload a vector file."),
-              shiny::radioButtons("manual_mode", "Manual Draw Mode",
-                choices = c("Rectangle (2 clicks)" = "bbox",
-                            "Polygon (click vertices)" = "poly"),
-                selected = "bbox", inline = TRUE),
-              shiny::fluidRow(
-                shiny::column(4, shiny::actionButton("start_manual",
-                  "Start", icon = shiny::icon("pencil"), width = "100%")),
-                shiny::column(4, shiny::actionButton("finish_manual",
-                  "Finish", icon = shiny::icon("check"), width = "100%")),
-                shiny::column(4, shiny::actionButton("clear_manual",
-                  "Clear", icon = shiny::icon("eraser"), width = "100%"))
-              ),
-              shiny::helpText("Manual mode works even if leaflet.extras is unavailable."),
-              shiny::fileInput("vector_file", "Upload Vector File",
-                accept = c(".geojson", ".gpkg", ".kml"))
-            ),
+            shiny::p("Draw on map, use manual draw, or select a vector file."),
             shiny::conditionalPanel(
               condition = "input.variable.startsWith('L3-')",
-              shiny::p("L3 variables use predefined regions. Select a region above.")
+              shiny::helpText(shiny::tags$em("For L3 variables, providing an AOI will clip the data. If left empty, the whole region (selected above) will be downloaded."))
             ),
+            shiny::radioButtons("manual_mode", "Manual Draw Mode",
+              choices = as.list(c("Rectangle (2 clicks)" = "bbox",
+                                  "Polygon (click vertices)" = "poly")),
+              selected = "bbox", inline = TRUE),
+            shiny::fluidRow(
+              shiny::column(4, shiny::actionButton("start_manual",
+                "Start", icon = shiny::icon("pencil"), width = "100%")),
+              shiny::column(4, shiny::actionButton("finish_manual",
+                "Finish", icon = shiny::icon("check"), width = "100%")),
+              shiny::column(4, shiny::actionButton("clear_manual",
+                "Clear", icon = shiny::icon("eraser"), width = "100%"))
+            ),
+            shiny::helpText("Manual mode works even if leaflet.extras is unavailable."),
+            shinyFiles::shinyFilesButton("browse_vector",
+                "Select Vector File (.geojson, .gpkg, .kml)", "Select vector file", 
+                multiple = FALSE, class = "w-100 mb-2", icon = shiny::icon("folder-open")),
+            shiny::checkboxInput("mask_aoi", "Mask to AOI boundary", value = FALSE),
             shiny::hr(),
             shiny::tags$strong("Selected ROI"),
             shiny::verbatimTextOutput("bbox_display")
@@ -200,7 +199,7 @@ ui <- bslib::page_navbar(
           bslib::card_header("Map"),
           bslib::card_body(
             class = "p-0",
-            leaflet::leafletOutput("map", height = "700px")
+            leaflet::leafletOutput("map", height = "900px")
           )
         ),
         bslib::card(
@@ -252,7 +251,7 @@ ui <- bslib::page_navbar(
               min = 0, max = 1, value = 0.8, step = 0.05),
             shiny::checkboxInput("reverse_palette", "Reverse Palette", FALSE),
             shiny::radioButtons("color_method", "Method",
-              choices = c("Continuous" = "numeric", "Binned" = "bin"),
+              choices = as.list(c("Continuous" = "numeric", "Binned" = "bin")),
               selected = "numeric", inline = TRUE)
           ),
 
@@ -276,7 +275,7 @@ ui <- bslib::page_navbar(
           bslib::card_header("Raster Visualization"),
           bslib::card_body(
             class = "p-0",
-            leaflet::leafletOutput("analysis_map", height = "700px",
+            leaflet::leafletOutput("analysis_map", height = "900px",
               width = "100%")
           )
         ),
@@ -357,14 +356,14 @@ ui <- bslib::page_navbar(
             "Indicators",
             icon = shiny::icon("chart-line"),
             shiny::checkboxGroupInput("an_indicators", "Select Indicators",
-              choices = c(
+              choices = as.list(c(
                 "Seasonal AETI & RET" = "seasonal",
                 "ETc (RET x Kc)"     = "etc",
                 "Adequacy (ETc)"     = "adequacy_etc",
                 "Adequacy (P95)"     = "adequacy_p95",
                 "Effective Precip (USDA)" = "peff",
                 "CWP / BWP"          = "cwp_bwp"
-              ),
+              )),
               selected = c("seasonal", "etc", "adequacy_etc")),
             shiny::conditionalPanel(
               condition = "input.an_indicators.indexOf('cwp_bwp') > -1",
@@ -488,19 +487,20 @@ server <- function(input, output, session) {
   
   # ---- Exit Dashboard ------------------------------------------------------
   shiny::observeEvent(input$exit_btn, {
-    shiny::showNotification("Shutting down dashboard...", type = "message")
+    log_msg("Shutting down dashboard...")
     shiny::stopApp()
   })
 
   current_region <- shiny::reactive({
-    # For L3 variables, use the selected L3 region code
+    # Prioritize manual ROI (drawn or uploaded) for clipping
+    if (!is.null(upload_roi())) return(upload_roi())
+    if (!is.null(user_roi())) return(user_roi())
+
+    # Fall back to L3 region code for L3 variables if no manual ROI
     if (grepl("^L3-", input$variable)) {
       reg <- input$l3_region
       if (!is.null(reg) && nzchar(reg)) return(reg)
-      return(NULL)
     }
-    if (!is.null(upload_roi())) return(upload_roi())
-    if (!is.null(user_roi())) return(user_roi())
     NULL
   })
 
@@ -514,6 +514,62 @@ server <- function(input, output, session) {
       shiny::updateTextInput(session, "folder", value = dir_path)
     }
   })
+  
+  # Browser for vector files
+  shinyFiles::shinyFileChoose(input, "browse_vector", roots = roots, 
+    session = session, filetypes = c("geojson", "gpkg", "kml"))
+  
+  shiny::observeEvent(input$browse_vector, {
+    file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
+    if (nrow(file_info) > 0) {
+      path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
+      # Trigger the same logic as vector_file upload
+      handle_vector_file(path)
+    }
+  })
+
+  handle_vector_file <- function(path) {
+    ext <- tolower(tools::file_ext(path))
+    allowed_ext <- c("geojson", "gpkg", "kml")
+    if (!ext %in% allowed_ext) {
+      shiny::showNotification(
+        sprintf("Unsupported format '.%s'. Use: %s", ext,
+          paste(allowed_ext, collapse = ", ")),
+        type = "error")
+      return()
+    }
+    tryCatch({
+      shp <- sf::st_read(path, quiet = TRUE)
+      if (nrow(shp) == 0) stop("Vector file contains no features.")
+      shp_map <- shp
+      shp_crs <- sf::st_crs(shp_map)
+      if (!is.na(shp_crs) && shp_crs$epsg != 4326) {
+        shp_map <- sf::st_transform(shp_map, 4326)
+      }
+      bbox <- sf::st_bbox(shp_map)
+      leaflet::leafletProxy("map") |>
+        leaflet::clearGroup("manual_draw") |>
+        leaflet::clearGroup("manual_preview") |>
+        leaflet::clearShapes() |>
+        leaflet::clearGroup("draw") |>
+        leaflet::addPolygons(data = shp_map, color = "red",
+          fill = FALSE, weight = 2) |>
+        leaflet::addRectangles(
+          lng1 = bbox["xmin"], lat1 = bbox["ymin"],
+          lng2 = bbox["xmax"], lat2 = bbox["ymax"],
+          color = "blue", fill = FALSE, weight = 1, dashArray = "4") |>
+        leaflet::fitBounds(lng1 = bbox["xmin"], lat1 = bbox["ymin"],
+          lng2 = bbox["xmax"], lat2 = bbox["ymax"])
+      upload_roi(path)
+      user_roi(NULL)
+      manual_active(FALSE)
+      shiny::showNotification("Vector file loaded successfully.",
+        type = "message")
+    }, error = function(e) {
+      shiny::showNotification(paste("Error reading vector file:", e$message),
+        type = "error")
+    })
+  }
 
   # Sync analysis folder with download folder
   shiny::observe({
@@ -539,7 +595,7 @@ server <- function(input, output, session) {
             selectedPathOptions = selected_path_options())
         )
     }
-    m |> leaflet::setView(lng = 0, lat = 0, zoom = 2)
+    m |> leaflet::setView(lng = 25, lat = 25, zoom = 3)
   })
 
   # ---- Manual draw ---------------------------------------------------------
@@ -656,54 +712,7 @@ server <- function(input, output, session) {
     upload_roi(NULL)
   })
 
-  # ---- Vector file upload --------------------------------------------------
-  shiny::observeEvent(input$vector_file, {
-    shiny::req(input$vector_file)
-    ext <- tolower(tools::file_ext(input$vector_file$name))
-    allowed_ext <- c("geojson", "gpkg", "kml")
-    if (!ext %in% allowed_ext) {
-      shiny::showNotification(
-        sprintf("Unsupported format '.%s'. Use: %s", ext,
-          paste(allowed_ext, collapse = ", ")),
-        type = "error")
-      return()
-    }
-    tryCatch({
-      temp_path <- tempfile(fileext = paste0(".", ext))
-      copied <- file.copy(input$vector_file$datapath, temp_path,
-        overwrite = TRUE)
-      if (!copied) stop("Failed to copy uploaded file to temporary location.")
-      shp <- sf::st_read(temp_path, quiet = TRUE)
-      if (nrow(shp) == 0) stop("Uploaded vector file contains no features.")
-      shp_map <- shp
-      shp_crs <- sf::st_crs(shp_map)
-      if (!is.na(shp_crs) && shp_crs$epsg != 4326) {
-        shp_map <- sf::st_transform(shp_map, 4326)
-      }
-      bbox <- sf::st_bbox(shp_map)
-      leaflet::leafletProxy("map") |>
-        leaflet::clearGroup("manual_draw") |>
-        leaflet::clearGroup("manual_preview") |>
-        leaflet::clearShapes() |>
-        leaflet::clearGroup("draw") |>
-        leaflet::addPolygons(data = shp_map, color = "red",
-          fill = FALSE, weight = 2) |>
-        leaflet::addRectangles(
-          lng1 = bbox["xmin"], lat1 = bbox["ymin"],
-          lng2 = bbox["xmax"], lat2 = bbox["ymax"],
-          color = "blue", fill = FALSE, weight = 1, dashArray = "4") |>
-        leaflet::fitBounds(lng1 = bbox["xmin"], lat1 = bbox["ymin"],
-          lng2 = bbox["xmax"], lat2 = bbox["ymax"])
-      upload_roi(temp_path)
-      user_roi(NULL)
-      manual_active(FALSE)
-      shiny::showNotification("Vector file uploaded successfully.",
-        type = "message")
-    }, error = function(e) {
-      shiny::showNotification(paste("Error reading vector file:", e$message),
-        type = "error")
-    })
-  })
+  # (input$vector_file observer removed as user prefers local Browse)
 
   # ---- ROI display ---------------------------------------------------------
   output$bbox_display <- shiny::renderPrint({
@@ -740,6 +749,7 @@ server <- function(input, output, session) {
     period_str <- sprintf("c(\"%s\", \"%s\")", input$period[1], input$period[2])
     unit_conv <- if (input$unit_conversion == "none") "NULL" else
       sprintf("\"%s\"", input$unit_conversion)
+    mask_str <- if (input$mask_aoi) "TRUE" else "FALSE"
 
     # When both seasonal and separate_files are selected, show two calls
     if (input$seasonal && input$separate_files) {
@@ -757,7 +767,8 @@ server <- function(input, output, session) {
           "  folder = folder,\n",
           "  unit_conversion = %s,\n",
           "  seasonal = TRUE,\n",
-          "  separate_files = FALSE\n",
+          "  separate_files = FALSE,\n",
+          "  mask = %s\n",
           ")\n\n",
           "# 2. Download individual time step files\n",
           "file_paths <- wapor_map(\n",
@@ -767,11 +778,12 @@ server <- function(input, output, session) {
           "  folder = folder,\n",
           "  unit_conversion = %s,\n",
           "  seasonal = FALSE,\n",
-          "  separate_files = TRUE\n",
+          "  separate_files = TRUE,\n",
+          "  mask = %s\n",
           ")"
         ),
         reg_str, period_str, input$folder, input$variable,
-        unit_conv, input$variable, unit_conv
+        unit_conv, mask_str, input$variable, unit_conv, mask_str
       )
     } else {
       sprintf(
@@ -787,17 +799,19 @@ server <- function(input, output, session) {
           "  folder = folder,\n",
           "  unit_conversion = %s,\n",
           "  seasonal = %s,\n",
-          "  separate_files = %s\n",
+          "  separate_files = %s,\n",
+          "  mask = %s\n",
           ")"
         ),
         reg_str, period_str, input$folder, input$variable,
-        unit_conv, input$seasonal, input$separate_files
+        unit_conv, input$seasonal, input$separate_files, mask_str
       )
     }
   })
 
   # ---- Download action -----------------------------------------------------
   shiny::observeEvent(input$download_btn, {
+    log_msg("Starting download request from Dashboard...")
     reg <- current_region()
     if (is.null(reg)) {
       shiny::showNotification("Please select an AOI before downloading.",
@@ -826,7 +840,8 @@ server <- function(input, output, session) {
             folder = input$folder,
             unit_conversion = unit_conv,
             seasonal = TRUE,
-            separate_files = FALSE
+            separate_files = FALSE,
+            mask = input$mask_aoi
           )
 
           # Step 2: Individual time step files
@@ -839,20 +854,21 @@ server <- function(input, output, session) {
             folder = input$folder,
             unit_conversion = unit_conv,
             seasonal = FALSE,
-            separate_files = TRUE
+            separate_files = TRUE,
+            mask = input$mask_aoi
           )
 
           shiny::incProgress(0.45, detail = "Complete!")
           all_paths <- c(seasonal_path, ind_paths)
           n_files <- length(all_paths)
-          message("Dashboard download success. Output: ",
-            paste(all_paths, collapse = ", "))
+          log_msg(sprintf("Dashboard download success. Saved %d files to %s.", 
+            n_files, normalizePath(input$folder, winslash = "/", mustWork = FALSE)))
           shiny::showNotification(
             sprintf("Download successful. %d files written (1 seasonal + %d individual).",
               n_files, n_files - 1),
             type = "message", duration = 10)
         }, error = function(e) {
-          message("Dashboard download failed: ", e$message)
+          log_msg("Dashboard download failed: ", e$message)
           shiny::showNotification(paste("Download failed:", e$message),
             type = "error", duration = 15)
         })
@@ -871,14 +887,15 @@ server <- function(input, output, session) {
             folder = input$folder,
             unit_conversion = unit_conv,
             seasonal = input$seasonal,
-            separate_files = input$separate_files
+            separate_files = input$separate_files,
+            mask = input$mask_aoi
           )
           shiny::incProgress(0.9, detail = "Finalizing...")
           if (length(out_path) == 0 || !all(file.exists(out_path))) {
             stop("Download completed but output file(s) were not found on disk.")
           }
-          message("Dashboard download success. Output: ",
-            paste(out_path, collapse = ", "))
+          log_msg(sprintf("Dashboard download success. Saved %d files to %s.", 
+            length(out_path), normalizePath(var_folder, winslash = "/", mustWork = FALSE)))
           if (length(out_path) > 1) {
             shiny::showNotification(
               sprintf("Download successful. %d files written in %s",
@@ -890,7 +907,7 @@ server <- function(input, output, session) {
               type = "message", duration = 10)
           }
         }, error = function(e) {
-          message("Dashboard download failed: ", e$message)
+          log_msg("Dashboard download failed: ", e$message)
           shiny::showNotification(paste("Download failed:", e$message),
             type = "error", duration = 15)
         })
