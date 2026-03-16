@@ -126,10 +126,14 @@ parse_region <- function(region) {
 #'
 #' @keywords internal
 #' @noRd
-calculate_conversion_factor <- function(source_time, target_unit, num_days, days_in_month) {
+calculate_conversion_factor <- function(source_time, target_unit, num_days, days_in_month, days_in_year = NULL) {
   if (source_time == target_unit) {
     return(1)
   }
+
+  # Use actual year length when available, otherwise default to 365
+  yr_days <- if (!is.null(days_in_year)) days_in_year else 365L
+  yr_dekads <- yr_days / num_days  # approximate dekads in year
 
   # Conversion matrix logic
   factor <- switch(
@@ -139,7 +143,7 @@ calculate_conversion_factor <- function(source_time, target_unit, num_days, days
       "day" = 1,
       "dekad" = num_days,
       "month" = days_in_month,
-      "year" = 365,
+      "year" = yr_days,
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     "dekad" = switch(
@@ -147,7 +151,7 @@ calculate_conversion_factor <- function(source_time, target_unit, num_days, days
       "day" = 1 / num_days,
       "dekad" = 1,
       "month" = 3,
-      "year" = 36,
+      "year" = yr_days / num_days,
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     "month" = switch(
@@ -160,8 +164,8 @@ calculate_conversion_factor <- function(source_time, target_unit, num_days, days
     ),
     "year" = switch(
       target_unit,
-      "day" = 1 / 365,
-      "dekad" = 1 / 36,
+      "day" = 1 / yr_days,
+      "dekad" = num_days / yr_days,
       "month" = 1 / 12,
       "year" = 1,
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
@@ -352,31 +356,89 @@ safe_project <- function(x, y) {
   return(res_sf)
 }
 
-#' Get L3 Raster Extent (Cached)
+#' Get Path to Persistent L3 Extent Cache
 #'
-#' Fetches the extent of a remote raster and returns it as a WGS84 polygon.
-#' Results are memoized so each URL's extent is only fetched once per session.
+#' Returns the path to the RDS file where L3 region extents are cached
+#' persistently across sessions.
 #'
-#' @param url Character. Download URL for the raster.
-#' @return A SpatVector polygon in EPSG:4326, or NULL on failure.
-#' @importFrom terra rast ext as.polygons crs
-#' @importFrom memoise memoise
+#' @return Character. Path to the cache RDS file.
 #' @keywords internal
 #' @noRd
-get_l3_raster_extent_internal <- function(url) {
+get_l3_cache_path <- function() {
+  cache_dir <- tools::R_user_dir("Rwapor", which = "cache")
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  file.path(cache_dir, "l3_extents.rds")
+}
+
+#' Load Persistent L3 Extent Cache
+#'
+#' Reads the cached L3 extents from disk. Returns an empty named list
+#' if no cache exists.
+#'
+#' @return A named list of extent vectors (xmin, ymin, xmax, ymax) keyed by region code.
+#' @keywords internal
+#' @noRd
+load_l3_extent_cache <- function() {
+  path <- get_l3_cache_path()
+  if (file.exists(path)) {
+    tryCatch(readRDS(path), error = function(e) list())
+  } else {
+    list()
+  }
+}
+
+#' Save Persistent L3 Extent Cache
+#'
+#' @param cache Named list of extent vectors.
+#' @keywords internal
+#' @noRd
+save_l3_extent_cache <- function(cache) {
+  path <- get_l3_cache_path()
+  tryCatch(saveRDS(cache, path), error = function(e) {
+    warning("Could not save L3 extent cache: ", e$message, call. = FALSE)
+  })
+}
+
+#' Get L3 Raster Extent (Persistently Cached)
+#'
+#' Fetches the extent of a remote raster and returns it as a WGS84 polygon.
+#' Results are cached to disk so they persist across R sessions, eliminating
+#' expensive remote raster opens on subsequent calls.
+#'
+#' @param url Character. Download URL for the raster.
+#' @param code Character. 3-letter L3 region code used as cache key.
+#' @return A SpatVector polygon in EPSG:4326, or NULL on failure.
+#' @importFrom terra rast ext as.polygons crs
+#' @keywords internal
+#' @noRd
+get_l3_raster_extent <- function(url, code) {
+  # Check persistent cache first
+  cache <- load_l3_extent_cache()
+  if (code %in% names(cache)) {
+    ext_vec <- cache[[code]]
+    bb_ext <- terra::ext(ext_vec[1], ext_vec[3], ext_vec[2], ext_vec[4])
+    return(terra::as.polygons(bb_ext, crs = "EPSG:4326"))
+  }
+
+  # Fetch from remote
   vsi_url <- paste0("/vsicurl/", url)
   r <- tryCatch(suppressWarnings(terra::rast(vsi_url)), error = function(e) NULL)
   if (is.null(r)) return(NULL)
 
   r_ext <- terra::ext(r)
   r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
-  safe_project(r_poly, 4326)
-}
+  r_poly_4326 <- safe_project(r_poly, 4326)
 
-#' @rdname get_l3_raster_extent_internal
-#' @keywords internal
-#' @noRd
-get_l3_raster_extent <- memoise::memoise(get_l3_raster_extent_internal)
+  # Save to persistent cache
+  ext_4326 <- terra::ext(r_poly_4326)
+  cache[[code]] <- c(xmin = ext_4326$xmin, ymin = ext_4326$ymin,
+                     xmax = ext_4326$xmax, ymax = ext_4326$ymax)
+  save_l3_extent_cache(cache)
+
+  r_poly_4326
+}
 
 #' Guess L3 Region from Spatial Intersection
 #'
@@ -415,7 +477,7 @@ guess_l3_region <- function(variable, reg_info, period) {
 
   if (length(unique_urls) == 0) return(NULL)
 
-  message("Dynamically scanning L3 regions for spatial intersection...")
+  message("Scanning L3 regions for spatial intersection...")
 
   # Build the user region polygon once (outside the loop)
   user_poly <- NULL
@@ -435,8 +497,8 @@ guess_l3_region <- function(variable, reg_info, period) {
   for (i in seq_along(unique_urls)) {
     code <- extracted_codes[i]
 
-    # Use memoized extent lookup (cached across calls within the session)
-    r_poly_4326 <- get_l3_raster_extent(unique_urls[i])
+    # Use persistent disk cache for L3 extents
+    r_poly_4326 <- get_l3_raster_extent(unique_urls[i], code)
     if (is.null(r_poly_4326)) next
 
     if (!is.null(user_poly) &&

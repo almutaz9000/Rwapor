@@ -27,6 +27,10 @@
 #'   intermediate component rasters into `<folder>/<variable>/`. Default is `FALSE`.
 #' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
 #'   Default is `FALSE`.
+#' @param mask Logical. If `TRUE` and `region` is a vector file or polygon,
+#'   the output raster is masked to the polygon boundary (pixels outside set to NA).
+#'   If `FALSE` (default), only a rectangular crop to the bounding box is applied.
+#'   Ignored for bounding box and L3 code regions.
 #' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
 #'   If `FALSE`, loads all layers at once.
 #' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
@@ -88,6 +92,7 @@ wapor_map <- function(
   separate_files = FALSE,
   unit_conversion = NULL,
   seasonal = FALSE,
+  mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
   batch_size = 12L
@@ -144,7 +149,7 @@ wapor_map <- function(
 
     # Call internal helper to download and organize rasters
     t0_seasonal <- proc.time()
-    seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder)
+    seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder, do_mask = mask)
     
     groups <- seasonal_data$groups
     message(sprintf("Seasonal rasters downloaded in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
@@ -153,25 +158,23 @@ wapor_map <- function(
       stop("No rasters could be loaded for the seasonal sum.", call. = FALSE)
     }
     
-    # Pre-allocate layer list
-    total_layers <- as.integer(sum(vapply(groups, function(g) terra::nlyr(g$raster), numeric(1))))
-    weighted_layers <- vector("list", total_layers)
-    layer_idx <- 0L
+    # Incremental accumulation: sum layers one at a time instead of
+    # building a full stack in memory, which avoids memory spikes for
+    # long periods or mixed temporal resolutions.
     ref_raster <- NULL
+    running_sum <- NULL
+    valid_count <- NULL  # tracks how many non-NA layers contributed per pixel
+    layer_idx <- 0L
     component_paths <- character(0)
     component_folder <- file.path(folder, variable[1])
     if (separate_files && !dir.exists(component_folder)) {
       dir.create(component_folder, recursive = TRUE, showWarnings = FALSE)
     }
 
-    # Process each group (Apply multipliers and mask if needed)
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
       r_group <- g$raster
       multipliers <- g$multipliers
-
-      # Rasters are cropped to bbox extent (no polygon masking)
-      # so full rectangular extent is preserved for visualization
 
       for (i in seq_len(terra::nlyr(r_group))) {
         layer_clean <- terra::subst(r_group[[i]], NaN, NA)
@@ -185,7 +188,15 @@ wapor_map <- function(
         }
 
         layer_idx <- layer_idx + 1L
-        weighted_layers[[layer_idx]] <- layer
+
+        # Incremental sum: accumulate into running_sum
+        if (is.null(running_sum)) {
+          running_sum <- terra::ifel(is.na(layer), 0, layer)
+          valid_count <- terra::ifel(is.na(layer), 0L, 1L)
+        } else {
+          running_sum <- running_sum + terra::ifel(is.na(layer), 0, layer)
+          valid_count <- valid_count + terra::ifel(is.na(layer), 0L, 1L)
+        }
 
         if (separate_files) {
           src_name <- names(r_group)[i]
@@ -204,14 +215,10 @@ wapor_map <- function(
         }
       }
     }
-    
-    # Stack all weighted layers and sum
-    full_stack <- terra::rast(weighted_layers)
-    seasonal_sum <- terra::app(full_stack, sum, na.rm = TRUE)
 
-    # Mask out cells where ALL layers were NA (sum with na.rm=TRUE returns 0 for these)
-    all_na_mask <- terra::app(full_stack, function(x) all(is.na(x)))
-    seasonal_sum <- terra::mask(seasonal_sum, all_na_mask, maskvalue = 1)
+    seasonal_sum <- running_sum
+    # Mask out cells where ALL layers were NA (valid_count == 0)
+    seasonal_sum <- terra::mask(seasonal_sum, valid_count, maskvalue = 0)
     
     names(seasonal_sum) <- paste0("seasonal_", period[1], "_", period[2])
     
@@ -330,8 +337,8 @@ wapor_map <- function(
       
       if (is.null(r)) return(NULL)
 
-      # Crop to bounding box (no mask) so full rectangular extent is preserved
-      r <- crop_to_region(r, reg_info, do_mask = FALSE)
+      # Crop to region; optionally mask to polygon boundary
+      r <- crop_to_region(r, reg_info, do_mask = mask)
 
       # Unit Conversion
       if (current_unit_conv != "none") {

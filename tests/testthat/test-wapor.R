@@ -111,6 +111,13 @@ test_that("get_date_info parses annual dates correctly", {
   expect_equal(result$number_of_days, 365)
 })
 
+test_that("get_date_info handles leap year annual correctly", {
+  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-A/WAPOR-3.L1-AETI-A.2024.tif", "A")
+  expect_equal(result$start_date, "2024-01-01")
+  expect_equal(result$end_date, "2024-12-31")
+  expect_equal(result$number_of_days, 366)
+})
+
 test_that("get_date_info parses daily dates correctly", {
   # AgERA5 URL format: C3S.AGERA5-ET0-E.YYYY-MM-DD.tif
   result <- get_date_info("https://gismgr.fao.org/DATA/C3S/MAPSET/AGERA5-ET0-E/C3S.AGERA5-ET0-E.2023-06-15.tif", "E")
@@ -284,7 +291,7 @@ test_that("calculate_conversion_factor returns correct values", {
   # Day to month
   expect_equal(calculate_conversion_factor("day", "month", 10, 31), 31)
 
-  # Day to year
+  # Day to year (non-leap, no days_in_year arg = default 365)
   expect_equal(calculate_conversion_factor("day", "year", 10, 30), 365)
 
   # Dekad to day
@@ -292,6 +299,82 @@ test_that("calculate_conversion_factor returns correct values", {
 
   # Month to year
   expect_equal(calculate_conversion_factor("month", "year", 30, 30), 12)
+})
+
+test_that("calculate_conversion_factor handles leap years correctly", {
+  # Day to year in a leap year
+  expect_equal(
+    calculate_conversion_factor("day", "year", 10, 29, days_in_year = 366),
+    366
+  )
+
+  # Year to day in a leap year
+  expect_equal(
+    calculate_conversion_factor("year", "day", 10, 30, days_in_year = 366),
+    1 / 366
+  )
+
+  # Dekad to year in a leap year (should use actual year length)
+  expect_equal(
+    calculate_conversion_factor("dekad", "year", 10, 30, days_in_year = 366),
+    366 / 10
+  )
+})
+
+test_that("df_unit_convertor handles leap year dates correctly", {
+  df <- data.frame(
+    mean = c(1.0),
+    start_date = c("2024-02-01"),  # 2024 is a leap year
+    number_of_days = c(1)
+  )
+  attr(df, "units") <- "mm/day"
+
+  result <- df_unit_convertor(df, "year")
+  # Leap year: should multiply by 366, not 365
+  expect_equal(result$mean[1], 366)
+  expect_equal(attr(result, "units"), "mm/year")
+})
+
+test_that("wapor_map has mask parameter", {
+  # Verify the mask parameter exists in the function signature
+  args <- formals(wapor_map)
+  expect_true("mask" %in% names(args))
+  expect_equal(args$mask, FALSE)
+})
+
+test_that("crop_to_region applies mask when do_mask is TRUE", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+
+  # Create a test raster
+  r <- terra::rast(nrows = 20, ncols = 20, xmin = 35, xmax = 37,
+                   ymin = 33, ymax = 35, vals = seq_len(400))
+  terra::crs(r) <- "EPSG:4326"
+
+  # Create a small polygon that doesn't cover the full extent
+  poly_coords <- matrix(c(
+    35.5, 33.5,
+    36.5, 33.5,
+    36.5, 34.5,
+    35.5, 34.5,
+    35.5, 33.5
+  ), ncol = 2, byrow = TRUE)
+  poly <- sf::st_polygon(list(poly_coords))
+  sf_poly <- sf::st_sf(geometry = sf::st_sfc(poly, crs = 4326), id = 1)
+
+  reg_info <- list(type = "vector", value = sf_poly)
+
+  # Without mask: should have no NA from masking
+  r_crop <- crop_to_region(r, reg_info, do_mask = FALSE)
+  vals_crop <- terra::values(r_crop, na.rm = FALSE)
+  expect_true(all(!is.na(vals_crop)))  # rectangular crop, no NAs
+
+  # With mask: pixels outside polygon boundary should be NA
+  r_masked <- crop_to_region(r, reg_info, do_mask = TRUE)
+  vals_masked <- terra::values(r_masked, na.rm = FALSE)
+  expect_true(any(is.na(vals_masked)))  # polygon mask creates NAs at corners
+  # Masked version should have fewer non-NA pixels than cropped
+  expect_true(sum(!is.na(vals_masked)) <= sum(!is.na(vals_crop)))
 })
 
 # =============================================================================
