@@ -134,7 +134,7 @@ wapor_map <- function(
       stop("'seasonal' mode supports only a single variable", call. = FALSE)
     }
     if (!is.null(unit_conversion) && unit_conversion != "none") {
-      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
+      log_msg("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
 
     current_l3_code <- l3_code
@@ -152,7 +152,7 @@ wapor_map <- function(
     seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder, do_mask = mask)
     
     groups <- seasonal_data$groups
-    message(sprintf("Seasonal rasters downloaded in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
+    log_msg(sprintf("Seasonal rasters downloaded in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
 
     if (length(groups) == 0) {
       stop("No rasters could be loaded for the seasonal sum.", call. = FALSE)
@@ -183,7 +183,7 @@ wapor_map <- function(
         if (is.null(ref_raster)) {
           ref_raster <- layer
         } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
-          message("Resampling raster to align grids across temporal resolutions...")
+          log_msg("Resampling raster to align grids across temporal resolutions...")
           layer <- terra::resample(layer, ref_raster, method = "bilinear")
         }
 
@@ -240,10 +240,10 @@ wapor_map <- function(
       stop(sprintf("Seasonal output was not written to disk: %s", out_path), call. = FALSE)
     }
     if (separate_files && length(component_paths) > 0) {
-      message(sprintf("Saved %d seasonal component raster(s) to: %s", length(component_paths), component_folder))
+      log_msg(sprintf("Saved %d seasonal component raster(s) to: %s", length(component_paths), component_folder))
     }
-    message(sprintf("Seasonal sum saved to: %s", out_path))
-    message(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
+    log_msg(sprintf("Seasonal sum saved to: %s", out_path))
+    log_msg(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
 
     return(out_path)
   }
@@ -251,7 +251,7 @@ wapor_map <- function(
   # Helper function to process a single variable
   process_single_var <- function(var) {
     t0_var <- proc.time()
-    message(sprintf("Processing variable: %s", var))
+    log_msg(sprintf("Processing variable: %s", var))
     
     # Create variable-specific subdirectory
     var_folder <- file.path(folder, var)
@@ -264,7 +264,7 @@ wapor_map <- function(
     if (is.null(current_unit_conv)) {
       if (grepl("-D$", var)) {
         current_unit_conv <- "dekad"
-        message(sprintf("Variable %s is Dekadal. Defaulting unit_conversion to 'dekad'.", var))
+        log_msg(sprintf("Variable %s is Dekadal. Defaulting unit_conversion to 'dekad'.", var))
       } else {
         current_unit_conv <- "none"
       }
@@ -286,7 +286,7 @@ wapor_map <- function(
 
     # Get URLs
     urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
-    message(sprintf("Found %d files for %s.", length(urls), var))
+    log_msg(sprintf("Found %d files for %s.", length(urls), var))
 
     if (length(urls) == 0) {
       warning(sprintf("No data found for %s in this period/region. Skipping.", var), call. = FALSE)
@@ -313,7 +313,7 @@ wapor_map <- function(
     n_urls <- length(urls)
     url_chunks <- get_url_chunks(urls, batching = batching, batch_size = batch_size)
     
-    message(sprintf("  Splitting %d files into %d chunk(s) for memory efficiency.", n_urls, length(url_chunks)))
+    log_msg(sprintf("  Splitting %d files into %d chunk(s) for memory efficiency.", n_urls, length(url_chunks)))
     
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {
@@ -371,7 +371,7 @@ wapor_map <- function(
     
     # Process all chunks, using future_lapply if parallel is TRUE
     if (parallel) {
-      message("  Processing chunks in parallel...")
+      log_msg("  Processing chunks in parallel...")
       chunk_results <- future.apply::future_lapply(seq_along(url_chunks), function(i) {
         process_chunk(url_chunks[[i]], i)
       }, future.seed = TRUE)
@@ -397,7 +397,7 @@ wapor_map <- function(
       temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
       all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
       
-      message("  Merging chunks into final multi-band stack...")
+      log_msg("  Merging chunks into final multi-band stack...")
       # Load all temp files logically
       r_all <- suppressWarnings(terra::rast(temp_files))
       names(r_all) <- all_names
@@ -419,7 +419,7 @@ wapor_map <- function(
       output_paths <- out_path
     }
     
-    message(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
+    log_msg(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
     return(output_paths)
   }
 
