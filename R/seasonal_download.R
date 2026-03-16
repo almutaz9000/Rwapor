@@ -32,7 +32,7 @@
 #'
 #' @keywords internal
 #' @noRd
-download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder) {
+download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE) {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
 
@@ -118,8 +118,8 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     if (is.null(r)) next
 
-    # Crop to region (crop only — wapor_map applies mask separately)
-    r <- crop_to_region(r, reg_info, do_mask = FALSE)
+    # Crop to region; optionally mask to polygon boundary
+    r <- crop_to_region(r, reg_info, do_mask = do_mask)
     message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
                     var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))
 

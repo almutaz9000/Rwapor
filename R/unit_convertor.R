@@ -86,16 +86,20 @@ df_unit_convertor <- function(df, unit_conversion) {
   }
 
   # Calculate conversion factors
-  days_in_current_month <- lubridate::days_in_month(lubridate::ymd(df$start_date))
+  parsed_dates <- lubridate::ymd(df$start_date)
+  days_in_current_month <- lubridate::days_in_month(parsed_dates)
   num_days <- df$number_of_days
+  # Determine actual year length for leap-year-aware conversion
+  years <- as.integer(format(parsed_dates, "%Y"))
+  days_in_yr <- ifelse(lubridate::leap_year(years), 366L, 365L)
 
-  # Use helper function from utils.R if available, otherwise inline logic
   factor <- vapply(seq_len(nrow(df)), function(i) {
     calculate_conversion_factor(
       source_time,
       unit_conversion,
       num_days[i],
-      days_in_current_month[i]
+      days_in_current_month[i],
+      days_in_year = days_in_yr[i]
     )
   }, numeric(1))
 
@@ -215,11 +219,14 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   date_infos <- lapply(urls, function(u) get_date_info(u, tres))
 
   factors <- vapply(date_infos, function(di) {
+    sd <- lubridate::ymd(di$start_date)
+    yr <- as.integer(format(sd, "%Y"))
     calculate_conversion_factor(
       source_time,
       unit_conversion,
       di$number_of_days,
-      lubridate::days_in_month(lubridate::ymd(di$start_date))
+      lubridate::days_in_month(sd),
+      days_in_year = ifelse(lubridate::leap_year(yr), 366L, 365L)
     )
   }, numeric(1))
 

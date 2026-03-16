@@ -8,7 +8,11 @@
 #' \describe{
 #'   \item{long_name}{Character. Full descriptive name of the variable}
 #'   \item{units}{Character. Measurement units (e.g., "mm/day", "kg/m3")}
-#'   \item{scale}{Numeric. Scale factor to convert raw values to physical units}
+#'   \item{scale}{Numeric. Scale factor to convert raw values to physical units.
+#'     Note: WaPOR GeoTIFFs include scale/offset in their raster metadata, so
+#'     \code{terra::rast()} automatically applies the scale factor when reading
+#'     pixel values. The scale values here are retained for reference and for
+#'     contexts where raw integer values are used directly.}
 #' }
 #'
 #' @details
