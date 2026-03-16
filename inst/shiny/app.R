@@ -372,12 +372,35 @@ ui <- bslib::page_navbar(
             bslib::accordion_panel(
               "Overlay Options",
               icon = shiny::icon("layer-group"),
+
               shiny::checkboxInput("overlay_aoi", "Show AOI Boundary", TRUE),
               shiny::selectInput("basemap_analysis", "Basemap",
                 choices = as.list(c(
                   "Esri.WorldImagery", "OpenStreetMap",
                   "CartoDB.Positron",  "CartoDB.DarkMatter")),
-                selected = "CartoDB.Positron")
+                selected = "CartoDB.Positron"),
+
+              shiny::hr(style = "margin:4px 0;"),
+
+              # --- Analysis Layers (populated from Analysis tab uploads) ---
+              shiny::tags$p(
+                shiny::tags$strong("Analysis Layers"),
+                style = "font-size:0.8rem; color:#2c3e50; margin-bottom:2px;"
+              ),
+              shiny::tags$small(
+                class = "text-muted d-block mb-1",
+                "Upload rasters in the Analysis tab to enable these layers."
+              ),
+              shiny::checkboxInput("show_crop_mask",    "Crop Mask (categorical)",  FALSE),
+              shiny::checkboxInput("show_season_start", "Season Start (Julian DOY)", FALSE),
+              shiny::checkboxInput("show_season_end",   "Season End (Julian DOY)",   FALSE),
+
+              # Opacity slider shared for analysis layers
+              shiny::conditionalPanel(
+                condition = "input.show_crop_mask || input.show_season_start || input.show_season_end",
+                shiny::sliderInput("an_layer_opacity", "Layer Opacity",
+                  min = 0, max = 1, value = 0.75, step = 0.05)
+              )
             )
           )
         )
@@ -490,33 +513,70 @@ ui <- bslib::page_navbar(
               shiny::uiOutput("an_crop_class_ui")
             ),
 
-            # ── Indicators ───────────────────────────────────────
+            # ── Indicators ───────────────────────────────────────────────
             bslib::accordion_panel(
               "Indicators",
               icon = shiny::icon("chart-line"),
-              shiny::checkboxGroupInput("an_indicators", NULL,
-                choices = as.list(c(
-                  "Seasonal AETI & RET"     = "seasonal",
-                  "ETc (RET × Kc)"          = "etc",
-                  "Adequacy (ETc)"          = "adequacy_etc",
-                  "Adequacy (P95)"          = "adequacy_p95",
-                  "Effective Precip (USDA)" = "peff",
-                  "CWP / BWP"               = "cwp_bwp"
-                )),
-                selected = c("seasonal", "etc", "adequacy_etc")),
+
+              # --- Group 1: Seasonal Aggregation ---
+              shiny::tags$p(
+                shiny::tags$strong("Seasonal Aggregation"),
+                style = "font-size:0.8rem; color:#2c3e50; margin-bottom:2px;"
+              ),
+              shiny::tags$small(
+                class = "text-muted d-block mb-1",
+                "Select which variables to aggregate over the season."
+              ),
+              shiny::checkboxGroupInput(
+                "an_agg_vars", NULL,
+                choiceNames = list(
+                  "AETI  (Actual ET)",
+                  "RET   (Reference ET)",
+                  "NPP   (Biomass)",
+                  "PCP   (Precipitation)",
+                  "Peff  (Effective Precip, USDA)"
+                ),
+                choiceValues = list(
+                  "agg_aeti", "agg_ret", "agg_npp", "agg_pcp", "agg_peff"
+                ),
+                selected = c("agg_aeti", "agg_ret")
+              ),
+
+              shiny::hr(style = "margin:4px 0;"),
+
+              # --- Group 2: Derived Indicators ---
+              shiny::tags$p(
+                shiny::tags$strong("Derived Indicators"),
+                style = "font-size:0.8rem; color:#2c3e50; margin-bottom:2px;"
+              ),
+              shiny::checkboxGroupInput(
+                "an_derived_vars", NULL,
+                choiceNames = list(
+                  "ETc  (RET \u00d7 Kc)",
+                  "Adequacy \u2014 ETc",
+                  "Adequacy \u2014 P95",
+                  "CWP / BWP"
+                ),
+                choiceValues = list("etc", "adequacy_etc", "adequacy_p95", "cwp_bwp"),
+                selected = c("etc", "adequacy_etc")
+              ),
+
+              # --- CWP/BWP file inputs (conditional) ---
               shiny::conditionalPanel(
-                condition = "input.an_indicators.indexOf('cwp_bwp') > -1",
+                condition = "input.an_derived_vars.indexOf('cwp_bwp') > -1",
                 shiny::fluidRow(
                   shiny::column(6,
-                    shiny::fileInput("an_yield_file",    "Yield Raster",
+                    shiny::fileInput("an_yield_file", "Yield Raster",
                       accept = c(".tif", ".tiff")),
-                    shiny::selectInput("an_yield_unit",  "Unit",
-                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha")),
+                    shiny::selectInput("an_yield_unit", "Unit",
+                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha")
+                  ),
                   shiny::column(6,
-                    shiny::fileInput("an_biomass_file",  "Biomass Raster",
+                    shiny::fileInput("an_biomass_file", "Biomass Raster",
                       accept = c(".tif", ".tiff")),
-                    shiny::selectInput("an_biomass_unit","Unit",
-                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha"))
+                    shiny::selectInput("an_biomass_unit", "Unit",
+                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha")
+                  )
                 )
               )
             )
@@ -570,7 +630,7 @@ ui <- bslib::page_navbar(
         bslib::card(
           bslib::card_header("Kc Curves by Class"),
           bslib::card_body(
-            shiny::plotOutput("an_kc_plot", height = "250px"))
+            shiny::plotOutput("an_kc_plot", height = "300px"))
         ),
 
         # Results (tabbed)
@@ -644,6 +704,9 @@ ui <- bslib::page_navbar(
 # Server
 # ---------------------------------------------------------------------------
 server <- function(input, output, session) {
+
+  # ---- Null-coalescing operator (compatible with R < 4.4) ------------------
+  `%||%` <- function(a, b) if (!is.null(a) && length(a) > 0) a else b
 
   # ---- Shared reactive state -----------------------------------------------
   user_roi <- shiny::reactiveVal(NULL)
@@ -1234,6 +1297,146 @@ server <- function(input, output, session) {
       leaflet::addProviderTiles(input$basemap_analysis)
   })
 
+  # ── Helper: downsample a terra raster for leaflet display ──────────────────
+  .vis_downsample <- function(r, max_dim = 1500) {
+    dims <- dim(r)
+    if (dims[1] > max_dim || dims[2] > max_dim) {
+      fact <- ceiling(max(dims[1:2]) / max_dim)
+      r    <- terra::aggregate(r, fact = fact, fun = "modal", na.rm = TRUE)
+    }
+    r
+  }
+
+  # ── Observer: Crop Mask layer (categorical) ─────────────────────────────────
+  shiny::observe({
+    r     <- an_crop_mask_rast()
+    show  <- isTRUE(input$show_crop_mask)
+    proxy <- leaflet::leafletProxy("analysis_map")
+
+    if (!show || is.null(r)) {
+      proxy |>
+        leaflet::clearGroup("lyr_crop_mask") |>
+        leaflet::removeControl("leg_crop_mask")
+      if (show && is.null(r))
+        shiny::showNotification(
+          "Upload a Crop Mask in the Analysis tab first.", type = "warning")
+      return()
+    }
+
+    opacity <- input$an_layer_opacity %||% 0.75
+
+    # Build categorical palette
+    r_ds   <- .vis_downsample(r)
+    vals   <- sort(unique(na.omit(as.integer(terra::values(r_ds)))))
+    n_cls  <- length(vals)
+    cls_cols <- grDevices::hcl.colors(max(n_cls, 3), "Set2")[seq_len(n_cls)]
+    # Assign labels from crop params if available
+    params <- an_crop_params()
+    cls_labels <- if (!is.null(params)) {
+      vapply(vals, function(v) {
+        idx <- which(params$class_value == v)
+        if (length(idx)) params$crop_label[idx[1]] else paste("Class", v)
+      }, character(1))
+    } else {
+      paste("Class", vals)
+    }
+
+    pal    <- leaflet::colorFactor(cls_cols, domain = vals, na.color = "transparent")
+    r_leg  <- raster::raster(r_ds)
+
+    proxy |>
+      leaflet::clearGroup("lyr_crop_mask") |>
+      leaflet::removeControl("leg_crop_mask") |>
+      leaflet::addRasterImage(r_leg, colors = pal, opacity = opacity,
+        group = "lyr_crop_mask") |>
+      leaflet::addLegend(
+        position = "bottomleft",
+        colors   = cls_cols,
+        labels   = cls_labels,
+        title    = "Crop Mask",
+        opacity  = opacity,
+        layerId  = "leg_crop_mask"
+      )
+  })
+
+  # ── Observer: Season Start layer (continuous DOY) ───────────────────────────
+  shiny::observe({
+    r     <- an_start_rast()
+    show  <- isTRUE(input$show_season_start)
+    proxy <- leaflet::leafletProxy("analysis_map")
+
+    if (!show || is.null(r)) {
+      proxy |>
+        leaflet::clearGroup("lyr_season_start") |>
+        leaflet::removeControl("leg_season_start")
+      if (show && is.null(r))
+        shiny::showNotification(
+          "Upload a Season Start raster in the Analysis tab first.", type = "warning")
+      return()
+    }
+
+    opacity <- input$an_layer_opacity %||% 0.75
+    r_ds    <- .vis_downsample(r)
+    vals    <- terra::values(r_ds, na.rm = TRUE)
+    pal     <- leaflet::colorNumeric(
+      viridisLite::viridis(10), domain = range(vals),
+      na.color = "transparent")
+    r_leg   <- raster::raster(r_ds)
+
+    proxy |>
+      leaflet::clearGroup("lyr_season_start") |>
+      leaflet::removeControl("leg_season_start") |>
+      leaflet::addRasterImage(r_leg, colors = pal, opacity = opacity,
+        group = "lyr_season_start") |>
+      leaflet::addLegend(
+        position  = "bottomleft",
+        pal       = pal,
+        values    = vals,
+        title     = "Season Start<br><small>(Julian DOY)</small>",
+        opacity   = opacity,
+        layerId   = "leg_season_start"
+      )
+  })
+
+  # ── Observer: Season End layer (continuous DOY) ─────────────────────────────
+  shiny::observe({
+    r     <- an_end_rast()
+    show  <- isTRUE(input$show_season_end)
+    proxy <- leaflet::leafletProxy("analysis_map")
+
+    if (!show || is.null(r)) {
+      proxy |>
+        leaflet::clearGroup("lyr_season_end") |>
+        leaflet::removeControl("leg_season_end")
+      if (show && is.null(r))
+        shiny::showNotification(
+          "Upload a Season End raster in the Analysis tab first.", type = "warning")
+      return()
+    }
+
+    opacity <- input$an_layer_opacity %||% 0.75
+    r_ds    <- .vis_downsample(r)
+    vals    <- terra::values(r_ds, na.rm = TRUE)
+    pal     <- leaflet::colorNumeric(
+      rev(viridisLite::magma(10)), domain = range(vals),
+      na.color = "transparent")
+    r_leg   <- raster::raster(r_ds)
+
+    proxy |>
+      leaflet::clearGroup("lyr_season_end") |>
+      leaflet::removeControl("leg_season_end") |>
+      leaflet::addRasterImage(r_leg, colors = pal, opacity = opacity,
+        group = "lyr_season_end") |>
+      leaflet::addLegend(
+        position  = "bottomleft",
+        pal       = pal,
+        values    = vals,
+        title     = "Season End<br><small>(Julian DOY)</small>",
+        opacity   = opacity,
+        layerId   = "leg_season_end"
+      )
+  })
+
   # ---- Update raster overlay -----------------------------------------------
   shiny::observe({
     r_band <- selected_band()
@@ -1621,7 +1824,18 @@ server <- function(input, output, session) {
       tryCatch({
         ref_year <- input$an_ref_year
         period <- as.character(input$an_period)
-        indicators <- input$an_indicators
+
+        # Collect combined indicator list from both inputs
+        agg_vars     <- input$an_agg_vars     %||% character(0)
+        derived_vars <- input$an_derived_vars %||% character(0)
+        indicators   <- c(agg_vars, derived_vars)
+
+        # Pre-compute which data stacks are needed
+        need_aeti_stack   <- any(c("agg_aeti", "etc", "adequacy_etc",
+                                   "adequacy_p95", "cwp_bwp") %in% indicators)
+        need_ret_stack    <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
+        need_npp_stack    <- "agg_npp"  %in% indicators
+        need_precip_stack <- any(c("agg_pcp", "agg_peff") %in% indicators)
 
         # --- Step 1: Harmonize rasters ---
         shiny::incProgress(0.05, detail = "Fetching reference AETI raster...")
@@ -1691,48 +1905,101 @@ server <- function(input, output, session) {
         season_weights <- sw$weights
         dekad_table    <- sw$dekad_table
 
-        # --- Step 5: Fetch remote data ---
-        shiny::incProgress(0.15, detail = "Fetching AETI, RET, Precip data...")
-        # Load dekadal raster stacks
-        aeti_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code,
-          period = period)
-        ret_urls <- Rwapor::wapor_generate_urls(ret_var, l3_region = l3_code,
-          period = period)
+        # --- Step 5: Fetch required remote data stacks ---
+        shiny::incProgress(0.15, detail = "Fetching required WaPOR data...")
 
-        aeti_stack <- terra::rast(paste0("/vsicurl/", aeti_urls))
-        ret_stack  <- terra::rast(paste0("/vsicurl/", ret_urls))
-        if (!is.null(reg)) {
-          aeti_stack <- crop_to_region(aeti_stack, reg_info, do_mask = FALSE)
-          ret_stack  <- crop_to_region(ret_stack, reg_info, do_mask = FALSE)
+        aeti_stack <- ret_stack <- precip_stack <- npp_stack <- NULL
+
+        if (need_aeti_stack || need_ret_stack) {
+          aeti_urls <- Rwapor::wapor_generate_urls(aeti_var,
+            l3_region = l3_code, period = period)
+          aeti_stack <- terra::rast(paste0("/vsicurl/", aeti_urls))
+          if (!is.null(reg))
+            aeti_stack <- crop_to_region(aeti_stack, reg_info, do_mask = FALSE)
+          aeti_meta  <- Rwapor::get_variable_metadata(aeti_var)
+          if (!is.null(aeti_meta)) aeti_stack <- aeti_stack * aeti_meta$scale
         }
 
-        # Apply scale factors
-        aeti_meta <- Rwapor::get_variable_metadata(aeti_var)
-        ret_meta  <- Rwapor::get_variable_metadata(ret_var)
-        if (!is.null(aeti_meta)) aeti_stack <- aeti_stack * aeti_meta$scale
-        if (!is.null(ret_meta))  ret_stack  <- ret_stack * ret_meta$scale
+        if (need_ret_stack) {
+          ret_urls <- Rwapor::wapor_generate_urls(ret_var,
+            l3_region = l3_code, period = period)
+          ret_stack <- terra::rast(paste0("/vsicurl/", ret_urls))
+          if (!is.null(reg))
+            ret_stack <- crop_to_region(ret_stack, reg_info, do_mask = FALSE)
+          ret_meta  <- Rwapor::get_variable_metadata(ret_var)
+          if (!is.null(ret_meta)) ret_stack <- ret_stack * ret_meta$scale
+        }
 
-        # Ensure layer counts match weights by trimming to min length
+        if (need_precip_stack) {
+          tryCatch({
+            precip_urls  <- Rwapor::wapor_generate_urls(precip_var,
+              l3_region = l3_code, period = period)
+            if (length(precip_urls) > 0) {
+              precip_stack <- terra::rast(paste0("/vsicurl/", precip_urls))
+              if (!is.null(reg))
+                precip_stack <- crop_to_region(precip_stack, reg_info, do_mask = FALSE)
+              precip_meta  <- Rwapor::get_variable_metadata(precip_var)
+              if (!is.null(precip_meta)) precip_stack <- precip_stack * precip_meta$scale
+            }
+          }, error = function(e) warning("Precip fetch failed: ", e$message))
+        }
+
+        if (need_npp_stack) {
+          tryCatch({
+            npp_urls <- Rwapor::wapor_generate_urls(input$an_npp_var,
+              l3_region = l3_code, period = period)
+            if (length(npp_urls) > 0) {
+              npp_stack <- terra::rast(paste0("/vsicurl/", npp_urls))
+              if (!is.null(reg))
+                npp_stack <- crop_to_region(npp_stack, reg_info, do_mask = FALSE)
+              npp_meta  <- Rwapor::get_variable_metadata(input$an_npp_var)
+              if (!is.null(npp_meta)) npp_stack <- npp_stack * npp_meta$scale
+            }
+          }, error = function(e) warning("NPP fetch failed: ", e$message))
+        }
+
+        # Align layer counts to season weights
         n_wt <- terra::nlyr(season_weights)
-        n_aeti <- terra::nlyr(aeti_stack)
-        n_ret  <- terra::nlyr(ret_stack)
-        n_layers <- min(n_wt, n_aeti, n_ret)
-        season_weights <- season_weights[[seq_len(n_layers)]]
-        aeti_stack     <- aeti_stack[[seq_len(n_layers)]]
-        ret_stack      <- ret_stack[[seq_len(n_layers)]]
+        trim_stack <- function(s, n) if (!is.null(s)) s[[seq_len(min(terra::nlyr(s), n))]] else NULL
+        aeti_stack   <- trim_stack(aeti_stack,   n_wt)
+        ret_stack    <- trim_stack(ret_stack,    n_wt)
+        precip_stack <- trim_stack(precip_stack, n_wt)
+        npp_stack    <- trim_stack(npp_stack,    n_wt)
+        n_layers     <- n_wt
 
-        # --- Step 6: Seasonal aggregation ---
-        shiny::incProgress(0.1, detail = "Computing seasonal totals...")
+        # --- Step 6: Per-variable seasonal aggregation ---
+        shiny::incProgress(0.10, detail = "Computing seasonal aggregations...")
         results <- list()
 
-        if ("seasonal" %in% indicators || "etc" %in% indicators ||
-            "adequacy_etc" %in% indicators || "adequacy_p95" %in% indicators) {
-          aeti_result <- Rwapor::rwapor_calc_seasonal_aeti_masked(
-            aeti_stack, season_weights, h_mask)
-          ret_result <- Rwapor::rwapor_calc_seasonal_ret_masked(
-            ret_stack, season_weights, h_mask)
-          results$seasonal_aeti <- aeti_result
-          results$seasonal_ret  <- ret_result
+        if ("agg_aeti" %in% indicators || need_aeti_stack) {
+          if (!is.null(aeti_stack)) {
+            aeti_result <- Rwapor::rwapor_calc_seasonal_aeti_masked(
+              aeti_stack, season_weights, h_mask)
+            results$seasonal_aeti <- aeti_result
+          }
+        }
+
+        if ("agg_ret" %in% indicators || need_ret_stack) {
+          if (!is.null(ret_stack)) {
+            ret_result <- Rwapor::rwapor_calc_seasonal_ret_masked(
+              ret_stack, season_weights, h_mask)
+            results$seasonal_ret <- ret_result
+          }
+        }
+
+        if ("agg_npp" %in% indicators && !is.null(npp_stack)) {
+          npp_seasonal <- terra::app(
+            npp_stack[[seq_len(n_layers)]] * season_weights,
+            fun = "sum", na.rm = TRUE)
+          # Convert gC/m2 → kg dry matter/ha for NPP-D variables
+          if (grepl("-NPP-", input$an_npp_var)) npp_seasonal <- npp_seasonal * 22.22
+          results$seasonal_npp <- npp_seasonal
+        }
+
+        if ("agg_pcp" %in% indicators && !is.null(precip_stack)) {
+          results$seasonal_pcp <- terra::app(
+            precip_stack[[seq_len(n_layers)]] * season_weights,
+            fun = "sum", na.rm = TRUE)
         }
 
         # --- Step 7: ETc ---
@@ -1790,46 +2057,29 @@ server <- function(input, output, session) {
             results$seasonal_aeti$raster, h_mask, p95_table)
         }
 
-        # --- Step 9: Effective Precipitation ---
-        if ("peff" %in% indicators) {
+        # --- Step 9: Effective Precipitation (USDA SCS) ---
+        if ("agg_peff" %in% indicators && !is.null(precip_stack)) {
           shiny::incProgress(0.05, detail = "Computing effective precipitation...")
           tryCatch({
+            precip_means <- terra::global(
+              precip_stack[[seq_len(n_layers)]], fun = "mean", na.rm = TRUE)$mean
+            parts  <- strsplit(precip_var, "-")[[1]]
+            tres   <- utils::tail(parts, 1)
             precip_urls <- Rwapor::wapor_generate_urls(precip_var,
               l3_region = l3_code, period = period)
-            if (length(precip_urls) > 0) {
-              precip_stack <- terra::rast(paste0("/vsicurl/", precip_urls))
-              if (!is.null(reg)) {
-                precip_stack <- crop_to_region(precip_stack, reg_info,
-                  do_mask = FALSE)
-              }
-              precip_meta <- Rwapor::get_variable_metadata(precip_var)
-              if (!is.null(precip_meta)) {
-                precip_stack <- precip_stack * precip_meta$scale
-              }
-              # Extract mean precip as time series for Peff
-              precip_means <- terra::global(precip_stack, fun = "mean",
-                na.rm = TRUE)$mean
-              parts <- strsplit(precip_var, "-")[[1]]
-              tres <- utils::tail(parts, 1)
-              precip_dates <- lapply(precip_urls, function(u) {
-                Rwapor::get_date_info(u, tres)
-              })
-              precip_ts <- data.frame(
-                date  = as.Date(vapply(precip_dates,
-                  function(x) x$start_date, character(1))),
-                value = precip_means,
-                stringsAsFactors = FALSE
-              )
-              monthly_p <- Rwapor::rwapor_aggregate_precip_monthly(precip_ts)
-              monthly_p$peff_mm <- Rwapor::rwapor_calc_peff_usda_monthly(
-                monthly_p$p_monthly_mm)
-              an_peff_monthly(monthly_p)
-              results$peff_seasonal <- sum(monthly_p$peff_mm, na.rm = TRUE)
-              results$peff_monthly  <- monthly_p
-            }
-          }, error = function(e) {
-            warning("Peff computation failed: ", e$message)
-          })
+            precip_dates <- lapply(precip_urls, function(u) Rwapor::get_date_info(u, tres))
+            precip_ts <- data.frame(
+              date  = as.Date(vapply(precip_dates,
+                function(x) x$start_date, character(1))),
+              value = precip_means,
+              stringsAsFactors = FALSE
+            )
+            monthly_p        <- Rwapor::rwapor_aggregate_precip_monthly(precip_ts)
+            monthly_p$peff_mm <- Rwapor::rwapor_calc_peff_usda_monthly(monthly_p$p_monthly_mm)
+            an_peff_monthly(monthly_p)
+            results$peff_seasonal <- sum(monthly_p$peff_mm, na.rm = TRUE)
+            results$peff_monthly  <- monthly_p
+          }, error = function(e) warning("Peff computation failed: ", e$message))
         }
 
         if ("cwp_bwp" %in% indicators) {
@@ -1913,24 +2163,61 @@ server <- function(input, output, session) {
     kc_list <- active_kc_data()
     params  <- collect_crop_params()
     shiny::req(kc_list, params)
-
     if (length(kc_list) == 0) return()
+
     max_len <- max(vapply(kc_list, length, integer(1)))
     if (max_len == 0) return()
 
-    cols <- grDevices::hcl.colors(length(kc_list), "Set2")
-    plot(NULL, xlim = c(1, max_len), ylim = c(0, 1.5),
-         xlab = "Day of Season", ylab = "Kc",
-         main = "Crop Coefficient Curves (Preview)")
-    for (i in seq_along(kc_list)) {
-      kc <- kc_list[[i]]
-      if (length(kc) > 0) {
-        lines(seq_along(kc), kc, col = cols[i], lwd = 2)
+    # ── Fix: tighten margins so base R doesn't overflow a compact plot area
+    old_par <- graphics::par(
+      mar  = c(4, 4, 2.5, 1),   # bottom, left, top, right (lines)
+      mgp  = c(2.5, 0.8, 0),    # axis title, label, line distances
+      tcl  = -0.3               # tick length
+    )
+    on.exit(graphics::par(old_par), add = TRUE)
+
+    n_cls <- length(kc_list)
+    cols  <- grDevices::hcl.colors(n_cls, "Set2")
+
+    tryCatch({
+      plot(NULL,
+        xlim = c(1, max_len), ylim = c(0, 1.6),
+        xlab = "Day of Season", ylab = "Kc (crop coefficient)",
+        main = "Crop Coefficient Curves (Preview)",
+        cex.main = 0.95, cex.lab = 0.85, cex.axis = 0.80,
+        panel.first = {
+          graphics::grid(nx = NULL, ny = NULL, col = "#e0e0e0", lty = 1)
+          graphics::abline(h = seq(0, 1.6, 0.2), col = "#e8e8e8", lty = 1)
+        }
+      )
+
+      for (i in seq_along(kc_list)) {
+        kc <- kc_list[[i]]
+        if (length(kc) > 0) {
+          graphics::lines(seq_along(kc), kc, col = cols[i], lwd = 2.5)
+        }
       }
-    }
-    legend("topright", legend = params$crop_label, col = cols,
-           lwd = 2, cex = 0.8, bg = "white")
-  })
+
+      # Legend outside the plot area if many classes; inside if ≤ 3
+      legend_pos <- if (n_cls <= 3) "topright" else "top"
+      graphics::legend(
+        legend_pos,
+        legend  = params$crop_label,
+        col     = cols,
+        lwd     = 2.5,
+        cex     = 0.78,
+        bg      = "white",
+        box.lwd = 0.5,
+        inset   = 0.01,
+        horiz   = (n_cls > 3)   # horizontal legend for many classes
+      )
+    }, error = function(e) {
+      graphics::plot.new()
+      graphics::text(0.5, 0.5,
+        paste("Plot error:", conditionMessage(e)),
+        col = "red", cex = 0.85, adj = 0.5)
+    })
+  }, res = 96, bg = "white")
 
   # ---- ETc & AETI table ----
   output$an_etc_aeti_table <- shiny::renderTable({
