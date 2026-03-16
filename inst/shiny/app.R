@@ -1,5 +1,5 @@
 # Build variable list from package metadata (L1, L2, L3 + AgERA5)
-all_vars <- sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS))))
+all_vars <- unname(sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))))
 default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else all_vars[1]
 
 # Build L3 region choices from package metadata: "Country - Name (CODE)"
@@ -84,332 +84,482 @@ ui <- bslib::page_navbar(
   theme = bslib::bs_theme(
     version = 5,
     bootswatch = "flatly",
-    primary = "#2c3e50",
+    primary   = "#2c3e50",
     "navbar-bg" = "#2c3e50"
   ),
   header = shiny::tags$head(shiny::tags$style(shiny::HTML("
-    .card { margin-bottom: 1rem; }
-    .leaflet-container { border-radius: 0.375rem; }
-    .accordion-button:focus { box-shadow: none; }
-    #analysis_map_card .leaflet-container, 
-    #download_map_card .leaflet-container {
-      aspect-ratio: 1;
-      max-height: 1000px;
+
+    /* ── Map fills the viewport ─────────────────────────────────── */
+    .main-map-output .leaflet-container {
+      height: calc(100vh - 130px) !important;
+      min-height: 480px;
+      border-radius: 0.375rem;
     }
-    #raster_info_table { font-size: 0.85rem; }
+    .main-map-output {
+      height: calc(100vh - 130px) !important;
+      min-height: 480px;
+    }
+
+    /* ── Remove old square-map constraints ──────────────────────── */
+    #analysis_map_card .leaflet-container,
+    #download_map_card  .leaflet-container { aspect-ratio: unset; }
+
+    /* ── Sidebar: flex column so sticky footer works ────────────── */
+    .bslib-sidebar-layout > .sidebar > .sidebar-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+      padding-bottom: 0 !important;
+    }
+    .sidebar-scroll-area {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 0.5rem 0.75rem 0.25rem;
+    }
+    .sidebar-sticky-footer {
+      flex-shrink: 0;
+      position: sticky;
+      bottom: 0;
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+      padding: 0.6rem 0.75rem;
+      z-index: 20;
+    }
+
+    /* ── Compact accordion ──────────────────────────────────────── */
+    .accordion-body       { padding: 0.4rem 0.6rem; }
+    .accordion-button     { padding: 0.5rem 0.75rem; font-size: 0.88rem; }
+    .accordion-button:focus { box-shadow: none; }
+
+    /* ── Compact sidebar inputs ─────────────────────────────────── */
+    .sidebar .form-label,
+    .sidebar label         { font-size: 0.82rem; margin-bottom: 0.15rem; }
+    .sidebar .form-control,
+    .sidebar .form-select  { font-size: 0.82rem; padding: 0.25rem 0.5rem; }
+    .sidebar .form-check-label { font-size: 0.82rem; }
+    .sidebar .shiny-input-container { margin-bottom: 0.4rem; }
+    .sidebar hr { margin: 0.4rem 0; }
+
+    /* ── Code preview collapsible panel ─────────────────────────── */
+    .code-preview-toggle {
+      width: 100%;
+      text-align: left;
+      font-size: 0.82rem;
+      border-radius: 0 0 0.375rem 0.375rem;
+    }
+    .code-preview-body {
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-top: none;
+      padding: 0.5rem;
+      border-radius: 0 0 0.375rem 0.375rem;
+    }
+    .code-preview-body pre { margin: 0; font-size: 0.78rem; }
+
+    /* ── Raster info in card footer ─────────────────────────────── */
+    #raster_info_table       { font-size: 0.8rem; }
     #raster_info_table table { margin-bottom: 0; }
-    .card-body.compact { padding: 0.5rem; }
+    .card-footer.raster-footer {
+      padding: 0.3rem 0.75rem;
+      background: #f8f9fa;
+      font-size: 0.8rem;
+    }
+
+    /* ── General card tightening ────────────────────────────────── */
+    .card          { margin-bottom: 0.6rem; }
+    .card-header   { padding: 0.4rem 0.75rem; font-size: 0.88rem; }
+    .card-body.compact { padding: 0.4rem; }
+
+    /* ── Download btn in sidebar ────────────────────────────────── */
+    .btn-sm-sidebar { font-size: 0.82rem; padding: 0.3rem 0.6rem; }
   "))),
 
-  # ---- Download Tab --------------------------------------------------------
+  # ── Download Tab ────────────────────────────────────────────────────────────
   bslib::nav_panel(
     "Download",
     icon = shiny::icon("cloud-download"),
     bslib::layout_sidebar(
       sidebar = bslib::sidebar(
-        width = 380,
+        width = 300,
+        # open = TRUE keeps it open; built-in toggle button collapses it
+        open  = TRUE,
         title = "Download Configuration",
 
-        bslib::accordion(
-          id = "download_accordion",
-          open = c("Variable & Period", "Area of Interest"),
+        shiny::div(
+          class = "sidebar-scroll-area",
 
-          bslib::accordion_panel(
-            "Variable & Period",
-            icon = shiny::icon("database"),
-            shiny::selectInput("variable", "Variable",
-              choices = all_vars, selected = default_var),
-            # L3 region selector (shown only for L3 variables)
-            shiny::conditionalPanel(
-              condition = "input.variable.startsWith('L3-')",
-              shiny::selectInput("l3_region", "L3 Region",
-                choices = l3_region_choices),
-              shiny::helpText("L3 variables require a specific region.")
-            ),
-            shiny::dateRangeInput("period", "Period",
-              start = Sys.Date() - 30, end = Sys.Date(),
-              format = "yyyy-mm-dd")
-          ),
+          bslib::accordion(
+            id   = "download_accordion",
+            open = c("Variable & Period", "Area of Interest"),
 
-          bslib::accordion_panel(
-            "Output Settings",
-            icon = shiny::icon("folder"),
-            shiny::fluidRow(
-              shiny::column(9, shiny::textInput("folder", "Output Folder",
-                value = file.path(getwd(), "wapor_output"))),
-              shiny::column(3, shinyFiles::shinyDirButton("browse_folder",
-                "Browse", "Select output directory", width = "100%"))
+            # ── Variable & Period ──────────────────────────────────
+            bslib::accordion_panel(
+              "Variable & Period",
+              icon = shiny::icon("database"),
+              shiny::selectInput("variable", "Variable",
+                choices = all_vars, selected = default_var),
+              shiny::conditionalPanel(
+                condition = "input.variable.startsWith('L3-')",
+                shiny::selectInput("l3_region", "L3 Region",
+                  choices = l3_region_choices),
+                shiny::helpText("L3 variables require a specific region.")
+              ),
+              shiny::dateRangeInput("period", "Period",
+                start  = Sys.Date() - 30,
+                end    = Sys.Date(),
+                format = "yyyy-mm-dd")
             ),
-            shiny::checkboxInput("seasonal", "Seasonal Aggregation",
-              value = FALSE),
-            shiny::checkboxInput("separate_files", "Save as Separate Files",
-              value = FALSE),
-            shiny::helpText(
+
+            # ── Output Settings (starts collapsed) ────────────────
+            bslib::accordion_panel(
+              "Output Settings",
+              icon = shiny::icon("folder"),
+              shiny::fluidRow(
+                shiny::column(8, shiny::textInput("folder", "Output Folder",
+                  value = file.path(getwd(), "wapor_output"))),
+                shiny::column(4, shinyFiles::shinyDirButton("browse_folder",
+                  "Browse", "Select output directory", width = "100%"))
+              ),
+              shiny::checkboxInput("seasonal",       "Seasonal Aggregation", FALSE),
+              shiny::checkboxInput("separate_files", "Save as Separate Files", FALSE),
               shiny::conditionalPanel(
                 condition = "input.seasonal && input.separate_files",
-                shiny::tags$em("Both selected: will download seasonal raster AND individual time step files.")
-              )
+                shiny::helpText(shiny::tags$em(
+                  "Both selected: seasonal + individual time-step files."))
+              ),
+              shiny::selectInput("unit_conversion", "Unit Conversion",
+                choices  = as.list(c("none", "day", "dekad", "month", "year")),
+                selected = "none")
             ),
-            shiny::selectInput("unit_conversion", "Unit Conversion",
-              choices = c("none", "day", "dekad", "month", "year"),
-              selected = "none")
-          ),
 
-          bslib::accordion_panel(
-            "Area of Interest",
-            icon = shiny::icon("map"),
-            shiny::p("Draw on map, use manual draw, or select a vector file."),
-            shiny::conditionalPanel(
-              condition = "input.variable.startsWith('L3-')",
-              shiny::helpText(shiny::tags$em("For L3 variables, providing an AOI will clip the data. If left empty, the whole region (selected above) will be downloaded."))
-            ),
-            shiny::radioButtons("manual_mode", "Manual Draw Mode",
-              choices = as.list(c("Rectangle (2 clicks)" = "bbox",
-                                  "Polygon (click vertices)" = "poly")),
-              selected = "bbox", inline = TRUE),
-            shiny::fluidRow(
-              shiny::column(4, shiny::actionButton("start_manual",
-                "Start", icon = shiny::icon("pencil"), width = "100%")),
-              shiny::column(4, shiny::actionButton("finish_manual",
-                "Finish", icon = shiny::icon("check"), width = "100%")),
-              shiny::column(4, shiny::actionButton("clear_manual",
-                "Clear", icon = shiny::icon("eraser"), width = "100%"))
-            ),
-            shiny::helpText("Manual mode works even if leaflet.extras is unavailable."),
-            shinyFiles::shinyFilesButton("browse_vector",
-                "Select Vector File (.geojson, .gpkg, .kml)", "Select vector file", 
-                multiple = FALSE, class = "w-100 mb-2", icon = shiny::icon("folder-open")),
-            shiny::checkboxInput("mask_aoi", "Mask to AOI boundary", value = FALSE),
-            shiny::hr(),
-            shiny::tags$strong("Selected ROI"),
-            shiny::verbatimTextOutput("bbox_display")
+            # ── Area of Interest ──────────────────────────────────
+            bslib::accordion_panel(
+              "Area of Interest",
+              icon = shiny::icon("map"),
+              shiny::conditionalPanel(
+                condition = "input.variable.startsWith('L3-')",
+                shiny::helpText(shiny::tags$em(
+                  "AOI clips data; leave empty to download whole region."))
+              ),
+              shiny::radioButtons("manual_mode", "Draw Mode",
+                choices  = as.list(c("Rectangle" = "bbox", "Polygon" = "poly")),
+                selected = "bbox", inline = TRUE),
+              shiny::fluidRow(
+                shiny::column(4, shiny::actionButton("start_manual",  "Start",
+                  icon = shiny::icon("pencil"), width = "100%",
+                  class = "btn-sm btn-outline-success")),
+                shiny::column(4, shiny::actionButton("finish_manual", "Finish",
+                  icon = shiny::icon("check"),  width = "100%",
+                  class = "btn-sm btn-outline-primary")),
+                shiny::column(4, shiny::actionButton("clear_manual",  "Clear",
+                  icon = shiny::icon("eraser"), width = "100%",
+                  class = "btn-sm btn-outline-danger"))
+              ),
+              shiny::tags$small(class = "text-muted",
+                "Works even without leaflet.extras."),
+              shiny::tags$div(class = "mt-2",
+                shinyFiles::shinyFilesButton("browse_vector",
+                  "Select Vector File (.geojson, .gpkg, .kml)",
+                  "Select vector file",
+                  multiple = FALSE,
+                  class    = "w-100 btn-sm btn-outline-secondary",
+                  icon     = shiny::icon("folder-open"))
+              ),
+              shiny::checkboxInput("mask_aoi", "Mask to AOI boundary", FALSE),
+              shiny::tags$strong(style = "font-size:0.82rem;", "Selected ROI"),
+              shiny::verbatimTextOutput("bbox_display")
+            )
           )
-        ),
+        ), # end sidebar-scroll-area
 
-        shiny::actionButton("download_btn", "Download Data",
-          class = "btn-primary w-100 mt-3",
-          icon = shiny::icon("cloud-download"))
-      ),
+        # ── Sticky footer: Download button ───────────────────────
+        shiny::div(
+          class = "sidebar-sticky-footer",
+          shiny::actionButton("download_btn", "Download Data",
+            class = "btn-primary w-100",
+            icon  = shiny::icon("cloud-download"))
+        )
+      ), # end sidebar
 
-      # Main content
-      bslib::layout_column_wrap(
-        width = 1,
+      # ── Main panel ──────────────────────────────────────────────
+      shiny::div(
         bslib::card(
           id = "download_map_card",
+          full_screen = TRUE,
           bslib::card_header("Map"),
           bslib::card_body(
-            class = "p-0",
-            leaflet::leafletOutput("map", height = "900px")
+            class = "p-0 main-map-output",
+            leaflet::leafletOutput("map", height = "100%", width = "100%")
           )
         ),
-        bslib::card(
-          bslib::card_header("R Code Preview"),
-          bslib::card_body(
-            shiny::verbatimTextOutput("code_preview")
-          )
+
+        # ── R Code Preview — collapsible below map ───────────────
+        shiny::tags$button(
+          class            = "btn btn-sm btn-outline-secondary code-preview-toggle mt-1",
+          `data-bs-toggle` = "collapse",
+          `data-bs-target` = "#codePreviewCollapse",
+          `aria-expanded`  = "false",
+          shiny::icon("code"), " R Code Preview"
+        ),
+        shiny::div(
+          id    = "codePreviewCollapse",
+          class = "collapse code-preview-body",
+          shiny::verbatimTextOutput("code_preview")
         )
       )
     )
   ),
 
-  # ---- Visualisation Tab ---------------------------------------------------
+  # ── Visualisation Tab ───────────────────────────────────────────────────────
   bslib::nav_panel(
     "Visualisation",
     icon = shiny::icon("chart-area"),
     bslib::layout_sidebar(
       sidebar = bslib::sidebar(
-        width = 350,
+        width = 260,
+        open  = TRUE,
         title = "Raster Visualization",
 
-        bslib::accordion(
-          id = "analysis_accordion",
-          open = c("Raster Selection", "Color Palette"),
+        shiny::div(
+          class = "sidebar-scroll-area",
 
-          bslib::accordion_panel(
-            "Raster Selection",
-            icon = shiny::icon("file-image"),
-            shiny::textInput("analysis_folder", "Raster Folder",
-              value = file.path(getwd(), "wapor_output")),
-            shiny::actionButton("scan_rasters", "Scan Folder",
-              icon = shiny::icon("magnifying-glass"),
-              class = "btn-outline-primary w-100 mb-2"),
-            shiny::selectInput("raster_file", "Select Raster", choices = NULL),
-            shiny::selectInput("raster_band", "Band / Layer", choices = NULL)
-          ),
+          bslib::accordion(
+            id   = "analysis_accordion",
+            open = c("Raster Selection", "Color Palette"),
 
-          bslib::accordion_panel(
-            "Color Palette",
-            icon = shiny::icon("palette"),
-            shiny::selectInput("palette_name", "Palette",
-              choices = c("viridis", "magma", "plasma", "inferno", "cividis",
-                          "terrain.colors", "heat.colors", "topo.colors",
-                          "RdYlGn", "RdYlBu", "Spectral", "BrBG"),
-              selected = "viridis"),
-            shiny::sliderInput("n_colors", "Number of Classes",
-              min = 3, max = 15, value = 7, step = 1),
-            shiny::sliderInput("raster_opacity", "Opacity",
-              min = 0, max = 1, value = 0.8, step = 0.05),
-            shiny::checkboxInput("reverse_palette", "Reverse Palette", FALSE),
-            shiny::radioButtons("color_method", "Method",
-              choices = as.list(c("Continuous" = "numeric", "Binned" = "bin")),
-              selected = "numeric", inline = TRUE)
-          ),
+            # ── Raster Selection ────────────────────────────────
+            bslib::accordion_panel(
+              "Raster Selection",
+              icon = shiny::icon("file-image"),
+              shiny::fluidRow(
+                shiny::column(8, shiny::textInput("analysis_folder", "Raster Folder",
+                  value = file.path(getwd(), "wapor_output"))),
+                shiny::column(4, shinyFiles::shinyDirButton("browse_analysis_folder",
+                  "Browse", "Select raster directory", width = "100%"))
+              ),
+              shiny::actionButton("scan_rasters", "Scan Folder",
+                icon  = shiny::icon("magnifying-glass"),
+                class = "btn-outline-primary w-100 mb-2 btn-sm"),
+              shiny::selectInput("raster_file", "Select Raster", choices = NULL),
+              shiny::selectInput("raster_band", "Band / Layer",  choices = NULL)
+            ),
 
-          bslib::accordion_panel(
-            "Overlay Options",
-            icon = shiny::icon("layer-group"),
-            shiny::checkboxInput("overlay_aoi", "Show AOI Boundary", TRUE),
-            shiny::selectInput("basemap_analysis", "Basemap",
-              choices = c("Esri.WorldImagery", "OpenStreetMap",
-                          "CartoDB.Positron", "CartoDB.DarkMatter"),
-              selected = "CartoDB.Positron")
+            # ── Color Palette ───────────────────────────────────
+            bslib::accordion_panel(
+              "Color Palette",
+              icon = shiny::icon("palette"),
+              shiny::selectInput("palette_name", "Palette",
+                choices = as.list(c(
+                  "viridis", "magma", "plasma", "inferno", "cividis",
+                  "terrain.colors", "heat.colors", "topo.colors",
+                  "RdYlGn", "RdYlBu", "Spectral", "BrBG")),
+                selected = "viridis"),
+              shiny::sliderInput("n_colors", "Classes",
+                min = 3, max = 15, value = 7, step = 1),
+              shiny::sliderInput("raster_opacity", "Opacity",
+                min = 0, max = 1, value = 0.8, step = 0.05),
+              shiny::checkboxInput("reverse_palette", "Reverse Palette", FALSE),
+              shiny::radioButtons("color_method", "Method",
+                choices  = as.list(c("Continuous" = "numeric", "Binned" = "bin")),
+                selected = "numeric", inline = TRUE)
+            ),
+
+            # ── Overlay Options ─────────────────────────────────
+            bslib::accordion_panel(
+              "Overlay Options",
+              icon = shiny::icon("layer-group"),
+              shiny::checkboxInput("overlay_aoi", "Show AOI Boundary", TRUE),
+              shiny::selectInput("basemap_analysis", "Basemap",
+                choices = as.list(c(
+                  "Esri.WorldImagery", "OpenStreetMap",
+                  "CartoDB.Positron",  "CartoDB.DarkMatter")),
+                selected = "CartoDB.Positron")
+            )
           )
         )
-      ),
+      ), # end sidebar
 
-      # Main content - square map card
-      bslib::layout_column_wrap(
-        width = 1,
-        bslib::card(
-          id = "analysis_map_card",
-          bslib::card_header("Raster Visualization"),
-          bslib::card_body(
-            class = "p-0",
-            leaflet::leafletOutput("analysis_map", height = "900px",
-              width = "100%")
-          )
+      # ── Main panel: map + raster info in footer ──────────────────
+      bslib::card(
+        id          = "analysis_map_card",
+        full_screen = TRUE,
+        bslib::card_header("Raster Visualization"),
+        bslib::card_body(
+          class = "p-0 main-map-output",
+          leaflet::leafletOutput("analysis_map", height = "100%", width = "100%")
         ),
-        bslib::card(
-          bslib::card_header("Raster Information"),
-          bslib::card_body(
-            class = "compact",
-            shiny::div(id = "raster_info_table", shiny::tableOutput("raster_info"))
-          )
+        bslib::card_footer(
+          class = "raster-footer",
+          shiny::div(id = "raster_info_table",
+            shiny::tableOutput("raster_info"))
         )
       )
     )
   ),
 
-  # ---- Analysis Tab --------------------------------------------------------
+  # ── Analysis Tab ────────────────────────────────────────────────────────────
   bslib::nav_panel(
     "Analysis",
     icon = shiny::icon("flask"),
     bslib::layout_sidebar(
       sidebar = bslib::sidebar(
-        width = 420,
+        width = 360,
+        open  = TRUE,
         title = "Crop Season Analysis",
 
-        bslib::accordion(
-          id = "analysis_config_accordion",
-          open = c("Season Definition", "Data Inputs"),
+        # ── Scrollable accordion area ────────────────────────────
+        shiny::div(
+          class = "sidebar-scroll-area",
 
-          # ---- Season Definition ----
-          bslib::accordion_panel(
-            "Season Definition",
-            icon = shiny::icon("calendar"),
-            shiny::textInput("an_season_label", "Season Label",
-              value = "Winter 2023", placeholder = "e.g. Winter 2023"),
-            shiny::numericInput("an_ref_year", "Reference Year",
-              value = 2023, min = 2009, max = 2030, step = 1),
-            shiny::dateRangeInput("an_period", "Analysis Period",
-              start = "2023-01-01", end = "2023-12-31",
-              format = "yyyy-mm-dd")
-          ),
+          bslib::accordion(
+            id   = "analysis_config_accordion",
+            open = c("Season Definition", "Data Inputs"),
 
-          # ---- Data Inputs ----
-          bslib::accordion_panel(
-            "Data Inputs",
-            icon = shiny::icon("upload"),
-            shiny::fileInput("an_crop_mask", "Crop Mask Raster",
-              accept = c(".tif", ".tiff")),
-            shiny::fileInput("an_season_start", "Season Start Raster (Julian DOY)",
-              accept = c(".tif", ".tiff")),
-            shiny::fileInput("an_season_end", "Season End Raster (Julian DOY)",
-              accept = c(".tif", ".tiff")),
-            shiny::hr(),
-            shiny::selectInput("an_aeti_var", "AETI Variable",
-              choices = grep("AETI-D", all_vars, value = TRUE),
-              selected = if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else NULL),
-            shiny::selectInput("an_ret_var", "RET Variable",
-              choices = grep("RET|ET0", all_vars, value = TRUE),
-              selected = if ("L1-RET-D" %in% all_vars) "L1-RET-D" else NULL),
-            shiny::selectInput("an_precip_var", "Precipitation Variable",
-              choices = grep("PCP|PF", all_vars, value = TRUE),
-              selected = if ("L1-PCP-D" %in% all_vars) "L1-PCP-D" else NULL),
-            shiny::conditionalPanel(
-              condition = "input.an_aeti_var.startsWith('L3-')",
-              shiny::selectInput("an_l3_region", "L3 Region",
-                choices = l3_region_choices)
+            # ── Season Definition ────────────────────────────────
+            bslib::accordion_panel(
+              "Season Definition",
+              icon = shiny::icon("calendar"),
+              shiny::textInput("an_season_label", "Season Label",
+                value       = "Winter 2023",
+                placeholder = "e.g. Winter 2023"),
+              shiny::fluidRow(
+                shiny::column(5,
+                  shiny::numericInput("an_ref_year", "Ref. Year",
+                    value = 2023, min = 2009, max = 2030, step = 1)),
+                shiny::column(7,
+                  shiny::dateRangeInput("an_period", "Analysis Period",
+                    start  = "2023-01-01",
+                    end    = "2023-12-31",
+                    format = "yyyy-mm-dd"))
+              )
+            ),
+
+            # ── Data Inputs ──────────────────────────────────────
+            bslib::accordion_panel(
+              "Data Inputs",
+              icon = shiny::icon("upload"),
+              # File uploads side by side to save space
+              shiny::fluidRow(
+                shiny::column(12,
+                  shiny::fileInput("an_crop_mask",    "Crop Mask",
+                    accept = c(".tif", ".tiff"))),
+                shiny::column(6,
+                  shiny::fileInput("an_season_start", "Season Start (DOY)",
+                    accept = c(".tif", ".tiff"))),
+                shiny::column(6,
+                  shiny::fileInput("an_season_end",   "Season End (DOY)",
+                    accept = c(".tif", ".tiff")))
+              ),
+              shiny::hr(),
+              shiny::fluidRow(
+                shiny::column(6,
+                  shiny::selectInput("an_aeti_var", "AETI",
+                    choices  = grep("AETI-D", all_vars, value = TRUE),
+                    selected = if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else NULL)),
+                shiny::column(6,
+                  shiny::selectInput("an_ret_var",   "RET",
+                    choices  = grep("RET|ET0", all_vars, value = TRUE),
+                    selected = if ("L1-RET-D" %in% all_vars) "L1-RET-D" else NULL))
+              ),
+              shiny::fluidRow(
+                shiny::column(6,
+                  shiny::selectInput("an_precip_var", "Precip",
+                    choices  = grep("PCP|PF", all_vars, value = TRUE),
+                    selected = if ("L1-PCP-D" %in% all_vars) "L1-PCP-D" else NULL)),
+                shiny::column(6,
+                  shiny::selectInput("an_npp_var",    "NPP",
+                    choices  = grep("NPP|TBP", all_vars, value = TRUE),
+                    selected = if ("L1-NPP-D" %in% all_vars) "L1-NPP-D" else NULL))
+              ),
+              shiny::conditionalPanel(
+                condition = "input.an_aeti_var.startsWith('L3-')",
+                shiny::selectInput("an_l3_region", "L3 Region",
+                  choices = l3_region_choices)
+              )
+            ),
+
+            # ── Crop Classes ─────────────────────────────────────
+            bslib::accordion_panel(
+              "Crop Classes",
+              icon = shiny::icon("seedling"),
+              shiny::helpText("Upload crop mask first, then assign profiles per class."),
+              shiny::uiOutput("an_crop_class_ui")
+            ),
+
+            # ── Indicators ───────────────────────────────────────
+            bslib::accordion_panel(
+              "Indicators",
+              icon = shiny::icon("chart-line"),
+              shiny::checkboxGroupInput("an_indicators", NULL,
+                choices = as.list(c(
+                  "Seasonal AETI & RET"     = "seasonal",
+                  "ETc (RET × Kc)"          = "etc",
+                  "Adequacy (ETc)"          = "adequacy_etc",
+                  "Adequacy (P95)"          = "adequacy_p95",
+                  "Effective Precip (USDA)" = "peff",
+                  "CWP / BWP"               = "cwp_bwp"
+                )),
+                selected = c("seasonal", "etc", "adequacy_etc")),
+              shiny::conditionalPanel(
+                condition = "input.an_indicators.indexOf('cwp_bwp') > -1",
+                shiny::fluidRow(
+                  shiny::column(6,
+                    shiny::fileInput("an_yield_file",    "Yield Raster",
+                      accept = c(".tif", ".tiff")),
+                    shiny::selectInput("an_yield_unit",  "Unit",
+                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha")),
+                  shiny::column(6,
+                    shiny::fileInput("an_biomass_file",  "Biomass Raster",
+                      accept = c(".tif", ".tiff")),
+                    shiny::selectInput("an_biomass_unit","Unit",
+                      choices = as.list(c("kg/ha", "t/ha")), selected = "kg/ha"))
+                )
+              )
             )
-          ),
+          )
+        ), # end sidebar-scroll-area
 
-          # ---- Crop Classes ----
-          bslib::accordion_panel(
-            "Crop Classes",
-            icon = shiny::icon("seedling"),
-            shiny::helpText("Upload a crop mask first, then assign crop profiles to each class."),
-            shiny::uiOutput("an_crop_class_ui")
-          ),
-
-          # ---- Indicators ----
-          bslib::accordion_panel(
-            "Indicators",
-            icon = shiny::icon("chart-line"),
-            shiny::checkboxGroupInput("an_indicators", "Select Indicators",
-              choices = as.list(c(
-                "Seasonal AETI & RET" = "seasonal",
-                "ETc (RET x Kc)"     = "etc",
-                "Adequacy (ETc)"     = "adequacy_etc",
-                "Adequacy (P95)"     = "adequacy_p95",
-                "Effective Precip (USDA)" = "peff",
-                "CWP / BWP"          = "cwp_bwp"
-              )),
-              selected = c("seasonal", "etc", "adequacy_etc")),
-            shiny::conditionalPanel(
-              condition = "input.an_indicators.indexOf('cwp_bwp') > -1",
-              shiny::fileInput("an_yield_file", "Yield Raster (optional)",
-                accept = c(".tif", ".tiff")),
-              shiny::selectInput("an_yield_unit", "Yield Unit",
-                choices = c("kg/ha", "t/ha"), selected = "kg/ha"),
-              shiny::fileInput("an_biomass_file", "Biomass Raster (optional)",
-                accept = c(".tif", ".tiff")),
-              shiny::selectInput("an_biomass_unit", "Biomass Unit",
-                choices = c("kg/ha", "t/ha"), selected = "kg/ha")
-            )
-          ),
-
-          # ---- Run Controls ----
-          bslib::accordion_panel(
-            "Run Controls",
-            icon = shiny::icon("play"),
-            shiny::actionButton("an_validate_btn", "Validate Inputs",
-              class = "btn-outline-primary w-100 mb-2",
-              icon = shiny::icon("check-circle")),
-            shiny::actionButton("an_run_btn", "Run Analysis",
-              class = "btn-primary w-100 mb-2",
-              icon = shiny::icon("play")),
-            shiny::actionButton("an_reset_btn", "Reset",
-              class = "btn-outline-danger w-100",
-              icon = shiny::icon("rotate-left"))
+        # ── Sticky footer: Run Controls ──────────────────────────
+        shiny::div(
+          class = "sidebar-sticky-footer",
+          shiny::fluidRow(
+            shiny::column(4,
+              shiny::actionButton("an_validate_btn", "Validate",
+                class = "btn-sm btn-outline-primary w-100",
+                icon  = shiny::icon("check-circle"))),
+            shiny::column(4,
+              shiny::actionButton("an_run_btn", "Run",
+                class = "btn-sm btn-primary w-100",
+                icon  = shiny::icon("play"))),
+            shiny::column(4,
+              shiny::actionButton("an_reset_btn", "Reset",
+                class = "btn-sm btn-outline-danger w-100",
+                icon  = shiny::icon("rotate-left")))
           )
         )
-      ),
+      ), # end sidebar
 
-      # Main content
+      # ── Main panel ──────────────────────────────────────────────
       bslib::layout_column_wrap(
         width = 1,
 
-        # Season summary
+        # Season summary banner (compact)
         bslib::card(
           bslib::card_header("Season Summary"),
-          bslib::card_body(shiny::verbatimTextOutput("an_season_summary"))
+          bslib::card_body(
+            class = "compact",
+            shiny::verbatimTextOutput("an_season_summary"))
         ),
 
-        # Crop mask preview & class table
+        # Crop data + season rasters (tabbed)
         bslib::navset_card_tab(
           title = "Crop Data",
           bslib::nav_panel("Crop Mask Preview",
-            shiny::plotOutput("an_crop_mask_plot", height = "350px")),
+            shiny::plotOutput("an_crop_mask_plot", height = "300px")),
           bslib::nav_panel("Season Rasters",
             shiny::verbatimTextOutput("an_season_raster_info")),
           bslib::nav_panel("Crop Class Table",
@@ -419,10 +569,11 @@ ui <- bslib::page_navbar(
         # Kc Curves
         bslib::card(
           bslib::card_header("Kc Curves by Class"),
-          bslib::card_body(shiny::plotOutput("an_kc_plot", height = "300px"))
+          bslib::card_body(
+            shiny::plotOutput("an_kc_plot", height = "250px"))
         ),
 
-        # Results
+        # Results (tabbed)
         bslib::navset_card_tab(
           title = "Analysis Results",
           bslib::nav_panel("ETc & AETI",
@@ -435,21 +586,37 @@ ui <- bslib::page_navbar(
             shiny::tableOutput("an_cwp_bwp_table"))
         ),
 
-        # Export
+        # Export + collapsible code preview
         bslib::card(
-          bslib::card_header("Export & Code Preview"),
+          bslib::card_header("Export"),
           bslib::card_body(
             shiny::fluidRow(
-              shiny::column(4, shiny::downloadButton("an_dl_crop_params",
-                "Crop Parameters CSV", class = "btn-outline-primary w-100 mb-1")),
-              shiny::column(4, shiny::downloadButton("an_dl_results",
-                "Seasonal Results CSV", class = "btn-outline-primary w-100 mb-1")),
-              shiny::column(4, shiny::downloadButton("an_dl_peff",
-                "Monthly Peff CSV", class = "btn-outline-primary w-100 mb-1"))
-            ),
-            shiny::hr(),
-            shiny::verbatimTextOutput("an_code_preview")
+              shiny::column(4,
+                shiny::downloadButton("an_dl_crop_params",
+                  "Crop Parameters CSV",
+                  class = "btn-outline-primary w-100 btn-sm mb-1")),
+              shiny::column(4,
+                shiny::downloadButton("an_dl_results",
+                  "Seasonal Results CSV",
+                  class = "btn-outline-primary w-100 btn-sm mb-1")),
+              shiny::column(4,
+                shiny::downloadButton("an_dl_peff",
+                  "Monthly Peff CSV",
+                  class = "btn-outline-primary w-100 btn-sm mb-1"))
+            )
           )
+        ),
+        shiny::tags$button(
+          class            = "btn btn-sm btn-outline-secondary code-preview-toggle",
+          `data-bs-toggle` = "collapse",
+          `data-bs-target` = "#anCodePreviewCollapse",
+          `aria-expanded`  = "false",
+          shiny::icon("code"), " R Code Preview"
+        ),
+        shiny::div(
+          id    = "anCodePreviewCollapse",
+          class = "collapse code-preview-body",
+          shiny::verbatimTextOutput("an_code_preview")
         )
       )
     )
@@ -555,11 +722,12 @@ server <- function(input, output, session) {
         leaflet::addPolygons(data = shp_map, color = "red",
           fill = FALSE, weight = 2) |>
         leaflet::addRectangles(
-          lng1 = bbox["xmin"], lat1 = bbox["ymin"],
-          lng2 = bbox["xmax"], lat2 = bbox["ymax"],
+          lng1 = as.numeric(bbox["xmin"]), lat1 = as.numeric(bbox["ymin"]),
+          lng2 = as.numeric(bbox["xmax"]), lat2 = as.numeric(bbox["ymax"]),
           color = "blue", fill = FALSE, weight = 1, dashArray = "4") |>
-        leaflet::fitBounds(lng1 = bbox["xmin"], lat1 = bbox["ymin"],
-          lng2 = bbox["xmax"], lat2 = bbox["ymax"])
+        leaflet::fitBounds(
+          lng1 = as.numeric(bbox["xmin"]), lat1 = as.numeric(bbox["ymin"]),
+          lng2 = as.numeric(bbox["xmax"]), lat2 = as.numeric(bbox["ymax"]))
       upload_roi(path)
       user_roi(NULL)
       manual_active(FALSE)
@@ -571,9 +739,25 @@ server <- function(input, output, session) {
     })
   }
 
-  # Sync analysis folder with download folder
-  shiny::observe({
-    shiny::updateTextInput(session, "analysis_folder", value = input$folder)
+  # Sync analysis folder with download folder (initially or on change)
+  shiny::observeEvent(input$folder, {
+    # Only update if they match (still on default/sync)
+    # or if analysis_folder is empty
+    if (!nzchar(input$analysis_folder) || 
+        isTRUE(getOption("rwapor.sync_folders", TRUE))) {
+       shiny::updateTextInput(session, "analysis_folder", value = input$folder)
+    }
+  })
+
+  shinyFiles::shinyDirChoose(input, "browse_analysis_folder", roots = roots,
+    session = session)
+  shiny::observeEvent(input$browse_analysis_folder, {
+    dir_path <- shinyFiles::parseDirPath(roots, input$browse_analysis_folder)
+    if (length(dir_path) == 1 && nzchar(dir_path)) {
+      shiny::updateTextInput(session, "analysis_folder", value = dir_path)
+      # Once manually changed, we might want to stop auto-sync
+      options(rwapor.sync_folders = FALSE)
+    }
   })
 
   # ==========================================================================
@@ -595,7 +779,7 @@ server <- function(input, output, session) {
             selectedPathOptions = selected_path_options())
         )
     }
-    m |> leaflet::setView(lng = 25, lat = 25, zoom = 3)
+    m |> leaflet::setView(lng = 18, lat = 2, zoom = 3)
   })
 
   # ---- Manual draw ---------------------------------------------------------
@@ -629,7 +813,9 @@ server <- function(input, output, session) {
         leaflet::clearGroup("manual_draw") |>
         leaflet::addRectangles(
           lng1 = bbox[1], lat1 = bbox[2], lng2 = bbox[3], lat2 = bbox[4],
-          color = "yellow", fill = FALSE, weight = 2, group = "manual_draw")
+          color = "yellow", fill = FALSE, weight = 2, group = "manual_draw") |>
+        leaflet::fitBounds(lng1 = bbox[1], lat1 = bbox[2], 
+                           lng2 = bbox[3], lat2 = bbox[4])
       shiny::showNotification("Rectangle AOI set.", type = "message")
     } else if (input$manual_mode == "poly" && nrow(current) >= 2) {
       leaflet::leafletProxy("map") |>
@@ -666,7 +852,9 @@ server <- function(input, output, session) {
         leaflet::clearGroup("manual_preview") |>
         leaflet::clearGroup("manual_draw") |>
         leaflet::addPolygons(lng = pts[, 1], lat = pts[, 2],
-          color = "yellow", fill = FALSE, weight = 2, group = "manual_draw")
+          color = "yellow", fill = FALSE, weight = 2, group = "manual_draw") |>
+        leaflet::fitBounds(lng1 = min(pts[, 1]), lat1 = min(pts[, 2]),
+                           lng2 = max(pts[, 1]), lat2 = max(pts[, 2]))
       shiny::showNotification("Polygon AOI set.", type = "message")
     } else {
       shiny::showNotification(
@@ -895,7 +1083,7 @@ server <- function(input, output, session) {
             stop("Download completed but output file(s) were not found on disk.")
           }
           log_msg(sprintf("Dashboard download success. Saved %d files to %s.", 
-            length(out_path), normalizePath(var_folder, winslash = "/", mustWork = FALSE)))
+            length(out_path), normalizePath(dirname(out_path[1]), winslash = "/", mustWork = FALSE)))
           if (length(out_path) > 1) {
             shiny::showNotification(
               sprintf("Download successful. %d files written in %s",
@@ -1036,7 +1224,7 @@ server <- function(input, output, session) {
   output$analysis_map <- leaflet::renderLeaflet({
     leaflet::leaflet() |>
       leaflet::addProviderTiles("CartoDB.Positron") |>
-      leaflet::setView(lng = 0, lat = 0, zoom = 2)
+      leaflet::setView(lng = 18, lat = 2, zoom = 3)
   })
 
   # Update basemap when selector changes
@@ -1298,6 +1486,20 @@ server <- function(input, output, session) {
     })
     do.call(rbind, rows)
   }
+
+  # Real-time Kc preview data
+  active_kc_data <- shiny::reactive({
+    params <- collect_crop_params()
+    shiny::req(params)
+    total_days <- 150 # Default for preview
+    total_days_vec <- stats::setNames(
+      rep(total_days, nrow(params)),
+      as.character(params$class_value)
+    )
+    tryCatch({
+      Rwapor::rwapor_build_kc_by_class(params, total_days_vec)
+    }, error = function(e) NULL)
+  })
 
   # ---- Season summary output ----
   output$an_season_summary <- shiny::renderPrint({
@@ -1630,7 +1832,6 @@ server <- function(input, output, session) {
           })
         }
 
-        # --- Step 10: CWP/BWP ---
         if ("cwp_bwp" %in% indicators) {
           shiny::incProgress(0.05, detail = "Computing CWP/BWP...")
           mean_aeti <- mean(terra::values(results$seasonal_aeti$raster,
@@ -1647,10 +1848,40 @@ server <- function(input, output, session) {
               warning("CWP computation failed: ", e$message)
             })
           }
+          # Fetch Biomass from local file OR WaPOR NPP
+          bio_h <- NULL
           if (!is.null(input$an_biomass_file)) {
             tryCatch({
               bio_r <- terra::rast(input$an_biomass_file$datapath)
               bio_h <- Rwapor::rwapor_harmonize_to_template(bio_r, template_r)
+            }, error = function(e) warning("Local biomass load failed: ", e$message))
+          } else if (!is.null(input$an_npp_var)) {
+            tryCatch({
+              npp_urls <- Rwapor::wapor_generate_urls(input$an_npp_var,
+                l3_region = l3_code, period = period)
+              if (length(npp_urls) > 0) {
+                # Fetch, mask, scale, and aggregate NPP
+                npp_stack <- terra::rast(paste0("/vsicurl/", npp_urls))
+                if (!is.null(reg)) npp_stack <- crop_to_region(npp_stack, reg_info, do_mask = FALSE)
+                npp_meta <- Rwapor::get_variable_metadata(input$an_npp_var)
+                if (!is.null(npp_meta)) npp_stack <- npp_stack * npp_meta$scale
+                # Aggregate to seasonal total using weights (result is in gC/m2 if NPP)
+                bio_rast <- terra::app(npp_stack[[seq_len(n_layers)]] * season_weights, 
+                                     fun = "sum", na.rm = TRUE)
+                # Convert gC/m2 to kgDM/ha: 1 gC/m2 ~= 2.22 g dry matter/m2 = 22.22 kg dry matter/ha
+                # If variable is TBP, units are already kg/ha, but NPP-D is gC/m2/day.
+                if (grepl("-NPP-", input$an_npp_var)) {
+                  bio_h <- bio_rast * 22.22
+                } else {
+                  # For TBP variables or others, assume they are handled or already in kg/ha
+                  bio_h <- bio_rast
+                }
+              }
+            }, error = function(e) warning("WaPOR NPP fetch failed: ", e$message))
+          }
+          
+          if (!is.null(bio_h)) {
+            tryCatch({
               mean_bio <- mean(terra::values(bio_h, na.rm = TRUE))
               bwp_val <- Rwapor::rwapor_calc_bwp(mean_bio, mean_aeti,
                 input$an_biomass_unit)
@@ -1678,32 +1909,27 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- Kc curves plot ----
   output$an_kc_plot <- shiny::renderPlot({
-    res <- an_results()
-    shiny::req(res, res$kc_by_class)
+    kc_list <- active_kc_data()
+    params  <- collect_crop_params()
+    shiny::req(kc_list, params)
 
-    kc_list <- res$kc_by_class
-    params  <- res$crop_params
     if (length(kc_list) == 0) return()
-
     max_len <- max(vapply(kc_list, length, integer(1)))
     if (max_len == 0) return()
 
     cols <- grDevices::hcl.colors(length(kc_list), "Set2")
     plot(NULL, xlim = c(1, max_len), ylim = c(0, 1.5),
          xlab = "Day of Season", ylab = "Kc",
-         main = "Crop Coefficient Curves")
+         main = "Crop Coefficient Curves (Preview)")
     for (i in seq_along(kc_list)) {
       kc <- kc_list[[i]]
       if (length(kc) > 0) {
         lines(seq_along(kc), kc, col = cols[i], lwd = 2)
       }
     }
-    if (!is.null(params)) {
-      legend("topright", legend = params$crop_label, col = cols,
-             lwd = 2, cex = 0.8, bg = "white")
-    }
+    legend("topright", legend = params$crop_label, col = cols,
+           lwd = 2, cex = 0.8, bg = "white")
   })
 
   # ---- ETc & AETI table ----
