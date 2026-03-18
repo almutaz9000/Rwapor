@@ -184,7 +184,7 @@ test_that("get_variable_metadata validates input", {
 })
 
 test_that("Dynamic Metadata Fetching works", {
-  skip_if_offline()
+  skip_if_no_live_api()
 
   # L1-RET-E is not in static list, should fetch from API
   meta <- get_variable_metadata("L1-RET-E")
@@ -225,7 +225,7 @@ test_that("wapor_generate_urls validates inputs", {
 })
 
 test_that("wapor_generate_urls generates correct URLs", {
-  skip_if_offline()
+  skip_if_no_live_api()
 
   urls <- wapor_generate_urls(
     variable = "L1-AETI-D",
@@ -382,8 +382,7 @@ test_that("crop_to_region applies mask when do_mask is TRUE", {
 # =============================================================================
 
 test_that("Zonal Statistics works with exactextractr", {
-  skip_if_offline()
-  skip_on_cran()
+  skip_if_no_live_api()
 
   # Create a small polygon for fast testing
   poly_coords <- matrix(c(
@@ -425,8 +424,7 @@ test_that("Zonal Statistics works with exactextractr", {
 })
 
 test_that("wapor_ts works with bounding box", {
-  skip_if_offline()
-  skip_on_cran()
+  skip_if_no_live_api()
 
   region   <- c(35.75, 33.70, 35.82, 33.75)
   variable <- "L1-AETI-D"
