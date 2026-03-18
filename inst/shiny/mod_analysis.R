@@ -48,14 +48,46 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
             )
           ),
           bslib::accordion_panel(
+            "Data Source",
+            icon = shiny::icon("database"),
+            shiny::radioButtons(
+              ns("an_data_source"),
+              "Get WaPOR data from:",
+              choices = c(
+                "Stream from API (requires internet)" = "api",
+                "Use local downloaded files (offline)" = "local"
+              ),
+              selected = "api"
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'local'", ns("an_data_source")),
+              shiny::tags$div(
+                class = "alert alert-info p-2 mb-2",
+                shiny::icon("info-circle"),
+                " Using local files from the Download folder. Make sure you've downloaded the required variables first."
+              ),
+              shiny::actionButton(
+                ns("an_scan_local"),
+                "Scan Local Folder",
+                icon = shiny::icon("magnifying-glass"),
+                class = "btn-sm btn-outline-primary w-100 mb-2"
+              ),
+              shiny::verbatimTextOutput(ns("an_local_vars_info"))
+            )
+          ),
+          bslib::accordion_panel(
             "Data Inputs",
             icon = shiny::icon("upload"),
-            shiny::checkboxInput(ns("an_use_crop_mask"), "Do you have a crop mask?", value = TRUE),
+            shiny::checkboxInput(ns("an_use_crop_mask"), "Use a crop mask raster?", value = FALSE),
             shiny::conditionalPanel(
               condition = sprintf("input['%s']", ns("an_use_crop_mask")),
-              shiny::fileInput(ns("an_crop_mask"), "Crop Mask", accept = c(".tif", ".tiff"))
+              shiny::fileInput(ns("an_crop_mask"), "Crop Mask", accept = c(".tif", ".tiff")),
+              shiny::helpText(
+                class = "text-muted small",
+                "Upload a GeoTIFF with integer class values (1, 2, 3, etc.)"
+              )
             ),
-            shiny::checkboxInput(ns("an_use_season_rasters"), "Do you have season start/end rasters?", value = TRUE),
+            shiny::checkboxInput(ns("an_use_season_rasters"), "Use pixel-wise season start/end rasters?", value = FALSE),
             shiny::conditionalPanel(
               condition = sprintf("input['%s']", ns("an_use_season_rasters")),
               shiny::fluidRow(
@@ -67,6 +99,10 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                   6,
                   shiny::fileInput(ns("an_season_end"), "Season End (DOY)", accept = c(".tif", ".tiff"))
                 )
+              ),
+              shiny::helpText(
+                class = "text-muted small",
+                "GeoTIFFs with Julian Day of Year values (1-366). For cross-year seasons, end DOY can exceed 366."
               )
             ),
           shiny::hr(),
@@ -345,13 +381,26 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 mod_analysis_server <- function(id, global_folder, aoi_region) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    roots <- c(Home = normalizePath("~", winslash = "/"), "Current" = getwd(), "C:/" = "C:/")
+    # Cross-platform roots for shinyFiles
+    roots <- if (.Platform$OS.type == "windows") {
+      c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+    } else {
+      c(Home = normalizePath("~", winslash = "/"), Root = "/")
+    }
     
     shinyFiles::shinyDirChoose(input, "an_browse_folder", roots = roots, session = session)
     shiny::observeEvent(input$an_browse_folder, {
       dir_path <- shinyFiles::parseDirPath(roots, input$an_browse_folder)
       if (length(dir_path) == 1 && nzchar(dir_path)) {
         shiny::updateTextInput(session, "an_folder", value = dir_path)
+      }
+    })
+
+    # Sync with global folder from Download tab
+    shiny::observe({
+      folder <- global_folder()
+      if (!is.null(folder) && nzchar(folder) && !nzchar(input$an_folder)) {
+        shiny::updateTextInput(session, "an_folder", value = folder)
       }
     })
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
@@ -361,6 +410,127 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     an_crop_params <- shiny::reactiveVal(NULL)
     an_results <- shiny::reactiveVal(NULL)
     an_peff_monthly <- shiny::reactiveVal(NULL)
+    an_local_vars <- shiny::reactiveVal(NULL)  # Store scanned local variables
+
+    # --- Local Data Source Logic ---
+    shiny::observeEvent(input$an_scan_local, {
+      folder <- global_folder()
+      if (is.null(folder) || !nzchar(folder)) {
+        shiny::showNotification(
+          "No download folder set. Please configure the output folder in the Download tab first.",
+          type = "error"
+        )
+        return()
+      }
+
+      if (!dir.exists(folder)) {
+        shiny::showNotification(
+          sprintf("Folder does not exist: %s", folder),
+          type = "error"
+        )
+        return()
+      }
+
+      tryCatch({
+        local_vars <- Rwapor::rwapor_scan_local_variables(folder)
+        an_local_vars(local_vars)
+
+        if (nrow(local_vars) == 0) {
+          shiny::showNotification(
+            "No WaPOR variable folders found. Download data first using the Download tab.",
+            type = "warning"
+          )
+        } else {
+          shiny::showNotification(
+            sprintf("Found %d variable(s) with local data.", nrow(local_vars)),
+            type = "message"
+          )
+
+          # Update variable dropdowns with available local variables
+          aeti_vars <- local_vars$variable[grepl("AETI", local_vars$variable)]
+          ret_vars <- local_vars$variable[grepl("RET|ET0", local_vars$variable)]
+          precip_vars <- local_vars$variable[grepl("PCP|PF", local_vars$variable)]
+          npp_vars <- local_vars$variable[grepl("NPP|TBP", local_vars$variable)]
+
+          if (length(aeti_vars) > 0) {
+            shiny::updateSelectInput(session, "an_aeti_var",
+              choices = aeti_vars,
+              selected = aeti_vars[1]
+            )
+          }
+          if (length(ret_vars) > 0) {
+            shiny::updateSelectInput(session, "an_ret_var",
+              choices = ret_vars,
+              selected = ret_vars[1]
+            )
+          }
+          if (length(precip_vars) > 0) {
+            shiny::updateSelectInput(session, "an_precip_var",
+              choices = precip_vars,
+              selected = precip_vars[1]
+            )
+          }
+          if (length(npp_vars) > 0) {
+            shiny::updateSelectInput(session, "an_npp_var",
+              choices = npp_vars,
+              selected = npp_vars[1]
+            )
+          }
+
+          # Auto-update date range based on available data
+          if (nrow(local_vars) > 0) {
+            all_min <- min(as.Date(local_vars$min_date[!is.na(local_vars$min_date)]), na.rm = TRUE)
+            all_max <- max(as.Date(local_vars$max_date[!is.na(local_vars$max_date)]), na.rm = TRUE)
+            if (!is.na(all_min) && !is.na(all_max)) {
+              shiny::updateDateRangeInput(session, "an_period",
+                start = all_min,
+                end = all_max
+              )
+            }
+          }
+        }
+      }, error = function(e) {
+        shiny::showNotification(
+          paste("Error scanning folder:", e$message),
+          type = "error"
+        )
+      })
+    })
+
+    output$an_local_vars_info <- shiny::renderPrint({
+      local_vars <- an_local_vars()
+      folder <- global_folder()
+
+      if (is.null(folder) || !nzchar(folder)) {
+        cat("Download folder not set.\n")
+        cat("Configure it in the Download tab.\n")
+        return()
+      }
+
+      cat("Folder:", folder, "\n\n")
+
+      if (is.null(local_vars)) {
+        cat("Click 'Scan Local Folder' to detect available variables.\n")
+        return()
+      }
+
+      if (nrow(local_vars) == 0) {
+        cat("No WaPOR variables found.\n")
+        cat("Download data first using the Download tab.\n")
+        return()
+      }
+
+      cat("=== Available Local Variables ===\n\n")
+      for (i in seq_len(nrow(local_vars))) {
+        v <- local_vars[i, ]
+        cat(sprintf("%s:\n", v$variable))
+        cat(sprintf("  Files: %d\n", v$file_count))
+        if (!is.na(v$min_date) && !is.na(v$max_date)) {
+          cat(sprintf("  Date range: %s to %s\n", v$min_date, v$max_date))
+        }
+        cat("\n")
+      }
+    })
 
     # --- Validation ---
     iv <- shinyvalidate::InputValidator$new()
@@ -418,38 +588,165 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
     shiny::observeEvent(input$an_crop_mask, {
       shiny::req(input$an_crop_mask)
+      file_path <- input$an_crop_mask$datapath
+      file_name <- input$an_crop_mask$name
+
+      # Validate file exists
+      if (!file.exists(file_path)) {
+        shiny::showNotification(
+          sprintf("Uploaded file not found: %s", file_name),
+          type = "error"
+        )
+        an_crop_mask_rast(NULL)
+        an_crop_classes(NULL)
+        return()
+      }
+
       tryCatch({
-        r <- Rwapor::rwapor_load_crop_mask(input$an_crop_mask$datapath)
+        r <- Rwapor::rwapor_load_crop_mask(file_path)
+
+        # Validate raster is not empty
+        if (is.null(r) || terra::ncell(r) == 0) {
+          shiny::showNotification("Crop mask raster is empty or invalid.", type = "error")
+          an_crop_mask_rast(NULL)
+          an_crop_classes(NULL)
+          return()
+        }
+
         an_crop_mask_rast(r)
         classes <- Rwapor::rwapor_extract_crop_classes(r)
+
+        # Check if any valid classes were found
+        if (is.null(classes) || nrow(classes) == 0) {
+          shiny::showNotification(
+            "No valid crop classes found in mask. Check if your raster contains valid class values (not just 0, 255, or nodata).",
+            type = "warning",
+            duration = 10
+          )
+          # Create a default single class
+          classes <- data.frame(class_value = 1L, pixel_count = NA_integer_, area_ha = NA_real_)
+        }
+
         an_crop_classes(classes)
         an_crop_params(Rwapor::rwapor_build_crop_assignment_table(classes$class_value))
         shiny::showNotification(
-          sprintf("Crop mask loaded: %d classes found.", nrow(classes)),
+          sprintf("Crop mask loaded: %d class(es) found. File: %s", nrow(classes), file_name),
           type = "message"
         )
       }, error = function(e) {
         shiny::showNotification(paste("Error loading crop mask:", e$message), type = "error")
+        an_crop_mask_rast(NULL)
+        an_crop_classes(NULL)
       })
     })
 
     shiny::observeEvent(input$an_season_start, {
       shiny::req(input$an_season_start)
+      file_path <- input$an_season_start$datapath
+      file_name <- input$an_season_start$name
+
+      if (!file.exists(file_path)) {
+        shiny::showNotification(
+          sprintf("Season start file not found: %s", file_name),
+          type = "error"
+        )
+        an_start_rast(NULL)
+        return()
+      }
+
       tryCatch({
-        an_start_rast(Rwapor::rwapor_load_season_raster(input$an_season_start$datapath))
-        shiny::showNotification("Season start raster loaded.", type = "message")
+        r <- Rwapor::rwapor_load_season_raster(file_path)
+
+        if (is.null(r) || terra::ncell(r) == 0) {
+          shiny::showNotification("Season start raster is empty or invalid.", type = "error")
+          an_start_rast(NULL)
+          return()
+        }
+
+        # Validate DOY values are reasonable
+        vals <- terra::values(r, na.rm = TRUE)
+        if (length(vals) == 0) {
+          shiny::showNotification("Season start raster contains no valid data.", type = "error")
+          an_start_rast(NULL)
+          return()
+        }
+
+        min_val <- min(vals)
+        max_val <- max(vals)
+
+        if (min_val < 1 || max_val > 730) {
+          shiny::showNotification(
+            sprintf("Season start DOY values (%d-%d) seem unusual. Expected 1-366 (or up to 730 for cross-year).",
+                    as.integer(min_val), as.integer(max_val)),
+            type = "warning",
+            duration = 8
+          )
+        }
+
+        an_start_rast(r)
+        shiny::showNotification(
+          sprintf("Season start loaded: DOY range %d-%d. File: %s",
+                  as.integer(min_val), as.integer(max_val), file_name),
+          type = "message"
+        )
       }, error = function(e) {
-        shiny::showNotification(paste("Error:", e$message), type = "error")
+        shiny::showNotification(paste("Error loading season start:", e$message), type = "error")
+        an_start_rast(NULL)
       })
     })
 
     shiny::observeEvent(input$an_season_end, {
       shiny::req(input$an_season_end)
+      file_path <- input$an_season_end$datapath
+      file_name <- input$an_season_end$name
+
+      if (!file.exists(file_path)) {
+        shiny::showNotification(
+          sprintf("Season end file not found: %s", file_name),
+          type = "error"
+        )
+        an_end_rast(NULL)
+        return()
+      }
+
       tryCatch({
-        an_end_rast(Rwapor::rwapor_load_season_raster(input$an_season_end$datapath))
-        shiny::showNotification("Season end raster loaded.", type = "message")
+        r <- Rwapor::rwapor_load_season_raster(file_path)
+
+        if (is.null(r) || terra::ncell(r) == 0) {
+          shiny::showNotification("Season end raster is empty or invalid.", type = "error")
+          an_end_rast(NULL)
+          return()
+        }
+
+        # Validate DOY values are reasonable
+        vals <- terra::values(r, na.rm = TRUE)
+        if (length(vals) == 0) {
+          shiny::showNotification("Season end raster contains no valid data.", type = "error")
+          an_end_rast(NULL)
+          return()
+        }
+
+        min_val <- min(vals)
+        max_val <- max(vals)
+
+        if (min_val < 1 || max_val > 730) {
+          shiny::showNotification(
+            sprintf("Season end DOY values (%d-%d) seem unusual. Expected 1-366 (or up to 730 for cross-year).",
+                    as.integer(min_val), as.integer(max_val)),
+            type = "warning",
+            duration = 8
+          )
+        }
+
+        an_end_rast(r)
+        shiny::showNotification(
+          sprintf("Season end loaded: DOY range %d-%d. File: %s",
+                  as.integer(min_val), as.integer(max_val), file_name),
+          type = "message"
+        )
       }, error = function(e) {
-        shiny::showNotification(paste("Error:", e$message), type = "error")
+        shiny::showNotification(paste("Error loading season end:", e$message), type = "error")
+        an_end_rast(NULL)
       })
     })
 
@@ -460,38 +757,108 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       s_end <- an_end_rast()
       shiny::req(s_start, s_end)
       shiny::req(input$an_ref_year)
-      
-      try({
+
+      tryCatch({
         vals_start <- terra::values(s_start, na.rm = TRUE)
         vals_end <- terra::values(s_end, na.rm = TRUE)
         if (length(vals_start) > 0 && length(vals_end) > 0) {
           min_doy <- min(vals_start)
           max_doy <- max(vals_end)
-          
+
           ref_year <- input$an_ref_year
+          year_length <- ifelse(lubridate::leap_year(ref_year), 366L, 365L)
+
+          # Handle cross-year seasons properly
+          # If max_doy > year_length, it's already in continuous Julian format
+          # If min_doy > max_doy, the season crosses the year boundary
+          is_cross_year <- (min_doy > max_doy) && (max_doy <= year_length)
+
+          if (is_cross_year) {
+            # Season crosses year boundary (e.g., Oct-Jan: start=280, end=30)
+            # Convert end DOY to continuous format
+            max_doy <- max_doy + year_length
+            shiny::showNotification(
+              sprintf("Cross-year season detected: DOY %d (year %d) to DOY %d (year %d).",
+                      as.integer(min_doy), ref_year, as.integer(max_doy - year_length), ref_year + 1),
+              type = "message",
+              duration = 6
+            )
+          }
+
           date_start <- as.Date(sprintf("%04d-01-01", ref_year)) + (min_doy - 1)
           date_end <- as.Date(sprintf("%04d-01-01", ref_year)) + (max_doy - 1)
-          
-          # Only update if different to avoid circularity if possible
-          if (!identical(as.character(input$an_period), as.character(c(date_start, date_end)))) {
+
+          # Validate dates are reasonable
+          if (date_end > as.Date(sprintf("%04d-12-31", ref_year + 1))) {
+            shiny::showNotification(
+              "Season end date exceeds reasonable range. Please check your season raster values.",
+              type = "warning"
+            )
+          }
+
+          # Only update if different to avoid circularity
+          current_period <- as.character(input$an_period)
+          new_period <- as.character(c(date_start, date_end))
+          if (!identical(current_period, new_period)) {
             shiny::updateDateRangeInput(session, "an_period", start = date_start, end = date_end)
           }
         }
-      }, silent = TRUE)
+      }, error = function(e) {
+        # Silently handle errors to avoid interrupting the user
+        message("Auto-update of analysis period failed: ", e$message)
+      })
     })
 
-    # Handle optional crop mask defaults
+    # Handle optional crop mask defaults and state transitions
     shiny::observe({
-      if (!isTRUE(input$an_use_crop_mask)) {
-        # Create a dummy class if no mask is used
-        an_crop_classes(data.frame(class_value = 1, pixel_count = NA, area_ha = NA))
+      use_mask <- isTRUE(input$an_use_crop_mask)
+
+      if (!use_mask) {
+        # Create a dummy class if no mask is used - treat entire area as single class
+        an_crop_classes(data.frame(class_value = 1L, pixel_count = NA_integer_, area_ha = NA_real_))
+        an_crop_mask_rast(NULL)
+        an_crop_params(Rwapor::rwapor_build_crop_assignment_table(1L))
+      } else if (is.null(an_crop_mask_rast())) {
+        # Checkbox is checked but no mask uploaded yet - clear classes to force upload
+        an_crop_classes(NULL)
+        an_crop_params(NULL)
+      }
+    })
+
+    # Handle optional season rasters defaults - clear when unchecked
+    shiny::observe({
+      if (!isTRUE(input$an_use_season_rasters)) {
+        an_start_rast(NULL)
+        an_end_rast(NULL)
       }
     })
 
     output$an_crop_class_ui <- shiny::renderUI({
       classes <- an_crop_classes()
+
+      # Show different messages based on state
       if (is.null(classes)) {
-        return(shiny::p("No crop mask loaded yet."))
+        if (isTRUE(input$an_use_crop_mask)) {
+          return(shiny::tagList(
+            shiny::tags$div(
+              class = "alert alert-info",
+              shiny::icon("info-circle"),
+              " Please upload a crop mask raster to define crop classes."
+            )
+          ))
+        } else {
+          return(shiny::p("Crop mask disabled - using entire area as single class."))
+        }
+      }
+
+      if (nrow(classes) == 0) {
+        return(shiny::tagList(
+          shiny::tags$div(
+            class = "alert alert-warning",
+            shiny::icon("exclamation-triangle"),
+            " No valid classes found in the crop mask. Check your raster values."
+          )
+        ))
       }
 
       crop_choices <- c("(Custom)" = "custom", Rwapor::rwapor_list_crops())
@@ -599,14 +966,40 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       cat("Season:", input$an_season_label, "\n")
       cat("Reference Year:", input$an_ref_year, "\n")
       cat("Analysis Period:", as.character(input$an_period[1]), "to", as.character(input$an_period[2]), "\n")
+
+      # Data source mode
+      data_source <- input$an_data_source
+      if (data_source == "local") {
+        cat("Data Source: LOCAL FILES (offline mode)\n")
+      } else {
+        cat("Data Source: API STREAMING (online mode)\n")
+      }
+
+      cat("\n--- Variables ---\n")
       cat("AETI:", input$an_aeti_var, "\n")
       cat("RET:", input$an_ret_var, "\n")
       cat("Precip:", input$an_precip_var, "\n")
       cat("Shared Output Folder:", global_folder() %||% "Not set", "\n")
+
       cat("\n--- Raster Status ---\n")
       cat("Crop Mask:", if (!is.null(an_crop_mask_rast())) "Loaded" else "Not loaded", "\n")
       cat("Season Start:", if (!is.null(an_start_rast())) "Loaded" else "Not loaded", "\n")
       cat("Season End:", if (!is.null(an_end_rast())) "Loaded" else "Not loaded", "\n")
+
+      # Show local data availability if in local mode
+      if (data_source == "local") {
+        local_vars <- an_local_vars()
+        if (!is.null(local_vars) && nrow(local_vars) > 0) {
+          cat("\n--- Local Data Available ---\n")
+          for (i in seq_len(nrow(local_vars))) {
+            v <- local_vars[i, ]
+            status <- if (v$variable %in% c(input$an_aeti_var, input$an_ret_var, input$an_precip_var)) "[SELECTED]" else ""
+            cat(sprintf("%s: %d files %s\n", v$variable, v$file_count, status))
+          }
+        } else {
+          cat("\n[!] Click 'Scan Local Folder' to detect available data.\n")
+        }
+      }
     })
 
     shiny::observe({
@@ -635,27 +1028,62 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
 
     output$an_season_raster_info <- shiny::renderPrint({
+      use_season <- isTRUE(input$an_use_season_rasters)
       s_start <- an_start_rast()
       s_end <- an_end_rast()
-      if (is.null(s_start) && is.null(s_end)) {
-        cat("No season rasters loaded yet.")
+
+      if (!use_season) {
+        cat("Season rasters disabled.\n")
+        cat("Analysis will use the date range from the Analysis Period input.\n")
         return()
       }
 
-      if (!is.null(s_start)) {
-        cat("--- Season Start Raster ---\n")
-        vals <- terra::values(s_start, na.rm = TRUE)
-        cat(sprintf("  Dimensions: %d x %d\n", nrow(s_start), ncol(s_start)))
-        cat(sprintf("  Value range: %d - %d (Julian DOY)\n", min(vals), max(vals)))
-        cat(sprintf("  Non-NA pixels: %d\n", length(vals)))
+      if (is.null(s_start) && is.null(s_end)) {
+        cat("Waiting for season rasters to be uploaded...\n")
+        cat("\nExpected format:\n")
+        cat("  - Single-band GeoTIFF with Julian Day of Year (DOY) values\n")
+        cat("  - Values should be 1-366 (or up to 730 for cross-year seasons)\n")
+        return()
       }
 
+      cat("=== Season Rasters Status ===\n\n")
+
+      if (!is.null(s_start)) {
+        cat("[OK] Season Start Raster:\n")
+        vals <- terra::values(s_start, na.rm = TRUE)
+        cat(sprintf("     Dimensions: %d x %d\n", nrow(s_start), ncol(s_start)))
+        cat(sprintf("     DOY range: %d - %d\n", as.integer(min(vals)), as.integer(max(vals))))
+        cat(sprintf("     Valid pixels: %d\n", length(vals)))
+      } else {
+        cat("[MISSING] Season Start Raster: Not uploaded\n")
+      }
+
+      cat("\n")
+
       if (!is.null(s_end)) {
-        cat("\n--- Season End Raster ---\n")
+        cat("[OK] Season End Raster:\n")
         vals <- terra::values(s_end, na.rm = TRUE)
-        cat(sprintf("  Dimensions: %d x %d\n", nrow(s_end), ncol(s_end)))
-        cat(sprintf("  Value range: %d - %d (Julian DOY)\n", min(vals), max(vals)))
-        cat(sprintf("  Non-NA pixels: %d\n", length(vals)))
+        cat(sprintf("     Dimensions: %d x %d\n", nrow(s_end), ncol(s_end)))
+        cat(sprintf("     DOY range: %d - %d\n", as.integer(min(vals)), as.integer(max(vals))))
+        cat(sprintf("     Valid pixels: %d\n", length(vals)))
+      } else {
+        cat("[MISSING] Season End Raster: Not uploaded\n")
+      }
+
+      # Additional validation feedback
+      if (!is.null(s_start) && !is.null(s_end)) {
+        cat("\n=== Validation ===\n")
+        vals_start <- terra::values(s_start, na.rm = TRUE)
+        vals_end <- terra::values(s_end, na.rm = TRUE)
+        mean_start <- mean(vals_start)
+        mean_end <- mean(vals_end)
+        mean_duration <- mean_end - mean_start + 1
+
+        if (mean_start > mean_end && mean_end < 366) {
+          cat("Cross-year season detected.\n")
+          mean_duration <- (366 - mean_start) + mean_end + 1
+        }
+        cat(sprintf("Mean season duration: ~%.0f days\n", mean_duration))
       }
     })
 
@@ -704,18 +1132,51 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       an_crop_params(NULL)
       an_results(NULL)
       an_peff_monthly(NULL)
+      an_local_vars(NULL)
       shiny::showNotification("Analysis state reset.", type = "message")
     })
 
     shiny::observeEvent(input$an_run_btn, {
       # Validation check before running
       if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) {
-        shiny::showNotification("Please upload a crop mask raster or uncheck the 'Do you have a crop mask?' option.", type = "error")
+        shiny::showNotification("Please upload a crop mask raster or uncheck the 'Use a crop mask raster?' option.", type = "error")
         return()
       }
       if (isTRUE(input$an_use_season_rasters) && (is.null(an_start_rast()) || is.null(an_end_rast()))) {
-        shiny::showNotification("Please upload season start and end rasters or uncheck the 'Do you have season start/end rasters?' option.", type = "error")
+        shiny::showNotification("Please upload season start and end rasters or uncheck the 'Use pixel-wise season start/end rasters?' option.", type = "error")
         return()
+      }
+
+      # Check local data availability if in local mode
+      if (isTRUE(input$an_data_source == "local")) {
+        folder <- global_folder()
+        if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
+          shiny::showNotification("Local data mode selected but download folder is not set. Configure it in the Download tab first.", type = "error")
+          return()
+        }
+
+        local_vars <- an_local_vars()
+        if (is.null(local_vars) || nrow(local_vars) == 0) {
+          shiny::showNotification("Please click 'Scan Local Folder' first to detect available variables.", type = "error")
+          return()
+        }
+
+        # Check if required variables are available locally
+        required_vars <- input$an_aeti_var
+        if (any(c("agg_ret", "etc", "adequacy_etc") %in% c(input$an_agg_vars, input$an_derived_vars))) {
+          required_vars <- c(required_vars, input$an_ret_var)
+        }
+
+        missing_vars <- required_vars[!required_vars %in% local_vars$variable]
+        if (length(missing_vars) > 0) {
+          shiny::showNotification(
+            sprintf("Required variable(s) not found locally: %s. Download them first or switch to API streaming.",
+                    paste(missing_vars, collapse = ", ")),
+            type = "error",
+            duration = 10
+          )
+          return()
+        }
       }
 
       crop_params <- collect_crop_params()
@@ -742,15 +1203,40 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           precip_var <- input$an_precip_var
           l3_code <- if (grepl("^L3-", aeti_var %||% "")) input$an_l3_region else NULL
 
-          shiny::incProgress(0.05, detail = "Fetching reference AETI raster...")
-          ref_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
-          if (length(ref_urls) == 0) stop("No AETI data found for the specified period.")
+          # Determine data source mode
+          use_local <- isTRUE(input$an_data_source == "local")
+          folder <- global_folder()
 
-          template_r <- terra::rast(paste0("/vsicurl/", ref_urls[1]))
+          if (use_local && (is.null(folder) || !nzchar(folder) || !dir.exists(folder))) {
+            stop("Local data source selected but download folder is not set or does not exist. Configure it in the Download tab first.")
+          }
+
+          shiny::incProgress(0.05, detail = if (use_local) "Loading local reference AETI raster..." else "Fetching reference AETI raster...")
+
+          # Get template raster based on data source
+          template_r <- NULL
           reg_info <- NULL
-          if (!is.null(reg)) {
-            reg_info <- Rwapor::parse_region(reg)
-            template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)
+
+          if (use_local) {
+            # Use local files
+            local_aeti_paths <- Rwapor::rwapor_get_local_rasters(folder, aeti_var, period[1], period[2])
+            if (length(local_aeti_paths) == 0) {
+              stop(sprintf("No local AETI files found for %s in date range %s to %s. Download the data first.", aeti_var, period[1], period[2]))
+            }
+            template_r <- terra::rast(local_aeti_paths[1])
+            if (!is.null(reg)) {
+              reg_info <- Rwapor::parse_region(reg)
+              template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)
+            }
+          } else {
+            # Use API streaming
+            ref_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
+            if (length(ref_urls) == 0) stop("No AETI data found for the specified period.")
+            template_r <- terra::rast(paste0("/vsicurl/", ref_urls[1]))
+            if (!is.null(reg)) {
+              reg_info <- Rwapor::parse_region(reg)
+              template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)
+            }
           }
 
           shiny::incProgress(0.10, detail = "Harmonizing rasters...")
@@ -768,21 +1254,35 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             Rwapor::rwapor_harmonize_to_template(an_start_rast(), template_r, method = "near")
           } else {
             doy_start <- as.integer(strftime(input$an_period[1], "%j"))
-            terra::classify(template_r * 0 + doy_start, cbind(NA, NA))
+            template_r * 0 + doy_start
           }
 
           h_end <- if (isTRUE(input$an_use_season_rasters)) {
             Rwapor::rwapor_harmonize_to_template(an_end_rast(), template_r, method = "near")
           } else {
             doy_end <- as.integer(strftime(input$an_period[2], "%j"))
-            terra::classify(template_r * 0 + doy_end, cbind(NA, NA))
+            template_r * 0 + doy_end
           }
 
-          s_start_vals <- terra::values(h_start, na.rm = TRUE)
-          s_end_vals <- terra::values(h_end, na.rm = TRUE)
-          if (length(s_start_vals) == 0 || length(s_end_vals) == 0) {
-            stop("Season rasters have no valid pixels after harmonization.")
+          s_start_vals <- tryCatch({
+            terra::global(h_start, "mean", na.rm = TRUE)$mean
+          }, error = function(e) NaN)
+
+          if (is.nan(s_start_vals) || is.na(s_start_vals)) {
+            stop("Season start raster contains no valid data in the selected area.")
           }
+
+          mean_s_start <- round(s_start_vals)
+
+          s_end_vals <- tryCatch({
+            terra::global(h_end, "mean", na.rm = TRUE)$mean
+          }, error = function(e) NaN)
+
+          if (is.nan(s_end_vals) || is.na(s_end_vals)) {
+            stop("Season end raster contains no valid data.")
+          }
+
+          mean_s_end <- round(s_end_vals)
 
           shiny::incProgress(0.10, detail = "Computing season duration...")
           total_days_r <- Rwapor::rwapor_compute_total_days_raster(h_start, h_end)
@@ -816,42 +1316,68 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           need_precip_stack <- any(c("agg_pcp", "agg_peff") %in% indicators)
           need_npp_stack <- "cwp_bwp" %in% indicators && is.null(input$an_biomass_file)
 
-          shiny::incProgress(0.15, detail = "Fetching remote data...")
+          shiny::incProgress(0.15, detail = if (use_local) "Loading local data..." else "Fetching remote data...")
           aeti_stack <- ret_stack <- precip_stack <- npp_stack <- NULL
 
+          # Helper function to load raster stack from local or remote
+          load_var_stack <- function(var, use_local, folder, period, l3_code, reg_info) {
+            if (use_local) {
+              local_paths <- Rwapor::rwapor_get_local_rasters(folder, var, period[1], period[2])
+              if (length(local_paths) == 0) {
+                warning(sprintf("No local files found for %s", var))
+                return(NULL)
+              }
+              stack <- terra::rast(local_paths)
+            } else {
+              urls <- Rwapor::wapor_generate_urls(var, l3_region = l3_code, period = period)
+              if (length(urls) == 0) return(NULL)
+              stack <- terra::rast(paste0("/vsicurl/", urls))
+            }
+
+            if (!is.null(reg_info)) {
+              stack <- crop_to_region_shiny(stack, reg_info, do_mask = FALSE)
+            }
+
+            # Apply scale factor
+            meta <- Rwapor::get_variable_metadata(var)
+            if (!is.null(meta) && !is.null(meta$scale)) {
+              stack <- stack * meta$scale
+            }
+
+            stack
+          }
+
           if (need_aeti_stack) {
-            aeti_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
-            aeti_stack <- terra::rast(paste0("/vsicurl/", aeti_urls))
-            if (!is.null(reg_info)) aeti_stack <- crop_to_region_shiny(aeti_stack, reg_info, do_mask = FALSE)
-            aeti_meta <- Rwapor::get_variable_metadata(aeti_var)
-            if (!is.null(aeti_meta)) aeti_stack <- aeti_stack * aeti_meta$scale
+            aeti_stack <- load_var_stack(aeti_var, use_local, folder, period, l3_code, reg_info)
+            if (is.null(aeti_stack)) {
+              stop(sprintf("Failed to load AETI data for %s. %s",
+                           aeti_var,
+                           if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
+            }
           }
 
           if (need_ret_stack) {
-            ret_urls <- Rwapor::wapor_generate_urls(ret_var, l3_region = l3_code, period = period)
-            ret_stack <- terra::rast(paste0("/vsicurl/", ret_urls))
-            if (!is.null(reg_info)) ret_stack <- crop_to_region_shiny(ret_stack, reg_info, do_mask = FALSE)
-            ret_meta <- Rwapor::get_variable_metadata(ret_var)
-            if (!is.null(ret_meta)) ret_stack <- ret_stack * ret_meta$scale
+            ret_stack <- load_var_stack(ret_var, use_local, folder, period, l3_code, reg_info)
+            if (is.null(ret_stack)) {
+              stop(sprintf("Failed to load RET data for %s. %s",
+                           ret_var,
+                           if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
+            }
           }
 
           if (need_precip_stack) {
-            precip_urls <- Rwapor::wapor_generate_urls(precip_var, l3_region = l3_code, period = period)
-            if (length(precip_urls) > 0) {
-              precip_stack <- terra::rast(paste0("/vsicurl/", precip_urls))
-              if (!is.null(reg_info)) precip_stack <- crop_to_region_shiny(precip_stack, reg_info, do_mask = FALSE)
-              precip_meta <- Rwapor::get_variable_metadata(precip_var)
-              if (!is.null(precip_meta)) precip_stack <- precip_stack * precip_meta$scale
+            precip_stack <- load_var_stack(precip_var, use_local, folder, period, l3_code, reg_info)
+            # Precipitation is optional, don't fail if missing
+            if (is.null(precip_stack)) {
+              warning(sprintf("Precipitation data not available for %s", precip_var))
             }
           }
 
           if (need_npp_stack) {
-            npp_urls <- Rwapor::wapor_generate_urls(input$an_npp_var, l3_region = l3_code, period = period)
-            if (length(npp_urls) > 0) {
-              npp_stack <- terra::rast(paste0("/vsicurl/", npp_urls))
-              if (!is.null(reg_info)) npp_stack <- crop_to_region_shiny(npp_stack, reg_info, do_mask = FALSE)
-              npp_meta <- Rwapor::get_variable_metadata(input$an_npp_var)
-              if (!is.null(npp_meta)) npp_stack <- npp_stack * npp_meta$scale
+            npp_stack <- load_var_stack(input$an_npp_var, use_local, folder, period, l3_code, reg_info)
+            # NPP is optional, don't fail if missing
+            if (is.null(npp_stack)) {
+              warning(sprintf("NPP data not available for %s", input$an_npp_var))
             }
           }
 
@@ -899,7 +1425,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               if (length(kc_daily) == 0) next
 
               dk_tbl <- dekad_table[seq_len(n_layers), , drop = FALSE]
-              season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + (round(mean(s_start_vals)) - 1)
+              season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + (mean_s_start - 1)
               kc_dekad <- Rwapor::rwapor_aggregate_kc_dekad(kc_daily, dk_tbl, season_start_date)
               kc_dekad <- kc_dekad[seq_len(n_layers)]
               etc_class <- Rwapor::rwapor_calc_etc_dekad(ret_stack, kc_dekad)
@@ -1005,6 +1531,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
           # --- Automatic Raster Saving ---
           if (isTRUE(input$an_save_rasters) && nzchar(input$an_folder)) {
+            shiny::showNotification(sprintf("Saving analysis rasters to: %s", input$an_folder), type = "message")
             tryCatch({
               if (!dir.exists(input$an_folder)) dir.create(input$an_folder, recursive = TRUE)
               
@@ -1050,6 +1577,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                                     overwrite = TRUE)
                 }
               }
+              shiny::showNotification("Rasters saved successfully.", type = "message")
             }, error = function(e) {
               shiny::showNotification(paste("Raster saving failed:", e$message), type = "warning")
             })

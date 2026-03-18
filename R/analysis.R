@@ -15,6 +15,15 @@ rwapor_load_crop_mask <- function(path) {
     stop(sprintf("Crop mask file not found: %s", path), call. = FALSE)
   }
   r <- terra::rast(path)
+  
+  # Ensure CRS robustness
+  if (!nzchar(terra::crs(r))) {
+    ext_r <- terra::ext(r)
+    if (ext_r$xmin >= -180 && ext_r$xmax <= 180 && ext_r$ymin >= -90 && ext_r$ymax <= 90) {
+      suppressWarnings(terra::crs(r) <- "EPSG:4326")
+    }
+  }
+
   if (terra::nlyr(r) > 1) {
     warning("Crop mask has multiple layers; using the first layer.", call. = FALSE)
     r <- r[[1]]
@@ -35,6 +44,15 @@ rwapor_load_season_raster <- function(path) {
     stop(sprintf("Season raster file not found: %s", path), call. = FALSE)
   }
   r <- terra::rast(path)
+  
+  # Ensure CRS robustness
+  if (!nzchar(terra::crs(r))) {
+    ext_r <- terra::ext(r)
+    if (ext_r$xmin >= -180 && ext_r$xmax <= 180 && ext_r$ymin >= -90 && ext_r$ymax <= 90) {
+      suppressWarnings(terra::crs(r) <- "EPSG:4326")
+    }
+  }
+
   if (terra::nlyr(r) > 1) {
     warning("Season raster has multiple layers; using the first layer.", call. = FALSE)
     r <- r[[1]]
@@ -100,9 +118,13 @@ rwapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
 #' (pixel count, approximate area) for each class.
 #'
 #' @param crop_mask SpatRaster. A harmonized crop mask raster.
+#' @param exclude_nodata Logical. If TRUE (default), filters out common nodata
+#'   values (0, 255, -9999, -32768) from the class list.
+#' @param min_pixels Integer. Minimum pixel count for a class to be included.
+#'   Default is 10. This helps filter out very small spurious classes.
 #' @return A data.frame with columns: class_value, pixel_count, area_ha.
 #' @export
-rwapor_extract_crop_classes <- function(crop_mask) {
+rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10) {
   if (!inherits(crop_mask, "SpatRaster")) {
     stop("'crop_mask' must be a SpatRaster", call. = FALSE)
   }
@@ -110,9 +132,44 @@ rwapor_extract_crop_classes <- function(crop_mask) {
   freq_tbl <- terra::freq(crop_mask)
   freq_tbl <- freq_tbl[!is.na(freq_tbl$value), , drop = FALSE]
 
-  # Accurate geodetic area calculation in hectares
-  area_tbl <- terra::expanse(crop_mask, unit = "ha", byValue = TRUE)
-  
+  # Filter out common nodata values
+  if (exclude_nodata) {
+    nodata_values <- c(0, 255, -9999, -32768, 65535, -3.4e+38)
+    freq_tbl <- freq_tbl[!freq_tbl$value %in% nodata_values, , drop = FALSE]
+  }
+
+  # Filter by minimum pixel count
+  if (min_pixels > 0) {
+    freq_tbl <- freq_tbl[freq_tbl$count >= min_pixels, , drop = FALSE]
+  }
+
+  # Return empty data.frame if no valid classes
+
+  if (nrow(freq_tbl) == 0) {
+    warning("No valid crop classes found in mask after filtering.", call. = FALSE)
+    return(data.frame(class_value = integer(0), pixel_count = integer(0), area_ha = numeric(0)))
+  }
+
+  # Ensure CRS for expanse calculation
+  if (!nzchar(terra::crs(crop_mask))) {
+    ext_r <- terra::ext(crop_mask)
+    if (ext_r$xmin >= -180 && ext_r$xmax <= 180 && ext_r$ymin >= -90 && ext_r$ymax <= 90) {
+      suppressWarnings(terra::crs(crop_mask) <- "EPSG:4326")
+    }
+  }
+
+  # Compute areas with error handling
+  area_tbl <- tryCatch({
+    terra::expanse(crop_mask, unit = "ha", byValue = TRUE)
+  }, error = function(e) {
+    # Fallback to pixel counts if expanse fails
+    ft <- terra::freq(crop_mask)
+    data.frame(layer = ft$layer, value = ft$value, area = ft$count)
+  })
+
+  # Filter area_tbl to match freq_tbl classes
+  area_tbl <- area_tbl[area_tbl$value %in% freq_tbl$value, , drop = FALSE]
+
   # Merge freq and area
   res <- merge(
     data.frame(class_value = as.integer(freq_tbl$value), pixel_count = as.integer(freq_tbl$count)),
@@ -484,6 +541,174 @@ rwapor_aggregate_kc_dekad <- function(kc_daily, dekad_table, season_start) {
     }
     mean(kc_daily[day_start:day_end], na.rm = TRUE)
   }, numeric(1))
+}
+
+#' Scan Local Folder for Available Variables
+#'
+#' Scans a download folder to find which WaPOR/AgERA5 variables are available
+#' locally, along with their date ranges.
+#'
+#' @param folder Character. Path to the download folder.
+#' @return A data.frame with columns: variable, file_count, min_date, max_date, folder_path.
+#'   Returns empty data.frame if no variables found.
+#' @export
+rwapor_scan_local_variables <- function(folder) {
+
+  if (!dir.exists(folder)) {
+    return(data.frame(
+      variable = character(0),
+      file_count = integer(0),
+      min_date = character(0),
+      max_date = character(0),
+      folder_path = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # List all subdirectories (each should be a variable like L1-AETI-D)
+  subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
+
+  # Filter to likely variable folders (match pattern like L1-AETI-D, L2-NPP-M, AGERA5-ET0-D)
+  var_pattern <- "^(L[123]-[A-Z]+-[DMY]|AGERA5-[A-Z0-9]+-[DMY])$"
+  var_folders <- subdirs[grepl(var_pattern, subdirs)]
+
+  if (length(var_folders) == 0) {
+    return(data.frame(
+      variable = character(0),
+      file_count = integer(0),
+      min_date = character(0),
+      max_date = character(0),
+      folder_path = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  results <- lapply(var_folders, function(var) {
+    var_path <- file.path(folder, var)
+    tif_files <- list.files(var_path, pattern = "\\.tif$", full.names = FALSE)
+
+    if (length(tif_files) == 0) {
+      return(NULL)
+    }
+
+    # Extract dates from filenames (pattern: *.YYYY-MM-DD.tif or *.YYYYMMDD.tif)
+    date_patterns <- c(
+      "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",  # YYYY-MM-DD
+      "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"      # YYYYMMDD
+    )
+
+    dates <- character(0)
+    for (pattern in date_patterns) {
+      matches <- regmatches(tif_files, regexec(pattern, tif_files))
+      extracted <- sapply(matches, function(m) if (length(m) > 1) m[2] else NA_character_)
+      extracted <- extracted[!is.na(extracted)]
+      if (length(extracted) > 0) {
+        # Normalize to YYYY-MM-DD
+        if (nchar(extracted[1]) == 8) {
+          extracted <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", extracted)
+        }
+        dates <- c(dates, extracted)
+      }
+    }
+
+    if (length(dates) == 0) {
+      # Fallback: just count files
+      return(data.frame(
+        variable = var,
+        file_count = length(tif_files),
+        min_date = NA_character_,
+        max_date = NA_character_,
+        folder_path = var_path,
+        stringsAsFactors = FALSE
+      ))
+    }
+
+    dates <- sort(unique(dates))
+
+    data.frame(
+      variable = var,
+      file_count = length(tif_files),
+      min_date = dates[1],
+      max_date = dates[length(dates)],
+      folder_path = var_path,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  results <- results[!sapply(results, is.null)]
+  if (length(results) == 0) {
+    return(data.frame(
+      variable = character(0),
+      file_count = integer(0),
+      min_date = character(0),
+      max_date = character(0),
+      folder_path = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  do.call(rbind, results)
+}
+
+#' Get Local Raster Paths for a Variable and Date Range
+#'
+#' Returns file paths for locally available rasters matching a variable
+#' and date range.
+#'
+#' @param folder Character. Path to the download folder.
+#' @param variable Character. Variable code (e.g., "L1-AETI-D").
+#' @param start_date Character or Date. Start of date range.
+#' @param end_date Character or Date. End of date range.
+#' @return Character vector of full file paths, sorted by date.
+#' @export
+rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
+  var_path <- file.path(folder, variable)
+
+  if (!dir.exists(var_path)) {
+    warning(sprintf("Variable folder not found: %s", var_path), call. = FALSE)
+    return(character(0))
+  }
+
+  if (is.character(start_date)) start_date <- as.Date(start_date)
+  if (is.character(end_date)) end_date <- as.Date(end_date)
+
+  tif_files <- list.files(var_path, pattern = "\\.tif$", full.names = TRUE)
+
+  if (length(tif_files) == 0) {
+    return(character(0))
+  }
+
+  # Extract dates and filter by range
+  date_patterns <- c(
+    "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",
+    "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"
+  )
+
+  file_dates <- data.frame(path = tif_files, date = as.Date(NA), stringsAsFactors = FALSE)
+
+  for (i in seq_along(tif_files)) {
+    f <- basename(tif_files[i])
+    for (pattern in date_patterns) {
+      m <- regmatches(f, regexec(pattern, f))[[1]]
+      if (length(m) > 1) {
+        date_str <- m[2]
+        if (nchar(date_str) == 8) {
+          date_str <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", date_str)
+        }
+        file_dates$date[i] <- as.Date(date_str)
+        break
+      }
+    }
+  }
+
+  # Filter by date range
+  file_dates <- file_dates[!is.na(file_dates$date), ]
+  file_dates <- file_dates[file_dates$date >= start_date & file_dates$date <= end_date, ]
+
+  # Sort by date
+  file_dates <- file_dates[order(file_dates$date), ]
+
+  file_dates$path
 }
 
 #' Check for Local Raster Files

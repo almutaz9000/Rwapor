@@ -57,6 +57,11 @@ run_wapor <- function(display.mode = "normal", launch.browser = interactive(), .
          call. = FALSE)
   }
   
+  # Ensure PROJ and GDAL are correctly configured to prevent crashes on Windows 
+  # with PostGIS/PostgreSQL PROJ collisions.
+  wapor_fix_proj(verbose = TRUE)
+  wapor_configure_gdal(verbose = FALSE)
+
   message("Starting Rwapor Dashboard from: ", app_dir)
   shiny::runApp(
     app_dir,
