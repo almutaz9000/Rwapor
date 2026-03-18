@@ -234,12 +234,21 @@ rwapor_calc_peff_usda_monthly <- function(p_monthly) {
 #'
 #' Sums monthly Peff values over the season months.
 #'
-#' @param peff_monthly data.frame with columns: year, month, peff_mm.
+#' @param peff_monthly data.frame with columns: \code{year}, \code{month},
+#'   \code{peff_mm}. Typically constructed by applying
+#'   \code{\link{rwapor_calc_peff_usda_monthly}} to the output of
+#'   \code{\link{rwapor_aggregate_precip_monthly}}.
 #' @param season_months Integer vector of month numbers in the season.
 #' @param season_year Integer. The season year.
 #' @return Numeric. Total seasonal effective precipitation in mm.
 #' @export
 rwapor_calc_peff_seasonal <- function(peff_monthly, season_months, season_year) {
+  if (!is.data.frame(peff_monthly)) {
+    stop("'peff_monthly' must be a data.frame", call. = FALSE)
+  }
+  if (!all(c("year", "month", "peff_mm") %in% names(peff_monthly))) {
+    stop("'peff_monthly' must have columns: 'year', 'month', 'peff_mm'", call. = FALSE)
+  }
   subset_df <- peff_monthly[peff_monthly$year == season_year &
                               peff_monthly$month %in% season_months, ]
   sum(subset_df$peff_mm, na.rm = TRUE)

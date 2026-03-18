@@ -64,9 +64,9 @@ If you encounter issues, ensure the required R packages are installed:
 
 ```r
 install.packages(c(
-  "httr2", "jsonlite", "terra", "sf", "dplyr", "purrr",
-  "lubridate", "stringr", "exactextractr", "memoise",
-  "furrr", "progressr", "future"
+  "httr2", "terra", "sf", "dplyr", "purrr",
+  "lubridate", "exactextractr", "memoise",
+  "future.apply", "future"
 ))
 ```
 

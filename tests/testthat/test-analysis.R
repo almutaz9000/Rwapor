@@ -222,3 +222,49 @@ test_that("Yield calculation from NPP works", {
   yield <- rwapor_calc_yield_npp(npp, MC, fc, AOT, HI)
   expect_equal(yield, expected_yield)
 })
+
+test_that("rwapor_build_crop_assignment_table works without defaults", {
+  tbl <- rwapor_build_crop_assignment_table(c(1L, 2L, 3L))
+  expect_equal(nrow(tbl), 3)
+  expect_equal(tbl$class_value, c(1L, 2L, 3L))
+  expect_true(all(is.na(tbl$Kc_ini)))
+})
+
+test_that("rwapor_build_crop_assignment_table fills from single-row defaults", {
+  single <- FAO_CROP_DEFAULTS[1, , drop = FALSE]  # Winter Wheat
+  tbl <- rwapor_build_crop_assignment_table(c(1L, 2L), crop_defaults = single)
+  expect_equal(nrow(tbl), 2)
+  # Both rows should get the same Kc_mid
+  expect_equal(tbl$Kc_mid[1], single$Kc_mid)
+  expect_equal(tbl$Kc_mid[2], single$Kc_mid)
+  expect_equal(tbl$crop_label[1], single$crop_name)
+})
+
+test_that("rwapor_build_crop_assignment_table fills positionally from multi-row defaults", {
+  tbl <- rwapor_build_crop_assignment_table(c(1L, 2L, 3L), crop_defaults = FAO_CROP_DEFAULTS)
+  expect_equal(nrow(tbl), 3)
+  # Row 1 gets Winter Wheat Kc_mid
+  expect_equal(tbl$Kc_mid[1], FAO_CROP_DEFAULTS$Kc_mid[1])
+  # Row 2 gets Sorghum Kc_mid
+  expect_equal(tbl$Kc_mid[2], FAO_CROP_DEFAULTS$Kc_mid[2])
+})
+
+test_that("rwapor_calc_peff_seasonal validates input", {
+  expect_error(rwapor_calc_peff_seasonal("not_df", 1:3, 2023), "'peff_monthly' must be a data.frame")
+  expect_error(
+    rwapor_calc_peff_seasonal(data.frame(year = 2023, month = 1), 1:3, 2023),
+    "must have columns"
+  )
+})
+
+test_that("rwapor_calc_peff_seasonal sums correctly", {
+  peff_df <- data.frame(
+    year    = c(2023, 2023, 2023, 2023),
+    month   = c(1, 2, 3, 4),
+    peff_mm = c(20, 30, 40, 50),
+    stringsAsFactors = FALSE
+  )
+  # Sum months 2:4 for 2023
+  result <- rwapor_calc_peff_seasonal(peff_df, season_months = c(2, 3, 4), season_year = 2023)
+  expect_equal(result, 120)  # 30 + 40 + 50
+})

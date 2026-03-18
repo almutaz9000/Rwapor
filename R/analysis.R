@@ -134,11 +134,16 @@ rwapor_extract_crop_classes <- function(crop_mask) {
 #' Build Crop Assignment Table
 #'
 #' Creates a data.frame for each crop class extracted from the mask,
-#' pre-populated with NA parameters that can be filled by crop defaults
-#' or user input.
+#' pre-populated with NA parameters. If `crop_defaults` is provided,
+#' parameters are filled from it by matching rows positionally (first
+#' defaults row -> first class, etc.) or by a single row applied to all
+#' classes. Any classes without a matching defaults row retain NA values.
 #'
 #' @param class_values Integer vector of unique crop class values.
-#' @param crop_defaults Optional data.frame of defaults (same format as FAO_CROP_DEFAULTS).
+#' @param crop_defaults Optional data.frame of defaults (same format as
+#'   [FAO_CROP_DEFAULTS]). If provided with one row, that row's values are
+#'   applied to all classes. If provided with multiple rows, they are matched
+#'   positionally (row i -> class i). Extra defaults rows are silently ignored.
 #' @return A data.frame with one row per class, columns for all crop parameters.
 #' @export
 rwapor_build_crop_assignment_table <- function(class_values, crop_defaults = NULL) {
@@ -159,6 +164,25 @@ rwapor_build_crop_assignment_table <- function(class_values, crop_defaults = NUL
     HI           = rep(NA_real_, n),
     stringsAsFactors = FALSE
   )
+
+  if (!is.null(crop_defaults) && is.data.frame(crop_defaults) && nrow(crop_defaults) > 0) {
+    param_cols <- c("crop_label", "Kc_ini", "Kc_mid", "Kc_end",
+                    "L_ini_days", "L_mid_days", "L_late_days", "max_height_m",
+                    "MC", "fc", "AOT", "HI")
+    # Map crop_name -> crop_label if present
+    if ("crop_name" %in% names(crop_defaults) && !"crop_label" %in% names(crop_defaults)) {
+      crop_defaults$crop_label <- crop_defaults$crop_name
+    }
+    # Determine number of rows to copy
+    n_def <- nrow(crop_defaults)
+    n_fill <- if (n_def == 1L) n else min(n, n_def)
+    src_rows <- if (n_def == 1L) rep(1L, n) else seq_len(n_fill)
+
+    for (col in intersect(param_cols, names(crop_defaults))) {
+      tbl[[col]][seq_len(n_fill)] <- crop_defaults[[col]][src_rows]
+    }
+  }
+
   tbl
 }
 
