@@ -12,7 +12,8 @@ rwapor_build_crop_assignment_table(class_values, crop_defaults = NULL)
 \item{crop_defaults}{Optional data.frame of defaults (same format as
 \code{\link{FAO_CROP_DEFAULTS}}). If provided with one row, that row's values are
 applied to all classes. If provided with multiple rows, they are matched
-positionally (row i -> class i). Extra defaults rows are silently ignored.}
+positionally (defaults row 1 to first class, defaults row 2 to second class,
+etc.). Extra defaults rows beyond the number of classes are silently ignored.}
 }
 \value{
 A data.frame with one row per class, columns for all crop parameters:
