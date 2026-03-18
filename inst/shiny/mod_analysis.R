@@ -50,20 +50,26 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
           bslib::accordion_panel(
             "Data Inputs",
             icon = shiny::icon("upload"),
-            shiny::fluidRow(
-              shiny::column(
-                12,
-                shiny::fileInput(ns("an_crop_mask"), "Crop Mask", accept = c(".tif", ".tiff"))
-              ),
-              shiny::column(
-                6,
-                shiny::fileInput(ns("an_season_start"), "Season Start (DOY)", accept = c(".tif", ".tiff"))
-              ),
-              shiny::column(
-                6,
-                shiny::fileInput(ns("an_season_end"), "Season End (DOY)", accept = c(".tif", ".tiff"))
-              )
+            shiny::checkboxInput(ns("an_use_crop_mask"), "Do you have a crop mask?", value = TRUE),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s']", ns("an_use_crop_mask")),
+              shiny::fileInput(ns("an_crop_mask"), "Crop Mask", accept = c(".tif", ".tiff"))
             ),
+            shiny::checkboxInput(ns("an_use_season_rasters"), "Do you have season start/end rasters?", value = TRUE),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s']", ns("an_use_season_rasters")),
+              shiny::fluidRow(
+                shiny::column(
+                  6,
+                  shiny::fileInput(ns("an_season_start"), "Season Start (DOY)", accept = c(".tif", ".tiff"))
+                ),
+                shiny::column(
+                  6,
+                  shiny::fileInput(ns("an_season_end"), "Season End (DOY)", accept = c(".tif", ".tiff"))
+                )
+              )
+            )
+          ),
             shiny::hr(),
             shiny::fluidRow(
               shiny::column(
@@ -314,6 +320,7 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
 mod_analysis_server <- function(id, global_folder, aoi_region) {
   shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
     an_start_rast <- shiny::reactiveVal(NULL)
     an_end_rast <- shiny::reactiveVal(NULL)
@@ -332,9 +339,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
     iv$add_rule("an_aeti_var", shinyvalidate::sv_required())
     iv$add_rule("an_ret_var", shinyvalidate::sv_required())
-    iv$add_rule("an_crop_mask", shinyvalidate::sv_required(message = "Crop mask is mandatory."))
-    iv$add_rule("an_season_start", shinyvalidate::sv_required(message = "Season start is mandatory."))
-    iv$add_rule("an_season_end", shinyvalidate::sv_required(message = "Season end is mandatory."))
+    iv$add_rule("an_crop_mask", function(value) {
+      if (isTRUE(input$an_use_crop_mask) && is.null(value)) "Crop mask is required when enabled."
+    })
+    iv$add_rule("an_season_start", function(value) {
+      if (isTRUE(input$an_use_season_rasters) && is.null(value)) "Season start raster is required when enabled."
+    })
+    iv$add_rule("an_season_end", function(value) {
+      if (isTRUE(input$an_use_season_rasters) && is.null(value)) "Season end raster is required when enabled."
+    })
     iv$enable()
 
     # Control run button state
@@ -407,6 +420,41 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       })
     })
 
+    # Auto-update analysis period from season rasters
+    shiny::observe({
+      shiny::req(isTRUE(input$an_use_season_rasters))
+      s_start <- an_start_rast()
+      s_end <- an_end_rast()
+      shiny::req(s_start, s_end)
+      shiny::req(input$an_ref_year)
+      
+      try({
+        vals_start <- terra::values(s_start, na.rm = TRUE)
+        vals_end <- terra::values(s_end, na.rm = TRUE)
+        if (length(vals_start) > 0 && length(vals_end) > 0) {
+          min_doy <- min(vals_start)
+          max_doy <- max(vals_end)
+          
+          ref_year <- input$an_ref_year
+          date_start <- as.Date(sprintf("%04d-01-01", ref_year)) + (min_doy - 1)
+          date_end <- as.Date(sprintf("%04d-01-01", ref_year)) + (max_doy - 1)
+          
+          # Only update if different to avoid circularity if possible
+          if (!identical(as.character(input$an_period), as.character(c(date_start, date_end)))) {
+            shiny::updateDateRangeInput(session, "an_period", start = date_start, end = date_end)
+          }
+        }
+      }, silent = TRUE)
+    })
+
+    # Handle optional crop mask defaults
+    shiny::observe({
+      if (!isTRUE(input$an_use_crop_mask)) {
+        # Create a dummy class if no mask is used
+        an_crop_classes(data.frame(class_value = 1, pixel_count = NA, area_ha = NA))
+      }
+    })
+
     output$an_crop_class_ui <- shiny::renderUI({
       classes <- an_crop_classes()
       if (is.null(classes)) {
@@ -420,7 +468,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         cls <- classes$class_value[i]
         prefix <- paste0("an_cls_", cls, "_")
         shiny::tagList(
-          shiny::tags$strong(sprintf("Class %d (%d px, %.1f ha)", cls, classes$pixel_count[i], classes$area_ha[i])),
+          shiny::tags$strong(
+            if (is.na(classes$pixel_count[i])) {
+              sprintf("Class %d (Default)", cls)
+            } else {
+              sprintf("Class %d (%d px, %.1f ha)", cls, classes$pixel_count[i], classes$area_ha[i])
+            }
+          ),
           shiny::fluidRow(
             shiny::column(
               6,
@@ -580,9 +634,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
     shiny::observeEvent(input$an_validate_btn, {
       errors <- character()
-      if (is.null(an_crop_mask_rast())) errors <- c(errors, "Crop mask raster not uploaded.")
-      if (is.null(an_start_rast())) errors <- c(errors, "Season start raster not uploaded.")
-      if (is.null(an_end_rast())) errors <- c(errors, "Season end raster not uploaded.")
+      if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) errors <- c(errors, "Crop mask raster not uploaded.")
+      if (isTRUE(input$an_use_season_rasters) && is.null(an_start_rast())) errors <- c(errors, "Season start raster not uploaded.")
+      if (isTRUE(input$an_use_season_rasters) && is.null(an_end_rast())) errors <- c(errors, "Season end raster not uploaded.")
       if (is.null(an_crop_classes())) errors <- c(errors, "No crop classes found.")
 
       params <- collect_crop_params()
@@ -621,11 +675,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
 
     shiny::observeEvent(input$an_run_btn, {
-      if (is.null(an_crop_mask_rast()) || is.null(an_start_rast()) || is.null(an_end_rast())) {
-        shiny::showNotification(
-          "Please upload crop mask, season start, and season end rasters first.",
-          type = "error"
-        )
+      # Validation check before running
+      if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) {
+        shiny::showNotification("Please upload a crop mask raster or uncheck the 'Do you have a crop mask?' option.", type = "error")
+        return()
+      }
+      if (isTRUE(input$an_use_season_rasters) && (is.null(an_start_rast()) || is.null(an_end_rast()))) {
+        shiny::showNotification("Please upload season start and end rasters or uncheck the 'Do you have season start/end rasters?' option.", type = "error")
         return()
       }
 
@@ -665,9 +721,29 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
 
           shiny::incProgress(0.10, detail = "Harmonizing rasters...")
-          h_mask <- Rwapor::rwapor_harmonize_crop_mask(an_crop_mask_rast(), template_r)
-          h_start <- Rwapor::rwapor_harmonize_to_template(an_start_rast(), template_r, method = "near")
-          h_end <- Rwapor::rwapor_harmonize_to_template(an_end_rast(), template_r, method = "near")
+          
+          # Handle optional crop mask
+          h_mask <- if (isTRUE(input$an_use_crop_mask)) {
+            Rwapor::rwapor_harmonize_crop_mask(an_crop_mask_rast(), template_r)
+          } else {
+            # Constant 1 raster with template's geometry
+            terra::classify(template_r * 0 + 1, cbind(NA, NA))
+          }
+
+          # Handle optional season rasters
+          h_start <- if (isTRUE(input$an_use_season_rasters)) {
+            Rwapor::rwapor_harmonize_to_template(an_start_rast(), template_r, method = "near")
+          } else {
+            doy_start <- as.integer(strftime(input$an_period[1], "%j"))
+            terra::classify(template_r * 0 + doy_start, cbind(NA, NA))
+          }
+
+          h_end <- if (isTRUE(input$an_use_season_rasters)) {
+            Rwapor::rwapor_harmonize_to_template(an_end_rast(), template_r, method = "near")
+          } else {
+            doy_end <- as.integer(strftime(input$an_period[2], "%j"))
+            terra::classify(template_r * 0 + doy_end, cbind(NA, NA))
+          }
 
           s_start_vals <- terra::values(h_start, na.rm = TRUE)
           s_end_vals <- terra::values(h_end, na.rm = TRUE)
