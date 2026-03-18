@@ -232,16 +232,40 @@ rwapor_calc_peff_usda_monthly <- function(p_monthly) {
 
 #' Compute Seasonal Effective Precipitation
 #'
-#' Sums monthly Peff values over the season months.
+#' Sums monthly Peff values over the season months or a specific date interval.
 #'
 #' @param peff_monthly data.frame with columns: year, month, peff_mm.
-#' @param season_months Integer vector of month numbers in the season.
-#' @param season_year Integer. The season year.
+#' @param start_date Date or character. Optional start of season.
+#' @param end_date Date or character. Optional end of season.
+#' @param season_months Integer vector. Legacy month numbers.
+#' @param season_year Integer. Legacy season year.
 #' @return Numeric. Total seasonal effective precipitation in mm.
 #' @export
-rwapor_calc_peff_seasonal <- function(peff_monthly, season_months, season_year) {
-  subset_df <- peff_monthly[peff_monthly$year == season_year &
-                              peff_monthly$month %in% season_months, ]
+rwapor_calc_peff_seasonal <- function(peff_monthly, start_date = NULL,
+                                      end_date = NULL, season_months = NULL,
+                                      season_year = NULL) {
+  if (!is.null(start_date) && !is.null(end_date)) {
+    # Use explicit dates
+    s_date <- as.Date(start_date)
+    e_date <- as.Date(end_date)
+    
+    # Create month-start dates for comparison
+    peff_monthly$date <- as.Date(sprintf("%04d-%02d-01", peff_monthly$year, peff_monthly$month))
+    
+    # Filter months that fall within the interval (at least partially)
+    # We include a month if its start is between s_date and e_date 
+    # OR if s_date/e_date fall within that month.
+    # Simplified: match months whose first day is between floored-start and floored-end.
+    month_start_s <- lubridate::floor_date(s_date, "month")
+    month_start_e <- lubridate::floor_date(e_date, "month")
+    
+    subset_df <- peff_monthly[peff_monthly$date >= month_start_s & 
+                                peff_monthly$date <= month_start_e, ]
+  } else {
+    # Legacy support
+    subset_df <- peff_monthly[peff_monthly$year == season_year &
+                                peff_monthly$month %in% season_months, ]
+  }
   sum(subset_df$peff_mm, na.rm = TRUE)
 }
 

@@ -106,29 +106,22 @@ rwapor_extract_crop_classes <- function(crop_mask) {
   if (!inherits(crop_mask, "SpatRaster")) {
     stop("'crop_mask' must be a SpatRaster", call. = FALSE)
   }
+  # Get pixel counts
   freq_tbl <- terra::freq(crop_mask)
   freq_tbl <- freq_tbl[!is.na(freq_tbl$value), , drop = FALSE]
 
-  # Compute pixel area in hectares
-
-  res_x <- terra::res(crop_mask)[1]
-  res_y <- terra::res(crop_mask)[2]
-  # If CRS is geographic (degrees), approximate area using ~111km/degree
-  crs_str <- terra::crs(crop_mask, describe = TRUE)
-  if (nrow(crs_str) > 0 && grepl("degree|longlat|geographic", crs_str$name[1], ignore.case = TRUE)) {
-    # Rough estimate at equator; 1 degree ~ 111320 m
-    pixel_area_m2 <- (res_x * 111320) * (res_y * 111320)
-  } else {
-    pixel_area_m2 <- res_x * res_y
-  }
-  pixel_area_ha <- pixel_area_m2 / 10000
-
-  data.frame(
-    class_value = as.integer(freq_tbl$value),
-    pixel_count = as.integer(freq_tbl$count),
-    area_ha     = round(freq_tbl$count * pixel_area_ha, 2),
-    stringsAsFactors = FALSE
+  # Accurate geodetic area calculation in hectares
+  area_tbl <- terra::expanse(crop_mask, unit = "ha", byValue = TRUE)
+  
+  # Merge freq and area
+  res <- merge(
+    data.frame(class_value = as.integer(freq_tbl$value), pixel_count = as.integer(freq_tbl$count)),
+    data.frame(class_value = as.integer(area_tbl$value), area_ha = round(area_tbl$area, 2)),
+    by = "class_value",
+    all = TRUE
   )
+
+  res[, c("class_value", "pixel_count", "area_ha")]
 }
 
 #' Build Crop Assignment Table

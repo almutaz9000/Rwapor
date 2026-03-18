@@ -68,9 +68,8 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                   shiny::fileInput(ns("an_season_end"), "Season End (DOY)", accept = c(".tif", ".tiff"))
                 )
               )
-            )
-          ),
-            shiny::hr(),
+            ),
+          shiny::hr(),
             shiny::fluidRow(
               shiny::column(
                 6,
@@ -177,9 +176,34 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 )
               )
             )
+          ),
+          bslib::accordion_panel(
+            "Output Settings",
+            icon = shiny::icon("folder"),
+            shiny::fluidRow(
+              shiny::column(
+                8,
+                shiny::textInput(
+                  ns("an_folder"),
+                  "Output Folder",
+                  value = file.path(getwd(), "analysis_output")
+                )
+              ),
+              shiny::column(
+                4,
+                shinyFiles::shinyDirButton(
+                  ns("an_browse_folder"),
+                  "Browse",
+                  "Select output directory",
+                  width = "100%",
+                  class = "mt-4"
+                )
+              )
+            ),
+            shiny::checkboxInput(ns("an_save_rasters"), "Save Analysis Rasters to Folder", value = TRUE)
           )
         )
-      ),
+        ),
       shiny::div(
         class = "sidebar-sticky-footer",
         shiny::fluidRow(
@@ -321,6 +345,15 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 mod_analysis_server <- function(id, global_folder, aoi_region) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    roots <- c(Home = normalizePath("~", winslash = "/"), "Current" = getwd(), "C:/" = "C:/")
+    
+    shinyFiles::shinyDirChoose(input, "an_browse_folder", roots = roots, session = session)
+    shiny::observeEvent(input$an_browse_folder, {
+      dir_path <- shinyFiles::parseDirPath(roots, input$an_browse_folder)
+      if (length(dir_path) == 1 && nzchar(dir_path)) {
+        shiny::updateTextInput(session, "an_folder", value = dir_path)
+      }
+    })
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
     an_start_rast <- shiny::reactiveVal(NULL)
     an_end_rast <- shiny::reactiveVal(NULL)
@@ -969,6 +1002,59 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
           an_results(results)
           an_crop_params(crop_params)
+
+          # --- Automatic Raster Saving ---
+          if (isTRUE(input$an_save_rasters) && nzchar(input$an_folder)) {
+            tryCatch({
+              if (!dir.exists(input$an_folder)) dir.create(input$an_folder, recursive = TRUE)
+              
+              prefix <- if (nzchar(input$an_season_label)) {
+                gsub("[^a-zA-Z0-9_-]", "_", input$an_season_label)
+              } else "analysis"
+              
+              # AETI
+              if (!is.null(results$seasonal_aeti)) {
+                terra::writeRaster(results$seasonal_aeti$raster, 
+                                  file.path(input$an_folder, paste0(prefix, "_seasonal_aeti.tif")), 
+                                  overwrite = TRUE)
+              }
+              # RET
+              if (!is.null(results$seasonal_ret)) {
+                terra::writeRaster(results$seasonal_ret$raster, 
+                                  file.path(input$an_folder, paste0(prefix, "_seasonal_ret.tif")), 
+                                  overwrite = TRUE)
+              }
+              # PCP
+              if (!is.null(results$seasonal_pcp)) {
+                terra::writeRaster(results$seasonal_pcp, 
+                                  file.path(input$an_folder, paste0(prefix, "_seasonal_pcp.tif")), 
+                                  overwrite = TRUE)
+              }
+              # Adequacy ETc
+              if (!is.null(results$adequacy_etc)) {
+                terra::writeRaster(results$adequacy_etc, 
+                                  file.path(input$an_folder, paste0(prefix, "_adequacy_etc.tif")), 
+                                  overwrite = TRUE)
+              }
+              # Adequacy P95
+              if (!is.null(results$adequacy_p95)) {
+                terra::writeRaster(results$adequacy_p95, 
+                                  file.path(input$an_folder, paste0(prefix, "_adequacy_p95.tif")), 
+                                  overwrite = TRUE)
+              }
+              # ETc by class
+              if (!is.null(results$etc_by_class)) {
+                for (cls in names(results$etc_by_class)) {
+                  terra::writeRaster(results$etc_by_class[[cls]]$etc_seasonal, 
+                                    file.path(input$an_folder, paste0(prefix, "_etc_class_", cls, ".tif")), 
+                                    overwrite = TRUE)
+                }
+              }
+            }, error = function(e) {
+              shiny::showNotification(paste("Raster saving failed:", e$message), type = "warning")
+            })
+          }
+
           shiny::showNotification("Analysis complete!", type = "message", duration = 8)
         }, error = function(e) {
           shiny::showNotification(paste("Analysis failed:", e$message), type = "error", duration = 15)
@@ -1195,6 +1281,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       sprintf(
         paste0(
           "library(Rwapor)\n\n",
+          "# 0. Setup output folder\n",
+          "output_folder <- \"%s\"\n",
+          "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)\n\n",
           "# 1. Load rasters\n",
           "crop_mask <- rwapor_load_crop_mask(\"crop_mask.tif\")\n",
           "season_start <- rwapor_load_season_raster(\"season_start.tif\")\n",
@@ -1212,6 +1301,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           "# aeti_ts <- wapor_ts(region = %s, variable = \"%s\", ...)\n",
           "# See package documentation for full workflow"
         ),
+        input$an_folder,
         input$an_period[1],
         input$an_period[2],
         input$an_ref_year,

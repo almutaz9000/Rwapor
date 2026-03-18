@@ -200,9 +200,12 @@ wapor_gdal_settings <- function() {
 }
 
 
-# Applied automatically when the package is attached.
+# Applied automatically only if RWAPOR_AUTO_CONFIG="true".
+# Otherwise, users should call wapor_configure_gdal() manually.
 .onLoad <- function(libname, pkgname) {
-  # Fix PROJ first to prevent GDAL initialization errors
-  wapor_fix_proj(verbose = FALSE)
-  wapor_configure_gdal(verbose = FALSE)
+  if (Sys.getenv("RWAPOR_AUTO_CONFIG") == "true") {
+    # Fix PROJ first to prevent GDAL initialization errors
+    wapor_fix_proj(verbose = FALSE)
+    wapor_configure_gdal(verbose = FALSE)
+  }
 }
