@@ -196,3 +196,29 @@ test_that("aggregate_precip_monthly works", {
   expect_equal(monthly$p_monthly_mm[2], 56)  # 28 days * 2
   expect_equal(monthly$p_monthly_mm[3], 62)  # 31 days * 2
 })
+
+test_that("NPP to TBP conversion works", {
+  npp <- 100
+  tbp <- rwapor_convert_npp_to_tbp(npp)
+  expect_equal(tbp, 100 * 22.222)
+})
+
+test_that("Yield calculation from NPP works", {
+  # Formula:
+  # dmp = NPP * 22.222
+  # agbm = (AOT * fc * (dmp / (1 - MC))) / 1000
+  # yield = HI * agbm
+  
+  npp <- 100
+  MC  <- 0.7
+  fc  <- 1.6
+  AOT <- 0.8
+  HI  <- 1.0
+  
+  dmp <- 100 * 22.222
+  expected_agbm <- (0.8 * 1.6 * (dmp / (1 - 0.7))) / 1000
+  expected_yield <- 1.0 * expected_agbm
+  
+  yield <- rwapor_calc_yield_npp(npp, MC, fc, AOT, HI)
+  expect_equal(yield, expected_yield)
+})

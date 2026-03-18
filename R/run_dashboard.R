@@ -22,25 +22,32 @@
 #'
 #' @examples
 #' \dontrun{
-#' run_dashboard()
+#' run_wapor()
 #' }
-run_dashboard <- function(display.mode = "normal", launch.browser = interactive(), ...) {
+run_wapor <- function(display.mode = "normal", launch.browser = interactive(), ...) {
+  # 1. Try finding it in the installed package
   app_dir <- system.file("shiny", package = "Rwapor")
   
+  # 2. Fallback for local development (if package is not yet installed)
   if (app_dir == "") {
-    stop("Could not find shiny directory. Try re-installing `Rwapor`.", call. = FALSE)
+    local_path <- file.path("inst", "shiny")
+    if (dir.exists(local_path)) {
+      app_dir <- local_path
+    }
   }
+  
+  if (app_dir == "") {
+    stop("Could not find shiny directory. Try re-installing `Rwapor` or running from the package root.", call. = FALSE)
+  }
+  
   app_file <- file.path(app_dir, "app.R")
   if (!file.exists(app_file)) {
-    stop("Could not find dashboard app.R. Try re-installing `Rwapor`.", call. = FALSE)
+    stop(sprintf("Could not find dashboard app.R at %s", app_dir), call. = FALSE)
   }
   
   # Ensure required suggest packages are available
-  required_pkgs <- c("shiny", "leaflet", "bslib")
+  required_pkgs <- c("shiny", "leaflet", "bslib", "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce")
   missing_pkgs <- required_pkgs[!vapply(required_pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
-  if (!requireNamespace("shinyFiles", quietly = TRUE)) {
-    missing_pkgs <- c(missing_pkgs, "shinyFiles")
-  }
   
   if (length(missing_pkgs) > 0) {
     stop("The following packages are required for the dashboard but are not installed:\n  ",
@@ -50,7 +57,7 @@ run_dashboard <- function(display.mode = "normal", launch.browser = interactive(
          call. = FALSE)
   }
   
-  message("Starting Rwapor Dashboard...")
+  message("Starting Rwapor Dashboard from: ", app_dir)
   shiny::runApp(
     app_dir,
     display.mode = display.mode,

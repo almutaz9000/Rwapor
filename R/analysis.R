@@ -153,6 +153,10 @@ rwapor_build_crop_assignment_table <- function(class_values, crop_defaults = NUL
     L_mid_days   = rep(NA_integer_, n),
     L_late_days  = rep(NA_integer_, n),
     max_height_m = rep(NA_real_, n),
+    MC           = rep(NA_real_, n),
+    fc           = rep(NA_real_, n),
+    AOT          = rep(NA_real_, n),
+    HI           = rep(NA_real_, n),
     stringsAsFactors = FALSE
   )
   tbl
@@ -487,4 +491,59 @@ rwapor_aggregate_kc_dekad <- function(kc_daily, dekad_table, season_start) {
     }
     mean(kc_daily[day_start:day_end], na.rm = TRUE)
   }, numeric(1))
+}
+
+#' Check for Local Raster Files
+#'
+#' Given a set of WaPOR URLs and a local folder, checks which files exist
+#' locally following the standard naming convention.
+#'
+#' @param urls Character vector of WaPOR URLs.
+#' @param var Character. WaPOR variable code (e.g., "L1-AETI-D").
+#' @param folder Character. Path to the local analysis folder.
+#' @return A list with components:
+#'   \describe{
+#'     \item{optimized_paths}{Character vector of paths to use in rast() (local paths or /vsicurl/ URLs).}
+#'     \item{missing_dates}{Character vector of dates (YYYY-MM-DD) for missing dekads.}
+#'     \item{found_count}{Integer. Number of dekads found locally.}
+#'   }
+#' @export
+rwapor_check_local_files <- function(urls, var, folder) {
+  if (length(urls) == 0) return(list(optimized_paths = character(0), missing_dates = character(0), found_count = 0L))
+  
+  # Standard naming components
+  parts <- strsplit(basename(urls[1]), "\\.")[[1]]
+  product_base <- if (length(parts) >= 3) {
+    paste(parts[1:(length(parts)-2)], collapse = ".")
+  } else {
+    var
+  }
+  
+  tres_code <- strsplit(var, "-")[[1]][3]
+  var_folder <- file.path(folder, var)
+  
+  optimized_paths <- character(length(urls))
+  missing_dates <- character(0)
+  found_count <- 0L
+  
+  for (i in seq_along(urls)) {
+    u <- urls[i]
+    date_str <- get_date_info(u, tres = tres_code)$start_date
+    # Check for both bbox (bb_) and standard versions
+    f1 <- file.path(var_folder, paste0(product_base, ".", date_str, ".tif"))
+    f2 <- file.path(var_folder, paste0("bb_", product_base, ".", date_str, ".tif"))
+    
+    if (file.exists(f1)) {
+      optimized_paths[i] <- f1
+      found_count <- found_count + 1L
+    } else if (file.exists(f2)) {
+      optimized_paths[i] <- f2
+      found_count <- found_count + 1L
+    } else {
+      optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
+      missing_dates <- c(missing_dates, date_str)
+    }
+  }
+  
+  list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
 }

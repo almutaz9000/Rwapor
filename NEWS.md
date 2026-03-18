@@ -8,7 +8,7 @@ WaPOR and AgERA5 data from the FAO GIS Manager API.
 
 * `wapor_map()`: Download and save raster maps for specified regions and time periods. Now supports optional batching and parallel chunk processing.
 * `wapor_ts()`: Extract time series with zonal statistics for polygons. Now supports parallel batching and custom polygon identifiers.
-* `run_dashboard()`: Launch an interactive Shiny application for data selection and visualization.
+* `run_wapor()`: Launch an interactive Shiny application for data selection and visualization.
 * `wapor_fix_proj()`: Automatically resolve `PROJ_LIB` environment variable conflicts on Windows.
 * `wapor_generate_urls()`: Generate download URLs for WaPOR/AgERA5 resources (memoized).
 * `parse_region()`: Parse region inputs (bounding box, vector file, or L3 code).

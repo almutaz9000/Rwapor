@@ -39,6 +39,9 @@ Suggests:
     leaflet.extras2,
     shinyFiles,
     bslib,
+    shinyvalidate,
+    shinyjs,
+    shinyAce,
     raster,
     future
 Config/testthat/edition: 3
