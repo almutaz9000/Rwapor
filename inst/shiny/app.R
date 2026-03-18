@@ -48,12 +48,15 @@ ui <- bslib::page_navbar(
     primary   = "#2c3e50",
     "navbar-bg" = "#2c3e50"
   ),
-  header = shiny::tags$head(shiny::tags$style(shiny::HTML("
-    .main-map-output .leaflet-container { height: calc(100vh - 130px) !important; min-height: 480px; }
-    .sidebar-scroll-area { flex: 1 1 auto; overflow-y: auto; padding: 0.5rem 0.75rem; }
-    .sidebar-sticky-footer { flex-shrink: 0; position: sticky; bottom: 0; background: #f8f9fa; border-top: 1px solid #dee2e6; padding: 0.6rem 0.75rem; z-index: 20; }
-    .code-preview-body { max-height: 220px; overflow-y: auto; font-size: 0.78rem; background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
-  "))),
+  header = shiny::tagList(
+    shiny::tags$head(shiny::tags$style(shiny::HTML("
+      .main-map-output .leaflet-container { height: calc(100vh - 130px) !important; min-height: 480px; }
+      .sidebar-scroll-area { flex: 1 1 auto; overflow-y: auto; padding: 0.5rem 0.75rem; }
+      .sidebar-sticky-footer { flex-shrink: 0; position: sticky; bottom: 0; background: #f8f9fa; border-top: 1px solid #dee2e6; padding: 0.6rem 0.75rem; z-index: 20; }
+      .code-preview-body { max-height: 220px; overflow-y: auto; font-size: 0.78rem; background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
+    "))),
+    shinyjs::useShinyjs()
+  ),
 
   # ── Tabs ──
   bslib::nav_panel("Download", icon = shiny::icon("cloud-download"),
@@ -67,10 +70,7 @@ ui <- bslib::page_navbar(
   ),
 
   bslib::nav_spacer(),
-  bslib::nav_item(shiny::actionButton("exit_btn", "Exit", icon = shiny::icon("power-off"), class = "btn-danger btn-sm")),
-  
-  # Initialize shinyjs
-  shinyjs::useShinyjs()
+  bslib::nav_item(shiny::actionButton("exit_btn", "Exit", icon = shiny::icon("power-off"), class = "btn-danger btn-sm"))
 )
 
 # --- Main Server ---
