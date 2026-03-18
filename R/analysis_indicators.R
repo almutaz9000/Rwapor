@@ -303,6 +303,41 @@ rwapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
   biomass_value / aeti_safe
 }
 
+#' Convert NPP to Total Biomass Production (TBP)
+#'
+#' Converts seasonal NPP (gC/m2) to TBP (kgDM/ha) using the
+#' factor 22.222.
+#'
+#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
+#' @return Numeric. TBP in kgDM/ha.
+#' @export
+rwapor_convert_npp_to_tbp <- function(npp_gc_m2) {
+  npp_gc_m2 * 22.222
+}
+
+#' Calculate Crop Yield from NPP
+#'
+#' Implementation of the provided yield formula based on NPP:
+#' AGBM = (AOT * fc * (NPP * 22.222 / (1 - MC))) / 1000
+#' CropYield = HI * AGBM
+#'
+#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
+#' @param MC Numeric. Moisture content (0-1).
+#' @param fc Numeric. Light use efficiency correction factor.
+#' @param AOT Numeric. Above ground over total biomass production ratio.
+#' @param HI Numeric. Harvest index.
+#' @return Numeric. Crop yield in t/ha.
+#' @export
+rwapor_calc_yield_npp <- function(npp_gc_m2, MC, fc, AOT, HI) {
+  # NPP * 22.222 converts gC/m2 to kgDM/ha (DMP)
+  dmp <- npp_gc_m2 * 22.222
+  # Calculate Above Ground Biomass (ton/ha)
+  agbm <- (AOT * fc * (dmp / (1 - MC))) / 1000
+  # Calculate Yield
+  yield <- HI * agbm
+  yield
+}
+
 
 # =============================================================================
 # Analysis Time Series Helpers

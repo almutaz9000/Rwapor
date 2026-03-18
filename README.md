@@ -30,7 +30,7 @@ It provides a robust, parallelized workflow to download raster data, extract tim
 | 🔄 **Dynamic Metadata** | Automatically fetches metadata for all variables via the WaPOR API |
 | ⚡ **Batching & Parallelism** | Parallel processing of large time series without memory crashes |
 | 📐 **Accurate Zonal Statistics** | Pixel-weighted statistics via `exactextractr` for small or irregular polygons |
-| 🖥️ **Interactive Dashboard** | Built-in Shiny app (`run_dashboard()`) for visual AOI selection and code generation |
+| 🖥️ **Interactive Dashboard** | Built-in Shiny app (`run_wapor()`) for visual AOI selection and code generation |
 | 🔁 **Unit Conversion** | Built-in support for converting units (e.g., `mm/dekad` → `mm/day`) on the fly |
 | 💾 **Efficient Caching** | API responses are cached with `memoise` to minimize network traffic |
 
