@@ -133,7 +133,12 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 
 mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
-    roots <- c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+    # Cross-platform roots for shinyFiles
+    roots <- if (.Platform$OS.type == "windows") {
+      c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+    } else {
+      c(Home = normalizePath("~", winslash = "/"), Root = "/")
+    }
 
     current_l3_region <- shiny::reactive({
       if (grepl("^L3-", input$variable %||% "")) input$l3_region else NULL

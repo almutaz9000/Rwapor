@@ -140,13 +140,15 @@ wapor_configure_gdal <- function(
 #'
 #' @export
 wapor_fix_proj <- function(verbose = FALSE) {
-  current_proj <- Sys.getenv("PROJ_LIB", unset = "")
+  # Newer GDAL/PROJ uses PROJ_DATA, older uses PROJ_LIB
+  proj_vars <- c("PROJ_LIB", "PROJ_DATA")
+  current_paths <- Sys.getenv(proj_vars, unset = "")
   
   # Offending paths usually contain PostgreSQL or PostGIS
-  is_offending <- grepl("PostgreSQL|PostGIS", current_proj, ignore.case = TRUE)
+  is_offending <- any(grepl("PostgreSQL|PostGIS", current_paths, ignore.case = TRUE))
   
-  if (nzchar(current_proj) && !is_offending) {
-    return(invisible(current_proj))
+  if (!is_offending && all(nzchar(current_paths))) {
+    return(invisible(current_paths[1]))
   }
   
   # Try to find PROJ in sf or terra packages
@@ -164,16 +166,18 @@ wapor_fix_proj <- function(verbose = FALSE) {
   if (nzchar(new_path)) {
     if (isTRUE(verbose)) {
       if (is_offending) {
-        message(sprintf("Rwapor: Redirecting PROJ_LIB from PostGIS to package-internal database: %s", new_path))
+        message(sprintf("Rwapor: Redirecting PROJ from PostGIS to package-internal database: %s", new_path))
       } else {
-        message(sprintf("Rwapor: Setting PROJ_LIB to: %s", new_path))
+        message(sprintf("Rwapor: Setting PROJ to: %s", new_path))
       }
     }
+    # Set both for compatibility
     Sys.setenv(PROJ_LIB = new_path)
+    Sys.setenv(PROJ_DATA = new_path)
     return(invisible(new_path))
   }
   
-  invisible(current_proj)
+  invisible(current_paths[1])
 }
 
 
