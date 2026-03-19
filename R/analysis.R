@@ -124,7 +124,7 @@ rwapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
 #'   Default is 10. This helps filter out very small spurious classes.
 #' @return A data.frame with columns: class_value, pixel_count, area_ha.
 #' @export
-rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10) {
+rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10, nodata_values = c(0, 255, -9999, -32768, 65535, -3.4e+38)) {
   if (!inherits(crop_mask, "SpatRaster")) {
     stop("'crop_mask' must be a SpatRaster", call. = FALSE)
   }
@@ -132,21 +132,34 @@ rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pi
   freq_tbl <- terra::freq(crop_mask)
   freq_tbl <- freq_tbl[!is.na(freq_tbl$value), , drop = FALSE]
 
+  if (nrow(freq_tbl) == 0) {
+    warning("Crop mask raster contains only NA values.", call. = FALSE)
+    return(data.frame(class_value = integer(0), pixel_count = integer(0), area_ha = numeric(0)))
+  }
+
   # Filter out common nodata values
   if (exclude_nodata) {
-    nodata_values <- c(0, 255, -9999, -32768, 65535, -3.4e+38)
-    freq_tbl <- freq_tbl[!freq_tbl$value %in% nodata_values, , drop = FALSE]
+    freq_tbl_filtered <- freq_tbl[!freq_tbl$value %in% nodata_values, , drop = FALSE]
+    if (nrow(freq_tbl_filtered) == 0) {
+       warning(sprintf("All found values (%s) were filtered out as nodata. Check if your valid classes overlap with: %s",
+                       paste(unique(freq_tbl$value), collapse = ", "),
+                       paste(nodata_values, collapse = ", ")), call. = FALSE)
+    }
+    freq_tbl <- freq_tbl_filtered
   }
 
   # Filter by minimum pixel count
-  if (min_pixels > 0) {
-    freq_tbl <- freq_tbl[freq_tbl$count >= min_pixels, , drop = FALSE]
+  if (min_pixels > 0 && nrow(freq_tbl) > 0) {
+    freq_tbl_filtered <- freq_tbl[freq_tbl$count >= min_pixels, , drop = FALSE]
+    if (nrow(freq_tbl_filtered) == 0 && nrow(freq_tbl) > 0) {
+       warning(sprintf("All classes were filtered out by min_pixels (%d). Largest class has %d pixels.",
+                       min_pixels, max(freq_tbl$count)), call. = FALSE)
+    }
+    freq_tbl <- freq_tbl_filtered
   }
 
   # Return empty data.frame if no valid classes
-
   if (nrow(freq_tbl) == 0) {
-    warning("No valid crop classes found in mask after filtering.", call. = FALSE)
     return(data.frame(class_value = integer(0), pixel_count = integer(0), area_ha = numeric(0)))
   }
 
