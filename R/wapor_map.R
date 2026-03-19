@@ -130,122 +130,98 @@ wapor_map <- function(
 
   # --- Seasonal mode ---
   if (seasonal) {
-    if (length(variable) != 1) {
-      stop("'seasonal' mode supports only a single variable", call. = FALSE)
-    }
-    if (!is.null(unit_conversion) && unit_conversion != "none") {
-      log_msg("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
-    }
+    process_seasonal_var <- function(var) {
+      log_msg(sprintf("Processing seasonal variable: %s", var))
+      
+      current_l3_code <- l3_code
+      if (is.null(current_l3_code) && grepl("^L3-", var)) {
+         guessed_codes <- guess_l3_region(var, reg_info, period)
+         if (is.null(guessed_codes)) {
+            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
+            return(NULL)
+         }
+         current_l3_code <- guessed_codes[1]
+      }
 
-    current_l3_code <- l3_code
-    if (is.null(current_l3_code) && grepl("^L3-", variable[1])) {
-       guessed_codes <- guess_l3_region(variable[1], reg_info, period)
-       if (is.null(guessed_codes)) stop(sprintf("Region does not intersect with any available WaPOR L3 data for %s.", variable[1]), call. = FALSE)
-       current_l3_code <- guessed_codes[1]
-       if (length(guessed_codes) > 1) {
-           warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s.", paste(guessed_codes, collapse=", "), current_l3_code), call. = FALSE)
-       }
-    }
+      t0_seasonal <- proc.time()
+      seasonal_data <- tryCatch({
+        download_seasonal_rasters(var, period, current_l3_code, reg_info, folder, do_mask = mask)
+      }, error = function(e) {
+        warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
+        return(NULL)
+      })
+      
+      if (is.null(seasonal_data)) return(NULL)
+      
+      groups <- seasonal_data$groups
+      if (length(groups) == 0) return(NULL)
 
-    # Call internal helper to download and organize rasters
-    t0_seasonal <- proc.time()
-    seasonal_data <- download_seasonal_rasters(variable, period, current_l3_code, reg_info, folder, do_mask = mask)
-    
-    groups <- seasonal_data$groups
-    log_msg(sprintf("Seasonal rasters downloaded in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
+      ref_raster <- NULL
+      running_sum <- NULL
+      valid_count <- NULL
+      layer_idx <- 0L
+      component_paths <- character(0)
+      component_folder <- file.path(folder, var)
+      
+      if (separate_files && !dir.exists(component_folder)) {
+        dir.create(component_folder, recursive = TRUE, showWarnings = FALSE)
+      }
 
-    if (length(groups) == 0) {
-      stop("No rasters could be loaded for the seasonal sum.", call. = FALSE)
-    }
-    
-    # Incremental accumulation: sum layers one at a time instead of
-    # building a full stack in memory, which avoids memory spikes for
-    # long periods or mixed temporal resolutions.
-    ref_raster <- NULL
-    running_sum <- NULL
-    valid_count <- NULL  # tracks how many non-NA layers contributed per pixel
-    layer_idx <- 0L
-    component_paths <- character(0)
-    component_folder <- file.path(folder, variable[1])
-    if (separate_files && !dir.exists(component_folder)) {
-      dir.create(component_folder, recursive = TRUE, showWarnings = FALSE)
-    }
+      for (g_name in names(groups)) {
+        g <- groups[[g_name]]
+        r_group <- g$raster
+        multipliers <- g$multipliers
 
-    for (g_name in names(groups)) {
-      g <- groups[[g_name]]
-      r_group <- g$raster
-      multipliers <- g$multipliers
+        for (i in seq_len(terra::nlyr(r_group))) {
+          layer_clean <- terra::subst(r_group[[i]], NaN, NA)
+          layer <- layer_clean * multipliers[i]
 
-      for (i in seq_len(terra::nlyr(r_group))) {
-        layer_clean <- terra::subst(r_group[[i]], NaN, NA)
-        layer <- layer_clean * multipliers[i]
-
-        if (is.null(ref_raster)) {
-          ref_raster <- layer
-        } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
-          log_msg("Resampling raster to align grids across temporal resolutions...")
-          layer <- terra::resample(layer, ref_raster, method = "bilinear")
-        }
-
-        layer_idx <- layer_idx + 1L
-
-        # Incremental sum: accumulate into running_sum
-        if (is.null(running_sum)) {
-          running_sum <- terra::ifel(is.na(layer), 0, layer)
-          valid_count <- terra::ifel(is.na(layer), 0L, 1L)
-        } else {
-          running_sum <- running_sum + terra::ifel(is.na(layer), 0, layer)
-          valid_count <- valid_count + terra::ifel(is.na(layer), 0L, 1L)
-        }
-
-        if (separate_files) {
-          src_name <- names(r_group)[i]
-          if (is.null(src_name) || !nzchar(src_name)) {
-            src_name <- sprintf("%03d", i)
-          } else {
-            src_name <- gsub("[^A-Za-z0-9_-]", "_", src_name)
+          if (is.null(ref_raster)) {
+            ref_raster <- layer
+          } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
+            layer <- terra::resample(layer, ref_raster, method = "bilinear")
           }
-          component_file <- file.path(
-            component_folder,
-            sprintf("%s.component_%03d.%s.%s.tif", variable[1], layer_idx, g$code, src_name)
-          )
-          layer_out <- terra::classify(layer, cbind(NA, -9999))
-          suppressWarnings(terra::writeRaster(layer_out, component_file, overwrite = TRUE, NAflag = -9999))
-          component_paths <- c(component_paths, component_file)
+
+          layer_idx <- layer_idx + 1L
+          if (is.null(running_sum)) {
+            running_sum <- terra::ifel(is.na(layer), 0, layer)
+            valid_count <- terra::ifel(is.na(layer), 0L, 1L)
+          } else {
+            running_sum <- running_sum + terra::ifel(is.na(layer), 0, layer)
+            valid_count <- valid_count + terra::ifel(is.na(layer), 0L, 1L)
+          }
+
+          if (separate_files) {
+            src_name <- gsub("[^A-Za-z0-9_-]", "_", names(r_group)[i] %||% sprintf("%03d", i))
+            component_file <- file.path(component_folder, sprintf("%s.component_%03d.%s.%s.tif", var, layer_idx, g$code, src_name))
+            suppressWarnings(terra::writeRaster(terra::classify(layer, cbind(NA, -9999)), component_file, overwrite = TRUE, NAflag = -9999))
+            component_paths <- c(component_paths, component_file)
+          }
         }
       }
+
+      seasonal_sum <- terra::mask(running_sum, valid_count, maskvalue = 0)
+      names(seasonal_sum) <- paste0("seasonal_", period[1], "_", period[2])
+      
+      out_fname <- if (!is.null(filename) && length(variable) == 1) filename else {
+        prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
+        sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, var, period[1], period[2])
+      }
+      
+      var_folder <- file.path(folder, paste0(var, "_seasonal")) 
+      if (!dir.exists(var_folder)) dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
+      
+      out_path <- file.path(var_folder, out_fname)
+      suppressWarnings(terra::writeRaster(terra::classify(seasonal_sum, cbind(NA, -9999)), out_path, overwrite = TRUE, NAflag = -9999))
+      
+      log_msg(sprintf("Seasonal sum for %s saved to: %s", var, out_path))
+      return(out_path)
     }
 
-    seasonal_sum <- running_sum
-    # Mask out cells where ALL layers were NA (valid_count == 0)
-    seasonal_sum <- terra::mask(seasonal_sum, valid_count, maskvalue = 0)
-    
-    names(seasonal_sum) <- paste0("seasonal_", period[1], "_", period[2])
-    
-    # Build output filename
-    if (is.null(filename)) {
-      prefix <- if (reg_info$type == "bbox") "bb_" else ""
-      filename <- sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif",
-                          prefix, variable, period[1], period[2])
-    }
-    
-    var_folder <- file.path(folder, paste0(variable[1], "_seasonal")) 
-    if (!dir.exists(var_folder)) {
-      dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
-    }
-    out_path <- file.path(var_folder, filename)
-    seasonal_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
-    suppressWarnings(terra::writeRaster(seasonal_out, out_path, overwrite = TRUE, NAflag = -9999))
-    if (!file.exists(out_path)) {
-      stop(sprintf("Seasonal output was not written to disk: %s", out_path), call. = FALSE)
-    }
-    if (separate_files && length(component_paths) > 0) {
-      log_msg(sprintf("Saved %d seasonal component raster(s) to: %s", length(component_paths), component_folder))
-    }
-    log_msg(sprintf("Seasonal sum saved to: %s", out_path))
-    log_msg(sprintf("Seasonal aggregation completed in %.1f seconds", (proc.time() - t0_seasonal)[["elapsed"]]))
-
-    return(out_path)
+    results <- lapply(variable, process_seasonal_var)
+    names(results) <- variable
+    if (length(variable) == 1) return(results[[1]])
+    return(results)
   }
 
   # Helper function to process a single variable

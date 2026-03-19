@@ -420,7 +420,35 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     an_crop_params <- shiny::reactiveVal(NULL)
     an_results <- shiny::reactiveVal(NULL)
     an_peff_monthly <- shiny::reactiveVal(NULL)
-    an_local_vars <- shiny::reactiveVal(NULL)  # Store scanned local variables
+    an_local_vars <- shiny::reactiveVal(NULL)
+
+    # --- File Upload Observers ---
+    shiny::observeEvent(input$an_crop_mask, {
+      f <- input$an_crop_mask
+      shiny::req(f)
+      tryCatch({
+        r <- terra::rast(f$datapath)
+        an_crop_mask_rast(r)
+      }, error = function(e) shiny::showNotification(paste("Error loading crop mask:", e$message), type = "error"))
+    })
+
+    shiny::observeEvent(input$an_season_start, {
+      f <- input$an_season_start
+      shiny::req(f)
+      tryCatch({
+        r <- terra::rast(f$datapath)
+        an_start_rast(r)
+      }, error = function(e) shiny::showNotification(paste("Error loading season start:", e$message), type = "error"))
+    })
+
+    shiny::observeEvent(input$an_season_end, {
+      f <- input$an_season_end
+      shiny::req(f)
+      tryCatch({
+        r <- terra::rast(f$datapath)
+        an_end_rast(r)
+      }, error = function(e) shiny::showNotification(paste("Error loading season end:", e$message), type = "error"))
+    })
 
     # --- Local Data Source Logic ---
     shiny::observeEvent(input$an_scan_local, {

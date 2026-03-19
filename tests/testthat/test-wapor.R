@@ -351,12 +351,11 @@ test_that("crop_to_region applies mask when do_mask is TRUE", {
                    ymin = 33, ymax = 35, vals = seq_len(400))
   terra::crs(r) <- "EPSG:4326"
 
-  # Create a small polygon that doesn't cover the full extent
+  # Create a triangle that doesn't cover the full extent corners
   poly_coords <- matrix(c(
     35.5, 33.5,
     36.5, 33.5,
-    36.5, 34.5,
-    35.5, 34.5,
+    36.0, 34.5,
     35.5, 33.5
   ), ncol = 2, byrow = TRUE)
   poly <- sf::st_polygon(list(poly_coords))
@@ -435,4 +434,28 @@ test_that("wapor_ts works with bounding box", {
   expect_s3_class(df, "data.frame")
   expect_true(nrow(df) > 0)
   expect_false(is.null(attr(df, "units")))
+})
+
+test_that("wapor_map handles multiple variables in seasonal mode", {
+  skip_if_no_live_api()
+  
+  region   <- c(35.75, 33.70, 35.82, 33.75)
+  variables <- c("L1-AETI-D", "NB-PCP-D")
+  period   <- c("2021-01-01", "2021-01-31")
+  tmp_dir  <- tempfile("wapor_test_multi")
+  dir.create(tmp_dir)
+  
+  results <- wapor_map(
+    region = region,
+    variable = variables,
+    period = period,
+    folder = tmp_dir,
+    seasonal = TRUE
+  )
+  
+  expect_type(results, "list")
+  expect_length(results, 2)
+  expect_true(all(vapply(results, file.exists, logical(1))))
+  
+  unlink(tmp_dir, recursive = TRUE)
 })
