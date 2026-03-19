@@ -1411,23 +1411,27 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                            ret_var,
                            if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
             }
+            shiny::incProgress(0.05, detail = "Harmonizing RET to AETI...")
+            ret_stack <- Rwapor::rwapor_harmonize_to_template(ret_stack, template_r)
           }
 
           if (need_precip_stack) {
             precip_stack <- load_var_stack(precip_var, use_local, folder, period, l3_code, reg_info)
-            # Precipitation is optional, don't fail if missing
-            if (is.null(precip_stack)) {
-              warning(sprintf("Precipitation data not available for %s", precip_var))
+            if (!is.null(precip_stack)) {
+               shiny::incProgress(0.05, detail = "Harmonizing Precipitation to AETI...")
+               precip_stack <- Rwapor::rwapor_harmonize_to_template(precip_stack, template_r)
             }
           }
 
           if (need_npp_stack) {
-            npp_stack <- load_var_stack(input$an_npp_var, use_local, folder, period, l3_code, reg_info)
-            # NPP is optional, don't fail if missing
-            if (is.null(npp_stack)) {
-              warning(sprintf("NPP data not available for %s", input$an_npp_var))
+            npp_var <- "L1-NPP-D"
+            npp_stack <- load_var_stack(npp_var, use_local, folder, period, l3_code, reg_info)
+            if (!is.null(npp_stack)) {
+               shiny::incProgress(0.05, detail = "Harmonizing NPP to AETI...")
+               npp_stack <- Rwapor::rwapor_harmonize_to_template(npp_stack, template_r)
             }
           }
+
 
           n_wt <- terra::nlyr(season_weights)
           trim_stack <- function(s, n) {
