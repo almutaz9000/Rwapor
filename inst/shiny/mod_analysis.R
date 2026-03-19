@@ -59,6 +59,10 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               ),
               selected = "api"
             ),
+            shiny::helpText(
+              class = "text-muted small",
+              "Streaming uses GDAL vsicurl to read only the required pixels from Cloud-Optimized GeoTIFFs on the WaPOR server."
+            ),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'local'", ns("an_data_source")),
               shiny::tags$div(
@@ -311,6 +315,12 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               value = shiny::textOutput(ns("vbox_adequacy")),
               showcase = shiny::icon("percentage"),
               theme = "success"
+            ),
+            bslib::value_box(
+              title = "Seasonal Biomass",
+              value = shiny::textOutput(ns("vbox_biomass")),
+              showcase = shiny::icon("leaf"),
+              theme = "warning"
             )
           )
         )
@@ -582,6 +592,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       adq_rast <- res$adequacy_etc %||% res$adequacy_p95
       val <- terra::global(adq_rast, "mean", na.rm = TRUE)$mean
       sprintf("%.0f%%", val * 100)
+    })
+
+    output$vbox_biomass <- shiny::renderText({
+      res <- an_results()
+      if (is.null(res) || is.null(res$biomass)) return("--")
+      val <- terra::global(res$biomass, "mean", na.rm = TRUE)$mean
+      unit <- input$an_biomass_unit %||% "kg/ha"
+      sprintf("%.0f %s", val, unit)
     })
 
     current_region <- shiny::reactive(aoi_region())
@@ -958,7 +976,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     active_kc_data <- shiny::reactive({
       params <- collect_crop_params()
       shiny::req(params)
-      total_days_vec <- stats::setNames(rep(150, nrow(params)), as.character(params$class_value))
+      # Dynamic total days for preview to ensure L_dev is at least 30
+      fixed_sums <- params$L_ini_days + params$L_mid_days + params$L_late_days
+      total_days_vec <- stats::setNames(fixed_sums + 30, as.character(params$class_value))
       tryCatch(Rwapor::rwapor_build_kc_by_class(params, total_days_vec), error = function(e) NULL)
     })
 
@@ -1519,6 +1539,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
             results$cwp <- cwp_val
             results$bwp <- bwp_val
+            results$biomass <- bio_h
           }
 
           shiny::incProgress(0.05, detail = "Done!")
