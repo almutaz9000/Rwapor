@@ -5,58 +5,80 @@ mod_aoi_ui <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::tags$small(
-      class = "text-muted",
-      "Draw a rectangle or polygon, or upload a vector file."
+    shiny::tags$head(
+      shiny::tags$style(
+        shiny::HTML("
+          .leaflet-drawing .leaflet-container,
+          .leaflet-drawing .leaflet-grab,
+          .leaflet-drawing .leaflet-interactive {
+            cursor: crosshair !important;
+          }
+        ")
+      )
     ),
     shiny::radioButtons(
-      ns("manual_mode"),
-      "Draw Mode",
-      choices = c("Rectangle" = "bbox", "Polygon" = "poly"),
-      selected = "bbox",
+      ns("aoi_method"),
+      "Selection Method",
+      choices = c("Draw on Map" = "draw", "Upload Vector File" = "upload"),
+      selected = "draw",
       inline = TRUE
     ),
-    shiny::fluidRow(
-      shiny::column(
-        4,
-        shiny::actionButton(
-          ns("start_manual"),
-          "Start",
-          icon = shiny::icon("pencil"),
-          width = "100%",
-          class = "btn-sm btn-outline-success"
-        )
+    shiny::conditionalPanel(
+      condition = "input.aoi_method == 'draw'",
+      ns = ns,
+      shiny::radioButtons(
+        ns("manual_mode"),
+        "Draw Mode",
+        choices = c("Rectangle" = "bbox", "Polygon" = "poly"),
+        selected = "bbox",
+        inline = TRUE
       ),
-      shiny::column(
-        4,
-        shiny::actionButton(
-          ns("finish_manual"),
-          "Finish",
-          icon = shiny::icon("check"),
-          width = "100%",
-          class = "btn-sm btn-outline-primary"
-        )
-      ),
-      shiny::column(
-        4,
-        shiny::actionButton(
-          ns("clear_manual"),
-          "Clear",
-          icon = shiny::icon("eraser"),
-          width = "100%",
-          class = "btn-sm btn-outline-danger"
+      shiny::fluidRow(
+        shiny::column(
+          4,
+          shiny::actionButton(
+            ns("start_manual"),
+            "Start",
+            icon = shiny::icon("pencil"),
+            width = "100%",
+            class = "btn-sm btn-outline-success"
+          )
+        ),
+        shiny::column(
+          4,
+          shiny::actionButton(
+            ns("finish_manual"),
+            "Finish",
+            icon = shiny::icon("check"),
+            width = "100%",
+            class = "btn-sm btn-outline-primary"
+          )
+        ),
+        shiny::column(
+          4,
+          shiny::actionButton(
+            ns("clear_manual"),
+            "Clear",
+            icon = shiny::icon("eraser"),
+            width = "100%",
+            class = "btn-sm btn-outline-danger"
+          )
         )
       )
     ),
-    shiny::tags$div(
-      class = "mt-2",
-      shinyFiles::shinyFilesButton(
-        ns("browse_vector"),
-        "Select Vector File (.geojson, .gpkg, .kml)",
-        "Select vector file",
-        multiple = FALSE,
-        class = "w-100 btn-sm btn-outline-secondary",
-        icon = shiny::icon("folder-open")
+    shiny::conditionalPanel(
+      condition = "input.aoi_method == 'upload'",
+      ns = ns,
+      shiny::tags$div(
+        class = "mt-2",
+        shinyFiles::shinyFilesButton(
+          ns("browse_vector"),
+          "Select Vector File (.geojson, .gpkg, .kml)",
+          "Select vector file",
+          multiple = FALSE,
+          class = "w-100 btn-sm btn-outline-secondary",
+          icon = shiny::icon("folder-open")
+        )
       )
     ),
     shiny::checkboxInput(ns("mask_aoi"), "Mask to AOI boundary", FALSE),
@@ -139,6 +161,15 @@ mod_aoi_server <- function(id,
       if (nrow(file_info) > 0) {
         path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
         handle_vector_file(path)
+      }
+    })
+
+    shiny::observe({
+      active <- manual_active()
+      if (active) {
+        shinyjs::runjs(sprintf("$('#%s').addClass('leaflet-drawing')", map_id))
+      } else {
+        shinyjs::runjs(sprintf("$('#%s').removeClass('leaflet-drawing')", map_id))
       }
     })
 

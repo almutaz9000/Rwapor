@@ -151,6 +151,12 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           choices = stats::setNames(seq_len(n), band_names),
           selected = 1
         )
+        
+        # Zoom to raster extent immediately after loading
+        ext <- terra::ext(r)
+        leaflet::leafletProxy("analysis_map", session = session) |>
+          leaflet::fitBounds(lng1 = ext$xmin, lat1 = ext$ymin, lng2 = ext$xmax, lat2 = ext$ymax)
+          
       }, error = function(e) {
         shiny::showNotification(paste("Error loading raster:", e$message), type = "error")
         loaded_raster(NULL)
@@ -217,6 +223,12 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         return()
       }
       opacity <- input$an_layer_opacity %||% 0.75
+      
+      # Ensure WGS84 for leaflet
+      if (!is.na(terra::crs(r)) && !terra::is.lonlat(r)) {
+        r <- terra::project(r, "EPSG:4326", method = "near")
+      }
+      
       r_ds   <- .vis_downsample(r)
       vals   <- sort(unique(na.omit(as.integer(terra::values(r_ds)))))
       cls_cols <- grDevices::hcl.colors(max(length(vals), 3), "Set2")[seq_along(vals)]
@@ -243,6 +255,11 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       }
 
       opacity <- input$an_layer_opacity %||% 0.75
+      
+      if (!is.na(terra::crs(r)) && !terra::is.lonlat(r)) {
+        r <- terra::project(r, "EPSG:4326")
+      }
+      
       r_ds <- r
       dims <- dim(r_ds)
       if (max(dims) > 1500) {
@@ -266,6 +283,11 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       }
 
       opacity <- input$an_layer_opacity %||% 0.75
+      
+      if (!is.na(terra::crs(r)) && !terra::is.lonlat(r)) {
+        r <- terra::project(r, "EPSG:4326")
+      }
+      
       r_ds <- r
       dims <- dim(r_ds)
       if (max(dims) > 1500) {
@@ -290,8 +312,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       proxy <- leaflet::leafletProxy("analysis_map", session = session) |>
         leaflet::clearImages() |> leaflet::removeControl("leg_raster") |> leaflet::clearGroup("aoi_overlay") |>
         leaflet::addRasterImage(raster::raster(r_band), colors = pal, opacity = input$raster_opacity, group = "raster") |>
-        leaflet::addLegend(position = "bottomright", pal = pal, values = vals, title = names(r_band), opacity = input$raster_opacity, layerId = "leg_raster") |>
-        leaflet::fitBounds(lng1 = ext$xmin, lat1 = ext$ymin, lng2 = ext$xmax, lat2 = ext$ymax)
+        leaflet::addLegend(position = "bottomright", pal = pal, values = vals, title = names(r_band), opacity = input$raster_opacity, layerId = "leg_raster")
 
       if (isTRUE(input$overlay_aoi)) {
         reg <- aoi_region()
@@ -301,6 +322,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         }
       }
     })
+
 
     # Raster info table
     output$raster_info <- shiny::renderTable({

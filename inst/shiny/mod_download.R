@@ -17,15 +17,18 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
           bslib::accordion_panel(
             "Variable & Period",
             icon = shiny::icon("database"),
-            shiny::selectInput(
+            shiny::selectizeInput(
               ns("variable"),
-              "Variable",
+              "Variable(s)",
               choices = all_vars,
-              selected = default_var
+              selected = default_var,
+              multiple = TRUE,
+              options = list(placeholder = "Select one or more variables")
             ),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && input['%s'].startsWith('L3-')", ns("variable"), ns("variable")),
-              shiny::selectInput(ns("l3_region"), "L3 Region", choices = l3_region_choices),
+              condition = "input.variable && input.variable.some(v => v.startsWith('L3-'))",
+              ns = ns,
+              shiny::selectInput(ns("l3_region"), "L3 Region (for L3 variables)", choices = l3_region_choices),
               shiny::helpText("L3 variables require a specific region.")
             ),
             shiny::dateRangeInput(
@@ -61,7 +64,8 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::checkboxInput(ns("seasonal"), "Seasonal Aggregation", FALSE),
             shiny::checkboxInput(ns("separate_files"), "Save as Separate Files", FALSE),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && input['%s']", ns("seasonal"), ns("separate_files")),
+              condition = "input.seasonal && input.separate_files",
+              ns = ns,
               shiny::helpText(
                 shiny::tags$em("Both selected: seasonal + individual time-step files.")
               )
@@ -77,7 +81,8 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             "Area of Interest",
             icon = shiny::icon("map"),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && input['%s'].startsWith('L3-')", ns("variable"), ns("variable")),
+              condition = "input.variable && input.variable.some(v => v.startsWith('L3-'))",
+              ns = ns,
               shiny::helpText(
                 shiny::tags$em("AOI clips data; leave empty to download the whole L3 region.")
               )
@@ -141,12 +146,13 @@ mod_download_server <- function(id, l3_regions_meta) {
     }
 
     current_l3_region <- shiny::reactive({
-      if (grepl("^L3-", input$variable %||% "")) input$l3_region else NULL
+      vars <- input$variable %||% ""
+      if (any(grepl("^L3-", vars))) input$l3_region else NULL
     })
 
     aoi <- mod_aoi_server(
       "aoi",
-      map_id = "map",
+      map_id = session$ns("map"),
       map_session = session,
       l3_region = current_l3_region,
       l3_regions_meta = l3_regions_meta
@@ -296,17 +302,24 @@ mod_download_server <- function(id, l3_regions_meta) {
       unit_conv <- if (input$unit_conversion == "none") "NULL" else sprintf("\"%s\"", input$unit_conversion)
       mask_str <- if (isTRUE(aoi$mask())) "TRUE" else "FALSE"
 
+      var_list_str <- if (length(input$variable) > 1) {
+        paste0("c(\"", paste(input$variable, collapse = "\", \""), "\")")
+      } else {
+        sprintf("\"%s\"", input$variable)
+      }
+
       code_val <- if (input$seasonal && input$separate_files) {
         sprintf(
           paste0(
             "library(Rwapor)\n\n",
-            "region <- %s\n",
-            "period <- %s\n",
-            "folder <- \"%s\"\n\n",
-            "# 1. Download seasonal aggregate\n",
-            "seasonal_path <- wapor_map(\n",
+            "region   <- %s\n",
+            "period   <- %s\n",
+            "variable <- %s\n",
+            "folder   <- \"%s\"\n\n",
+            "# 1. Download seasonal aggregate(s)\n",
+            "seasonal_paths <- wapor_map(\n",
             "  region = region,\n",
-            "  variable = \"%s\",\n",
+            "  variable = variable,\n",
             "  period = period,\n",
             "  folder = folder,\n",
             "  unit_conversion = %s,\n",
@@ -317,7 +330,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "# 2. Download individual time step files\n",
             "file_paths <- wapor_map(\n",
             "  region = region,\n",
-            "  variable = \"%s\",\n",
+            "  variable = variable,\n",
             "  period = period,\n",
             "  folder = folder,\n",
             "  unit_conversion = %s,\n",
@@ -328,11 +341,10 @@ mod_download_server <- function(id, l3_regions_meta) {
           ),
           reg_str,
           period_str,
+          var_list_str,
           input$folder,
-          input$variable,
           unit_conv,
           mask_str,
-          input$variable,
           unit_conv,
           mask_str
         )
@@ -340,12 +352,13 @@ mod_download_server <- function(id, l3_regions_meta) {
         sprintf(
           paste0(
             "library(Rwapor)\n\n",
-            "region <- %s\n",
-            "period <- %s\n",
-            "folder <- \"%s\"\n\n",
-            "map_path <- wapor_map(\n",
+            "region   <- %s\n",
+            "period   <- %s\n",
+            "variable <- %s\n",
+            "folder   <- \"%s\"\n\n",
+            "map_paths <- wapor_map(\n",
             "  region = region,\n",
-            "  variable = \"%s\",\n",
+            "  variable = variable,\n",
             "  period = period,\n",
             "  folder = folder,\n",
             "  unit_conversion = %s,\n",
@@ -356,8 +369,8 @@ mod_download_server <- function(id, l3_regions_meta) {
           ),
           reg_str,
           period_str,
+          var_list_str,
           input$folder,
-          input$variable,
           unit_conv,
           input$seasonal,
           input$separate_files,
@@ -370,8 +383,14 @@ mod_download_server <- function(id, l3_regions_meta) {
 
     shiny::observeEvent(input$download_btn, {
       reg <- current_region()
+      vars <- input$variable
+      
       if (is.null(reg)) {
         shiny::showNotification("Please select an AOI before downloading.", type = "error")
+        return()
+      }
+      if (length(vars) == 0) {
+        shiny::showNotification("Please select at least one variable.", type = "error")
         return()
       }
       if (!nzchar(input$folder)) {
@@ -379,58 +398,23 @@ mod_download_server <- function(id, l3_regions_meta) {
         return()
       }
 
-      if (input$seasonal && input$separate_files) {
-        shiny::withProgress(message = "Downloading data...", value = 0, {
-          tryCatch({
-            unit_conv <- if (input$unit_conversion == "none") NULL else input$unit_conversion
+      shiny::withProgress(message = "Downloading Data", value = 0, {
+        tryCatch({
+          n_vars <- length(vars)
+          unit_conv <- if (input$unit_conversion == "none") NULL else input$unit_conversion
+          all_out_paths <- list()
 
-            shiny::incProgress(0.05, detail = "Downloading seasonal aggregate...")
-            seasonal_path <- Rwapor::wapor_map(
-              region = reg,
-              variable = input$variable,
-              period = as.character(input$period),
-              folder = input$folder,
-              unit_conversion = unit_conv,
-              seasonal = TRUE,
-              separate_files = FALSE,
-              mask = aoi$mask()
+          for (i in seq_along(vars)) {
+            v <- vars[i]
+            shiny::incProgress(
+              1/n_vars * 0.1, 
+              detail = sprintf("Initializing %s (%d/%d)...", v, i, n_vars)
             )
-
-            shiny::incProgress(0.50, detail = "Downloading individual time steps...")
-            ind_paths <- Rwapor::wapor_map(
-              region = reg,
-              variable = input$variable,
-              period = as.character(input$period),
-              folder = input$folder,
-              unit_conversion = unit_conv,
-              seasonal = FALSE,
-              separate_files = TRUE,
-              mask = aoi$mask()
-            )
-
-            all_paths <- c(seasonal_path, ind_paths)
-            shiny::incProgress(0.45, detail = "Complete!")
-            shiny::showNotification(
-              sprintf(
-                "Download successful. %d files written (1 seasonal + %d individual).",
-                length(all_paths),
-                length(all_paths) - 1
-              ),
-              type = "message",
-              duration = 10
-            )
-          }, error = function(e) {
-            shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 15)
-          })
-        })
-      } else {
-        shiny::withProgress(message = "Downloading data...", value = 0, {
-          tryCatch({
-            shiny::incProgress(0.10, detail = "Initializing download...")
-            unit_conv <- if (input$unit_conversion == "none") NULL else input$unit_conversion
+            
+            # Use the core wapor_map for each variable to provide granular progress
             out_path <- Rwapor::wapor_map(
               region = reg,
-              variable = input$variable,
+              variable = v,
               period = as.character(input$period),
               folder = input$folder,
               unit_conversion = unit_conv,
@@ -438,24 +422,26 @@ mod_download_server <- function(id, l3_regions_meta) {
               separate_files = input$separate_files,
               mask = aoi$mask()
             )
-            shiny::incProgress(0.90, detail = "Finalizing...")
-            if (length(out_path) == 0 || !all(file.exists(out_path))) {
-              stop("Download completed but output file(s) were not found on disk.")
-            }
-            shiny::showNotification(
-              if (length(out_path) > 1) {
-                sprintf("Download successful. %d files written in %s", length(out_path), dirname(out_path[1]))
-              } else {
-                sprintf("Download successful. Saved to: %s", out_path)
-              },
-              type = "message",
-              duration = 10
-            )
-          }, error = function(e) {
-            shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 15)
-          })
+            
+            all_out_paths[[v]] <- out_path
+            shiny::incProgress(1/n_vars * 0.9)
+          }
+
+          # Check if any files were actually written
+          flat_paths <- unlist(all_out_paths)
+          if (length(flat_paths) == 0 || !all(file.exists(flat_paths))) {
+             stop("Download finished but some expected files were not found on disk.")
+          }
+
+          shiny::showNotification(
+            sprintf("Download successful. %d file(s) saved for %d variable(s).", length(flat_paths), n_vars),
+            type = "message",
+            duration = 10
+          )
+        }, error = function(e) {
+          shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 15)
         })
-      }
+      })
     })
 
     list(
