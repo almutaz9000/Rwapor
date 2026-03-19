@@ -113,34 +113,61 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     }
 
     # ── Folder Scanning ────────────────────────────────────────────────────
-    shiny::observeEvent(input$scan_rasters, {
+    raster_choices <- shiny::reactive({
       folder <- global_folder()
-      shiny::req(folder)
-      if (!dir.exists(folder)) {
-        shiny::showNotification("Folder does not exist.", type = "error")
-        return()
+      tif_files <- if (!is.null(folder) && dir.exists(folder)) {
+        list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+      } else character(0)
+      
+      analysis_layers <- list()
+      if (!is.null(an_crop_mask_rast())) analysis_layers["[Analysis] Crop Mask"] <- "__analysis_crop_mask__"
+      if (!is.null(an_start_rast()))     analysis_layers["[Analysis] Season Start"] <- "__analysis_season_start__"
+      if (!is.null(an_end_rast()))       analysis_layers["[Analysis] Season End"] <- "__analysis_season_end__"
+      
+      if (length(analysis_layers) > 0) {
+        return(list("Local Files" = tif_files, "Analysis Layers" = unlist(analysis_layers)))
       }
-      tif_files <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-      if (length(tif_files) == 0) {
-        shiny::showNotification("No .tif files found.", type = "warning")
-        shiny::updateSelectInput(session, "raster_file", choices = character(0))
-        return()
-      }
-      shiny::updateSelectInput(session, "raster_file", choices = tif_files)
-      shiny::showNotification(sprintf("Found %d raster file(s).", length(tif_files)), type = "message")
+      tif_files
+    })
+
+    shiny::observe({
+      choices <- raster_choices()
+      current <- input$raster_file
+      shiny::updateSelectInput(session, "raster_file", choices = choices, selected = current)
+    })
+
+    shiny::observeEvent(input$scan_rasters, {
+      shiny::showNotification("Raster list updated from folder and analysis layers.", type = "message")
     })
 
     # ── Load Raster ────────────────────────────────────────────────────────
     shiny::observeEvent(input$raster_file, {
       shiny::req(input$raster_file)
-      full_path <- file.path(global_folder(), input$raster_file)
-      if (!file.exists(full_path)) {
-        shiny::showNotification("File not found.", type = "error")
+      
+      r <- NULL
+      if (input$raster_file == "__analysis_crop_mask__") {
+        r <- an_crop_mask_rast()
+      } else if (input$raster_file == "__analysis_season_start__") {
+        r <- an_start_rast()
+      } else if (input$raster_file == "__analysis_season_end__") {
+        r <- an_end_rast()
+      } else {
+        full_path <- file.path(global_folder(), input$raster_file)
+        if (!file.exists(full_path)) {
+          shiny::showNotification("File not found.", type = "error")
+          loaded_raster(NULL)
+          return()
+        }
+        r <- tryCatch(terra::rast(full_path), error = function(e) NULL)
+      }
+
+      if (is.null(r)) {
+        shiny::showNotification("Could not load selected raster.", type = "error")
         loaded_raster(NULL)
         return()
       }
+
       tryCatch({
-        r <- terra::rast(full_path)
         loaded_raster(r)
         n <- terra::nlyr(r)
         band_names <- names(r)
@@ -152,13 +179,21 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           selected = 1
         )
         
-        # Zoom to raster extent immediately after loading
+        # Zoom to raster extent with a slight delay to ensure map readiness
         ext <- terra::ext(r)
-        leaflet::leafletProxy("analysis_map", session = session) |>
-          leaflet::fitBounds(lng1 = ext$xmin, lat1 = ext$ymin, lng2 = ext$xmax, lat2 = ext$ymax)
+        if (!is.na(terra::crs(r)) && !terra::is.lonlat(r)) {
+          e_pts <- terra::as.points(ext, crs = terra::crs(r))
+          e_wgs84 <- terra::project(e_pts, "EPSG:4326")
+          ext <- terra::ext(e_wgs84)
+        }
+        
+        shinyjs::runjs(sprintf("setTimeout(function() { 
+          var map = HTMLWidgets.find('#%s').getMap();
+          map.fitBounds([[%f, %f], [%f, %f]]);
+        }, 300);", session$ns("analysis_map"), ext$ymin, ext$xmin, ext$ymax, ext$xmax))
           
       }, error = function(e) {
-        shiny::showNotification(paste("Error loading raster:", e$message), type = "error")
+        shiny::showNotification(paste("Error processing raster:", e$message), type = "error")
         loaded_raster(NULL)
       })
     })
