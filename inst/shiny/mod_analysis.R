@@ -450,6 +450,24 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       tryCatch({
         r <- terra::rast(f$datapath)
         an_crop_mask_rast(r)
+        
+        # Auto-detect L3 region if an L3 variable is selected or potentially selected
+        aeti_v <- input$an_aeti_var
+        if (!is.null(aeti_v) && startsWith(aeti_v, "L3-")) {
+          shiny::withProgress(message = "Detecting Level 3 region...", value = 0.5, {
+            reg_info <- Rwapor::parse_region(f$datapath)
+            period <- as.character(input$an_period)
+            intersecting <- Rwapor::guess_l3_region(aeti_v, reg_info, period)
+            
+            if (length(intersecting) > 0) {
+              shiny::updateSelectInput(session, "an_l3_region", selected = intersecting[1])
+              shiny::showNotification(
+                sprintf("Automatically matched crop mask to L3 region: %s", intersecting[1]),
+                type = "message"
+              )
+            }
+          })
+        }
       }, error = function(e) shiny::showNotification(paste("Error loading crop mask:", e$message), type = "error"))
     })
 
@@ -1296,7 +1314,30 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           aeti_var <- input$an_aeti_var
           ret_var <- input$an_ret_var
           precip_var <- input$an_precip_var
+          
+          # Fix: If L3 variable is used but l3_region is missing, try to auto-guess from mask/AOI
           l3_code <- if (grepl("^L3-", aeti_var %||% "")) input$an_l3_region else NULL
+          
+          if (is.null(l3_code) && grepl("^L3-", aeti_var %||% "")) {
+             # Attempt to guess from current AOI or Mask if available
+             cand_reg <- reg
+             if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(input$an_crop_mask)) {
+                cand_reg <- input$an_crop_mask$datapath
+             }
+             
+             if (!is.null(cand_reg)) {
+                shiny::incProgress(0.02, detail = "Resolving L3 region from extent...")
+                guess <- tryCatch({
+                  reg_info_guess <- Rwapor::parse_region(cand_reg)
+                  Rwapor::guess_l3_region(aeti_var, reg_info_guess, period)
+                }, error = function(e) NULL)
+                
+                if (length(guess) > 0) {
+                  l3_code <- guess[1]
+                  message("Auto-resolved L3 region for streaming: ", l3_code)
+                }
+             }
+          }
 
           # Determine data source mode
           use_local <- isTRUE(input$an_data_source == "local")
@@ -1316,13 +1357,20 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           final_reg <- reg
           if (is.null(final_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
              cm_rast <- an_crop_mask_rast()
-             cm_ext <- terra::ext(cm_rast)
-             # Convert extent to WGS84 bbox
-             cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
-             cm_poly_4326 <- Rwapor:::safe_project(cm_poly, "EPSG:4326")
-             cm_ext_4326 <- terra::ext(cm_poly_4326)
-             final_reg <- c(cm_ext_4326$xmin, cm_ext_4326$ymin, cm_ext_4326$xmax, cm_ext_4326$ymax)
-             shiny::showNotification("Using crop mask extent as analysis bounding box.", type = "message")
+             cm_ext <- tryCatch(terra::ext(cm_rast), error = function(e) NULL)
+             
+             if (!is.null(cm_ext)) {
+               # Convert extent to WGS84 bbox
+               cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+               cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
+               cm_ext_4326 <- tryCatch(terra::ext(cm_poly_4326), error = function(e) NULL)
+               
+               if (!is.null(cm_ext_4326)) {
+                 final_reg <- c(as.numeric(cm_ext_4326$xmin), as.numeric(cm_ext_4326$ymin), 
+                               as.numeric(cm_ext_4326$xmax), as.numeric(cm_ext_4326$ymax))
+                 shiny::showNotification("Using crop mask extent as analysis bounding box.", type = "message")
+               }
+             }
           }
 
           if (use_local) {
@@ -1338,7 +1386,16 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           } else {
             ref_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
             if (length(ref_urls) == 0) stop("No AETI data found for the specified period.")
-            template_r <- terra::rast(paste0("/vsicurl/", ref_urls[1]))
+            
+            # Safely load template
+            template_r <- tryCatch({
+              r <- terra::rast(paste0("/vsicurl/", ref_urls[1]))
+              if (terra::nlyr(r) == 0) stop("Fetched template raster has no layers.")
+              r
+            }, error = function(e) {
+              stop(sprintf("Failed to load reference AETI raster from WaPOR: %s. Check your internet connection or L3 region selection.", e$message))
+            })
+
             if (!is.null(final_reg)) {
               reg_info <- Rwapor::parse_region(final_reg)
               template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)

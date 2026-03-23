@@ -13,6 +13,7 @@ wapor_map(
   separate_files = FALSE,
   unit_conversion = NULL,
   seasonal = FALSE,
+  mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
   batch_size = 12L
@@ -52,6 +53,11 @@ Default is NULL, which dynamically sets the default based on variable type:
 \item{seasonal}{Logical. If \code{TRUE}, downloads and aggregates data for the
 entire period into a single seasonal raster (sum/mean).
 Default is \code{FALSE}.}
+
+\item{mask}{Logical. If \code{TRUE} and \code{region} is a vector file or polygon,
+the output raster is masked to the polygon boundary (pixels outside set to NA).
+If \code{FALSE} (default), only a rectangular crop to the bounding box is applied.
+Ignored for bounding box and L3 code regions.}
 
 \item{parallel}{Logical. If \code{TRUE}, attempts to use \code{future.apply} for parallel processing.
 Default is \code{FALSE}.}

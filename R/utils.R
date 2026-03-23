@@ -57,21 +57,57 @@ parse_region <- function(region) {
     if (nchar(region) == 3 && toupper(region) == region && grepl("^[A-Z]{3}$", region)) {
       return(list(type = "l3_code", value = region))
     } else if (file.exists(region)) {
-      # Vector file
-      vect <- tryCatch({
-        sf::st_read(region, quiet = TRUE)
-      }, error = function(e) {
-        stop(
-          sprintf("Failed to read vector file '%s': %s", region, e$message),
-          call. = FALSE
-        )
-      })
+      # Check if it's a raster or vector
+      is_raster <- grepl("\\.(tif|tiff|grd|nc)$", region, ignore.case = TRUE)
+      
+      if (is_raster) {
+        # Raster file - extract extent
+        r <- tryCatch({
+          terra::rast(region)
+        }, error = function(e) stop(sprintf("Failed to read raster file '%s': %s", region, e$message), call. = FALSE))
+        
+        # Get WGS84 bbox
+        r_ext <- terra::ext(r)
+        r_crs <- terra::crs(r)
+        
+        if (!nzchar(r_crs)) {
+           # Fallback for missing CRS: assume geographic if values look correct
+           if (r_ext$xmin >= -180 && r_ext$xmax <= 180 && r_ext$ymin >= -90 && r_ext$ymax <= 90) {
+             r_crs <- "EPSG:4326"
+           } else {
+             stop(sprintf("Raster file '%s' has no CRS and coordinates don't look geographic.", region), call. = FALSE)
+           }
+        }
+        
+        p <- terra::as.polygons(r_ext, crs = r_crs)
+        p4326 <- safe_project(p, 4326)
+        ext_4326 <- terra::ext(p4326)
+        
+        # Simple named numeric vector returned as bbox
+        bb <- sf::st_bbox(c(xmin = as.numeric(ext_4326$xmin), 
+                           ymin = as.numeric(ext_4326$ymin), 
+                           xmax = as.numeric(ext_4326$xmax), 
+                           ymax = as.numeric(ext_4326$ymax)), crs = 4326)
+        
+        return(list(type = "bbox", value = bb))
+        
+      } else {
+        # Assume Vector file
+        vect <- tryCatch({
+          sf::st_read(region, quiet = TRUE)
+        }, error = function(e) {
+          stop(
+            sprintf("Failed to read vector file '%s': %s", region, e$message),
+            call. = FALSE
+          )
+        })
 
-      if (nrow(vect) == 0) {
-        stop(sprintf("Vector file '%s' contains no features", region), call. = FALSE)
+        if (nrow(vect) == 0) {
+          stop(sprintf("Vector file '%s' contains no features", region), call. = FALSE)
+        }
+
+        return(list(type = "vector", value = vect))
       }
-
-      return(list(type = "vector", value = vect))
     } else {
       stop(
         sprintf("Region '%s' is neither a valid file path nor a 3-letter L3 code", region),
@@ -328,8 +364,8 @@ get_date_info <- function(url, tres) {
 #' @param x SpatVector or SpatRaster
 #' @param y target CRS
 #' @return SpatVector or SpatRaster
+#' @export
 #' @keywords internal
-#' @noRd
 safe_project <- function(x, y) {
   y_crs <- y
   if (is.character(y) && grepl("ID\\[\"EPSG\"", y)) {
@@ -411,8 +447,8 @@ save_l3_extent_cache <- function(cache) {
 #' @param code Character. 3-letter L3 region code used as cache key.
 #' @return A SpatVector polygon in EPSG:4326, or NULL on failure.
 #' @importFrom terra rast ext as.polygons crs
+#' @export
 #' @keywords internal
-#' @noRd
 get_l3_raster_extent <- function(url, code) {
   # Check persistent cache first
   cache <- load_l3_extent_cache()
@@ -424,10 +460,14 @@ get_l3_raster_extent <- function(url, code) {
 
   # Fetch from remote
   vsi_url <- paste0("/vsicurl/", url)
-  r <- tryCatch(suppressWarnings(terra::rast(vsi_url)), error = function(e) NULL)
-  if (is.null(r)) return(NULL)
+  r <- tryCatch({
+    suppressWarnings(terra::rast(vsi_url))
+  }, error = function(e) NULL)
+  
+  if (is.null(r) || terra::nlyr(r) == 0) return(NULL)
 
-  r_ext <- terra::ext(r)
+  r_ext <- tryCatch(terra::ext(r), error = function(e) NULL)
+  if (is.null(r_ext)) return(NULL)
   r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
   r_poly_4326 <- safe_project(r_poly, 4326)
 
@@ -447,8 +487,8 @@ get_l3_raster_extent <- function(url, code) {
 #' @param period Date period vector
 #' @return Character vector of intersecting L3 regions, or NULL
 #' @importFrom terra rast ext as.polygons is.related crs project vect
+#' @export
 #' @keywords internal
-#' @noRd
 guess_l3_region <- function(variable, reg_info, period) {
   # Temporarily suppress the warning from wapor_generate_urls
   urls <- suppressWarnings(wapor_generate_urls(variable, period = c(period[1], period[1])))
@@ -477,18 +517,19 @@ guess_l3_region <- function(variable, reg_info, period) {
 
   if (length(unique_urls) == 0) return(NULL)
 
-  message("Scanning L3 regions for spatial intersection...")
-
   # Build the user region polygon once (outside the loop)
   user_poly <- NULL
-  if (reg_info$type == "vector") {
+  if (is.null(reg_info)) {
+     # No region info provided
+  } else if (reg_info$type == "vector") {
     v <- suppressWarnings(terra::vect(reg_info$value))
     v_ext <- terra::ext(v)
     v_bb_poly <- terra::as.polygons(v_ext, crs = terra::crs(v))
     user_poly <- safe_project(v_bb_poly, 4326)
   } else if (reg_info$type == "bbox") {
     bbox <- reg_info$value
-    bb_ext <- terra::ext(bbox[c("xmin", "xmax", "ymin", "ymax")])
+    # Ensure correct order for terra::ext
+    bb_ext <- terra::ext(as.numeric(bbox[c("xmin", "xmax", "ymin", "ymax")]))
     user_poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
   }
 
@@ -498,7 +539,7 @@ guess_l3_region <- function(variable, reg_info, period) {
     code <- extracted_codes[i]
 
     # Use persistent disk cache for L3 extents
-    r_poly_4326 <- get_l3_raster_extent(unique_urls[i], code)
+    r_poly_4326 <- tryCatch(get_l3_raster_extent(unique_urls[i], code), error = function(e) NULL)
     if (is.null(r_poly_4326)) next
 
     if (!is.null(user_poly) &&
@@ -527,7 +568,7 @@ guess_l3_region <- function(variable, reg_info, period) {
 #' @param do_mask Logical. If TRUE, also mask to vector geometry (not just crop).
 #' @return Cropped (and optionally masked) SpatRaster.
 #' @keywords internal
-#' @noRd
+#' @export
 crop_to_region <- function(r, reg_info, do_mask = FALSE) {
   r_crs <- terra::crs(r)
   
