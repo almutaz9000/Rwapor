@@ -897,6 +897,39 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       })
     })
 
+    # Validate spatial overlap between crop mask and season rasters
+    shiny::observe({
+      cm <- an_crop_mask_rast()
+      ss <- an_start_rast()
+      se <- an_end_rast()
+
+      # Only validate when we have both crop mask and at least one season raster
+      if (is.null(cm) || (is.null(ss) && is.null(se))) return()
+
+      tryCatch({
+        cm_ext <- terra::ext(cm)
+        check_rast <- ss %||% se
+
+        if (!is.null(check_rast)) {
+          check_ext <- terra::ext(check_rast)
+
+          # Check for overlap
+          has_overlap <- !(cm_ext$xmax <= check_ext$xmin || cm_ext$xmin >= check_ext$xmax ||
+                          cm_ext$ymax <= check_ext$ymin || cm_ext$ymin >= check_ext$ymax)
+
+          if (!has_overlap) {
+            shiny::showNotification(
+              "Warning: Crop mask and season rasters don't appear to overlap spatially. Please ensure all input rasters cover the same geographic area.",
+              type = "warning",
+              duration = 10
+            )
+          }
+        }
+      }, error = function(e) {
+        # Silently ignore validation errors
+      })
+    })
+
     # Handle optional crop mask defaults and state transitions
     shiny::observe({
       use_mask <- isTRUE(input$an_use_crop_mask)
@@ -1517,6 +1550,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                            aeti_var,
                            if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
             }
+            # Harmonize AETI stack to template to ensure exact extent/resolution alignment
+            shiny::incProgress(0.02, detail = "Harmonizing AETI to template...")
+            aeti_stack <- Rwapor::rwapor_harmonize_to_template(aeti_stack, template_r, method = "bilinear")
           }
 
           if (need_ret_stack) {

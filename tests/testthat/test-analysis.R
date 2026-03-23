@@ -146,10 +146,56 @@ test_that("season raster harmonization validates overlap", {
                      ymin = 0, ymax = 10, vals = 1L)
   r2 <- terra::rast(nrows = 10, ncols = 10, xmin = 100, xmax = 110,
                      ymin = 100, ymax = 110, vals = 1L)
-  # Harmonizing should produce all-NA result since extents don't overlap
-  # but resample fills from the template grid
-  result <- rwapor_harmonize_to_template(r1, r2, method = "near")
+  # Harmonizing should error because extents don't overlap
+  expect_error(rwapor_harmonize_to_template(r1, r2, method = "near"),
+               "No spatial overlap")
+})
+
+test_that("harmonization works with overlapping but different extents", {
+  skip_if_not_installed("terra")
+  # Create source raster larger than template
+  r_source <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 20,
+                           ymin = 0, ymax = 20, vals = seq_len(400))
+  # Template is smaller but overlaps
+  r_template <- terra::rast(nrows = 10, ncols = 10, xmin = 5, xmax = 15,
+                             ymin = 5, ymax = 15, vals = 1L)
+
+  # Harmonization should succeed
+  result <- rwapor_harmonize_to_template(r_source, r_template, method = "bilinear")
+
   expect_true(inherits(result, "SpatRaster"))
+  expect_equal(dim(result)[1:2], dim(r_template)[1:2])
+  expect_true(all(!is.na(terra::values(result))))
+})
+
+test_that("harmonization works for multi-layer stacks (regression test for extent mismatch)", {
+  skip_if_not_installed("terra")
+  # Simulate the scenario: data stack with slightly different extent than template
+  # This is the regression test for the bug where aeti_stack wasn't harmonized
+
+  # Create template (cropped to specific extent)
+  template <- terra::rast(nrows = 10, ncols = 10, xmin = 30, xmax = 35,
+                           ymin = 10, ymax = 15, vals = 1)
+
+  # Create multi-layer stack with larger extent (like full raster from WaPOR)
+  stack <- terra::rast(nrows = 100, ncols = 100, xmin = 25, xmax = 50,
+                        ymin = 5, ymax = 30, nlyrs = 5, vals = runif(50000))
+  names(stack) <- paste0("2023-01-0", 1:5)
+
+  # Create season weights from template extent
+  weights <- terra::rast(nrows = 10, ncols = 10, xmin = 30, xmax = 35,
+                          ymin = 10, ymax = 15, nlyrs = 5, vals = 0.5)
+  names(weights) <- names(stack)
+
+  # Without harmonization, this operation would fail with extent mismatch
+  harmonized_stack <- rwapor_harmonize_to_template(stack, template, method = "bilinear")
+
+  # Now the multiplication should work
+  result <- harmonized_stack * weights
+
+  expect_true(inherits(result, "SpatRaster"))
+  expect_equal(terra::nlyr(result), 5)
+  expect_true(all(dim(result)[1:2] == dim(template)[1:2]))
 })
 
 test_that("total days and ldev computation works", {

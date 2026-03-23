@@ -148,7 +148,14 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
     return(character(0))
   }
 
-  return(sort(unlist(urls)))
+  urls <- unlist(urls)
+
+  # Filter by L3 region if specified (ensures strict matching)
+  if (!is.null(l3_region) && level == "L3") {
+    urls <- grep(paste0("\\.", l3_region, "\\."), urls, value = TRUE)
+  }
+
+  return(sort(as.character(urls)))
 }
 
 #' @title Generate URLs for WaPOR/AgERA5 Resources
