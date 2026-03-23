@@ -79,6 +79,11 @@ rwapor_harmonize_to_template <- function(x, template, method = "near") {
     stop("'template' must be a SpatRaster", call. = FALSE)
   }
 
+  # Short-circuit if geometries already match
+  if (compare_geom(x, template)) {
+    return(x)
+  }
+
   # Reproject if CRS differs
   x_crs <- terra::crs(x)
   t_crs <- terra::crs(template)
@@ -87,6 +92,11 @@ rwapor_harmonize_to_template <- function(x, template, method = "near") {
   }
 
   # Resample to match template grid
+  # Double-check if projection already aligned it perfectly
+  if (compare_geom(x, template)) {
+    return(x)
+  }
+
   x <- terra::resample(x, template, method = method)
   x
 }
@@ -360,16 +370,23 @@ rwapor_build_season_weights_dekad <- function(start_date, end_date,
                                               reference_year) {
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
+  # Analytical overlap calculation:
+  # Overlap = max(0, min(dekad_end, season_end) - max(dekad_start, season_start) + 1)
   weight_layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
     d <- dekad_tbl[i, ]
-    # Generate all dates in this dekad
-    all_dates <- seq.Date(d$dekad_start, d$dekad_end, by = "day")
-    # Build daily mask and average to get fraction
-    daily_mask <- rwapor_build_season_mask_daily(
-      all_dates, start_raster, end_raster, reference_year
-    )
-    # Mean across days gives the fraction of active days
-    terra::app(daily_mask, fun = "mean", na.rm = TRUE)
+    
+    # Convert dekad boundaries to continuous Julian days
+    d_start_jd <- rwapor_continuous_julian(d$dekad_start, reference_year)
+    d_end_jd   <- rwapor_continuous_julian(d$dekad_end, reference_year)
+    
+    # Calculate overlap using terra::clamp (robust for SpatRaster/scalar)
+    o_start <- terra::clamp(start_raster, lower = d_start_jd)
+    o_end   <- terra::clamp(end_raster,   upper = d_end_jd)
+    
+    overlap_days <- terra::clamp(o_end - o_start + 1, lower = 0)
+    
+    # Weight is fraction of dekad days
+    overlap_days / d$n_days
   })
 
   weights <- terra::rast(weight_layers)
@@ -661,6 +678,30 @@ rwapor_scan_local_variables <- function(folder) {
   }
 
   do.call(rbind, results)
+}
+
+#' Check if two SpatRasters have identical geometry
+#'
+#' Internal helper to short-circuit harmonization if rasters already match.
+#'
+#' @param r1 SpatRaster 1
+#' @param r2 SpatRaster 2
+#' @return Logical
+#' @keywords internal
+#' @noRd
+compare_geom <- function(r1, r2) {
+  if (is.null(r1) || is.null(r2)) return(FALSE)
+  # terra::compareGeom is fast and checks crs, ext, res, rowcol
+  tryCatch(
+    terra::compareGeom(r1, r2, stopOnError = FALSE, crs = TRUE, res = TRUE, ext = TRUE, rowcol = TRUE),
+    error = function(e) FALSE
+  )
+}
+
+#' Exported Geometry Comparison
+#' @export
+rwapor_compare_geom <- function(r1, r2) {
+  compare_geom(r1, r2)
 }
 
 #' Get Local Raster Paths for a Variable and Date Range

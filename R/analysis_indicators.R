@@ -8,14 +8,26 @@
 #'
 #' @param x SpatRaster. Multi-layer raster (e.g., dekadal AETI or RET).
 #' @param weights SpatRaster. Season weights (0-1), same number of layers as x.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Recommended for very long seasons or low RAM. Default FALSE.
 #' @return A single-layer SpatRaster of weighted sums.
 #' @export
-rwapor_apply_masked_sum <- function(x, weights) {
+rwapor_apply_masked_sum <- function(x, weights, incremental = FALSE) {
   if (terra::nlyr(x) != terra::nlyr(weights)) {
     stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
                  terra::nlyr(x), terra::nlyr(weights)), call. = FALSE)
   }
-  # Multiply each layer by its weight and sum
+
+  if (incremental) {
+    total <- NULL
+    for (i in seq_len(terra::nlyr(x))) {
+      current <- x[[i]] * weights[[i]]
+      if (is.null(total)) total <- current else total <- total + current
+    }
+    return(total)
+  }
+
+  # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
   weighted <- x * weights
   terra::app(weighted, fun = "sum", na.rm = TRUE)
 }
@@ -28,6 +40,7 @@ rwapor_apply_masked_sum <- function(x, weights) {
 #' @param aeti_dekad SpatRaster. Dekadal AETI layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param crop_mask SpatRaster. Optional crop mask for per-class summaries.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A list with:
 #'   \describe{
 #'     \item{raster}{SpatRaster of seasonal AETI per pixel}
@@ -35,8 +48,8 @@ rwapor_apply_masked_sum <- function(x, weights) {
 #'   }
 #' @export
 rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
-                                             crop_mask = NULL) {
-  seasonal_aeti <- rwapor_apply_masked_sum(aeti_dekad, season_weights)
+                                             crop_mask = NULL, incremental = FALSE) {
+  seasonal_aeti <- rwapor_apply_masked_sum(aeti_dekad, season_weights, incremental = incremental)
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
@@ -55,11 +68,12 @@ rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param crop_mask SpatRaster. Optional crop mask for per-class summaries.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A list with raster and by_class components (same as AETI version).
 #' @export
 rwapor_calc_seasonal_ret_masked <- function(ret_dekad, season_weights,
-                                            crop_mask = NULL) {
-  seasonal_ret <- rwapor_apply_masked_sum(ret_dekad, season_weights)
+                                            crop_mask = NULL, incremental = FALSE) {
+  seasonal_ret <- rwapor_apply_masked_sum(ret_dekad, season_weights, incremental = incremental)
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
@@ -85,26 +99,45 @@ rwapor_calc_seasonal_ret_masked <- function(ret_dekad, season_weights,
 #'   If a numeric vector, each value is applied uniformly to the
 #'   corresponding layer.
 #' @return A SpatRaster of dekadal ETc.
-#' @export
 rwapor_calc_etc_dekad <- function(ret_dekad, kc_dekad) {
-  if (is.numeric(kc_dekad)) {
-    if (length(kc_dekad) != terra::nlyr(ret_dekad)) {
-      stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
-                   length(kc_dekad), terra::nlyr(ret_dekad)), call. = FALSE)
-    }
-    # Multiply each layer by corresponding scalar Kc
-    layers <- lapply(seq_len(terra::nlyr(ret_dekad)), function(i) {
-      ret_dekad[[i]] * kc_dekad[i]
-    })
-    return(terra::rast(layers))
+  ret_dekad * kc_dekad
+}
+
+#' Compute Seasonal ETc Incrementally
+#'
+#' Avoids building a full multi-layer ETc stack by accumulating
+#' RET * season_weight * kc layer-by-layer. This is significantly more
+#' memory-efficient for long seasons.
+#'
+#' @param ret_dekad SpatRaster. Dekadal RET layers.
+#' @param season_weights SpatRaster. Dekadal season weights (0-1).
+#' @param kc_dekad Numeric vector. Dekadal Kc values.
+#' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
+#' @export
+rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_dekad) {
+  n_layers <- terra::nlyr(ret_dekad)
+  if (length(kc_dekad) != n_layers) {
+    stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
+                 length(kc_dekad), n_layers), call. = FALSE)
+  }
+  if (terra::nlyr(season_weights) != n_layers) {
+    stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
+                 terra::nlyr(season_weights), n_layers), call. = FALSE)
   }
 
-  # Both are SpatRaster
-  if (terra::nlyr(ret_dekad) != terra::nlyr(kc_dekad)) {
-    stop("ret_dekad and kc_dekad must have the same number of layers",
-         call. = FALSE)
+  total <- NULL
+  for (i in seq_len(n_layers)) {
+    # Accumulate: term = RET_i * (weight_i * Kc_i)
+    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
+    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i])
+    
+    if (is.null(total)) {
+      total <- term
+    } else {
+      total <- total + term
+    }
   }
-  ret_dekad * kc_dekad
+  total
 }
 
 
@@ -142,31 +175,32 @@ rwapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 rwapor_calc_class_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  classes <- terra::freq(crop_mask)
-  classes <- classes[!is.na(classes$value), , drop = FALSE]
-
+  # Fast grouped quantile calculation using terra::zonal
+  # Note: zonal only works with functions that return a single value
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
+    if (length(x) < min_pixels) return(NA_real_)
+    stats::quantile(x, 0.95, na.rm = TRUE)
+  })
+  
+  # Get counts for validity check
+  count_vals <- terra::freq(crop_mask)
+  
+  # Merge results
   result <- data.frame(
-    class_value = as.integer(classes$value),
-    p95_aeti    = NA_real_,
-    n_pixels    = as.integer(classes$count),
-    valid       = FALSE,
+    class_value = as.integer(p95_vals[[1]]),
+    p95_aeti    = as.numeric(p95_vals[[2]]),
     stringsAsFactors = FALSE
   )
-
-  for (i in seq_len(nrow(result))) {
-    cls <- result$class_value[i]
-    if (result$n_pixels[i] < min_pixels) next
-
-    # Extract AETI values for this class
-    mask_i <- terra::ifel(crop_mask == cls, 1L, NA)
-    aeti_masked <- aeti_seasonal * mask_i
-    vals <- terra::values(aeti_masked, na.rm = TRUE)
-    if (length(vals) >= min_pixels) {
-      result$p95_aeti[i] <- as.numeric(stats::quantile(vals, 0.95, na.rm = TRUE))
-      result$valid[i] <- TRUE
-    }
-  }
-  result
+  
+  # Add counts and valid flag
+  result <- merge(result, count_vals[, c("value", "count")], 
+                  by.x = "class_value", by.y = "value", all.x = TRUE)
+  names(result)[names(result) == "count"] <- "n_pixels"
+  
+  result$n_pixels <- as.integer(result$n_pixels)
+  result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
+  
+  result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
 
 #' Compute P95-Based Adequacy
