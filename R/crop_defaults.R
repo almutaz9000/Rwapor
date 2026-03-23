@@ -34,6 +34,10 @@ FAO_CROP_DEFAULTS <- data.frame(
   L_late_days  = c(30L,             30L,             50L),
 
   max_height_m = c(1.0,             1.5,             0.5),
+  HI           = c(0.45,            0.40,            0.80),
+  MC           = c(0.12,            0.11,            0.15),
+  fc           = c(1.0,             1.0,             1.0),
+  AOT          = c(0.8,             0.8,             0.8),
   notes        = c("FAO-56 Table 12, non-frozen soils",
                     "FAO-56 Table 12, grain sorghum",
                     "FAO-56 Table 12"),

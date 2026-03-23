@@ -179,10 +179,11 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 "AETI  (Actual ET)",
                 "RET   (Reference ET)",
                 "PCP   (Precipitation)",
-                "Peff  (Effective Precip, USDA)"
+                "Peff  (Effective Precip, USDA)",
+                "Biomass (Total Production)"
               ),
-              choiceValues = list("agg_aeti", "agg_ret", "agg_pcp", "agg_peff"),
-              selected = c("agg_aeti", "agg_ret")
+              choiceValues = list("agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "agg_biomass"),
+              selected = c("agg_aeti", "agg_ret", "agg_biomass")
             ),
             shiny::hr(style = "margin:4px 0;"),
             shiny::tags$p(
@@ -196,23 +197,25 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 "ETc  (RET x Kc)",
                 "Adequacy - ETc",
                 "Adequacy - P95",
-                "CWP / BWP"
+                "CWP / BWP",
+                "Yield (NPP-based)"
               ),
-              choiceValues = list("etc", "adequacy_etc", "adequacy_p95", "cwp_bwp"),
-              selected = c("etc", "adequacy_etc")
+              choiceValues = list("etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp"),
+              selected = c("etc", "adequacy_etc", "yield_npp")
             ),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && input['%s'].indexOf('cwp_bwp') > -1", ns("an_derived_vars"), ns("an_derived_vars")),
+              condition = sprintf("input['%s'] && (input['%s'].indexOf('cwp_bwp') > -1 || input['%s'].indexOf('agg_biomass') > -1 || input['%s'].indexOf('yield_npp') > -1)", 
+                                  ns("an_derived_vars"), ns("an_derived_vars"), ns("an_agg_vars"), ns("an_derived_vars")),
               shiny::fluidRow(
                 shiny::column(
                   6,
-                  shiny::fileInput(ns("an_yield_file"), "Yield Raster", accept = c(".tif", ".tiff")),
-                  shiny::selectInput(ns("an_yield_unit"), "Unit", choices = c("kg/ha", "t/ha"), selected = "kg/ha")
+                  shiny::fileInput(ns("an_yield_file"), "Optional Yield Raster", accept = c(".tif", ".tiff")),
+                  shiny::selectInput(ns("an_yield_unit"), "Yield Unit", choices = c("kg/ha", "t/ha"), selected = "t/ha")
                 ),
                 shiny::column(
                   6,
-                  shiny::fileInput(ns("an_biomass_file"), "Biomass Raster", accept = c(".tif", ".tiff")),
-                  shiny::selectInput(ns("an_biomass_unit"), "Unit", choices = c("kg/ha", "t/ha"), selected = "kg/ha")
+                  shiny::fileInput(ns("an_biomass_file"), "Optional Biomass Raster", accept = c(".tif", ".tiff")),
+                  shiny::selectInput(ns("an_biomass_unit"), "Biomass Unit", choices = c("kg/ha", "t/ha"), selected = "t/ha")
                 )
               )
             )
@@ -279,109 +282,115 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
     ),
     bslib::layout_column_wrap(
       width = 1,
+      gap = "1rem",
       bslib::card(
-        bslib::card_header("Season Summary"),
-        bslib::card_body(class = "compact", shiny::verbatimTextOutput(ns("an_season_summary")))
-      ),
-      bslib::navset_card_tab(
-        title = "Crop Data",
-        bslib::nav_panel("Crop Mask Preview", shiny::plotOutput(ns("an_crop_mask_plot"), height = "300px")),
-        bslib::nav_panel("Season Rasters", shiny::verbatimTextOutput(ns("an_season_raster_info"))),
-        bslib::nav_panel("Crop Class Table", shiny::tableOutput(ns("an_crop_class_table")))
-      ),
-      bslib::card(
-        bslib::card_header("Kc Curves by Class"),
-        bslib::card_body(shiny::plotOutput(ns("an_kc_plot"), height = "300px"))
-      ),
-      bslib::card(
-        bslib::card_header("Analysis Results Summary"),
+        full_screen = TRUE,
+        bslib::card_header(
+          shiny::icon("circle-info"), " Season & Data Summary"
+        ),
         bslib::card_body(
+          padding = 0,
           bslib::layout_column_wrap(
-            width = "250px",
-            bslib::value_box(
-              title = "Mean Seasonal AETI",
-              value = shiny::textOutput(ns("vbox_aeti")),
-              showcase = shiny::icon("tint"),
-              theme = "primary"
+            width = "300px",
+            fixed_height = TRUE,
+            shiny::div(
+              style = "padding: 0.5rem; font-size: 0.85rem; border-right: 1px solid #eee;",
+              shiny::verbatimTextOutput(ns("an_season_summary"))
             ),
-            bslib::value_box(
-              title = "Mean Seasonal ETc",
-              value = shiny::textOutput(ns("vbox_etc")),
-              showcase = shiny::icon("sun"),
-              theme = "info"
-            ),
-            bslib::value_box(
-              title = "Water Adequacy",
-              value = shiny::textOutput(ns("vbox_adequacy")),
-              showcase = shiny::icon("percentage"),
-              theme = "success"
-            ),
-            bslib::value_box(
-              title = "Seasonal Biomass",
-              value = shiny::textOutput(ns("vbox_biomass")),
-              showcase = shiny::icon("leaf"),
-              theme = "warning"
+            shiny::div(
+              style = "padding: 0.5rem;",
+              bslib::layout_column_wrap(
+                width = "180px",
+                fill = FALSE,
+                bslib::value_box(
+                  title = "AETI",
+                  value = shiny::textOutput(ns("vbox_aeti")),
+                  showcase = shiny::icon("droplet", class = "text-primary"),
+                  theme = "light",
+                  class = "border-primary py-1"
+                ),
+                bslib::value_box(
+                  title = "ETc",
+                  value = shiny::textOutput(ns("vbox_etc")),
+                  showcase = shiny::icon("sun", class = "text-info"),
+                  theme = "light",
+                  class = "border-info py-1"
+                ),
+                bslib::value_box(
+                  title = "Adequacy",
+                  value = shiny::textOutput(ns("vbox_adequacy")),
+                  showcase = shiny::icon("percent", class = "text-success"),
+                  theme = "light",
+                  class = "border-success py-1"
+                ),
+                bslib::value_box(
+                  title = "Biomass",
+                  value = shiny::textOutput(ns("vbox_biomass")),
+                  showcase = shiny::icon("leaf", class = "text-warning"),
+                  theme = "light",
+                  class = "border-warning py-1"
+                )
+              )
             )
           )
         )
       ),
+      bslib::layout_column_wrap(
+        width = "400px",
+        bslib::navset_card_tab(
+          title = "Spatial Data",
+          bslib::nav_panel("Crop Mask", shiny::plotOutput(ns("an_crop_mask_plot"), height = "300px")),
+          bslib::nav_panel("Season", shiny::verbatimTextOutput(ns("an_season_raster_info"))),
+          bslib::nav_panel("Classes", shiny::tableOutput(ns("an_crop_class_table")))
+        ),
+        bslib::card(
+          bslib::card_header(shiny::icon("chart-area"), " Kc Curves by Class"),
+          bslib::card_body(
+            padding = 1,
+            shiny::plotOutput(ns("an_kc_plot"), height = "300px")
+          )
+        )
+      ),
       bslib::navset_card_tab(
-        title = "Detailed Tables",
-        bslib::nav_panel("ETc & AETI", shiny::tableOutput(ns("an_etc_aeti_table"))),
+        title = "Detailed Analysis Results",
+        bslib::nav_panel("Main Results", shiny::tableOutput(ns("an_etc_aeti_table"))),
         bslib::nav_panel("Adequacy", shiny::tableOutput(ns("an_adequacy_table"))),
-        bslib::nav_panel("Effective Precip", shiny::tableOutput(ns("an_peff_table"))),
-        bslib::nav_panel("CWP / BWP", shiny::tableOutput(ns("an_cwp_bwp_table")))
+        bslib::nav_panel("Eff. Precip", shiny::tableOutput(ns("an_peff_table"))),
+        bslib::nav_panel("CWP/BWP", shiny::tableOutput(ns("an_cwp_bwp_table")))
       ),
       bslib::card(
-        bslib::card_header("Export"),
+        bslib::card_header(shiny::icon("download"), " Export & Reproducibility"),
         bslib::card_body(
           shiny::fluidRow(
             shiny::column(
               4,
-              shiny::downloadButton(
-                ns("an_dl_crop_params"),
-                "Crop Parameters CSV",
-                class = "btn-outline-primary w-100 btn-sm mb-1"
-              )
+              shiny::downloadButton(ns("an_dl_crop_params"), "Params CSV", class = "btn-outline-primary w-100 btn-sm")
             ),
             shiny::column(
               4,
-              shiny::downloadButton(
-                ns("an_dl_results"),
-                "Seasonal Results CSV",
-                class = "btn-outline-primary w-100 btn-sm mb-1"
-              )
+              shiny::downloadButton(ns("an_dl_results"), "Results CSV", class = "btn-outline-primary w-100 btn-sm")
             ),
             shiny::column(
               4,
-              shiny::downloadButton(
-                ns("an_dl_peff"),
-                "Monthly Peff CSV",
-                class = "btn-outline-primary w-100 btn-sm mb-1"
-              )
+              shiny::downloadButton(ns("an_dl_peff"), "Peff CSV", class = "btn-outline-primary w-100 btn-sm")
+            )
+          ),
+          shiny::hr(),
+          shiny::tags$button(
+            class = "btn btn-sm btn-outline-secondary w-100",
+            `data-bs-toggle` = "collapse",
+            `data-bs-target` = sprintf("#%s", ns("anCodePreviewCollapse")),
+            shiny::icon("code"), " Toggle R Code Preview"
+          ),
+          shiny::div(
+            id = ns("anCodePreviewCollapse"),
+            class = "collapse mt-2",
+            shinyAce::aceEditor(
+              ns("an_code_preview"),
+              mode = "r", theme = "monokai", readOnly = TRUE,
+              height = "200px", fontSize = 11
             )
           )
-        )
-      ),
-      shiny::tags$button(
-        class = "btn btn-sm btn-outline-secondary code-preview-toggle",
-        `data-bs-toggle` = "collapse",
-        `data-bs-target` = sprintf("#%s", ns("anCodePreviewCollapse")),
-        `aria-expanded` = "false",
-        shiny::icon("code"),
-        " R Code Preview"
-      ),
-      shiny::div(
-        id = ns("anCodePreviewCollapse"),
-        class = "collapse code-preview-body",
-        shinyAce::aceEditor(
-          ns("an_code_preview"),
-          mode = "r",
-          theme = "monokai",
-          readOnly = TRUE,
-          height = "300px",
-          fontSize = 12,
-          wordWrap = TRUE
         )
       )
     )
@@ -624,10 +633,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
     output$vbox_biomass <- shiny::renderText({
       res <- an_results()
-      if (is.null(res) || is.null(res$biomass)) return("--")
-      val <- terra::global(res$biomass, "mean", na.rm = TRUE)$mean
+      if (is.null(res) || (is.null(res$biomass) && is.null(res$seasonal_biomass))) return("--")
+      # Use seasonal_biomass if available (it's the raster), otherwise fallback to biomass component
+      bio_rast <- res$seasonal_biomass %||% res$biomass
+      val <- terra::global(bio_rast, "mean", na.rm = TRUE)$mean
       unit <- input$an_biomass_unit %||% "kg/ha"
-      sprintf("%.0f %s", val, unit)
+      if (unit == "t/ha") val <- val / 1000
+      sprintf("%.1f %s", val, unit)
     })
 
     current_region <- shiny::reactive(aoi_region())
@@ -914,35 +926,50 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         cls <- classes$class_value[i]
         prefix <- paste0("an_cls_", cls, "_")
         shiny::tagList(
-          shiny::tags$strong(
-            if (is.na(classes$pixel_count[i])) {
-              sprintf("Class %d (Default)", cls)
-            } else {
-              sprintf("Class %d (%d px, %.1f ha)", cls, classes$pixel_count[i], classes$area_ha[i])
-            }
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              6,
-              shiny::selectInput(ns(paste0(prefix, "profile")), "Profile", choices = crop_choices)
+          shiny::div(
+            class = "card p-2 mb-2 bg-light",
+            shiny::tags$div(
+              style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;",
+              shiny::tags$strong(
+                if (is.na(classes$pixel_count[i])) {
+                  sprintf("Class %d (Default)", cls)
+                } else {
+                  sprintf("Class %d (%d px, %.1f ha)", cls, classes$pixel_count[i], classes$area_ha[i])
+                }
+              )
             ),
-            shiny::column(
-              6,
-              shiny::textInput(ns(paste0(prefix, "label")), "Label", value = paste("Class", cls))
+            shiny::fluidRow(
+              shiny::column(
+                6,
+                shiny::selectInput(ns(paste0(prefix, "profile")), "Profile", choices = crop_choices, width = "100%")
+              ),
+              shiny::column(
+                6,
+                shiny::textInput(ns(paste0(prefix, "label")), "Label", value = paste("Class", cls), width = "100%")
+              )
+            ),
+            # FAO-56 Kc Parameters
+            shiny::tags$small(class = "text-primary d-block mb-1", "Kc & Stage Lengths"),
+            shiny::fluidRow(
+              shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_ini")), "Kc ini", value = 0.3, step = 0.05, width = "100%")),
+              shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_mid")), "Kc mid", value = 1.15, step = 0.05, width = "100%")),
+              shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_end")), "Kc end", value = 0.3, step = 0.05, width = "100%"))
+            ),
+            shiny::fluidRow(
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_ini")), "Ini(d)", value = 30, min = 0, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_mid")), "Mid(d)", value = 40, min = 0, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_late")), "End(d)", value = 30, min = 0, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "height")), "H(m)", value = 1.0, step = 0.1, width = "100%"))
+            ),
+            # Production Parameters (NEW)
+            shiny::tags$small(class = "text-success d-block mb-1 mt-1", "Production Parameters (Yield/Biomass)"),
+            shiny::fluidRow(
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "hi")), "HI", value = 0.45, min = 0, max = 1, step = 0.05, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "mc")), "MC", value = 0.12, min = 0, max = 1, step = 0.05, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "fc")), "fc", value = 1.0, min = 0, step = 0.1, width = "100%")),
+              shiny::column(3, shiny::numericInput(ns(paste0(prefix, "aot")), "AOT", value = 0.8, min = 0, max = 1, step = 0.05, width = "100%"))
             )
-          ),
-          shiny::fluidRow(
-            shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_ini")), "Kc ini", value = 0.3, step = 0.05)),
-            shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_mid")), "Kc mid", value = 1.15, step = 0.05)),
-            shiny::column(4, shiny::numericInput(ns(paste0(prefix, "kc_end")), "Kc end", value = 0.3, step = 0.05))
-          ),
-          shiny::fluidRow(
-            shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_ini")), "L ini (d)", value = 30, min = 0)),
-            shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_mid")), "L mid (d)", value = 40, min = 0)),
-            shiny::column(3, shiny::numericInput(ns(paste0(prefix, "l_late")), "L late (d)", value = 30, min = 0)),
-            shiny::column(3, shiny::numericInput(ns(paste0(prefix, "height")), "H (m)", value = 1.0, step = 0.1))
-          ),
-          shiny::hr()
+          )
         )
       }))
     })
@@ -970,6 +997,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                 shiny::updateNumericInput(session, paste0(prefix, "l_mid"), value = defaults$L_mid_days)
                 shiny::updateNumericInput(session, paste0(prefix, "l_late"), value = defaults$L_late_days)
                 shiny::updateNumericInput(session, paste0(prefix, "height"), value = defaults$max_height_m)
+                shiny::updateNumericInput(session, paste0(prefix, "hi"), value = defaults$HI)
+                shiny::updateNumericInput(session, paste0(prefix, "mc"), value = defaults$MC)
+                shiny::updateNumericInput(session, paste0(prefix, "fc"), value = defaults$fc)
+                shiny::updateNumericInput(session, paste0(prefix, "aot"), value = defaults$AOT)
               }
             }
           }, ignoreInit = TRUE)
@@ -984,18 +1015,22 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       rows <- lapply(seq_len(nrow(classes)), function(i) {
         cls <- classes$class_value[i]
         prefix <- paste0("an_cls_", cls, "_")
-        data.frame(
-          class_value = cls,
-          crop_label = null_default(input[[paste0(prefix, "label")]], paste("Class", cls)),
-          Kc_ini = null_default(input[[paste0(prefix, "kc_ini")]], 0.3),
-          Kc_mid = null_default(input[[paste0(prefix, "kc_mid")]], 1.15),
-          Kc_end = null_default(input[[paste0(prefix, "kc_end")]], 0.3),
-          L_ini_days = as.integer(null_default(input[[paste0(prefix, "l_ini")]], 30)),
-          L_mid_days = as.integer(null_default(input[[paste0(prefix, "l_mid")]], 40)),
-          L_late_days = as.integer(null_default(input[[paste0(prefix, "l_late")]], 30)),
-          max_height_m = null_default(input[[paste0(prefix, "height")]], 1.0),
-          stringsAsFactors = FALSE
-        )
+          data.frame(
+            class_value = cls,
+            crop_label = null_default(input[[paste0(prefix, "label")]], paste("Class", cls)),
+            Kc_ini = null_default(input[[paste0(prefix, "kc_ini")]], 0.3),
+            Kc_mid = null_default(input[[paste0(prefix, "kc_mid")]], 1.15),
+            Kc_end = null_default(input[[paste0(prefix, "kc_end")]], 0.3),
+            L_ini_days = as.integer(null_default(input[[paste0(prefix, "l_ini")]], 30)),
+            L_mid_days = as.integer(null_default(input[[paste0(prefix, "l_mid")]], 40)),
+            L_late_days = as.integer(null_default(input[[paste0(prefix, "l_late")]], 30)),
+            max_height_m = null_default(input[[paste0(prefix, "height")]], 1.0),
+            HI = null_default(input[[paste0(prefix, "hi")]], 0.45),
+            MC = null_default(input[[paste0(prefix, "mc")]], 0.12),
+            fc = null_default(input[[paste0(prefix, "fc")]], 1.0),
+            AOT = null_default(input[[paste0(prefix, "aot")]], 0.8),
+            stringsAsFactors = FALSE
+          )
       })
 
       do.call(rbind, rows)
@@ -1072,7 +1107,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     output$an_crop_mask_plot <- shiny::renderPlot({
       r <- an_crop_mask_rast()
       shiny::req(r)
-      terra::plot(r, main = "Crop Mask Classes", col = grDevices::hcl.colors(20, "Set2"))
+      graphics::par(mar = c(0.1, 0.1, 1.5, 0.1))
+      terra::plot(r, main = "Crop Mask Classes", col = grDevices::hcl.colors(20, "Set2"), axes = FALSE)
     })
 
     output$an_season_raster_info <- shiny::renderPrint({
@@ -1362,7 +1398,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           need_aeti_stack <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp") %in% indicators)
           need_ret_stack <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
           need_precip_stack <- any(c("agg_pcp", "agg_peff") %in% indicators)
-          need_npp_stack <- "cwp_bwp" %in% indicators && is.null(input$an_biomass_file)
+          need_npp_stack <- any(c("agg_biomass", "yield_npp", "cwp_bwp") %in% indicators) && is.null(input$an_biomass_file)
 
           shiny::incProgress(0.15, detail = if (use_local) "Loading local data..." else "Fetching remote data...")
           aeti_stack <- ret_stack <- precip_stack <- npp_stack <- NULL
@@ -1468,6 +1504,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             results$seasonal_pcp <- terra::app(precip_stack * season_weights, fun = "sum", na.rm = TRUE)
           }
 
+          if (("agg_biomass" %in% indicators || "yield_npp" %in% indicators) && !is.null(npp_stack)) {
+            shiny::incProgress(0.05, detail = "Computing Biomass...")
+            results$seasonal_biomass <- terra::app(npp_stack * season_weights, fun = "sum", na.rm = TRUE) * 22.222
+          }
+
           if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
             shiny::incProgress(0.05, detail = "Computing ETc...")
             etc_by_class <- list()
@@ -1532,6 +1573,21 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             })
           }
 
+          if ("yield_npp" %in% indicators && !is.null(results$seasonal_biomass)) {
+            shiny::incProgress(0.05, detail = "Computing Yield (NPP-based)...")
+            yield_layers <- list()
+            for (j in seq_len(nrow(crop_params))) {
+              cls <- as.character(crop_params$class_value[j])
+              cp <- crop_params[j, ]
+              class_mask <- terra::ifel(h_mask == as.integer(cls), 1L, NA)
+              # Yield = (HI * AOT * fc * (Biomass / (1 - MC))) / 1000  [t/ha]
+              # Note: results$seasonal_biomass is already in kgDM/ha (NPP * 22.222)
+              yield_rast <- (cp$HI * cp$AOT * cp$fc * (results$seasonal_biomass / (1 - cp$MC))) / 1000
+              yield_layers[[cls]] <- yield_rast * class_mask
+            }
+            results$yield_by_class <- yield_layers
+          }
+
           if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
             shiny::incProgress(0.05, detail = "Computing CWP/BWP...")
             mean_aeti <- mean(terra::values(results$seasonal_aeti$raster, na.rm = TRUE))
@@ -1549,15 +1605,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               })
             }
 
-            bio_h <- NULL
+            bio_h <- results$seasonal_biomass
             if (!is.null(input$an_biomass_file)) {
               tryCatch({
                 bio_r <- terra::rast(input$an_biomass_file$datapath)
                 bio_h <- Rwapor::rwapor_harmonize_to_template(bio_r, template_r)
               }, error = function(e) warning("Local biomass load failed: ", e$message))
-            } else if (!is.null(npp_stack)) {
-              bio_rast <- terra::app(npp_stack * season_weights, fun = "sum", na.rm = TRUE)
-              bio_h <- if (grepl("-NPP-", input$an_npp_var %||% "")) bio_rast * 22.22 else bio_rast
             }
 
             if (!is.null(bio_h)) {
@@ -1652,6 +1705,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       max_len <- max(vapply(kc_list, length, integer(1)))
       if (max_len == 0) return()
 
+      graphics::par(mar = c(3, 3, 2, 1), mgp = c(2, 0.7, 0))
+
       cols <- grDevices::hcl.colors(length(kc_list), "Set2")
       graphics::plot(
         NULL,
@@ -1659,15 +1714,20 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         ylim = c(0, 1.5),
         xlab = "Day of Season",
         ylab = "Kc",
-        main = "Crop Coefficient Curves (Preview)"
+        main = "Crop Coefficient Curves (Preview)",
+        axes = FALSE
       )
+      graphics::axis(1)
+      graphics::axis(2)
+      graphics::box()
+      
       for (i in seq_along(kc_list)) {
         kc <- kc_list[[i]]
         if (length(kc) > 0) {
-          graphics::lines(seq_along(kc), kc, col = cols[i], lwd = 2)
+          graphics::lines(seq_along(kc), kc, col = cols[i], lwd = 3)
         }
       }
-      graphics::legend("topright", legend = params$crop_label, col = cols, lwd = 2, cex = 0.8, bg = "white")
+      graphics::legend("topright", legend = params$crop_label, col = cols, lwd = 3, cex = 0.9, bty = "n")
     })
 
     output$an_etc_aeti_table <- shiny::renderTable({
@@ -1696,11 +1756,17 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             cls_str
           }
 
+          # Get Yield if available
+          yield_val <- if (!is.null(res$yield_by_class) && cls_str %in% names(res$yield_by_class)) {
+            terra::global(res$yield_by_class[[cls_str]], "mean", na.rm = TRUE)$mean
+          } else NA_real_
+
           rows[[i]] <- data.frame(
             Class = label,
             `AETI (mm)` = round(aeti_tbl$mean_seasonal_aeti[i], 1),
             `RET (mm)` = round(ret_tbl$mean_seasonal_ret[i], 1),
             `ETc (mm)` = if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 1) else NA,
+            `Yield (t/ha)` = if (!is.na(yield_val)) round(yield_val, 2) else NA,
             check.names = FALSE,
             stringsAsFactors = FALSE
           )
