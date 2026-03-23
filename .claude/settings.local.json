@@ -26,7 +26,8 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/benchmark_sudan.R)",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"\nlibrary\\(memoise\\)\n# Test: does memoise work with vector arguments?\nf <- function\\(x, y = NULL\\) { cat\\(''called\\\\n''\\); Sys.sleep\\(0.5\\); x }\nmf <- memoise\\(f\\)\nt1 <- system.time\\(mf\\(''a'', y = c\\(''2020-01-01'',''2023-12-31''\\)\\)\\)\nt2 <- system.time\\(mf\\(''a'', y = c\\(''2020-01-01'',''2023-12-31''\\)\\)\\)\ncat\\(sprintf\\(''First call: %.3fs, Second call: %.3fs\\\\n'', t1[3], t2[3]\\)\\)\n\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"library\\(memoise\\); f <- function\\(x, y=NULL\\) { cat\\(''called ''\\); x }; mf <- memoise\\(f\\); mf\\(''a'', y=c\\(''1'',''2''\\)\\); mf\\(''a'', y=c\\(''1'',''2''\\)\\); cat\\(''done\\\\n''\\)\")",
-      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/benchmark_debug.R)"
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/benchmark_debug.R)",
+      "Bash(dir:*)"
     ]
   }
 }

@@ -12,12 +12,15 @@ rwapor_harmonize_to_template(x, template, method = "near")
 \item{template}{SpatRaster. The target geometry (CRS, extent, resolution).}
 
 \item{method}{Character. Resampling method. Default is "near" (nearest-neighbor),
-which is required for categorical data like crop masks and integer season dates.}
+which is required for categorical data like crop masks and integer season dates.
+Use "bilinear" for continuous data.}
 }
 \value{
 A SpatRaster aligned to the template.
 }
 \description{
 Reprojects and resamples a source raster to match the CRS, extent,
-resolution, and alignment of a template raster.
+resolution, and alignment of a template raster. Handles cases where
+input is larger than template by cropping first, and validates spatial
+overlap before resampling.
 }

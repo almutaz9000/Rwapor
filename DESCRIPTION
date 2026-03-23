@@ -9,8 +9,10 @@ Authors@R: c(
 Description: Downloads and processes WaPOR (Water Productivity Open-access portal)
     and AgERA5 raster data from the FAO GIS Manager API. Provides functions for
     extracting time series, calculating zonal statistics for regions and polygons,
-    downloading raster maps, and unit conversion. Supports WaPOR Level 1, Level 2,
-    Level 3 data products and AgERA5 climate variables.
+    downloading raster maps, unit conversion, and seasonal crop water productivity
+    analysis. Supports WaPOR Level 1, Level 2, Level 3 data products and AgERA5
+    climate variables. Includes an interactive Shiny dashboard for data exploration
+    and analysis with crop mask integration and seasonal indicator computation.
 License: MIT + file LICENSE
 URL: https://github.com/almutaz9000/Rwapor
 BugReports: https://github.com/almutaz9000/Rwapor/issues

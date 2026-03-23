@@ -600,12 +600,29 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
       r <- suppressWarnings(terra::mask(r, v, touches = TRUE))
     }
   } else if (reg_info$type == "bbox") {
-    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    bb_poly <- suppressWarnings(terra::as.polygons(ext, crs = "EPSG:4326"))
+    # Use sf to build the polygon to avoid terra PROJ collisions during CRS setting
+    bb_sf <- sf::st_as_sfc(sf::st_bbox(reg_info$value))
+    bb_poly <- suppressWarnings(terra::vect(bb_sf))
     bb_crs <- terra::crs(bb_poly)
-    if (has_r_crs && nzchar(bb_crs) && bb_crs != r_crs) {
+    
+    # Project if CRS differs or if one is lonlat and the other isn't
+    needs_proj <- FALSE
+    if (has_r_crs) {
+      r_is_ll <- isTRUE(terra::is.lonlat(r))
+      bb_is_ll <- isTRUE(terra::is.lonlat(bb_poly))
+      
+      if (bb_crs != r_crs) needs_proj <- TRUE
+      if (r_is_ll != bb_is_ll) needs_proj <- TRUE
+    }
+    
+    if (needs_proj) {
       bb_poly <- safe_project(bb_poly, r_crs)
     }
+    
+    if (needs_proj) {
+      bb_poly <- safe_project(bb_poly, r_crs)
+    }
+    
     r <- suppressWarnings(terra::crop(r, bb_poly, snap = "out"))
   }
   r
@@ -637,4 +654,15 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
 log_msg <- function(...) {
   msg <- paste(...)
   message(sprintf("[%s] %s", format(Sys.time(), "%H:%M:%S"), msg))
+}
+
+#' Internal Geometry Comparison Wrapper
+#' @param x SpatRaster
+#' @param y SpatRaster
+#' @keywords internal
+#' @noRd
+compare_geom <- function(x, y) {
+  # Robust comparison that handles floating point extent differences
+  tryCatch(terra::compareGeom(x, y, stopOnError = FALSE, messages = FALSE), 
+           error = function(e) FALSE)
 }

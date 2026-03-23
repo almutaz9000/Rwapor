@@ -35,16 +35,28 @@ cat("Detected L3 Region:", l3_code, "\n")
 
 # 5. Load Template & Harmonize
 cat("Fetching template and harmonizing...\n")
+cat("Using L3 Code:", l3_code, "\n")
 ref_urls <- wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
-cat("Ref URL:", ref_urls[1], "\n")
+cat("Ref URLs found:", length(ref_urls), "\n")
+if(length(ref_urls)>0) cat("First Ref URL:", ref_urls[1], "\n")
+
 r_raw <- rast(paste0("/vsicurl/", ref_urls[1]))
-cat("Raster extent:", paste(as.vector(ext(r_raw)), collapse=", "), "\n")
-cat("Mask extent:", paste(as.vector(reg_info$value), collapse=", "), "\n")
+cat("Raster name:", basename(ref_urls[1]), "\n")
+cat("Raster extent (raw):", paste(as.vector(ext(r_raw)), collapse=", "), "\n")
+cat("Mask extent (4326):", paste(as.vector(reg_info$value), collapse=", "), "\n")
 template_r <- crop_to_region(r_raw, reg_info)
 
 h_mask <- rwapor_harmonize_crop_mask(crop_mask, template_r)
 h_start <- rwapor_harmonize_to_template(season_start, template_r)
 h_end <- rwapor_harmonize_to_template(season_end, template_r)
+
+# Check alignment
+cat("Template Dim:", paste(dim(template_r), collapse="x"), "\n")
+cat("Mask Dim:", paste(dim(h_mask), collapse="x"), "\n")
+cat("Start Dim:", paste(dim(h_start), collapse="x"), "\n")
+cat("End Dim:", paste(dim(h_end), collapse="x"), "\n")
+
+if(!compareGeom(template_r, h_mask, stopOnError=FALSE)) cat("WARN: Template and Mask mismatch!\n")
 
 # 6. Crop Parameters
 # Wheat (1), Sugarbeet (2)
@@ -76,6 +88,8 @@ load_stack <- function(var, l3 = NULL) {
   cat("Loading", var, "(", length(urls), "layers)...\n")
   s <- rast(paste0("/vsicurl/", urls))
   s <- crop_to_region(s, reg_info)
+  # MUST harmonize to template resolution (20m) for calculations
+  s <- rwapor_harmonize_to_template(s, template_r)
   meta <- get_variable_metadata(var)
   if (!is.null(meta$scale)) s <- s * meta$scale
   s
@@ -109,8 +123,13 @@ results$etc_by_class <- list()
 for (i in seq_len(nrow(crop_params))) {
   cls <- as.character(crop_params$class_value[i])
   cat("  Computing ETc for class", cls, "...\n")
+  
+  # Aggregate daily Kc to dekads matching the stack
+  # Use period[1] as anchor for temporal alignment
+  kc_dekad <- rwapor_aggregate_kc_dekad(kc_by_class[[cls]], sw$dekad_table, period[1])
+  
   class_mask <- ifel(h_mask == as.integer(cls), 1L, NA)
-  etc_inc <- rwapor_calc_seasonal_etc_incremental(ret_stack, sw$weights, kc_by_class[[cls]])
+  etc_inc <- rwapor_calc_seasonal_etc_incremental(ret_stack, sw$weights, kc_dekad)
   results$etc_by_class[[cls]] <- list(etc_seasonal = etc_inc * class_mask)
 }
 

@@ -63,12 +63,15 @@ rwapor_load_season_raster <- function(path) {
 #' Harmonize a Raster to a Template Grid
 #'
 #' Reprojects and resamples a source raster to match the CRS, extent,
-#' resolution, and alignment of a template raster.
+#' resolution, and alignment of a template raster. Handles cases where
+#' input is larger than template by cropping first, and validates spatial
+#' overlap before resampling.
 #'
 #' @param x SpatRaster. The raster to harmonize.
 #' @param template SpatRaster. The target geometry (CRS, extent, resolution).
 #' @param method Character. Resampling method. Default is "near" (nearest-neighbor),
 #'   which is required for categorical data like crop masks and integer season dates.
+#'   Use "bilinear" for continuous data.
 #' @return A SpatRaster aligned to the template.
 #' @export
 rwapor_harmonize_to_template <- function(x, template, method = "near") {
@@ -84,19 +87,67 @@ rwapor_harmonize_to_template <- function(x, template, method = "near") {
     return(x)
   }
 
-  # Reproject if CRS differs
+  # Ensure CRS is set on both rasters
   x_crs <- terra::crs(x)
   t_crs <- terra::crs(template)
+
+  # Set default CRS if missing (assume WGS84 for geographic coordinates)
+  if (!nzchar(x_crs)) {
+    x_ext <- terra::ext(x)
+    if (x_ext$xmin >= -180 && x_ext$xmax <= 180 && x_ext$ymin >= -90 && x_ext$ymax <= 90) {
+      suppressWarnings(terra::crs(x) <- "EPSG:4326")
+      x_crs <- terra::crs(x)
+    }
+  }
+  if (!nzchar(t_crs)) {
+    t_ext <- terra::ext(template)
+    if (t_ext$xmin >= -180 && t_ext$xmax <= 180 && t_ext$ymin >= -90 && t_ext$ymax <= 90) {
+      suppressWarnings(terra::crs(template) <- "EPSG:4326")
+      t_crs <- terra::crs(template)
+    }
+  }
+
+  # Reproject if CRS differs
   if (nzchar(x_crs) && nzchar(t_crs) && x_crs != t_crs) {
     x <- terra::project(x, t_crs, method = method)
   }
 
-  # Resample to match template grid
-  # Double-check if projection already aligned it perfectly
+  # Check if projection already aligned geometries perfectly
   if (compare_geom(x, template)) {
     return(x)
   }
 
+  # Check for spatial overlap before resampling
+  x_ext <- terra::ext(x)
+  t_ext <- terra::ext(template)
+
+  # Check overlap
+  has_overlap <- !(x_ext$xmax <= t_ext$xmin || x_ext$xmin >= t_ext$xmax ||
+                   x_ext$ymax <= t_ext$ymin || x_ext$ymin >= t_ext$ymax)
+
+  if (!has_overlap) {
+    stop(sprintf(
+      paste0(
+        "No spatial overlap between input raster and template.\n",
+        "  Input extent: [%.4f, %.4f, %.4f, %.4f]\n",
+        "  Template extent: [%.4f, %.4f, %.4f, %.4f]\n",
+        "Please ensure all input rasters cover the same geographic area."
+      ),
+      x_ext$xmin, x_ext$ymin, x_ext$xmax, x_ext$ymax,
+      t_ext$xmin, t_ext$ymin, t_ext$xmax, t_ext$ymax
+    ), call. = FALSE)
+  }
+
+  # If input is larger than template, crop first to reduce memory usage
+  if (x_ext$xmin < t_ext$xmin || x_ext$xmax > t_ext$xmax ||
+      x_ext$ymin < t_ext$ymin || x_ext$ymax > t_ext$ymax) {
+    x <- tryCatch(
+      terra::crop(x, template, snap = "out"),
+      error = function(e) x  # Fallback: keep original if crop fails
+    )
+  }
+
+  # Resample to match template grid
   x <- terra::resample(x, template, method = method)
   x
 }

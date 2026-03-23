@@ -30,9 +30,10 @@ It provides a robust, parallelized workflow to download raster data, extract tim
 | 🔄 **Dynamic Metadata** | Automatically fetches metadata for all variables via the WaPOR API |
 | ⚡ **Batching & Parallelism** | Parallel processing of large time series without memory crashes |
 | 📐 **Accurate Zonal Statistics** | Pixel-weighted statistics via `exactextractr` for small or irregular polygons |
-| 🖥️ **Interactive Dashboard** | Built-in Shiny app (`run_wapor()`) for visual AOI selection and code generation |
+| 🖥️ **Interactive Dashboard** | Built-in Shiny app (`run_wapor()`) for visual AOI selection, data download, and analysis |
 | 🔁 **Unit Conversion** | Built-in support for converting units (e.g., `mm/dekad` → `mm/day`) on the fly |
 | 💾 **Efficient Caching** | API responses are cached with `memoise` to minimize network traffic |
+| 🌾 **Crop Analysis** | Seasonal water productivity analysis with crop mask and Kc curve support |
 
 ---
 
@@ -129,6 +130,57 @@ df <- wapor_ts(
 
 head(df)
 ```
+
+---
+
+## Seasonal Crop Analysis
+
+**Rwapor** includes a comprehensive seasonal analysis module for computing water productivity indicators:
+
+### Available Indicators
+
+- **Seasonal AETI/RET**: Weighted aggregation using pixel-wise season dates
+- **ETc (Crop Water Requirement)**: FAO-56 dual Kc approach with customizable crop profiles
+- **Adequacy**: ETc-based and P95-based adequacy ratios
+- **Effective Precipitation (Peff)**: USDA SCS monthly method
+- **Crop/Biomass Water Productivity**: CWP and BWP calculation
+- **NPP-based Yield Estimation**: Using harvest index and moisture correction
+
+### Analysis Workflow
+
+```r
+library(Rwapor)
+
+# 1. Load input rasters
+crop_mask <- rwapor_load_crop_mask("path/to/crop_mask.tif")
+season_start <- rwapor_load_season_raster("path/to/season_start.tif")  # Julian DOY
+season_end <- rwapor_load_season_raster("path/to/season_end.tif")
+
+# 2. Harmonize to a common template
+template <- terra::rast("path/to/aeti_reference.tif")
+h_mask <- rwapor_harmonize_crop_mask(crop_mask, template)
+h_start <- rwapor_harmonize_to_template(season_start, template)
+h_end <- rwapor_harmonize_to_template(season_end, template)
+
+# 3. Build season weights for dekadal aggregation
+sw <- rwapor_build_season_weights_dekad(
+  "2023-01-01", "2023-12-31", h_start, h_end, reference_year = 2023
+)
+
+# 4. Compute seasonal AETI
+aeti_stack <- terra::rast("path/to/aeti_dekadal.tif")
+result <- rwapor_calc_seasonal_aeti_masked(aeti_stack, sw$weights, h_mask)
+```
+
+### Interactive Dashboard
+
+The Shiny dashboard (`run_wapor()`) includes a dedicated **Analysis** tab where you can:
+
+- Upload crop mask and season start/end rasters
+- Configure crop parameters (Kc coefficients, growth stage lengths)
+- Select from FAO-56 crop defaults (Winter Wheat, Sorghum, Sugarbeet, etc.)
+- Run the analysis using local files or streaming from the WaPOR API
+- Export results as GeoTIFF rasters and CSV tables
 
 ---
 
