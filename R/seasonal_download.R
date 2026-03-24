@@ -20,14 +20,16 @@
 #'       downloadable data. Each inner list has:
 #'       \itemize{
 #'         \item \code{code}: Character temporal code ("A", "M", "D", "E")
+#'         \item \code{variable}: Source variable actually downloaded for that group
 #'         \item \code{raster}: A cropped \code{SpatRaster} (may be multi-layer)
+#'         \item \code{layer_ids}: Character vector aligned with raster layers
 #'         \item \code{multipliers}: Numeric vector of length
-#'           \code{terra::nlyr(raster)}. For daily-rate codes (D, E) this is
-#'           \code{overlap_days}; for period-total codes (M, A) this is
-#'           \code{weight}.
+#'           \code{terra::nlyr(raster)}. These are computed from metadata-aware
+#'           seasonal semantics, not only from the temporal code suffix.
 #'       }
 #'     }
 #'     \item{plan}{The data.frame from \code{plan_wapor_time_slices()}}
+#'     \item{aggregation_rule}{Requested-variable aggregation rule used for the final seasonal result}
 #'   }
 #'
 #' @keywords internal
@@ -35,6 +37,7 @@
 download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE) {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
+  aggregation_rule <- get_seasonal_aggregation_rule(variable)
 
   avail <- get_available_temporal_codes(variable)
   message(sprintf("Building seasonal plan for %s (%s to %s)", variable, period[1], period[2]))
@@ -77,7 +80,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     # Match plan rows to URLs and compute multipliers (pre-allocated)
     n_rows <- nrow(code_rows)
     matched_urls <- character(n_rows)
-    matched_multipliers <- numeric(n_rows)
+    matched_idx <- integer(n_rows)
     match_count <- 0L
 
     for (i in seq_len(n_rows)) {
@@ -88,13 +91,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
       if (length(idx) >= 1) {
         match_count <- match_count + 1L
         matched_urls[match_count] <- urls[idx[1]]
-        # D and E rasters are daily rates: multiply by overlap_days to get total
-        # M and A rasters are period totals: multiply by weight to prorate
-        if (code %in% c("D", "E")) {
-          matched_multipliers[match_count] <- row$overlap_days
-        } else {
-          matched_multipliers[match_count] <- row$weight
-        }
+        matched_idx[match_count] <- i
       } else {
         warning(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id),
                 call. = FALSE)
@@ -103,7 +100,13 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     if (match_count == 0L) next
     matched_urls <- matched_urls[seq_len(match_count)]
-    matched_multipliers <- matched_multipliers[seq_len(match_count)]
+    matched_rows <- code_rows[matched_idx[seq_len(match_count)], , drop = FALSE]
+    matched_multipliers <- get_seasonal_multiplier_values(
+      variable = var_for_code,
+      plan_rows = matched_rows,
+      aggregation_rule = aggregation_rule
+    )
+    layer_ids <- matched_rows$period_id
 
     # Load rasters via vsicurl
     t_code <- proc.time()
@@ -120,15 +123,18 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     # Crop to region; optionally mask to polygon boundary
     r <- crop_to_region(r, reg_info, do_mask = do_mask)
+    names(r) <- layer_ids
     message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
                     var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))
 
     groups[[paste0(code, "_group")]] <- list(
       code = code,
+      variable = var_for_code,
       raster = r,
+      layer_ids = layer_ids,
       multipliers = matched_multipliers
     )
   }
 
-  list(groups = groups, plan = plan)
+  list(groups = groups, plan = plan, aggregation_rule = aggregation_rule)
 }

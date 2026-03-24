@@ -40,7 +40,8 @@ name is generated based on region and variable.}
 
 \item{separate_files}{Logical. If \code{TRUE}, writes each time step as a separate
 GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
-intermediate component rasters into \verb{<folder>/<variable>/}. Default is \code{FALSE}.}
+seasonal-plan component rasters into
+\verb{<folder>/<variable>_seasonal/components/}. Default is \code{FALSE}.}
 
 \item{unit_conversion}{Character. Target temporal unit for conversion.
 One of: "none", "day", "dekad", "month", "year".
@@ -69,7 +70,9 @@ If \code{FALSE}, loads all layers at once.}
 Lower values reduce memory pressure for long periods. Default is \code{12L}.}
 }
 \value{
-Character. Path to the output GeoTIFF file.
+Character path to the output GeoTIFF file, or in seasonal mode with
+\code{separate_files = TRUE}, a list with \code{seasonal_aggregate} and
+\code{seasonal_components}.
 }
 \description{
 Downloads WaPOR or AgERA5 raster data for a specified region and time period,

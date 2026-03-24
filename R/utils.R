@@ -1,3 +1,14 @@
+#' Null-Coalescing Helper
+#'
+#' @param x Primary value.
+#' @param y Fallback value.
+#' @return `x` when it is not `NULL`, otherwise `y`.
+#' @keywords internal
+#' @noRd
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
 #' Parse Region Argument
 #'
 #' Parses various region input formats into a standardized structure
@@ -210,6 +221,118 @@ calculate_conversion_factor <- function(source_time, target_unit, num_days, days
   )
 
   return(factor)
+}
+
+#' Extract the Temporal Unit Encoded in Metadata Units
+#'
+#' @param units Character scalar such as `"mm/day"` or `"kg/ha"`.
+#' @return One of `"day"`, `"dekad"`, `"month"`, `"year"`, or `NULL`.
+#' @keywords internal
+#' @noRd
+extract_temporal_unit <- function(units) {
+  if (!is.character(units) || length(units) != 1 || is.na(units)) {
+    return(NULL)
+  }
+
+  match <- regexec("/(day|dekad|month|year)$", units)
+  parts <- regmatches(units, match)[[1]]
+  if (length(parts) < 2) {
+    return(NULL)
+  }
+
+  parts[2]
+}
+
+#' Resolve Default Temporal Unit Conversion for Raster Outputs
+#'
+#' @param variable Character variable code.
+#' @param unit_conversion User-supplied conversion or `NULL`.
+#' @return Character conversion code.
+#' @keywords internal
+#' @noRd
+resolve_output_unit_conversion <- function(variable, unit_conversion = NULL) {
+  if (!is.null(unit_conversion)) {
+    return(unit_conversion)
+  }
+
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  tres <- parts[length(parts)]
+  meta <- get_variable_metadata(variable)
+  unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
+
+  if (identical(tres, "D") && identical(unit_time, "day")) {
+    return("dekad")
+  }
+
+  "none"
+}
+
+#' Determine the Seasonal Aggregation Rule for a Variable
+#'
+#' @param variable Character variable code.
+#' @return Either `"weighted_sum"` or `"weighted_mean"`.
+#' @keywords internal
+#' @noRd
+get_seasonal_aggregation_rule <- function(variable) {
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  tres <- parts[length(parts)]
+  meta <- get_variable_metadata(variable)
+  unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
+
+  if (tres %in% c("D", "E") && is.null(unit_time)) {
+    return("weighted_mean")
+  }
+
+  "weighted_sum"
+}
+
+#' Compute Seasonal Multipliers for Planned Raster Slices
+#'
+#' @param variable Character variable code for the slices being downloaded.
+#' @param plan_rows Data frame rows from `plan_wapor_time_slices()`.
+#' @param aggregation_rule Seasonal aggregation rule for the requested variable.
+#' @return Numeric vector of per-layer multipliers.
+#' @keywords internal
+#' @noRd
+get_seasonal_multiplier_values <- function(variable, plan_rows, aggregation_rule = get_seasonal_aggregation_rule(variable)) {
+  if (!is.data.frame(plan_rows) || nrow(plan_rows) == 0) {
+    return(numeric(0))
+  }
+
+  if (identical(aggregation_rule, "weighted_mean")) {
+    return(plan_rows$overlap_days)
+  }
+
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  tres <- parts[length(parts)]
+  meta <- get_variable_metadata(variable)
+  unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
+
+  if (tres %in% c("D", "E") && identical(unit_time, "day")) {
+    return(plan_rows$overlap_days)
+  }
+
+  plan_rows$weight
+}
+
+#' Resolve Units for Seasonal Outputs
+#'
+#' @param variable Character variable code.
+#' @param aggregation_rule Seasonal aggregation rule.
+#' @return Character units string for the seasonal result.
+#' @keywords internal
+#' @noRd
+get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_aggregation_rule(variable)) {
+  meta <- get_variable_metadata(variable)
+  if (is.null(meta) || is.null(meta$units)) {
+    return(NULL)
+  }
+
+  if (identical(aggregation_rule, "weighted_sum")) {
+    return(sub("/(day|dekad|month|year)$", "", meta$units))
+  }
+
+  meta$units
 }
 
 #' Extract Date Information from URL
@@ -665,4 +788,48 @@ compare_geom <- function(x, y) {
   # Robust comparison that handles floating point extent differences
   tryCatch(terra::compareGeom(x, y, stopOnError = FALSE, messages = FALSE), 
            error = function(e) FALSE)
+}
+
+#' Assign Metadata to Raster Layers
+#'
+#' @param r SpatRaster
+#' @param variable Character. Variable code.
+#' @param unit_conversion Character.
+#' @param units_override Optional explicit units string.
+#' @return SpatRaster with updated units and long names.
+#' @keywords internal
+#' @noRd
+assign_raster_metadata <- function(r, variable, unit_conversion = "none", units_override = NULL) {
+  # Safety check: ensure r is a SpatRaster and not empty
+  if (!inherits(r, "SpatRaster") || terra::nlyr(r) == 0) return(r)
+
+  meta <- get_variable_metadata(variable)
+  if (is.null(meta)) return(r)
+
+  # Determine units
+  res_units <- units_override %||% meta$units
+  if (is.null(units_override) && !is.null(unit_conversion) && unit_conversion != "none") {
+    # If converted, update the time part of the unit string
+    # e.g., mm/day -> mm/dekad
+    parts <- strsplit(res_units, "/")[[1]]
+    if (length(parts) > 1) {
+      res_units <- paste0(paste(parts[-length(parts)], collapse = "/"), "/", unit_conversion)
+    }
+  }
+
+  # Assign metadata using try to prevent fatal errors during check (metags can fail on some platforms)
+  try({
+    # Assign units
+    terra::units(r) <- res_units
+    
+    # Assign long name to both layers and GDAL metadata for maximum compatibility
+    if (!is.null(meta$long_name)) {
+      # Try setting longnames (layer descriptions)
+      try(terra::longnames(r) <- rep(as.character(meta$long_name), terra::nlyr(r)), silent = TRUE)
+      # Try setting GDAL metadata (LongName)
+      try(terra::metags(r) <- c(long_name = as.character(meta$long_name)), silent = TRUE)
+    }
+  }, silent = TRUE)
+  
+  return(r)
 }

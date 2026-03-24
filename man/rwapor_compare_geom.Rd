@@ -6,6 +6,14 @@
 \usage{
 rwapor_compare_geom(r1, r2)
 }
+\arguments{
+\item{r1}{SpatRaster. First raster to compare.}
+
+\item{r2}{SpatRaster. Second raster to compare.}
+}
+\value{
+Logical.
+}
 \description{
 Exported Geometry Comparison
 }

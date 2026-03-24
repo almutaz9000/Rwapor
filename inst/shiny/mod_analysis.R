@@ -414,9 +414,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     ns <- session$ns
     # Cross-platform roots for shinyFiles
     roots <- if (.Platform$OS.type == "windows") {
-      c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+      c(shinyFiles::getVolumes()(), Project = getwd())
     } else {
-      c(Home = normalizePath("~", winslash = "/"), Root = "/")
+      c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
     }
     
     shinyFiles::shinyDirChoose(input, "an_browse_folder", roots = roots, session = session)

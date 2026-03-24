@@ -151,6 +151,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.null(unit_conversion) && unit_conversion != "none") {
       message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
+    aggregation_rule <- get_seasonal_aggregation_rule(variable)
 
     # Prepare region geometry for zonal stats
     vect_data <- NULL
@@ -183,9 +184,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     
     groups <- seasonal_data$groups
     plan <- seasonal_data$plan
+    aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
     
-    # Accumulate weighted means per zone
+    # Accumulate seasonal contributions and, when needed, mean denominators.
     sum_values <- rep(0, n_zones)
+    total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
     
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
@@ -226,36 +229,54 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       }
       
       # Sum the parallel results into the main aggregator
-      for (ls in layer_sums) {
-        sum_values <- sum_values + ls
+      for (i in seq_along(layer_sums)) {
+        sum_values <- sum_values + layer_sums[[i]]
+        if (!is.null(total_weights)) {
+          if (!is.null(vect_data)) {
+            coverage <- suppressWarnings(exactextractr::exact_extract(
+              !is.na(r_group[[i]]), sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+            ))
+            total_weights <- total_weights + (coverage * multipliers[i])
+          } else {
+            has_data <- !is.na(terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean)
+            total_weights <- total_weights + if (isTRUE(has_data)) multipliers[i] else 0
+          }
+        }
       }
     }
+
+    seasonal_values <- if (is.null(total_weights)) {
+      sum_values
+    } else {
+      ifelse(total_weights > 0, sum_values / total_weights, NA_real_)
+    }
+    value_name <- if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean" else "seasonal_sum"
     
     # Build result data.frame
     result_df <- data.frame(
-      seasonal_sum = sum_values,
       start_date = period[1],
       end_date = period[2],
       n_rasters = nrow(plan),
       ID = zone_ids,
       stringsAsFactors = FALSE
     )
+    result_df[[value_name]] <- seasonal_values
     
     # Add custom identifier column if specified
-    if (!is.null(identifier) && identifier %in% names(vect_data)) {
+    if (!is.null(identifier) && !is.null(vect_data) && identifier %in% names(vect_data)) {
       result_df[[identifier]] <- zone_ids
     }
 
-    # Determine base unit (remove temporal component)
+    # Determine final units from seasonal aggregation semantics.
     source_var_meta <- get_variable_metadata(variable)
     if (!is.null(source_var_meta)) {
-      base_unit <- sub("/[a-z]+$", "", source_var_meta$units)
-      attr(result_df, "units") <- base_unit
+      attr(result_df, "units") <- get_seasonal_output_units(variable, aggregation_rule) %||% source_var_meta$units
       attr(result_df, "long_name") <- source_var_meta$long_name
     } else {
       attr(result_df, "units") <- "unknown"
     }
     attr(result_df, "plan") <- plan
+    attr(result_df, "aggregation_rule") <- aggregation_rule
 
     return(result_df)
   }

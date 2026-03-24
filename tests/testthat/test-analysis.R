@@ -130,7 +130,7 @@ test_that("crop mask harmonization requires SpatRaster inputs", {
 })
 
 test_that("build_dekad_table produces valid dekads", {
-  tbl <- Rwapor:::build_dekad_table("2023-01-01", "2023-02-28")
+  tbl <- build_dekad_table("2023-01-01", "2023-02-28")
   expect_true(nrow(tbl) >= 5)
   expect_true(all(tbl$n_days > 0))
   expect_true(all(tbl$n_days <= 11))
@@ -203,10 +203,10 @@ test_that("total days and ldev computation works", {
   start_r <- terra::rast(nrows = 5, ncols = 5, vals = 1)
   end_r   <- terra::rast(nrows = 5, ncols = 5, vals = 160)
   total_r <- rwapor_compute_total_days_raster(start_r, end_r)
-  expect_equal(terra::values(total_r)[1, 1], 160)
+  expect_equal(as.numeric(terra::values(total_r)[1, 1]), 160)
 
   ldev_r <- rwapor_compute_ldev_raster(total_r, 30, 40, 30)
-  expect_equal(terra::values(ldev_r)[1, 1], 60)  # 160 - 100
+  expect_equal(as.numeric(terra::values(ldev_r)[1, 1]), 60)  # 160 - 100
 })
 
 test_that("apply_masked_sum works with matching layers", {
@@ -214,7 +214,7 @@ test_that("apply_masked_sum works with matching layers", {
   x <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 10)
   w <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 0.5)
   result <- rwapor_apply_masked_sum(x, w)
-  expect_equal(terra::values(result)[1, 1], 15)  # 10 * 0.5 * 3
+  expect_equal(as.numeric(terra::values(result)[1, 1]), 15)  # 10 * 0.5 * 3
 })
 
 test_that("apply_masked_sum errors on mismatched layers", {

@@ -140,9 +140,9 @@ mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
     # Cross-platform roots for shinyFiles
     roots <- if (.Platform$OS.type == "windows") {
-      c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+      c(shinyFiles::getVolumes()(), Project = getwd())
     } else {
-      c(Home = normalizePath("~", winslash = "/"), Root = "/")
+      c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
     }
 
     current_l3_region <- shiny::reactive({

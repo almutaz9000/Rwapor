@@ -3,8 +3,18 @@
 # This script verifies the optimized analysis engine using the user-provided sample rasters.
 # Crops: Winter Wheat (Class 1), Sugarbeet (Class 2)
 
-# Load package source
-source("c:/Users/Mohammedal/OneDrive - Food and Agriculture Organization/Documents/GitHub/Rwapor/tests/load_source.R")
+# Load package
+if (nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  message("Skipping standalone sample-analysis script during R CMD check.")
+  quit(save = "no", status = 0)
+}
+
+test_root <- if (file.exists("load_source.R")) "." else "tests"
+if (!requireNamespace("Rwapor", quietly = TRUE)) {
+  source(file.path(test_root, "load_source.R"))
+} else {
+  library(Rwapor)
+}
 library(terra)
 library(lubridate)
 
@@ -12,7 +22,7 @@ library(lubridate)
 if (exists("wapor_fix_proj")) wapor_fix_proj(verbose = TRUE)
 
 # 1. Inputs
-raster_dir <- "c:/Users/Mohammedal/OneDrive - Food and Agriculture Organization/Documents/GitHub/Rwapor/tests/rasters_inputs_samples"
+raster_dir <- "rasters_inputs_samples"
 crop_mask_path <- file.path(raster_dir, "crop_mask.tif")
 s_start_path  <- file.path(raster_dir, "season_start_jday.tif")
 s_end_path    <- file.path(raster_dir, "season_end_jday_extended.tif")

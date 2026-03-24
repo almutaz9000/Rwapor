@@ -19,6 +19,8 @@ values (0, 255, -9999, -32768) from the class list.}
 
 \item{min_pixels}{Integer. Minimum pixel count for a class to be included.
 Default is 10. This helps filter out very small spurious classes.}
+
+\item{nodata_values}{Numeric vector. Values to treat as NoData.}
 }
 \value{
 A data.frame with columns: class_value, pixel_count, area_ha.

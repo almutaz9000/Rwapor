@@ -2,7 +2,17 @@
 #
 # Verifies wapor_map() with AgERA5 climate variables.
 
-library(Rwapor)
+if (nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  message("Skipping standalone AgERA5 download script during R CMD check.")
+  quit(save = "no", status = 0)
+}
+
+test_root <- if (file.exists("load_source.R")) "." else "tests"
+if (!requireNamespace("Rwapor", quietly = TRUE)) {
+  source(file.path(test_root, "load_source.R"))
+} else {
+  library(Rwapor)
+}
 library(terra)
 
 # ------------------------------------------------------------------
