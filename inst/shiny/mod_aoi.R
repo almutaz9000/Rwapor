@@ -109,7 +109,12 @@ mod_aoi_server <- function(id,
       NULL
     })
 
-    roots <- c(Home = normalizePath("~", winslash = "/"), "C:/" = "C:/")
+    # Cross-platform roots for shinyFiles
+    roots <- if (.Platform$OS.type == "windows") {
+      c(shinyFiles::getVolumes()(), Project = getwd())
+    } else {
+      c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
+    }
     shinyFiles::shinyFileChoose(
       input,
       "browse_vector",

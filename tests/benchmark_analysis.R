@@ -3,9 +3,18 @@
 # This script measures performance for the three most computationally 
 # expensive parts of the Rwapor analysis workflow.
 
+if (nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  message("Skipping standalone benchmark script during R CMD check.")
+  quit(save = "no", status = 0)
+}
+
+test_root <- if (file.exists("load_source.R")) "." else "tests"
 print(.libPaths())
-# library(Rwapor)
-source("tests/load_source.R")
+if (!requireNamespace("Rwapor", quietly = TRUE)) {
+  source(file.path(test_root, "load_source.R"))
+} else {
+  library(Rwapor)
+}
 wapor_fix_proj(verbose = TRUE)
 library(terra)
 library(sf)

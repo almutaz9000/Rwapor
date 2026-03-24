@@ -272,6 +272,30 @@ test_that("get_available_temporal_codes() validates input", {
   expect_error(get_available_temporal_codes("INVALID"), "Invalid variable format")
 })
 
+test_that("seasonal helper semantics use metadata rather than suffix alone", {
+  plan <- plan_wapor_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
+
+  expect_equal(resolve_output_unit_conversion("L1-AETI-D"), "dekad")
+  expect_equal(resolve_output_unit_conversion("AGERA5-ET0-D"), "none")
+  expect_equal(resolve_output_unit_conversion("L3-RSM-D"), "none")
+
+  expect_equal(get_seasonal_aggregation_rule("L1-AETI-D"), "weighted_sum")
+  expect_equal(get_seasonal_aggregation_rule("AGERA5-ET0-D"), "weighted_sum")
+  expect_equal(get_seasonal_aggregation_rule("L3-RSM-D"), "weighted_mean")
+  expect_equal(get_seasonal_aggregation_rule("AGERA5-TMIN-E"), "weighted_mean")
+
+  expect_equal(get_seasonal_multiplier_values("L1-AETI-D", plan), plan$overlap_days)
+  expect_equal(get_seasonal_multiplier_values("AGERA5-ET0-D", plan), plan$weight)
+  expect_equal(
+    get_seasonal_multiplier_values("L3-RSM-D", plan, aggregation_rule = "weighted_mean"),
+    plan$overlap_days
+  )
+
+  expect_equal(get_seasonal_output_units("L1-AETI-D"), "mm")
+  expect_equal(get_seasonal_output_units("AGERA5-ET0-D"), "mm")
+  expect_equal(get_seasonal_output_units("L3-RSM-D"), "%")
+})
+
 # --- Seasonal multiplier logic ------------------------------------------------
 
 test_that("Seasonal multipliers are correct for mixed D/M plan", {
@@ -397,4 +421,74 @@ test_that("wapor_ts seasonal argument is accepted (no 'unused argument' error)",
     ),
     "unit_conversion.*must be one of"
   )
+})
+
+test_that("wapor_map seasonal separate_files isolates seasonal components", {
+  skip_if_not_installed("terra")
+
+  tmp_dir <- tempfile("wapor_seasonal_components_")
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  r_month <- terra::rast(nrows = 2, ncols = 2, xmin = 35, xmax = 36, ymin = 33, ymax = 34, vals = 10)
+  terra::crs(r_month) <- "EPSG:4326"
+  r_dekad <- terra::rast(nrows = 2, ncols = 2, xmin = 35, xmax = 36, ymin = 33, ymax = 34, vals = 2)
+  terra::crs(r_dekad) <- "EPSG:4326"
+
+  mock_plan <- data.frame(
+    code = c("D", "M"),
+    period_id = c("2023-01-D1", "2023-02"),
+    slice_start = as.Date(c("2023-01-01", "2023-02-01")),
+    slice_end = as.Date(c("2023-01-10", "2023-02-28")),
+    overlap_start = as.Date(c("2023-01-05", "2023-02-01")),
+    overlap_end = as.Date(c("2023-01-10", "2023-02-28")),
+    weight = c(0.6, 1),
+    slice_days = c(10L, 28L),
+    overlap_days = c(6L, 28L),
+    stringsAsFactors = FALSE
+  )
+  mock_env <- if (requireNamespace("Rwapor", quietly = TRUE)) asNamespace("Rwapor") else globalenv()
+
+  original_download_seasonal_rasters <- get("download_seasonal_rasters", envir = mock_env)
+  withr::defer(assign("download_seasonal_rasters", original_download_seasonal_rasters, envir = mock_env))
+  assign("download_seasonal_rasters", function(...) {
+    list(
+      groups = list(
+        D_group = list(
+          code = "D",
+          variable = "L1-AETI-D",
+          raster = r_dekad,
+          layer_ids = "2023-01-D1",
+          multipliers = 6
+        ),
+        M_group = list(
+          code = "M",
+          variable = "L1-AETI-M",
+          raster = r_month,
+          layer_ids = "2023-02",
+          multipliers = 1
+        )
+      ),
+      plan = mock_plan,
+      aggregation_rule = "weighted_sum"
+    )
+  }, envir = mock_env)
+
+  result <- wapor_map(
+    region = c(35, 33, 36, 34),
+    variable = "L1-AETI-D",
+    period = c("2023-01-05", "2023-02-28"),
+    folder = tmp_dir,
+    seasonal = TRUE,
+    separate_files = TRUE
+  )
+
+  expect_type(result, "list")
+  expect_named(result, c("seasonal_aggregate", "seasonal_components"))
+  expect_true(file.exists(result$seasonal_aggregate))
+  expect_true(all(file.exists(result$seasonal_components)))
+  expect_match(result$seasonal_aggregate, "L1-AETI-D_seasonal")
+  expect_true(all(grepl("seasonal_component", basename(result$seasonal_components))))
+  expect_true(all(grepl("components", dirname(result$seasonal_components), fixed = TRUE)))
+  expect_false(dir.exists(file.path(tmp_dir, "L1-AETI-D")))
 })

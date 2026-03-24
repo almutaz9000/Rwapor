@@ -147,6 +147,11 @@ rwapor_harmonize_to_template <- function(x, template, method = "near") {
     )
   }
 
+  # Short-circuit if crop already aligned geometries
+  if (compare_geom(x, template)) {
+    return(x)
+  }
+
   # Resample to match template grid
   x <- terra::resample(x, template, method = method)
   x
@@ -183,6 +188,7 @@ rwapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
 #'   values (0, 255, -9999, -32768) from the class list.
 #' @param min_pixels Integer. Minimum pixel count for a class to be included.
 #'   Default is 10. This helps filter out very small spurious classes.
+#' @param nodata_values Numeric vector. Values to treat as NoData.
 #' @return A data.frame with columns: class_value, pixel_count, area_ha.
 #' @export
 rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10, nodata_values = c(0, 255, -9999, -32768, 65535, -3.4e+38)) {
@@ -750,6 +756,9 @@ compare_geom <- function(r1, r2) {
 }
 
 #' Exported Geometry Comparison
+#' @param r1 SpatRaster. First raster to compare.
+#' @param r2 SpatRaster. Second raster to compare.
+#' @return Logical.
 #' @export
 rwapor_compare_geom <- function(r1, r2) {
   compare_geom(r1, r2)

@@ -1,16 +1,26 @@
 # tests/test_analysis_all_indicators.R
 # Test script for all indicators with sample rasters
 
-source("tests/load_source.R")
+if (nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))) {
+  message("Skipping standalone all-indicators analysis script during R CMD check.")
+  quit(save = "no", status = 0)
+}
+
+test_root <- if (file.exists("load_source.R")) "." else "tests"
+if (!requireNamespace("Rwapor", quietly = TRUE)) {
+  source(file.path(test_root, "load_source.R"))
+} else {
+  library(Rwapor)
+}
 library(terra)
 library(sf)
 library(lubridate)
 
 # 1. Setup paths
-mask_path <- "tests/rasters_inputs_samples/crop_mask.tif"
-start_path <- "tests/rasters_inputs_samples/season_start_jday.tif"
-end_path <- "tests/rasters_inputs_samples/season_end_jday_extended.tif"
-output_dir <- "tests/output_all_indicators"
+mask_path <- "rasters_inputs_samples/crop_mask.tif"
+start_path <- "rasters_inputs_samples/season_start_jday.tif"
+end_path <- "rasters_inputs_samples/season_end_jday_extended.tif"
+output_dir <- "output_all_indicators"
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 # 2. Parameters

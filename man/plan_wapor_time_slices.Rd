@@ -48,24 +48,24 @@ that are fully covered.
 }
 \details{
 This function does \strong{not} download any data. It returns a plan (data frame)
-describing which rasters to download and how to weight them for computing a
-seasonal sum.
+describing which rasters to download and how much of each slice overlaps the
+requested season.
 
-\strong{Aggregation rule:} \code{seasonal_sum = sum(raster_value * weight)} across all
-rows in the plan. This assumes each raster value represents a \strong{total} over
-its time slice (as is typical for WaPOR aggregated ET layers).
+Final aggregation is resolved downstream from variable metadata:
+period totals use weighted sums, daily-rate products use overlap-day
+multipliers, and state variables can use time-weighted means.
 
 \strong{Approximation note:} When fractional weights are applied to monthly (\code{M})
-or annual (\code{A}) slices, the calculation assumes uniform daily distribution
-within the slice. Dekadal (\code{D}) fractional weights involve a smaller
-approximation. Daily (\code{E}) slices always have \code{weight = 1}.
+or annual (\code{A}) slices, downstream aggregation assumes uniform daily
+distribution within the slice. Dekadal (\code{D}) fractional weights involve a
+smaller approximation. Daily (\code{E}) slices always have \code{weight = 1}.
 }
 \examples{
 # Plan for L2 AETI (no daily data) over a partial season
 plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("A", "M", "D"))
 print(plan)
 
-# Seasonal sum would be: sum(downloaded_raster_values * plan$weight)
+# Downstream seasonal aggregation uses the plan together with variable metadata.
 
 # Plan for a multi-year range
 plan <- plan_wapor_time_slices("2018-01-01", "2023-06-22", avail = c("A", "M", "D"))
