@@ -4,7 +4,12 @@
 \alias{rwapor_calc_seasonal_etc_incremental}
 \title{Compute Seasonal ETc Incrementally}
 \usage{
-rwapor_calc_seasonal_etc_incremental(ret_dekad, season_weights, kc_dekad)
+rwapor_calc_seasonal_etc_incremental(
+  ret_dekad,
+  season_weights,
+  kc_dekad,
+  layer_multipliers = NULL
+)
 }
 \arguments{
 \item{ret_dekad}{SpatRaster. Dekadal RET layers.}
@@ -12,6 +17,8 @@ rwapor_calc_seasonal_etc_incremental(ret_dekad, season_weights, kc_dekad)
 \item{season_weights}{SpatRaster. Dekadal season weights (0-1).}
 
 \item{kc_dekad}{Numeric vector. Dekadal Kc values.}
+
+\item{layer_multipliers}{Optional numeric vector of per-layer multipliers.}
 }
 \value{
 A single-layer SpatRaster of seasonal ETc (weighted sum).

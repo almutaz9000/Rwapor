@@ -8,20 +8,31 @@
 #'
 #' @param x SpatRaster. Multi-layer raster (e.g., dekadal AETI or RET).
 #' @param weights SpatRaster. Season weights (0-1), same number of layers as x.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#'   Use this for rate variables stored per day where a weighted sum must be
+#'   multiplied by the full slice length.
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #'   Recommended for very long seasons or low RAM. Default FALSE.
 #' @return A single-layer SpatRaster of weighted sums.
 #' @export
-rwapor_apply_masked_sum <- function(x, weights, incremental = FALSE) {
+rwapor_apply_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
   if (terra::nlyr(x) != terra::nlyr(weights)) {
     stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
                  terra::nlyr(x), terra::nlyr(weights)), call. = FALSE)
   }
 
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, terra::nlyr(x))
+  }
+  if (length(layer_multipliers) != terra::nlyr(x)) {
+    stop(sprintf("layer_multipliers length (%d) must match x layers (%d)",
+                 length(layer_multipliers), terra::nlyr(x)), call. = FALSE)
+  }
+
   if (incremental) {
     total <- NULL
     for (i in seq_len(terra::nlyr(x))) {
-      current <- x[[i]] * weights[[i]]
+      current <- x[[i]] * (weights[[i]] * layer_multipliers[i])
       if (is.null(total)) total <- current else total <- total + current
     }
     return(total)
@@ -29,6 +40,9 @@ rwapor_apply_masked_sum <- function(x, weights, incremental = FALSE) {
 
   # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
   weighted <- x * weights
+  if (!all(layer_multipliers == 1)) {
+    weighted <- weighted * layer_multipliers
+  }
   terra::app(weighted, fun = "sum", na.rm = TRUE)
 }
 
@@ -40,6 +54,7 @@ rwapor_apply_masked_sum <- function(x, weights, incremental = FALSE) {
 #' @param aeti_dekad SpatRaster. Dekadal AETI layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param crop_mask SpatRaster. Optional crop mask for per-class summaries.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A list with:
 #'   \describe{
@@ -48,8 +63,14 @@ rwapor_apply_masked_sum <- function(x, weights, incremental = FALSE) {
 #'   }
 #' @export
 rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
-                                             crop_mask = NULL, incremental = FALSE) {
-  seasonal_aeti <- rwapor_apply_masked_sum(aeti_dekad, season_weights, incremental = incremental)
+                                             crop_mask = NULL, layer_multipliers = NULL,
+                                             incremental = FALSE) {
+  seasonal_aeti <- rwapor_apply_masked_sum(
+    aeti_dekad,
+    season_weights,
+    layer_multipliers = layer_multipliers,
+    incremental = incremental
+  )
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
@@ -68,12 +89,19 @@ rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param crop_mask SpatRaster. Optional crop mask for per-class summaries.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A list with raster and by_class components (same as AETI version).
 #' @export
 rwapor_calc_seasonal_ret_masked <- function(ret_dekad, season_weights,
-                                            crop_mask = NULL, incremental = FALSE) {
-  seasonal_ret <- rwapor_apply_masked_sum(ret_dekad, season_weights, incremental = incremental)
+                                            crop_mask = NULL, layer_multipliers = NULL,
+                                            incremental = FALSE) {
+  seasonal_ret <- rwapor_apply_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = layer_multipliers,
+    incremental = incremental
+  )
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
@@ -112,9 +140,11 @@ rwapor_calc_etc_dekad <- function(ret_dekad, kc_dekad) {
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
-rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_dekad) {
+rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_dekad,
+                                                 layer_multipliers = NULL) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -124,12 +154,19 @@ rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_d
     stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
                  terra::nlyr(season_weights), n_layers), call. = FALSE)
   }
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, n_layers)
+  }
+  if (length(layer_multipliers) != n_layers) {
+    stop(sprintf("layer_multipliers length (%d) must match ret_dekad layers (%d)",
+                 length(layer_multipliers), n_layers), call. = FALSE)
+  }
 
   total <- NULL
   for (i in seq_len(n_layers)) {
     # Accumulate: term = RET_i * (weight_i * Kc_i)
     # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i])
+    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
     
     if (is.null(total)) {
       total <- term
@@ -178,12 +215,16 @@ rwapor_calc_class_p95_aeti <- function(aeti_seasonal, crop_mask,
   # Fast grouped quantile calculation using terra::zonal
   # Note: zonal only works with functions that return a single value
   p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
+    x <- x[!is.na(x)]
     if (length(x) < min_pixels) return(NA_real_)
     stats::quantile(x, 0.95, na.rm = TRUE)
   })
-  
-  # Get counts for validity check
-  count_vals <- terra::freq(crop_mask)
+
+  # Count valid analysis pixels, not just mask pixels.
+  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
+  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
+  count_vals <- as.data.frame(count_vals)
+  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
   
   # Merge results
   result <- data.frame(
@@ -193,9 +234,7 @@ rwapor_calc_class_p95_aeti <- function(aeti_seasonal, crop_mask,
   )
   
   # Add counts and valid flag
-  result <- merge(result, count_vals[, c("value", "count")], 
-                  by.x = "class_value", by.y = "value", all.x = TRUE)
-  names(result)[names(result) == "count"] <- "n_pixels"
+  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
   
   result$n_pixels <- as.integer(result$n_pixels)
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
@@ -266,11 +305,12 @@ rwapor_calc_peff_usda_monthly <- function(p_monthly) {
 
 #' Compute Seasonal Effective Precipitation
 #'
-#' Sums monthly Peff values over the season months or a specific date interval.
+#' Sums monthly Peff values over the season months, pro-rating the first and 
+#' last months if they are only partially within the season dates.
 #'
 #' @param peff_monthly data.frame with columns: year, month, peff_mm.
-#' @param start_date Date or character. Optional start of season.
-#' @param end_date Date or character. Optional end of season.
+#' @param start_date Date or character. Start of season.
+#' @param end_date Date or character. End of season.
 #' @param season_months Integer vector. Legacy month numbers.
 #' @param season_year Integer. Legacy season year.
 #' @return Numeric. Total seasonal effective precipitation in mm.
@@ -279,28 +319,37 @@ rwapor_calc_peff_seasonal <- function(peff_monthly, start_date = NULL,
                                       end_date = NULL, season_months = NULL,
                                       season_year = NULL) {
   if (!is.null(start_date) && !is.null(end_date)) {
-    # Use explicit dates
     s_date <- as.Date(start_date)
     e_date <- as.Date(end_date)
     
     # Create month-start dates for comparison
     peff_monthly$date <- as.Date(sprintf("%04d-%02d-01", peff_monthly$year, peff_monthly$month))
+    peff_monthly$days_in_month <- lubridate::days_in_month(peff_monthly$date)
     
     # Filter months that fall within the interval (at least partially)
-    # We include a month if its start is between s_date and e_date 
-    # OR if s_date/e_date fall within that month.
-    # Simplified: match months whose first day is between floored-start and floored-end.
     month_start_s <- lubridate::floor_date(s_date, "month")
     month_start_e <- lubridate::floor_date(e_date, "month")
     
-    subset_df <- peff_monthly[peff_monthly$date >= month_start_s & 
-                                peff_monthly$date <= month_start_e, ]
+    peff_monthly$overlap_days <- vapply(seq_len(nrow(peff_monthly)), function(i) {
+      m_start <- peff_monthly$date[i]
+      m_end <- m_start + (peff_monthly$days_in_month[i] - 1)
+      
+      overlap_start <- max(m_start, s_date)
+      overlap_end   <- min(m_end, e_date)
+      
+      diff <- as.integer(overlap_end - overlap_start) + 1L
+      max(0L, diff)
+    }, integer(1))
+    
+    # Pro-rate: seasonal_peff = sum(peff_monthly * (overlap_days / days_in_month))
+    subset_df <- peff_monthly[peff_monthly$overlap_days > 0, ]
+    sum(subset_df$peff_mm * (subset_df$overlap_days / subset_df$days_in_month), na.rm = TRUE)
   } else {
     # Legacy support
     subset_df <- peff_monthly[peff_monthly$year == season_year &
                                 peff_monthly$month %in% season_months, ]
+    sum(subset_df$peff_mm, na.rm = TRUE)
   }
-  sum(subset_df$peff_mm, na.rm = TRUE)
 }
 
 

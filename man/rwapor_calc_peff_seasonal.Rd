@@ -15,9 +15,9 @@ rwapor_calc_peff_seasonal(
 \arguments{
 \item{peff_monthly}{data.frame with columns: year, month, peff_mm.}
 
-\item{start_date}{Date or character. Optional start of season.}
+\item{start_date}{Date or character. Start of season.}
 
-\item{end_date}{Date or character. Optional end of season.}
+\item{end_date}{Date or character. End of season.}
 
 \item{season_months}{Integer vector. Legacy month numbers.}
 
@@ -27,5 +27,6 @@ rwapor_calc_peff_seasonal(
 Numeric. Total seasonal effective precipitation in mm.
 }
 \description{
-Sums monthly Peff values over the season months or a specific date interval.
+Sums monthly Peff values over the season months, pro-rating the first and
+last months if they are only partially within the season dates.
 }

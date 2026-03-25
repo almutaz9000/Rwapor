@@ -565,6 +565,98 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     an_results <- shiny::reactiveVal(NULL)
     an_peff_monthly <- shiny::reactiveVal(NULL)
     an_local_vars <- shiny::reactiveVal(NULL)
+    analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+
+    build_valid_class_mask <- function(mask_rast, class_values) {
+      if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
+
+      match_rast <- mask_rast == as.integer(class_values[1])
+      if (length(class_values) > 1) {
+        for (cls in class_values[-1]) {
+          match_rast <- match_rast | (mask_rast == as.integer(cls))
+        }
+      }
+
+      terra::ifel(match_rast, 1L, NA)
+    }
+
+    filtered_class_stats <- function(res) {
+      if (is.null(res) || is.null(res$mask_class_stats) || is.null(res$crop_params)) {
+        return(NULL)
+      }
+
+      stats <- res$mask_class_stats
+      stats[stats$class_value %in% res$crop_params$class_value, , drop = FALSE]
+    }
+
+    weighted_class_mean <- function(summary_tbl, class_stats, value_col) {
+      if (is.null(summary_tbl) || is.null(class_stats) || nrow(summary_tbl) == 0 || nrow(class_stats) == 0) {
+        return(NA_real_)
+      }
+
+      merged <- merge(
+        summary_tbl,
+        class_stats[, c("class_value", "pixel_count"), drop = FALSE],
+        by = "class_value",
+        all = FALSE
+      )
+      merged <- merged[
+        !is.na(merged[[value_col]]) & !is.na(merged$pixel_count) & merged$pixel_count > 0,
+        ,
+        drop = FALSE
+      ]
+      if (nrow(merged) == 0) {
+        return(NA_real_)
+      }
+
+      stats::weighted.mean(merged[[value_col]], w = merged$pixel_count)
+    }
+
+    masked_global_mean <- function(r, mask_rast = NULL) {
+      if (is.null(r)) return(NA_real_)
+      target <- if (is.null(mask_rast)) r else r * mask_rast
+      terra::global(target, "mean", na.rm = TRUE)$mean
+    }
+
+    build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
+      class_vals <- terra::values(crop_mask, mat = FALSE)
+      start_vals <- terra::values(start_raster, mat = FALSE)
+      end_vals <- terra::values(end_raster, mat = FALSE)
+
+      valid <- !is.na(class_vals) &
+        !is.na(start_vals) &
+        !is.na(end_vals) &
+        class_vals %in% class_values
+
+      if (!any(valid)) {
+        return(data.frame(
+          class_value = integer(0),
+          start_jd = integer(0),
+          end_jd = integer(0),
+          total_days = integer(0),
+          pixel_count = integer(0)
+        ))
+      }
+
+      profile_df <- data.frame(
+        class_value = as.integer(class_vals[valid]),
+        start_jd = as.integer(round(start_vals[valid])),
+        end_jd = as.integer(round(end_vals[valid])),
+        pixel_count = 1L,
+        stringsAsFactors = FALSE
+      )
+      profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+      profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+      if (nrow(profile_df) == 0) {
+        return(profile_df)
+      }
+
+      stats::aggregate(
+        pixel_count ~ class_value + start_jd + end_jd + total_days,
+        data = profile_df,
+        FUN = sum
+      )
+    }
 
     # --- File Upload Observers ---
     shiny::observeEvent(input$an_crop_mask, {
@@ -762,17 +854,32 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     output$vbox_aeti <- shiny::renderText({
       res <- an_results()
       if (is.null(res) || is.null(res$seasonal_aeti)) return("--")
-      # Extract mean value from raster
-      val <- terra::global(res$seasonal_aeti$raster, fun = "mean", na.rm = TRUE)$mean
+
+      class_stats <- filtered_class_stats(res)
+      val <- weighted_class_mean(res$seasonal_aeti$by_class, class_stats, "mean_seasonal_aeti")
+      if (is.na(val)) {
+        val <- masked_global_mean(res$seasonal_aeti$raster, res$valid_crop_mask)
+      }
       sprintf("%.1f mm", val)
     })
+
 
     output$vbox_etc <- shiny::renderText({
       res <- an_results()
       if (is.null(res) || is.null(res$etc_by_class)) return("--")
-      # Simplified: Mean of first available class or overall mean if possible
-      all_etc <- lapply(res$etc_by_class, function(x) terra::global(x$etc_seasonal, "mean", na.rm = TRUE)$mean)
-      val <- mean(unlist(all_etc), na.rm = TRUE)
+
+      etc_tbl <- data.frame(
+        class_value = as.integer(names(res$etc_by_class)),
+        mean_seasonal_etc = vapply(names(res$etc_by_class), function(cls) {
+          masked_global_mean(res$etc_by_class[[cls]]$etc_seasonal)
+        }, numeric(1)),
+        stringsAsFactors = FALSE
+      )
+      val <- weighted_class_mean(etc_tbl, filtered_class_stats(res), "mean_seasonal_etc")
+      if (is.na(val)) {
+        val <- mean(etc_tbl$mean_seasonal_etc, na.rm = TRUE)
+      }
+
       sprintf("%.1f mm", val)
     })
 
@@ -780,16 +887,21 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       res <- an_results()
       if (is.null(res) || (is.null(res$adequacy_etc) && is.null(res$adequacy_p95))) return("--")
       adq_rast <- res$adequacy_etc %||% res$adequacy_p95
-      val <- terra::global(adq_rast, "mean", na.rm = TRUE)$mean
+      val <- masked_global_mean(adq_rast, res$valid_crop_mask)
+
       sprintf("%.0f%%", val * 100)
     })
 
     output$vbox_biomass <- shiny::renderText({
       res <- an_results()
-      if (is.null(res) || (is.null(res$biomass) && is.null(res$seasonal_biomass))) return("--")
+      if (is.null(res) || (is.null(res$seasonal_biomass_by_class) && is.null(res$seasonal_biomass) && is.null(res$biomass))) return("--")
       # Use seasonal_biomass if available (it's the raster), otherwise fallback to biomass component
       bio_rast <- res$seasonal_biomass %||% res$biomass
-      val <- terra::global(bio_rast, "mean", na.rm = TRUE)$mean
+      val <- weighted_class_mean(res$seasonal_biomass_by_class, filtered_class_stats(res), "mean_seasonal_biomass")
+      if (is.na(val)) {
+        val <- masked_global_mean(bio_rast, res$valid_crop_mask)
+      }
+
       unit <- input$an_biomass_unit %||% "kg/ha"
       if (unit == "t/ha") val <- val / 1000
       sprintf("%.1f %s", val, unit)
@@ -1515,15 +1627,37 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           temp_missing_info(all_missing_info)
           missing_lines <- lapply(names(all_missing_info), function(v) {
             dates <- all_missing_info[[v]]
-            sprintf("<b>%s</b>: %d dekads missing (%s...%s)", 
+            sprintf("<b>%s</b>: %d dekads missing (%s...%s)",
                     v, length(dates), dates[1], dates[length(dates)])
           })
-          
+
+          # Build diagnostic info
+          local_var_info <- local_vars
+          diag_lines <- lapply(names(all_missing_info), function(v) {
+            var_row <- local_var_info[local_var_info$variable == v, ]
+            if (nrow(var_row) > 0) {
+              sprintf("%s: local data found from %s to %s (%d files)",
+                      v, var_row$min_date, var_row$max_date, var_row$file_count)
+            } else {
+              sprintf("%s: variable folder not found", v)
+            }
+          })
+
           shiny::showModal(shiny::modalDialog(
             title = "Missing Data Detected",
             shiny::HTML(paste0(
-              sprintf("<p>The following data is required for your analysis but was not found in the project folder (<b>%s</b>):</p>", folder),
+              sprintf("<p>The following data is required for your analysis period (<b>%s</b> to <b>%s</b>) but was not found in the project folder (<b>%s</b>):</p>",
+                      period[1], period[2], folder),
               "<ul><li>", paste(missing_lines, collapse = "</li><li>"), "</li></ul>",
+              "<p><b>Tip:</b> This can happen if:</p>",
+              "<ul>",
+              "<li>The analysis period extends beyond the downloaded data range</li>",
+              "<li>Different variables were downloaded for different date ranges</li>",
+              "<li>Files were downloaded with a different AOI or region</li>",
+              "</ul>",
+              "<p><small><b>Local data available:</b><br/>",
+              paste(diag_lines, collapse = "<br/>"),
+              "</small></p>",
               "<p>Would you like to download the missing dekadal rasters now?</p>",
               sprintf("<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box. Files will be saved in subfolders within <b>%s</b>.</i></small></p>", folder)
             )),
@@ -1531,7 +1665,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               shiny::modalButton("Cancel"),
               shiny::actionButton(ns("an_download_missing_btn"), "Download Missing Data", class = "btn-success")
             ),
-            easyClose = FALSE
+            easyClose = FALSE,
+            size = "l"
           ))
           return()
         }
@@ -1576,7 +1711,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             template_r <- terra::rast(local_aeti_paths[1])
             if (!is.null(final_reg)) {
               reg_info <- Rwapor::parse_region(final_reg)
-              template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)
+              template_r <- crop_to_region_shiny(
+                template_r,
+                reg_info,
+                do_mask = identical(reg_info$type, "vector")
+              )
             }
           } else {
             ref_urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
@@ -1593,7 +1732,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
             if (!is.null(final_reg)) {
               reg_info <- Rwapor::parse_region(final_reg)
-              template_r <- crop_to_region_shiny(template_r, reg_info, do_mask = FALSE)
+              template_r <- crop_to_region_shiny(
+                template_r,
+                reg_info,
+                do_mask = identical(reg_info$type, "vector")
+              )
             }
           }
 
@@ -1630,8 +1773,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             stop("Season start raster contains no valid data in the selected area.")
           }
 
-          mean_s_start <- round(s_start_vals)
-
           s_end_vals <- tryCatch({
             terra::global(h_end, "mean", na.rm = TRUE)$mean
           }, error = function(e) NaN)
@@ -1640,14 +1781,20 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             stop("Season end raster contains no valid data.")
           }
 
-          mean_s_end <- round(s_end_vals)
-
           shiny::incProgress(0.10, detail = "Computing season duration...")
           total_days_r <- Rwapor::rwapor_compute_total_days_raster(h_start, h_end)
-          mean_total_days <- round(mean(terra::values(total_days_r, na.rm = TRUE)))
+          mask_class_stats <- Rwapor::rwapor_extract_crop_classes(h_mask, min_pixels = 0)
+          valid_crop_mask <- build_valid_class_mask(h_mask, crop_params$class_value)
+          class_total_days <- terra::zonal(total_days_r, h_mask, fun = "mean", na.rm = TRUE)
+          names(class_total_days) <- c("class_value", "mean_total_days")
+          global_total_days <- round(masked_global_mean(total_days_r, valid_crop_mask))
 
           for (j in seq_len(nrow(crop_params))) {
             fixed_sum <- crop_params$L_ini_days[j] + crop_params$L_mid_days[j] + crop_params$L_late_days[j]
+            class_total_days_j <- class_total_days$mean_total_days[
+              class_total_days$class_value == crop_params$class_value[j]
+            ]
+            mean_total_days <- if (length(class_total_days_j) > 0) round(class_total_days_j[1]) else global_total_days
             if (fixed_sum >= mean_total_days) {
               warning(
                 sprintf(
@@ -1660,14 +1807,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             }
           }
 
-          shiny::incProgress(0.10, detail = "Building Kc curves...")
-          total_days_vec <- stats::setNames(rep(mean_total_days, nrow(crop_params)), as.character(crop_params$class_value))
-          kc_by_class <- Rwapor::rwapor_build_kc_by_class(crop_params, total_days_vec)
-
           shiny::incProgress(0.10, detail = "Building season weights...")
           sw <- Rwapor::rwapor_build_season_weights_dekad(period[1], period[2], h_start, h_end, ref_year)
           season_weights <- sw$weights
           dekad_table <- sw$dekad_table
+
 
           need_aeti_stack <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp") %in% indicators)
           need_ret_stack <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
@@ -1693,15 +1837,17 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             }
 
             if (!is.null(reg_info)) {
-              stack <- crop_to_region_shiny(stack, reg_info, do_mask = FALSE)
+              stack <- crop_to_region_shiny(
+                stack,
+                reg_info,
+                do_mask = identical(reg_info$type, "vector")
+              )
             }
 
-            # Apply scale factor
             meta <- Rwapor::get_variable_metadata(var)
             if (!is.null(meta) && !is.null(meta$scale)) {
               stack <- stack * meta$scale
             }
-
             stack
           }
 
@@ -1737,11 +1883,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
 
           if (need_npp_stack) {
-            npp_var <- "L1-NPP-D"
-            npp_stack <- load_var_stack(npp_var, use_local, folder, period, l3_code, reg_info)
-            if (!is.null(npp_stack)) {
-               shiny::incProgress(0.05, detail = "Harmonizing NPP to AETI...")
-               npp_stack <- Rwapor::rwapor_harmonize_to_template(npp_stack, template_r)
+            npp_var <- input$an_npp_var
+            if (!is.null(npp_var)) {
+              npp_stack <- load_var_stack(npp_var, use_local, folder, period, l3_code, reg_info)
+              if (!is.null(npp_stack)) {
+                 shiny::incProgress(0.05, detail = "Harmonizing NPP to AETI...")
+                 npp_stack <- Rwapor::rwapor_harmonize_to_template(npp_stack, template_r)
+              }
             }
           }
 
@@ -1769,7 +1917,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             s[[indices]]
           }
 
-          target_dates <- dekad_table$dekad_start
+          # Use dekad_key for matching (handles clipped analysis starts)
+          target_dates <- dekad_table$dekad_key
           
           if (!is.null(aeti_stack)) aeti_stack <- align_stack_to_weights(aeti_stack, target_dates)
           if (!is.null(ret_stack)) ret_stack <- align_stack_to_weights(ret_stack, target_dates)
@@ -1777,95 +1926,161 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           if (!is.null(npp_stack)) npp_stack <- align_stack_to_weights(npp_stack, target_dates)
 
           n_layers <- terra::nlyr(season_weights)
+          aeti_layer_multipliers <- if (!is.null(aeti_stack)) analysis_layer_multipliers(aeti_var, dekad_table) else NULL
+          ret_layer_multipliers <- if (!is.null(ret_stack)) analysis_layer_multipliers(ret_var, dekad_table) else NULL
+          precip_layer_multipliers <- if (!is.null(precip_stack)) analysis_layer_multipliers(precip_var, dekad_table) else NULL
+          npp_layer_multipliers <- if (!is.null(npp_stack) && !is.null(npp_var)) analysis_layer_multipliers(npp_var, dekad_table) else NULL
 
           shiny::incProgress(0.10, detail = "Computing seasonal aggregations...")
-          results <- list()
+          results <- list(
+            h_mask = h_mask,
+            valid_crop_mask = valid_crop_mask,
+            mask_class_stats = mask_class_stats
+          )
 
           # Compute seasonal aggregates with optional incremental mode
           use_incremental <- isTRUE(input$an_incremental)
           
           if (need_aeti_stack && !is.null(aeti_stack)) {
             results$seasonal_aeti <- Rwapor::rwapor_calc_seasonal_aeti_masked(
-              aeti_stack, season_weights, h_mask, incremental = use_incremental
+              aeti_stack,
+              season_weights,
+              h_mask,
+              layer_multipliers = aeti_layer_multipliers,
+              incremental = use_incremental
             )
           }
 
           if (need_ret_stack && !is.null(ret_stack)) {
             results$seasonal_ret <- Rwapor::rwapor_calc_seasonal_ret_masked(
-              ret_stack, season_weights, h_mask, incremental = use_incremental
+              ret_stack,
+              season_weights,
+              h_mask,
+              layer_multipliers = ret_layer_multipliers,
+              incremental = use_incremental
             )
           }
 
           if ("agg_pcp" %in% indicators && !is.null(precip_stack)) {
             results$seasonal_pcp <- Rwapor::rwapor_apply_masked_sum(
-              precip_stack, season_weights, incremental = use_incremental
+              precip_stack,
+              season_weights,
+              layer_multipliers = precip_layer_multipliers,
+              incremental = use_incremental
             )
           }
 
           if (("agg_biomass" %in% indicators || "yield_npp" %in% indicators) && !is.null(npp_stack)) {
             shiny::incProgress(0.05, detail = "Computing Biomass...")
-            # Biomass is weighted sum of NPP * 22.222
             results$seasonal_biomass <- Rwapor::rwapor_apply_masked_sum(
-              npp_stack, season_weights, incremental = use_incremental
+              npp_stack,
+              season_weights,
+              layer_multipliers = npp_layer_multipliers,
+              incremental = use_incremental
             ) * 22.222
-            # NPP stack no longer needed after biomass is computed
+            results$seasonal_biomass_by_class <- terra::zonal(
+              results$seasonal_biomass,
+              h_mask,
+              fun = "mean",
+              na.rm = TRUE
+            )
+            names(results$seasonal_biomass_by_class) <- c("class_value", "mean_seasonal_biomass")
             rm(npp_stack); gc()
           }
 
           if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
             shiny::incProgress(0.05, detail = "Computing ETc...")
-            
-            # Step 1: Precompute dekadal Kc for each class
-            # This is fast (numeric operations on small vectors)
-            kc_list <- list()
-            for (j in seq_len(nrow(crop_params))) {
-              cls <- as.character(crop_params$class_value[j])
-              kc_daily <- kc_by_class[[cls]]
-              # Period[1] is the season start date
-              kc_list[[cls]] <- Rwapor::rwapor_aggregate_kc_dekad(
-                kc_daily, dekad_table, period[1]
-              )
+
+            profile_table <- build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
+            if (nrow(profile_table) == 0) {
+              stop("No valid crop-season profiles were found after harmonization.")
             }
-            
-            # Step 2: Group classes by identical Kc profiles to avoid redundant raster math
-            kc_keys <- vapply(kc_list, function(x) paste(round(x, 4), collapse = ","), character(1))
-            unique_kc_keys <- unique(kc_keys)
-            
+
+            kc_profiles <- list()
+            profile_table$kc_key <- NA_character_
+            for (i in seq_len(nrow(profile_table))) {
+              profile_row <- profile_table[i, ]
+              cp <- crop_params[crop_params$class_value == profile_row$class_value, , drop = FALSE]
+              if (nrow(cp) == 0) next
+
+              fixed_sum <- cp$L_ini_days + cp$L_mid_days + cp$L_late_days
+              l_dev <- as.integer(profile_row$total_days - fixed_sum)
+              if (l_dev < 0L) {
+                warning(sprintf(
+                  "Class %s profile start=%d end=%d has total_days=%d < fixed stage sum=%d. Clamping L_dev to 0.",
+                  cp$crop_label[1],
+                  profile_row$start_jd,
+                  profile_row$end_jd,
+                  profile_row$total_days,
+                  fixed_sum
+                ), call. = FALSE)
+                l_dev <- 0L
+              }
+
+              kc_daily <- Rwapor::rwapor_build_daily_kc(
+                Kc_ini = cp$Kc_ini[1],
+                Kc_mid = cp$Kc_mid[1],
+                Kc_end = cp$Kc_end[1],
+                L_ini = cp$L_ini_days[1],
+                L_dev = l_dev,
+                L_mid = cp$L_mid_days[1],
+                L_late = cp$L_late_days[1]
+              )
+              season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + profile_row$start_jd - 1L
+              kc_dekad <- Rwapor::rwapor_aggregate_kc_dekad(kc_daily, dekad_table, season_start_date)
+              kc_key <- paste(round(kc_dekad, 6), collapse = ",")
+              profile_table$kc_key[i] <- kc_key
+              if (is.null(kc_profiles[[kc_key]])) {
+                kc_profiles[[kc_key]] <- kc_dekad
+              }
+            }
+
             unique_etc_rasters <- list()
-            for (key in unique_kc_keys) {
-              # Find the first class that has this Kc profile
-              cls_example <- names(kc_keys)[kc_keys == key][1]
-              kc_vec <- kc_list[[cls_example]]
-              
-              # Compute seasonal ETc once for this profile (incremental = memory safe)
+            for (key in names(kc_profiles)) {
               unique_etc_rasters[[key]] <- Rwapor::rwapor_calc_seasonal_etc_incremental(
-                ret_stack, season_weights, kc_vec
+                ret_stack,
+                season_weights,
+                kc_profiles[[key]],
+                layer_multipliers = ret_layer_multipliers
               )
             }
-            
-            # Step 3: Map back to etc_by_class and apply class mask
-            # This ensures each class gets its specific spatial extent results
+
+            kc_by_class <- list()
             etc_by_class <- list()
             for (j in seq_len(nrow(crop_params))) {
               cls <- as.character(crop_params$class_value[j])
-              key <- kc_keys[cls]
-              
-              # Get the seasonal ETc for this profile
-              etc_seasonal_global <- unique_etc_rasters[[key]]
-              
-              # Mask to the specific crop class
-              class_mask <- terra::ifel(h_mask == as.integer(cls), 1L, NA)
-              etc_seasonal_masked <- etc_seasonal_global * class_mask
-              
-              # mod_analysis.R expects a list with kc_dekad and etc_seasonal
+              class_profiles <- profile_table[profile_table$class_value == as.integer(cls), , drop = FALSE]
+              if (nrow(class_profiles) == 0) next
+
+              class_etc <- NULL
+              class_kc <- matrix(NA_real_, nrow = nrow(class_profiles), ncol = n_layers)
+              for (i in seq_len(nrow(class_profiles))) {
+                key <- class_profiles$kc_key[i]
+                profile_mask <- terra::ifel(
+                  (h_mask == as.integer(cls)) &
+                    (h_start == class_profiles$start_jd[i]) &
+                    (h_end == class_profiles$end_jd[i]),
+                  1L,
+                  NA
+                )
+                profile_etc <- unique_etc_rasters[[key]] * profile_mask
+                class_etc <- if (is.null(class_etc)) profile_etc else terra::cover(class_etc, profile_etc)
+                class_kc[i, ] <- kc_profiles[[key]]
+              }
+
+              kc_by_class[[cls]] <- if (nrow(class_kc) == 1) {
+                as.numeric(class_kc[1, ])
+              } else {
+                as.numeric(colSums(class_kc * class_profiles$pixel_count) / sum(class_profiles$pixel_count))
+              }
               etc_by_class[[cls]] <- list(
-                kc_dekad = kc_list[[cls]],
-                etc_seasonal = etc_seasonal_masked
+                kc_dekad = kc_by_class[[cls]],
+                etc_seasonal = class_etc
               )
             }
+            results$kc_by_class <- kc_by_class
             results$etc_by_class <- etc_by_class
-            
-            # RET stack no longer needed after ETc is computed
+
             rm(ret_stack); gc()
           }
 
@@ -1893,7 +2108,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           if ("agg_peff" %in% indicators && !is.null(precip_stack)) {
             shiny::incProgress(0.05, detail = "Computing effective precipitation...")
             tryCatch({
-              precip_means <- terra::global(precip_stack[[seq_len(n_layers)]], fun = "mean", na.rm = TRUE)$mean
+              precip_means <- vapply(seq_len(n_layers), function(i) {
+                masked_global_mean(precip_stack[[i]], valid_crop_mask)
+              }, numeric(1))
               tres <- utils::tail(strsplit(precip_var, "-")[[1]], 1)
               precip_urls <- Rwapor::wapor_generate_urls(precip_var, l3_region = l3_code, period = period)
               precip_dates <- lapply(precip_urls, function(u) Rwapor::get_date_info(u, tres))
@@ -1929,7 +2146,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
           if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
             shiny::incProgress(0.05, detail = "Computing CWP/BWP...")
-            mean_aeti <- mean(terra::values(results$seasonal_aeti$raster, na.rm = TRUE))
+            mean_aeti <- masked_global_mean(results$seasonal_aeti$raster, valid_crop_mask)
             cwp_val <- NULL
             bwp_val <- NULL
 
@@ -1937,7 +2154,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               tryCatch({
                 yield_r <- terra::rast(input$an_yield_file$datapath)
                 yield_h <- Rwapor::rwapor_harmonize_to_template(yield_r, template_r)
-                mean_yield <- mean(terra::values(yield_h, na.rm = TRUE))
+                mean_yield <- masked_global_mean(yield_h, valid_crop_mask)
                 cwp_val <- Rwapor::rwapor_calc_cwp(mean_yield, mean_aeti, input$an_yield_unit)
               }, error = function(e) {
                 warning("CWP computation failed: ", e$message)
@@ -1954,12 +2171,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
             if (!is.null(bio_h)) {
               tryCatch({
-                mean_bio <- mean(terra::values(bio_h, na.rm = TRUE))
-                bwp_val <- Rwapor::rwapor_calc_bwp(mean_bio, mean_aeti, input$an_biomass_unit)
+                mean_bio <- masked_global_mean(bio_h, valid_crop_mask)
+                biomass_unit <- if (!is.null(input$an_biomass_file)) input$an_biomass_unit else "kg/ha"
+                bwp_val <- Rwapor::rwapor_calc_bwp(mean_bio, mean_aeti, biomass_unit)
               }, error = function(e) {
                 warning("BWP computation failed: ", e$message)
               })
             }
+
 
             results$cwp <- cwp_val
             results$bwp <- bwp_val
@@ -1971,7 +2190,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
           shiny::incProgress(0.10, detail = "Finalizing results...")
           results$crop_params <- crop_params
-          results$kc_by_class <- kc_by_class
+          results$kc_by_class <- results$kc_by_class %||% list()
           results$dekad_table <- dekad_table[seq_len(n_layers), , drop = FALSE]
 
           an_results(results)
@@ -2079,15 +2298,16 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       rows <- list()
       if (!is.null(res$seasonal_aeti$by_class)) {
         aeti_tbl <- res$seasonal_aeti$by_class
-        ret_tbl <- res$seasonal_ret$by_class
+        ret_tbl <- if (!is.null(res$seasonal_ret)) res$seasonal_ret$by_class else NULL
         etc_means <- if (!is.null(res$etc_by_class)) {
           vapply(names(res$etc_by_class), function(cls) {
             etc_r <- res$etc_by_class[[cls]]$etc_seasonal
-            if (!is.null(etc_r)) mean(terra::values(etc_r, na.rm = TRUE)) else NA_real_
+            if (!is.null(etc_r)) masked_global_mean(etc_r) else NA_real_
           }, numeric(1))
         } else {
           numeric()
         }
+
 
         for (i in seq_len(nrow(aeti_tbl))) {
           cls_str <- as.character(aeti_tbl$class_value[i])
@@ -2106,7 +2326,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           rows[[i]] <- data.frame(
             Class = label,
             `AETI (mm)` = round(aeti_tbl$mean_seasonal_aeti[i], 1),
-            `RET (mm)` = round(ret_tbl$mean_seasonal_ret[i], 1),
+            `RET (mm)` = if (!is.null(ret_tbl)) {
+              ret_idx <- match(aeti_tbl$class_value[i], ret_tbl$class_value)
+              if (!is.na(ret_idx)) round(ret_tbl$mean_seasonal_ret[ret_idx], 1) else NA
+            } else {
+              NA
+            },
             `ETc (mm)` = if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 1) else NA,
             `Yield (t/ha)` = if (!is.na(yield_val)) round(yield_val, 2) else NA,
             check.names = FALSE,
@@ -2126,14 +2351,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
       rows <- list()
       params <- res$crop_params
+      mask_rast <- res$h_mask %||% an_crop_mask_rast()
 
       if (!is.null(res$adequacy_etc)) {
-        classes <- terra::freq(an_crop_mask_rast())
-        classes <- classes[!is.na(classes$value), ]
-        for (i in seq_len(nrow(classes))) {
-          cls <- classes$value[i]
-          cls_mask <- terra::ifel(an_crop_mask_rast() == cls, 1L, NA)
-          adq_vals <- terra::values(res$adequacy_etc * cls_mask, na.rm = TRUE)
+        classes <- params$class_value %||% integer(0)
+        for (cls in classes) {
+          cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
+          mean_adq <- masked_global_mean(res$adequacy_etc, cls_mask)
+
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
             if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
@@ -2143,10 +2368,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           rows[[length(rows) + 1]] <- data.frame(
             Class = label,
             Indicator = "Adequacy_ETc",
-            Mean = if (length(adq_vals) > 0) round(mean(adq_vals), 3) else NA,
+            Mean = if (!is.nan(mean_adq)) round(mean_adq, 3) else NA,
             check.names = FALSE,
             stringsAsFactors = FALSE
           )
+
         }
       }
 
@@ -2154,6 +2380,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         p95_tbl <- res$p95_table
         for (i in seq_len(nrow(p95_tbl))) {
           cls <- p95_tbl$class_value[i]
+          cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
+          mean_adq <- masked_global_mean(res$adequacy_p95, cls_mask)
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
             if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
@@ -2163,7 +2391,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           rows[[length(rows) + 1]] <- data.frame(
             Class = label,
             Indicator = "Adequacy_P95",
-            Mean = if (p95_tbl$valid[i]) round(p95_tbl$p95_aeti[i], 1) else NA,
+            Mean = if (p95_tbl$valid[i]) round(mean_adq, 3) else NA,
             check.names = FALSE,
             stringsAsFactors = FALSE
           )

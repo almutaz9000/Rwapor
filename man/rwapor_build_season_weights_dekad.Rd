@@ -2,7 +2,7 @@
 % Please edit documentation in R/analysis.R
 \name{rwapor_build_season_weights_dekad}
 \alias{rwapor_build_season_weights_dekad}
-\title{Build Dekadal Season Weights}
+\title{Build Dekadal Season Weights and Days}
 \usage{
 rwapor_build_season_weights_dekad(
   start_date,
@@ -26,12 +26,16 @@ rwapor_build_season_weights_dekad(
 \value{
 A list with components:
 \describe{
-\item{weights}{SpatRaster with one layer per dekad (values 0-1)}
+\item{weights}{SpatRaster with one layer per dekad (fraction 0-1)}
+\item{days}{SpatRaster with one layer per dekad (absolute days)}
 \item{dekad_table}{data.frame of dekad periods}
 }
 }
 \description{
-For each dekad in a given date range, computes a per-pixel fractional
-weight representing how many days of that dekad fall inside the pixel's
-growing season.
+For each dekad in a given date range, computes:
+\enumerate{
+\item A per-pixel fractional weight (0-1) representing the portion of the dekad
+falling inside the pixel's growing season.
+\item A per-pixel count of absolute days (0-11) falling inside the season.
+}
 }

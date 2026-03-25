@@ -217,6 +217,14 @@ test_that("apply_masked_sum works with matching layers", {
   expect_equal(as.numeric(terra::values(result)[1, 1]), 15)  # 10 * 0.5 * 3
 })
 
+test_that("apply_masked_sum honors per-layer multipliers", {
+  skip_if_not_installed("terra")
+  x <- terra::rast(nrows = 3, ncols = 3, nlyrs = 3, vals = 10)
+  w <- terra::rast(nrows = 3, ncols = 3, nlyrs = 3, vals = 0.5)
+  result <- rwapor_apply_masked_sum(x, w, layer_multipliers = c(10, 10, 11))
+  expect_equal(as.numeric(terra::values(result)[1, 1]), 155)
+})
+
 test_that("apply_masked_sum errors on mismatched layers", {
   skip_if_not_installed("terra")
   x <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 10)
@@ -224,10 +232,53 @@ test_that("apply_masked_sum errors on mismatched layers", {
   expect_error(rwapor_apply_masked_sum(x, w), "Layer count mismatch")
 })
 
+test_that("analysis layer multipliers use dekad day counts for daily-rate D variables", {
+  multiplier_helper <- if (exists("get_analysis_layer_multipliers", mode = "function")) {
+    get("get_analysis_layer_multipliers", mode = "function")
+  } else {
+    getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+  }
+  period_table <- data.frame(
+    dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21")),
+    dekad_end = as.Date(c("2023-01-10", "2023-01-20", "2023-01-31")),
+    n_days = c(10L, 10L, 11L)
+  )
+
+  expect_equal(multiplier_helper("L1-AETI-D", period_table), c(10, 10, 11))
+  expect_equal(multiplier_helper("L1-TBP-A", period_table), c(1, 1, 1))
+})
+
+test_that("seasonal ETc incremental honors per-layer multipliers", {
+  skip_if_not_installed("terra")
+  ret <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 1)
+  w <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 0.5)
+  result <- rwapor_calc_seasonal_etc_incremental(
+    ret,
+    w,
+    kc_dekad = c(1, 1, 1),
+    layer_multipliers = c(10, 10, 11)
+  )
+  expect_equal(as.numeric(terra::values(result)[1, 1]), 15.5)
+})
+
 test_that("adequacy_etc handles zero ETc", {
   expect_true(is.na(rwapor_calc_adequacy_etc(100, 0)))
   expect_equal(rwapor_calc_adequacy_etc(400, 400), 1)
   expect_equal(rwapor_calc_adequacy_etc(300, 400), 0.75)
+})
+
+test_that("class p95 validity counts only non-missing analysis pixels", {
+  skip_if_not_installed("terra")
+  aeti <- terra::rast(nrows = 2, ncols = 2, vals = c(1, NA, 3, 4))
+  crop_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 1, 2, 2))
+
+  result <- rwapor_calc_class_p95_aeti(aeti, crop_mask, min_pixels = 2)
+  result <- result[order(result$class_value), ]
+
+  expect_equal(result$n_pixels, c(1L, 2L))
+  expect_equal(result$valid, c(FALSE, TRUE))
+  expect_true(is.na(result$p95_aeti[1]))
+  expect_false(is.na(result$p95_aeti[2]))
 })
 
 test_that("aggregate_precip_monthly works", {
