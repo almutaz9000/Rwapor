@@ -315,6 +315,31 @@ get_seasonal_multiplier_values <- function(variable, plan_rows, aggregation_rule
   plan_rows$weight
 }
 
+#' Compute Analysis Multipliers for Time-Slice Rasters
+#'
+#' @param variable Character variable code for the loaded raster stack.
+#' @param period_table Data frame with one row per loaded layer and an `n_days`
+#'   column describing each time slice.
+#' @return Numeric vector of per-layer multipliers.
+#' @keywords internal
+#' @noRd
+get_analysis_layer_multipliers <- function(variable, period_table) {
+  if (!is.data.frame(period_table) || nrow(period_table) == 0) {
+    return(numeric(0))
+  }
+
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  tres <- parts[length(parts)]
+  meta <- get_variable_metadata(variable)
+  unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
+
+  if (identical(tres, "D") && identical(unit_time, "day")) {
+    return(period_table$n_days)
+  }
+
+  rep(1, nrow(period_table))
+}
+
 #' Resolve Units for Seasonal Outputs
 #'
 #' @param variable Character variable code.

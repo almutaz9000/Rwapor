@@ -391,12 +391,17 @@ build_dekad_table <- function(start_date, end_date) {
       d_end   <- as.Date(sprintf("%04d-%02d-%02d", yr, mo,
                                   lubridate::days_in_month(current)))
     }
-    # Clamp to the requested range
+    # Store the unclipped standard dekad start as the key for matching
+    d_key <- d_start
+
+    # Clamp to the requested range for weighting
     d_start <- max(d_start, start_date)
     d_end   <- min(d_end, end_date)
 
     dekads[[length(dekads) + 1]] <- data.frame(
-      dekad_start = d_start, dekad_end = d_end,
+      dekad_start = d_start, 
+      dekad_end = d_end,
+      dekad_key = d_key,
       n_days = as.integer(d_end - d_start) + 1L,
       stringsAsFactors = FALSE
     )
@@ -405,11 +410,12 @@ build_dekad_table <- function(start_date, end_date) {
   do.call(rbind, dekads)
 }
 
-#' Build Dekadal Season Weights
+#' Build Dekadal Season Weights and Days
 #'
-#' For each dekad in a given date range, computes a per-pixel fractional
-#' weight representing how many days of that dekad fall inside the pixel's
-#' growing season.
+#' For each dekad in a given date range, computes:
+#' 1. A per-pixel fractional weight (0-1) representing the portion of the dekad
+#'    falling inside the pixel's growing season.
+#' 2. A per-pixel count of absolute days (0-11) falling inside the season.
 #'
 #' @param start_date Date or character. Start of the analysis date range.
 #' @param end_date Date or character. End of the analysis date range.
@@ -418,7 +424,8 @@ build_dekad_table <- function(start_date, end_date) {
 #' @param reference_year Integer. The season reference year.
 #' @return A list with components:
 #'   \describe{
-#'     \item{weights}{SpatRaster with one layer per dekad (values 0-1)}
+#'     \item{weights}{SpatRaster with one layer per dekad (fraction 0-1)}
+#'     \item{days}{SpatRaster with one layer per dekad (absolute days)}
 #'     \item{dekad_table}{data.frame of dekad periods}
 #'   }
 #' @export
@@ -429,7 +436,7 @@ rwapor_build_season_weights_dekad <- function(start_date, end_date,
 
   # Analytical overlap calculation:
   # Overlap = max(0, min(dekad_end, season_end) - max(dekad_start, season_start) + 1)
-  weight_layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
+  layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
     d <- dekad_tbl[i, ]
     
     # Convert dekad boundaries to continuous Julian days
@@ -443,14 +450,20 @@ rwapor_build_season_weights_dekad <- function(start_date, end_date,
     overlap_days <- terra::clamp(o_end - o_start + 1, lower = 0)
     
     # Weight is fraction of dekad days
-    overlap_days / d$n_days
+    fraction <- overlap_days / d$n_days
+    
+    list(days = overlap_days, fraction = fraction)
   })
 
-  weights <- terra::rast(weight_layers)
+  weights <- terra::rast(lapply(layers, `[[`, "fraction"))
+  days    <- terra::rast(lapply(layers, `[[`, "days"))
+  
   names(weights) <- paste0("dekad_", seq_len(nrow(dekad_tbl)))
+  names(days)    <- paste0("dekad_", seq_len(nrow(dekad_tbl)))
 
-  list(weights = weights, dekad_table = dekad_tbl)
+  list(weights = weights, days = days, dekad_table = dekad_tbl)
 }
+
 
 
 # =============================================================================
@@ -655,8 +668,9 @@ rwapor_scan_local_variables <- function(folder) {
   # List all subdirectories (each should be a variable like L1-AETI-D)
   subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
 
-  # Filter to likely variable folders (match pattern like L1-AETI-D, L2-NPP-M, AGERA5-ET0-D)
-  var_pattern <- "^(L[123]-[A-Z]+-[DMY]|AGERA5-[A-Z0-9]+-[DMY])$"
+  # Filter to likely variable folders (match pattern like L1-AETI-D, L2-NPP-M, AGERA5-ET0-E)
+  # Note: E = daily (AgERA5), D = dekadal, M = monthly, Y = yearly
+  var_pattern <- "^(L[123]-[A-Z0-9]+-[DMYA]|AGERA5-[A-Z0-9]+-[DMYE])$"
   var_folders <- subdirs[grepl(var_pattern, subdirs)]
 
   if (length(var_folders) == 0) {
@@ -767,7 +781,8 @@ rwapor_compare_geom <- function(r1, r2) {
 #' Get Local Raster Paths for a Variable and Date Range
 #'
 #' Returns file paths for locally available rasters matching a variable
-#' and date range.
+#' and date range. For dekadal/monthly data, includes any time step that
+#' overlaps with the analysis period (not just those starting within it).
 #'
 #' @param folder Character. Path to the download folder.
 #' @param variable Character. Variable code (e.g., "L1-AETI-D").
@@ -792,13 +807,22 @@ rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
     return(character(0))
   }
 
+  # Determine temporal resolution from variable name
+  var_parts <- strsplit(variable, "-")[[1]]
+  tres_code <- if (length(var_parts) >= 3) var_parts[length(var_parts)] else "D"
+
   # Extract dates and filter by range
   date_patterns <- c(
     "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",
     "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"
   )
 
-  file_dates <- data.frame(path = tif_files, date = as.Date(NA), stringsAsFactors = FALSE)
+  file_dates <- data.frame(
+    path = tif_files,
+    file_start = as.Date(NA),
+    file_end = as.Date(NA),
+    stringsAsFactors = FALSE
+  )
 
   for (i in seq_along(tif_files)) {
     f <- basename(tif_files[i])
@@ -809,18 +833,56 @@ rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
         if (nchar(date_str) == 8) {
           date_str <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", date_str)
         }
-        file_dates$date[i] <- as.Date(date_str)
+        file_start <- as.Date(date_str)
+        file_dates$file_start[i] <- file_start
+
+        # Calculate file end date based on temporal resolution
+        if (tres_code == "D") {
+          # Dekadal: each dekad covers ~10 days
+          day_of_month <- as.integer(format(file_start, "%d"))
+          if (day_of_month == 1) {
+            # First dekad: days 1-10
+            file_dates$file_end[i] <- file_start + 9
+          } else if (day_of_month == 11) {
+            # Second dekad: days 11-20
+            file_dates$file_end[i] <- file_start + 9
+          } else if (day_of_month == 21) {
+            # Third dekad: days 21 to end of month
+            file_dates$file_end[i] <- as.Date(paste0(
+              format(file_start, "%Y-%m-"),
+              lubridate::days_in_month(file_start)
+            ))
+          } else {
+            # Fallback for non-standard dekad start
+            file_dates$file_end[i] <- file_start + 9
+          }
+        } else if (tres_code == "M") {
+          # Monthly: end on last day of month
+          file_dates$file_end[i] <- as.Date(paste0(
+            format(file_start, "%Y-%m-"),
+            lubridate::days_in_month(file_start)
+          ))
+        } else if (tres_code %in% c("A", "Y")) {
+          # Annual: end on Dec 31
+          file_dates$file_end[i] <- as.Date(paste0(format(file_start, "%Y"), "-12-31"))
+        } else {
+          # Daily or unknown: same day
+          file_dates$file_end[i] <- file_start
+        }
         break
       }
     }
   }
 
-  # Filter by date range
-  file_dates <- file_dates[!is.na(file_dates$date), ]
-  file_dates <- file_dates[file_dates$date >= start_date & file_dates$date <= end_date, ]
+  # Filter by overlap with analysis period (not just start date within period)
+  # A file overlaps if: file_start <= end_date AND file_end >= start_date
+  file_dates <- file_dates[!is.na(file_dates$file_start), ]
+  file_dates <- file_dates[
+    file_dates$file_start <= end_date & file_dates$file_end >= start_date,
+  ]
 
-  # Sort by date
-  file_dates <- file_dates[order(file_dates$date), ]
+  # Sort by start date
+  file_dates <- file_dates[order(file_dates$file_start), ]
 
   file_dates$path
 }
@@ -842,7 +904,10 @@ rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
 #' @export
 rwapor_check_local_files <- function(urls, var, folder) {
   if (length(urls) == 0) return(list(optimized_paths = character(0), missing_dates = character(0), found_count = 0L))
-  
+
+  # Normalize folder path (handle potential issues with trailing slashes, etc.)
+  folder <- normalizePath(folder, winslash = "/", mustWork = FALSE)
+
   # Standard naming components
   parts <- strsplit(basename(urls[1]), "\\.")[[1]]
   product_base <- if (length(parts) >= 3) {
@@ -850,43 +915,68 @@ rwapor_check_local_files <- function(urls, var, folder) {
   } else {
     var
   }
-  
+
   tres_code <- strsplit(var, "-")[[1]][3]
   var_folder <- file.path(folder, var)
-  
+
+  # Get list of all .tif files in the variable folder for flexible matching
+  existing_files <- character(0)
+  if (dir.exists(var_folder)) {
+    existing_files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
+    # Also normalize these paths for consistent comparison
+    if (length(existing_files) > 0) {
+      existing_files <- normalizePath(existing_files, winslash = "/", mustWork = FALSE)
+    }
+  }
+
   optimized_paths <- character(length(urls))
   missing_dates <- character(0)
   found_count <- 0L
-  
+
   for (i in seq_along(urls)) {
     u <- urls[i]
     date_info <- get_date_info(u, tres = tres_code)
     raw_date <- date_info$raw_date
     dash_date <- date_info$start_date
-    
-    # Check for both bbox (bb_) and standard versions, with raw and dashed dates
-    f1 <- file.path(var_folder, paste0(product_base, ".", raw_date, ".tif"))
-    f2 <- file.path(var_folder, paste0("bb_", product_base, ".", raw_date, ".tif"))
-    f3 <- file.path(var_folder, paste0(product_base, ".", dash_date, ".tif"))
-    f4 <- file.path(var_folder, paste0("bb_", product_base, ".", dash_date, ".tif"))
-    
-    if (file.exists(f1)) {
-      optimized_paths[i] <- f1
-      found_count <- found_count + 1L
-    } else if (file.exists(f2)) {
-      optimized_paths[i] <- f2
-      found_count <- found_count + 1L
-    } else if (file.exists(f3)) {
-      optimized_paths[i] <- f3
-      found_count <- found_count + 1L
-    } else if (file.exists(f4)) {
-      optimized_paths[i] <- f4
-      found_count <- found_count + 1L
-    } else {
+
+    # Build candidate filenames (both with and without bb_ prefix, both date formats)
+    candidates <- c(
+      file.path(var_folder, paste0(product_base, ".", raw_date, ".tif")),
+      file.path(var_folder, paste0("bb_", product_base, ".", raw_date, ".tif")),
+      file.path(var_folder, paste0(product_base, ".", dash_date, ".tif")),
+      file.path(var_folder, paste0("bb_", product_base, ".", dash_date, ".tif"))
+    )
+    # Normalize candidates for comparison
+    candidates <- normalizePath(candidates, winslash = "/", mustWork = FALSE)
+
+    # Check each candidate
+    found <- FALSE
+    for (cand in candidates) {
+      if (file.exists(cand)) {
+        optimized_paths[i] <- cand
+        found_count <- found_count + 1L
+        found <- TRUE
+        break
+      }
+    }
+
+    # Fallback: search by date pattern in existing files (handles minor naming variations)
+    if (!found && length(existing_files) > 0) {
+      # Look for any file containing the dash_date
+      date_pattern <- paste0("\\.", dash_date, "\\.tif$")
+      matches <- grep(date_pattern, existing_files, value = TRUE)
+      if (length(matches) > 0) {
+        optimized_paths[i] <- matches[1]
+        found_count <- found_count + 1L
+        found <- TRUE
+      }
+    }
+
+    if (!found) {
       optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
       missing_dates <- c(missing_dates, dash_date)
     }
   }
-  
+
   list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
 }

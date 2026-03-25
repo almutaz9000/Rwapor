@@ -4,12 +4,21 @@
 \alias{rwapor_apply_masked_sum}
 \title{Apply Season-Masked Sum}
 \usage{
-rwapor_apply_masked_sum(x, weights, incremental = FALSE)
+rwapor_apply_masked_sum(
+  x,
+  weights,
+  layer_multipliers = NULL,
+  incremental = FALSE
+)
 }
 \arguments{
 \item{x}{SpatRaster. Multi-layer raster (e.g., dekadal AETI or RET).}
 
 \item{weights}{SpatRaster. Season weights (0-1), same number of layers as x.}
+
+\item{layer_multipliers}{Optional numeric vector of per-layer multipliers.
+Use this for rate variables stored per day where a weighted sum must be
+multiplied by the full slice length.}
 
 \item{incremental}{Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 Recommended for very long seasons or low RAM. Default FALSE.}

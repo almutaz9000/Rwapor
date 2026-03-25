@@ -8,6 +8,7 @@ rwapor_calc_seasonal_ret_masked(
   ret_dekad,
   season_weights,
   crop_mask = NULL,
+  layer_multipliers = NULL,
   incremental = FALSE
 )
 }
@@ -17,6 +18,8 @@ rwapor_calc_seasonal_ret_masked(
 \item{season_weights}{SpatRaster. Dekadal season weights (0-1).}
 
 \item{crop_mask}{SpatRaster. Optional crop mask for per-class summaries.}
+
+\item{layer_multipliers}{Optional numeric vector of per-layer multipliers.}
 
 \item{incremental}{Logical. If TRUE, performs aggregation layer-by-layer to save memory.}
 }
