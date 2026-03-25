@@ -226,10 +226,17 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
             shiny::fluidRow(
               shiny::column(
                 8,
-                shiny::textInput(
-                  ns("an_folder"),
-                  "Output Folder",
-                  value = file.path(getwd(), "analysis_output")
+                shiny::div(
+                  style = "display: flex; align-items: flex-end; gap: 5px;",
+                  shiny::div(
+                    style = "flex: 1;",
+                    shiny::textInput(
+                      ns("an_folder"),
+                      "Output Folder",
+                      value = file.path(getwd(), "analysis_output")
+                    )
+                  ),
+                  shiny::uiOutput(ns("an_favorite_btn_ui"))
                 )
               ),
               shiny::column(
@@ -243,6 +250,7 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 )
               )
             ),
+            shiny::uiOutput(ns("an_favorites_ui")),
             shiny::checkboxInput(ns("an_save_rasters"), "Save Analysis Rasters to Folder", value = TRUE)
           )
         )
@@ -414,6 +422,53 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     # Phase 2: Missing data state
     temp_missing_info <- shiny::reactiveVal(NULL)
     
+    # Favorites logic
+    favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
+    
+    output$an_favorite_btn_ui <- shiny::renderUI({
+      path <- input$an_folder %||% ""
+      is_fav <- Rwapor::rwapor_is_favorite(path)
+      
+      shiny::actionLink(
+        session$ns("an_favorite_btn"),
+        NULL,
+        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        style = "margin-bottom: 11px; font-size: 1.1rem;"
+      )
+    })
+    
+    shiny::observeEvent(input$an_favorite_btn, {
+      path <- input$an_folder %||% ""
+      if (!nzchar(path)) return()
+      
+      if (Rwapor::rwapor_is_favorite(path)) {
+        Rwapor::rwapor_remove_favorite(path)
+      } else {
+        Rwapor::rwapor_add_favorite(path, type = "directory")
+      }
+      favs(Rwapor::rwapor_get_favorites())
+    })
+    
+    output$an_favorites_ui <- shiny::renderUI({
+      f <- favs()
+      f_dirs <- f[f$type == "directory", "path"]
+      if (length(f_dirs) == 0) return(NULL)
+      
+      shiny::selectizeInput(
+        session$ns("an_quick_fav"),
+        NULL,
+        choices = c("Quick Access Favorites..." = "", f_dirs),
+        options = list(placeholder = "Select a favorite analysis folder")
+      )
+    })
+    
+    shiny::observeEvent(input$an_quick_fav, {
+      path <- input$an_quick_fav
+      if (nzchar(path)) {
+        shiny::updateTextInput(session, "an_folder", value = path)
+      }
+    })
+    
     # --- NEW: Observer for Missing Data Download Button ---
     shiny::observeEvent(input$an_download_missing_btn, {
       missing_info <- temp_missing_info()
@@ -422,6 +477,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       
       if (is.null(missing_info) || length(missing_info) == 0) return()
       
+      # Determine if we should mask based on analysis setting
+      do_mask <- isTRUE(input$an_use_crop_mask)
+      
       shiny::withProgress(message = "Downloading Missing Data", value = 0, {
         tryCatch({
           # Resolve extent: AOI > Crop Mask
@@ -429,8 +487,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           if (is.null(reg)) {
             cm <- an_crop_mask_rast()
             if (!is.null(cm)) {
-              # Fallback to crop mask extent
-              shiny::incProgress(0, detail = "Resolving extent from crop mask...")
+              shiny::incProgress(0.05, detail = "Resolving extent from crop mask...")
               cm_ext <- terra::ext(cm)
               cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm))
               cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
@@ -444,28 +501,35 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
           
           vars <- names(missing_info)
-          for (v in vars) {
+          for (i in seq_along(vars)) {
+            v <- vars[i]
             dates <- missing_info[[v]]
-            for (dt in dates) {
-              shiny::incProgress(1/(length(vars)*length(dates)), 
-                                detail = sprintf("Downloading %s for %s...", v, dt))
-              
-              # Use standard wapor_map for individual dekads
-              Rwapor::wapor_map(
-                region = reg,
+            period_v <- c(as.character(dates[1]), as.character(dates[length(dates)]))
+            
+            shiny::incProgress(0.1 + (0.8 * i/length(vars)), detail = sprintf("Downloading %s...", v))
+            
+            Rwapor::wapor_map(
                 variable = v,
-                period = c(dt, dt),
+                period = period_v,
+                region = reg,
+                mask = do_mask,
                 folder = folder,
-                seasonal = FALSE,
-                separate_files = TRUE,
-                mask = FALSE # Masking will happen during analysis load
-              )
-            }
+                separate_files = TRUE
+            )
           }
           
-          shiny::showNotification("Missing data downloaded successfully. You can now run the analysis.", type = "message")
+          # Refresh local variables list automatically
+          shiny::incProgress(0.95, detail = "Refreshing local database...")
+          new_vars <- Rwapor::rwapor_scan_local_variables(folder)
+          an_local_vars(new_vars)
+          
+          shiny::showNotification(
+            sprintf("Download complete! Files saved in their respective subfolders within: %s. Project folder re-scanned.", folder), 
+            type = "message", 
+            duration = 20
+          )
         }, error = function(e) {
-          shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 10)
+          shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 15)
         })
       })
     })
@@ -1371,11 +1435,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       aeti_var <- input$an_aeti_var
       ret_var  <- input$an_ret_var
       precip_var <- input$an_precip_var
-      folder   <- global_folder()
+      npp_var    <- input$an_npp_var
+      folder     <- global_folder()
       
-      # Resolve L3 code if needed (for wapor_generate_urls)
-      l3_code <- if (grepl("^L3-", aeti_var %||% "")) input$an_l3_region else NULL
-      if (is.null(l3_code) && grepl("^L3-", aeti_var %||% "")) {
+      # Resolve L3 code if needed (check all required variables)
+      any_l3 <- any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var) %||% ""))
+      l3_code <- if (any_l3) input$an_l3_region else NULL
+      
+      if (is.null(l3_code) && any_l3) {
          # Attempt to auto-resolve L3 region from AOI or Mask for URL generation
          cand_reg <- reg
          if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
@@ -1419,6 +1486,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         if (any(c("agg_pcp", "agg_peff") %in% indicators)) {
           required_vars <- c(required_vars, precip_var)
         }
+        if (any(c("agg_biomass", "yield_npp", "cwp_bwp") %in% indicators)) {
+          required_vars <- c(required_vars, npp_var)
+        }
 
         missing_vars <- required_vars[!required_vars %in% local_vars$variable]
         if (length(missing_vars) > 0) {
@@ -1452,10 +1522,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           shiny::showModal(shiny::modalDialog(
             title = "Missing Data Detected",
             shiny::HTML(paste0(
-              "<p>The following data is required for your analysis but was not found in the project folder:</p>",
+              sprintf("<p>The following data is required for your analysis but was not found in the project folder (<b>%s</b>):</p>", folder),
               "<ul><li>", paste(missing_lines, collapse = "</li><li>"), "</li></ul>",
               "<p>Would you like to download the missing dekadal rasters now?</p>",
-              "<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box.</i></small></p>"
+              sprintf("<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box. Files will be saved in subfolders within <b>%s</b>.</i></small></p>", folder)
             )),
             footer = shiny::tagList(
               shiny::modalButton("Cancel"),

@@ -860,10 +860,15 @@ rwapor_check_local_files <- function(urls, var, folder) {
   
   for (i in seq_along(urls)) {
     u <- urls[i]
-    date_str <- get_date_info(u, tres = tres_code)$start_date
-    # Check for both bbox (bb_) and standard versions
-    f1 <- file.path(var_folder, paste0(product_base, ".", date_str, ".tif"))
-    f2 <- file.path(var_folder, paste0("bb_", product_base, ".", date_str, ".tif"))
+    date_info <- get_date_info(u, tres = tres_code)
+    raw_date <- date_info$raw_date
+    dash_date <- date_info$start_date
+    
+    # Check for both bbox (bb_) and standard versions, with raw and dashed dates
+    f1 <- file.path(var_folder, paste0(product_base, ".", raw_date, ".tif"))
+    f2 <- file.path(var_folder, paste0("bb_", product_base, ".", raw_date, ".tif"))
+    f3 <- file.path(var_folder, paste0(product_base, ".", dash_date, ".tif"))
+    f4 <- file.path(var_folder, paste0("bb_", product_base, ".", dash_date, ".tif"))
     
     if (file.exists(f1)) {
       optimized_paths[i] <- f1
@@ -871,9 +876,15 @@ rwapor_check_local_files <- function(urls, var, folder) {
     } else if (file.exists(f2)) {
       optimized_paths[i] <- f2
       found_count <- found_count + 1L
+    } else if (file.exists(f3)) {
+      optimized_paths[i] <- f3
+      found_count <- found_count + 1L
+    } else if (file.exists(f4)) {
+      optimized_paths[i] <- f4
+      found_count <- found_count + 1L
     } else {
       optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
-      missing_dates <- c(missing_dates, date_str)
+      missing_dates <- c(missing_dates, dash_date)
     }
   }
   

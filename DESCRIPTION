@@ -28,6 +28,7 @@ Imports:
     lubridate,
     exactextractr,
     memoise,
+    jsonlite,
     future.apply
 Suggests:
     testthat (>= 3.0.0),

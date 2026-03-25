@@ -402,23 +402,34 @@ get_date_info <- function(url, tres) {
   parts <- strsplit(date_component, "-")[[1]]
 
   if (tres == "D") {
-    # Dekadal format: YYYY-MM-DX (e.g., 2018-01-D1)
+    # Dekadal format: YYYY-MM-DX (e.g., 2018-01-D1) or YYYYMMDD (e.g., 20180101)
     if (length(parts) < 3) {
-      stop(sprintf("Cannot parse date from URL for Dekadal data: %s", filename), call. = FALSE)
+      if (nchar(date_component) == 8 && grepl("^\\d{8}$", date_component)) {
+        year_str <- substr(date_component, 1, 4)
+        month_str <- substr(date_component, 5, 6)
+        day_val <- as.numeric(substr(date_component, 7, 8))
+        start_day <- sprintf("%02d", day_val)
+        start_date <- paste(year_str, month_str, start_day, sep = "-")
+        # Map back to D1/D2/D3 for consistency
+        dekad_str <- if (day_val <= 10) "D1" else if (day_val <= 20) "D2" else "D3"
+      } else {
+        stop(sprintf("Cannot parse date from URL for Dekadal data: %s", filename), call. = FALSE)
+      }
+    } else {
+      year_str <- parts[1]
+      month_str <- parts[2]
+      dekad_str <- parts[3]
+      
+      dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21",
+                        "1" = "01", "2" = "11", "3" = "21")
+      
+      if (!dekad_str %in% names(dekad_map)) {
+        stop(sprintf("Unknown dekad format: %s", dekad_str), call. = FALSE)
+      }
+      
+      start_day <- dekad_map[[dekad_str]]
+      start_date <- paste(year_str, month_str, start_day, sep = "-")
     }
-    year_str <- parts[1]
-    month_str <- parts[2]
-    dekad_str <- parts[3]
-
-    dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21",
-                      "1" = "01", "2" = "11", "3" = "21")
-
-    if (!dekad_str %in% names(dekad_map)) {
-      stop(sprintf("Unknown dekad format: %s", dekad_str), call. = FALSE)
-    }
-
-    start_day <- dekad_map[[dekad_str]]
-    start_date <- paste(year_str, month_str, start_day, sep = "-")
 
     # Calculate end date based on dekad
     if (dekad_str %in% c("D1", "1")) {
@@ -474,7 +485,8 @@ get_date_info <- function(url, tres) {
   return(list(
     start_date = start_date,
     end_date = end_date,
-    number_of_days = ndays
+    number_of_days = ndays,
+    raw_date = date_component
   ))
 }
 

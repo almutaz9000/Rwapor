@@ -71,14 +71,22 @@ mod_aoi_ui <- function(id) {
       ns = ns,
       shiny::tags$div(
         class = "mt-2",
-        shinyFiles::shinyFilesButton(
-          ns("browse_vector"),
-          "Browse for Vector File",
-          "Select vector file",
-          multiple = FALSE,
-          class = "w-100 btn-sm btn-outline-secondary",
-          icon = shiny::icon("folder-open")
-        )
+        shiny::div(
+          style = "display: flex; gap: 5px; align-items: center;",
+          shiny::div(
+            style = "flex: 1;",
+            shinyFiles::shinyFilesButton(
+              ns("browse_vector"),
+              "Browse for Vector File",
+              "Select vector file",
+              multiple = FALSE,
+              class = "w-100 btn-sm btn-outline-secondary",
+              icon = shiny::icon("folder-open")
+            )
+          ),
+          shiny::uiOutput(ns("fav_vector_btn_ui"))
+        ),
+        shiny::uiOutput(ns("fav_vector_list_ui"))
       )
     ),
     shiny::conditionalPanel(
@@ -135,8 +143,71 @@ mod_aoi_server <- function(id,
       "browse_vector",
       roots = roots,
       session = session,
-      filetypes = c("geojson", "gpkg", "kml")
+      filetypes = c("shp", "geojson", "gpkg", "kml")
     )
+
+    # Favorites logic
+    favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
+    current_upload_path <- shiny::reactiveVal(NULL)
+    
+    shiny::observe({
+      file_info <- input$browse_vector
+      if (!is.null(file_info) && is.list(file_info)) {
+        path <- shinyFiles::parseFilePaths(roots, file_info)$datapath
+        if (length(path) > 0 && nzchar(path)) {
+          # normalize path
+          path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+          current_upload_path(path)
+        }
+      }
+    })
+    
+    output$fav_vector_btn_ui <- shiny::renderUI({
+      path <- current_upload_path() %||% ""
+      if (!nzchar(path)) return(NULL)
+      
+      is_fav <- Rwapor::rwapor_is_favorite(path)
+      shiny::actionLink(
+        session$ns("favorite_vector_btn"),
+        NULL,
+        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        style = "font-size: 1.1rem;"
+      )
+    })
+    
+    shiny::observeEvent(input$favorite_vector_btn, {
+      path <- current_upload_path() %||% ""
+      if (!nzchar(path)) return()
+      
+      if (Rwapor::rwapor_is_favorite(path)) {
+        Rwapor::rwapor_remove_favorite(path)
+      } else {
+        Rwapor::rwapor_add_favorite(path, type = "file")
+      }
+      favs(Rwapor::rwapor_get_favorites())
+    })
+    
+    output$fav_vector_list_ui <- shiny::renderUI({
+      f <- favs()
+      # Filter to show only vector-like files for this module
+      f_files <- f[f$type == "file" & grepl("\\.(shp|geojson|gpkg|kml)$", f$path, ignore.case = TRUE), "path"]
+      if (length(f_files) == 0) return(NULL)
+      
+      shiny::selectizeInput(
+        session$ns("quick_fav_vector"),
+        NULL,
+        choices = c("Quick Access Vector Favorites..." = "", f_files),
+        options = list(placeholder = "Select a favorite vector file")
+      )
+    })
+    
+    shiny::observeEvent(input$quick_fav_vector, {
+      path <- input$quick_fav_vector
+      if (nzchar(path)) {
+        current_upload_path(path)
+        handle_vector_file(path)
+      }
+    })
 
     handle_vector_file <- function(path) {
       tryCatch({
