@@ -19,7 +19,7 @@ mod_aoi_ui <- function(id) {
     shiny::radioButtons(
       ns("aoi_method"),
       "Selection Method",
-      choices = c("Draw on Map" = "draw", "Upload Vector File" = "upload"),
+      choices = c("Draw on Map" = "draw", "Upload New" = "upload", "Project Assets" = "project"),
       selected = "draw",
       inline = TRUE
     ),
@@ -73,12 +73,26 @@ mod_aoi_ui <- function(id) {
         class = "mt-2",
         shinyFiles::shinyFilesButton(
           ns("browse_vector"),
-          "Select Vector File (.geojson, .gpkg, .kml)",
+          "Browse for Vector File",
           "Select vector file",
           multiple = FALSE,
           class = "w-100 btn-sm btn-outline-secondary",
           icon = shiny::icon("folder-open")
         )
+      )
+    ),
+    shiny::conditionalPanel(
+      condition = "input.aoi_method == 'project'",
+      ns = ns,
+      shiny::div(
+        class = "p-2 border rounded bg-light",
+        shiny::actionButton(
+          ns("scan_project_assets"),
+          "Scan Project Folder",
+          icon = shiny::icon("magnifying-glass"),
+          class = "btn-sm btn-outline-primary w-100 mb-2"
+        ),
+        shiny::uiOutput(ns("project_vector_ui"))
       )
     ),
     shiny::checkboxInput(ns("mask_aoi"), "Mask to AOI boundary", FALSE),
@@ -91,6 +105,7 @@ mod_aoi_server <- function(id,
                            map_id = "map",
                            map_session = shiny::getDefaultReactiveDomain(),
                            l3_region = shiny::reactive(NULL),
+                           global_folder = shiny::reactive(NULL),
                            l3_regions_meta = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
     user_roi <- shiny::reactiveVal(NULL)
@@ -165,6 +180,50 @@ mod_aoi_server <- function(id,
       file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
       if (nrow(file_info) > 0) {
         path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
+        handle_vector_file(path)
+      }
+    })
+
+    # --- Project Assets Scanner ---
+    project_vectors <- shiny::reactiveVal(character(0))
+    
+    shiny::observeEvent(input$scan_project_assets, {
+      folder <- global_folder()
+      if (is.null(folder) || !dir.exists(folder)) {
+        shiny::showNotification("Project folder does not exist or is not set.", type = "error")
+        return()
+      }
+      
+      # Scan for vector files
+      files <- list.files(
+        folder, 
+        pattern = "\\.(shp|geojson|gpkg|kml)$", 
+        recursive = TRUE, 
+        full.names = TRUE
+      )
+      
+      if (length(files) == 0) {
+        shiny::showNotification("No vector files found in the project folder.", type = "warning")
+      } else {
+        shiny::showNotification(sprintf("Found %d vector(s).", length(files)), type = "message")
+      }
+      project_vectors(files)
+    })
+    
+    output$project_vector_ui <- shiny::renderUI({
+      files <- project_vectors()
+      if (length(files) == 0) return(shiny::helpText("Click scan to find files."))
+      
+      shiny::selectInput(
+        session$ns("selected_project_vector"),
+        "Select Asset",
+        choices = stats::setNames(files, basename(files))
+      )
+    })
+    
+    shiny::observeEvent(input$selected_project_vector, {
+      path <- input$selected_project_vector
+      if (nzchar(path) && file.exists(path)) {
         handle_vector_file(path)
       }
     })

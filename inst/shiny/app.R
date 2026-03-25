@@ -22,7 +22,8 @@ source("mod_analysis.R")
 # --- Global / Static Configuration ---
 # Build variable list from package metadata
 all_vars <- unname(sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))))
-default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else all_vars[1]
+default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else if (length(all_vars) > 0) all_vars[1] else NULL
+if (is.na(default_var)) default_var <- NULL
 
 # Build L3 region choices as label -> code
 l3_regions_meta <- Rwapor::L3_REGIONS
@@ -77,7 +78,17 @@ ui <- bslib::page_navbar(
 server <- function(input, output, session) {
   # Exit logic
   shiny::observeEvent(input$exit_btn, {
-    log_msg("Shutting down dashboard...")
+    # Ensure it's logged and some feedback is given
+    log_msg("Exit requested via button.")
+    shiny::showNotification("Shutting down session...", type = "warning", duration = 2)
+    
+    # Delay slightly to allow notification to be seen
+    shinyjs::delay(500, shiny::stopApp())
+  })
+
+  # Automatically stop the app when the browser tab is closed
+  session$onSessionEnded(function() {
+    log_msg("Browser session ended. Stopping app.")
     shiny::stopApp()
   })
 

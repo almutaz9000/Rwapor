@@ -13,12 +13,32 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
         class = "sidebar-scroll-area",
         bslib::accordion(
           id = ns("download_accordion"),
-          open = c("Variable & Period", "Area of Interest"),
+          open = c("Project & Variable", "Area of Interest"),
           bslib::accordion_panel(
-            "Variable & Period",
+            "Project & Variable",
             icon = shiny::icon("database"),
+            shiny::fluidRow(
+              shiny::column(
+                8,
+                shiny::textInput(
+                  ns("folder"),
+                  "Project Folder",
+                  value = file.path(getwd(), "wapor_project")
+                )
+              ),
+              shiny::column(
+                4,
+                shinyFiles::shinyDirButton(
+                  ns("browse_folder"),
+                  "Browse",
+                  "Select project directory",
+                  width = "100%",
+                  class = "mt-4"
+                )
+              )
+            ),
             shiny::selectizeInput(
-              ns("variable"),
+              ns("dn_variables"),
               "Variable(s)",
               choices = all_vars,
               selected = default_var,
@@ -26,7 +46,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
               options = list(placeholder = "Select one or more variables")
             ),
             shiny::conditionalPanel(
-              condition = "input.variable && input.variable.some(v => v.startsWith('L3-'))",
+              condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
               ns = ns,
               shiny::selectInput(ns("l3_region"), "L3 Region (for L3 variables)", choices = l3_region_choices),
               shiny::helpText("L3 variables require a specific region.")
@@ -42,32 +62,13 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
           bslib::accordion_panel(
             "Output Settings",
             icon = shiny::icon("folder"),
-            shiny::fluidRow(
-              shiny::column(
-                8,
-                shiny::textInput(
-                  ns("folder"),
-                  "Output Folder",
-                  value = file.path(getwd(), "wapor_output")
-                )
-              ),
-              shiny::column(
-                4,
-                shinyFiles::shinyDirButton(
-                  ns("browse_folder"),
-                  "Browse",
-                  "Select output directory",
-                  width = "100%"
-                )
-              )
-            ),
             shiny::checkboxInput(ns("seasonal"), "Seasonal Aggregation", FALSE),
-            shiny::checkboxInput(ns("separate_files"), "Save as Separate Files", FALSE),
+            shiny::checkboxInput(ns("separate_files"), "Save Individual Time-Step Files", TRUE),
             shiny::conditionalPanel(
               condition = "input.seasonal && input.separate_files",
               ns = ns,
               shiny::helpText(
-                shiny::tags$em("Both selected: seasonal + individual time-step files.")
+                shiny::tags$em("Both selected: Individual files (dekadal/daily) AND a seasonal aggregate.")
               )
             ),
             shiny::selectInput(
@@ -81,7 +82,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             "Area of Interest",
             icon = shiny::icon("map"),
             shiny::conditionalPanel(
-              condition = "input.variable && input.variable.some(v => v.startsWith('L3-'))",
+              condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
               ns = ns,
               shiny::helpText(
                 shiny::tags$em("AOI clips data; leave empty to download the whole L3 region.")
@@ -146,7 +147,7 @@ mod_download_server <- function(id, l3_regions_meta) {
     }
 
     current_l3_region <- shiny::reactive({
-      vars <- input$variable %||% ""
+      vars <- input$dn_variables %||% ""
       if (any(grepl("^L3-", vars))) input$l3_region else NULL
     })
 
@@ -155,13 +156,14 @@ mod_download_server <- function(id, l3_regions_meta) {
       map_id = session$ns("map"),
       map_session = session,
       l3_region = current_l3_region,
+      global_folder = shiny::reactive(input$folder),
       l3_regions_meta = l3_regions_meta
     )
 
     # --- Validation ---
     iv <- shinyvalidate::InputValidator$new()
-    iv$add_rule("folder", shinyvalidate::sv_required())
-    iv$add_rule("variable", shinyvalidate::sv_required())
+    iv$add_rule("folder", shinyvalidate::sv_required("Project Folder is required."))
+    iv$add_rule("dn_variables", shinyvalidate::sv_required("Select at least one variable."))
     iv$add_rule("period", function(value) {
       if (length(value) != 2 || any(is.na(value))) return("Select a valid date range.")
       if (value[2] < value[1]) return("End date must be after start date.")
@@ -302,10 +304,10 @@ mod_download_server <- function(id, l3_regions_meta) {
       unit_conv <- if (input$unit_conversion == "none") "NULL" else sprintf("\"%s\"", input$unit_conversion)
       mask_str <- if (isTRUE(aoi$mask())) "TRUE" else "FALSE"
 
-      var_list_str <- if (length(input$variable) > 1) {
-        paste0("c(\"", paste(input$variable, collapse = "\", \""), "\")")
+      var_list_str <- if (length(input$dn_variables) > 1) {
+        paste0("c(\"", paste(input$dn_variables, collapse = "\", \""), "\")")
       } else {
-        sprintf("\"%s\"", input$variable)
+        sprintf("\"%s\"", input$dn_variables)
       }
 
       code_val <- if (input$seasonal && input$separate_files) {
@@ -316,18 +318,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "period   <- %s\n",
             "variable <- %s\n",
             "folder   <- \"%s\"\n\n",
-            "# 1. Download seasonal aggregate(s)\n",
-            "seasonal_paths <- wapor_map(\n",
-            "  region = region,\n",
-            "  variable = variable,\n",
-            "  period = period,\n",
-            "  folder = folder,\n",
-            "  unit_conversion = %s,\n",
-            "  seasonal = TRUE,\n",
-            "  separate_files = FALSE,\n",
-            "  mask = %s\n",
-            ")\n\n",
-            "# 2. Download individual time step files\n",
+            "# 1. Download individual time-step (dekadal/daily) files\n",
             "file_paths <- wapor_map(\n",
             "  region = region,\n",
             "  variable = variable,\n",
@@ -336,6 +327,17 @@ mod_download_server <- function(id, l3_regions_meta) {
             "  unit_conversion = %s,\n",
             "  seasonal = FALSE,\n",
             "  separate_files = TRUE,\n",
+            "  mask = %s\n",
+            ")\n\n",
+            "# 2. Calculate and save seasonal aggregate\n",
+            "seasonal_paths <- wapor_map(\n",
+            "  region = region,\n",
+            "  variable = variable,\n",
+            "  period = period,\n",
+            "  folder = folder,\n",
+            "  unit_conversion = %s,\n",
+            "  seasonal = TRUE,\n",
+            "  separate_files = FALSE,\n",
             "  mask = %s\n",
             ")"
           ),
@@ -383,7 +385,7 @@ mod_download_server <- function(id, l3_regions_meta) {
 
     shiny::observeEvent(input$download_btn, {
       reg <- current_region()
-      vars <- input$variable
+      vars <- input$dn_variables
       
       if (is.null(reg)) {
         shiny::showNotification("Please select an AOI before downloading.", type = "error")
@@ -412,16 +414,44 @@ mod_download_server <- function(id, l3_regions_meta) {
             )
             
             # Use the core wapor_map for each variable to provide granular progress
-            out_path <- Rwapor::wapor_map(
-              region = reg,
-              variable = v,
-              period = as.character(input$period),
-              folder = input$folder,
-              unit_conversion = unit_conv,
-              seasonal = input$seasonal,
-              separate_files = input$separate_files,
-              mask = aoi$mask()
-            )
+            # Dual-stage if both selected
+            if (isTRUE(input$seasonal) && isTRUE(input$separate_files)) {
+              shiny::incProgress(0, detail = sprintf("Stage 1 of 2: Individual files for %s...", v))
+              out_path_ind <- Rwapor::wapor_map(
+                region = reg,
+                variable = v,
+                period = as.character(input$period),
+                folder = input$folder,
+                unit_conversion = unit_conv,
+                seasonal = FALSE,
+                separate_files = TRUE,
+                mask = aoi$mask()
+              )
+              
+              shiny::incProgress(0, detail = sprintf("Stage 2 of 2: Seasonal aggregation for %s...", v))
+              out_path_sea <- Rwapor::wapor_map(
+                region = reg,
+                variable = v,
+                period = as.character(input$period),
+                folder = input$folder,
+                unit_conversion = unit_conv,
+                seasonal = TRUE,
+                separate_files = FALSE,
+                mask = aoi$mask()
+              )
+              out_path <- c(out_path_ind, out_path_sea)
+            } else {
+              out_path <- Rwapor::wapor_map(
+                region = reg,
+                variable = v,
+                period = as.character(input$period),
+                folder = input$folder,
+                unit_conversion = unit_conv,
+                seasonal = input$seasonal,
+                separate_files = input$separate_files,
+                mask = aoi$mask()
+              )
+            }
             
             all_out_paths[[v]] <- out_path
             shiny::incProgress(1/n_vars * 0.9)

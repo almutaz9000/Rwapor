@@ -411,6 +411,65 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
 mod_analysis_server <- function(id, global_folder, aoi_region) {
   shiny::moduleServer(id, function(input, output, session) {
+    # Phase 2: Missing data state
+    temp_missing_info <- shiny::reactiveVal(NULL)
+    
+    # --- NEW: Observer for Missing Data Download Button ---
+    shiny::observeEvent(input$an_download_missing_btn, {
+      missing_info <- temp_missing_info()
+      folder <- global_folder()
+      shiny::removeModal()
+      
+      if (is.null(missing_info) || length(missing_info) == 0) return()
+      
+      shiny::withProgress(message = "Downloading Missing Data", value = 0, {
+        tryCatch({
+          # Resolve extent: AOI > Crop Mask
+          reg <- aoi_region()
+          if (is.null(reg)) {
+            cm <- an_crop_mask_rast()
+            if (!is.null(cm)) {
+              # Fallback to crop mask extent
+              shiny::incProgress(0, detail = "Resolving extent from crop mask...")
+              cm_ext <- terra::ext(cm)
+              cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm))
+              cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
+              e <- terra::ext(cm_poly_4326)
+              reg <- c(e$xmin, e$ymin, e$xmax, e$ymax)
+            }
+          }
+          
+          if (is.null(reg)) {
+            stop("Could not resolve an AOI or Crop Mask extent for the download.")
+          }
+          
+          vars <- names(missing_info)
+          for (v in vars) {
+            dates <- missing_info[[v]]
+            for (dt in dates) {
+              shiny::incProgress(1/(length(vars)*length(dates)), 
+                                detail = sprintf("Downloading %s for %s...", v, dt))
+              
+              # Use standard wapor_map for individual dekads
+              Rwapor::wapor_map(
+                region = reg,
+                variable = v,
+                period = c(dt, dt),
+                folder = folder,
+                seasonal = FALSE,
+                separate_files = TRUE,
+                mask = FALSE # Masking will happen during analysis load
+              )
+            }
+          }
+          
+          shiny::showNotification("Missing data downloaded successfully. You can now run the analysis.", type = "message")
+        }, error = function(e) {
+          shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 10)
+        })
+      })
+    })
+
     ns <- session$ns
     # Cross-platform roots for shinyFiles
     roots <- if (.Platform$OS.type == "windows") {
@@ -1283,7 +1342,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
 
     shiny::observeEvent(input$an_run_btn, {
-      # Validation check before running
+      # 1. Immediate validation and input resolution
       if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) {
         shiny::showNotification("Please upload a crop mask raster or uncheck the 'Use a crop mask raster?' option.", type = "error")
         return()
@@ -1293,9 +1352,54 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         return()
       }
 
-      # Check local data availability if in local mode
+      indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
+      if (length(indicators) == 0) {
+        shiny::showNotification("Select at least one indicator.", type = "error")
+        return()
+      }
+
+      crop_params <- collect_crop_params()
+      if (is.null(crop_params) || nrow(crop_params) == 0) {
+        shiny::showNotification("No crop class parameters defined.", type = "error")
+        return()
+      }
+
+      # 2. Resolve metadata for check and analysis
+      ref_year <- input$an_ref_year
+      period   <- as.character(input$an_period)
+      reg      <- current_region()
+      aeti_var <- input$an_aeti_var
+      ret_var  <- input$an_ret_var
+      precip_var <- input$an_precip_var
+      folder   <- global_folder()
+      
+      # Resolve L3 code if needed (for wapor_generate_urls)
+      l3_code <- if (grepl("^L3-", aeti_var %||% "")) input$an_l3_region else NULL
+      if (is.null(l3_code) && grepl("^L3-", aeti_var %||% "")) {
+         # Attempt to auto-resolve L3 region from AOI or Mask for URL generation
+         cand_reg <- reg
+         if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
+            cm_rast <- an_crop_mask_rast()
+            tryCatch({
+              cm_ext <- terra::ext(cm_rast)
+              cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+              cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
+              e_4326 <- terra::ext(cm_poly_4326)
+              cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
+            }, error = function(e) NULL)
+         }
+         
+         if (!is.null(cand_reg)) {
+            guess <- tryCatch({
+              reg_info_guess <- Rwapor::parse_region(cand_reg)
+              Rwapor::guess_l3_region(aeti_var, reg_info_guess, period)
+            }, error = function(e) NULL)
+            if (length(guess) > 0) l3_code <- guess[1]
+         }
+      }
+
+      # 3. Check data availability if in Local Mode
       if (isTRUE(input$an_data_source == "local")) {
-        folder <- global_folder()
         if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
           shiny::showNotification("Local data mode selected but download folder is not set. Configure it in the Download tab first.", type = "error")
           return()
@@ -1308,9 +1412,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         }
 
         # Check if required variables are available locally
-        required_vars <- input$an_aeti_var
-        if (any(c("agg_ret", "etc", "adequacy_etc") %in% c(input$an_agg_vars, input$an_derived_vars))) {
-          required_vars <- c(required_vars, input$an_ret_var)
+        required_vars <- aeti_var
+        if (any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)) {
+          required_vars <- c(required_vars, ret_var)
+        }
+        if (any(c("agg_pcp", "agg_peff") %in% indicators)) {
+          required_vars <- c(required_vars, precip_var)
         }
 
         missing_vars <- required_vars[!required_vars %in% local_vars$variable]
@@ -1323,80 +1430,65 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           )
           return()
         }
+
+        # Check for specific missing dekads
+        all_missing_info <- list()
+        for (v in required_vars) {
+          urls <- Rwapor::wapor_generate_urls(v, l3_region = l3_code, period = period)
+          check <- Rwapor::rwapor_check_local_files(urls, v, folder)
+          if (length(check$missing_dates) > 0) {
+            all_missing_info[[v]] <- check$missing_dates
+          }
+        }
+
+        if (length(all_missing_info) > 0) {
+          temp_missing_info(all_missing_info)
+          missing_lines <- lapply(names(all_missing_info), function(v) {
+            dates <- all_missing_info[[v]]
+            sprintf("<b>%s</b>: %d dekads missing (%s...%s)", 
+                    v, length(dates), dates[1], dates[length(dates)])
+          })
+          
+          shiny::showModal(shiny::modalDialog(
+            title = "Missing Data Detected",
+            shiny::HTML(paste0(
+              "<p>The following data is required for your analysis but was not found in the project folder:</p>",
+              "<ul><li>", paste(missing_lines, collapse = "</li><li>"), "</li></ul>",
+              "<p>Would you like to download the missing dekadal rasters now?</p>",
+              "<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box.</i></small></p>"
+            )),
+            footer = shiny::tagList(
+              shiny::modalButton("Cancel"),
+              shiny::actionButton(ns("an_download_missing_btn"), "Download Missing Data", class = "btn-success")
+            ),
+            easyClose = FALSE
+          ))
+          return()
+        }
       }
 
-      crop_params <- collect_crop_params()
-      if (is.null(crop_params) || nrow(crop_params) == 0) {
-        shiny::showNotification("No crop class parameters defined.", type = "error")
-        return()
-      }
-
-      indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
-      if (length(indicators) == 0) {
-        shiny::showNotification("Select at least one indicator.", type = "error")
-        return()
-      }
-
+      # 4. Run Analysis
       an_peff_monthly(NULL)
-
       shiny::withProgress(message = "Running analysis...", value = 0, {
         tryCatch({
-          ref_year <- input$an_ref_year
-          period <- as.character(input$an_period)
-          reg <- current_region()
-          aeti_var <- input$an_aeti_var
-          ret_var <- input$an_ret_var
-          precip_var <- input$an_precip_var
-          
-          # Fix: If L3 variable is used but l3_region is missing, try to auto-guess from mask/AOI
-          l3_code <- if (grepl("^L3-", aeti_var %||% "")) input$an_l3_region else NULL
-          
-          if (is.null(l3_code) && grepl("^L3-", aeti_var %||% "")) {
-             # Attempt to guess from current AOI or Mask if available
-             cand_reg <- reg
-             if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(input$an_crop_mask)) {
-                cand_reg <- input$an_crop_mask$datapath
-             }
-             
-             if (!is.null(cand_reg)) {
-                shiny::incProgress(0.02, detail = "Resolving L3 region from extent...")
-                guess <- tryCatch({
-                  reg_info_guess <- Rwapor::parse_region(cand_reg)
-                  Rwapor::guess_l3_region(aeti_var, reg_info_guess, period)
-                }, error = function(e) NULL)
-                
-                if (length(guess) > 0) {
-                  l3_code <- guess[1]
-                  message("Auto-resolved L3 region for streaming: ", l3_code)
-                }
-             }
-          }
-
-          # Determine data source mode
           use_local <- isTRUE(input$an_data_source == "local")
-          folder <- global_folder()
-
-          if (use_local && (is.null(folder) || !nzchar(folder) || !dir.exists(folder))) {
-            stop("Local data source selected but download folder is not set or does not exist. Configure it in the Download tab first.")
-          }
-
           shiny::incProgress(0.05, detail = if (use_local) "Loading local reference AETI raster..." else "Fetching reference AETI raster...")
 
           # Get template raster based on data source
           template_r <- NULL
           reg_info <- NULL
           
-          # Check for AOI from map or fallback to crop mask
+          # Use AOI from map or fallback to crop mask
           final_reg <- reg
           if (is.null(final_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
              cm_rast <- an_crop_mask_rast()
              cm_ext <- tryCatch(terra::ext(cm_rast), error = function(e) NULL)
              
              if (!is.null(cm_ext)) {
-               # Convert extent to WGS84 bbox
-               cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
-               cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
-               cm_ext_4326 <- tryCatch(terra::ext(cm_poly_4326), error = function(e) NULL)
+                # Convert extent to WGS84 bbox
+                cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+                cm_poly_4326 <- Rwapor::safe_project(cm_poly, "EPSG:4326")
+                cm_ext_4326 <- tryCatch(terra::ext(cm_poly_4326), error = function(e) NULL)
                
                if (!is.null(cm_ext_4326)) {
                  final_reg <- c(as.numeric(cm_ext_4326$xmin), as.numeric(cm_ext_4326$ymin), 
