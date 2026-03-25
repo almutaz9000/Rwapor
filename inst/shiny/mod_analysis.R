@@ -180,10 +180,14 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 "RET   (Reference ET)",
                 "PCP   (Precipitation)",
                 "Peff  (Effective Precip, USDA)",
-                "Biomass (Total Production)"
+                "Biomass (kg/ha)",
+                "Biomass (t/ha)"
               ),
-              choiceValues = list("agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "agg_biomass"),
-              selected = c("agg_aeti", "agg_ret", "agg_biomass")
+              choiceValues = list(
+                "agg_aeti", "agg_ret", "agg_pcp", "agg_peff",
+                "agg_biomass_kg", "agg_biomass_t"
+              ),
+              selected = c("agg_aeti", "agg_ret", "agg_biomass_t")
             ),
             shiny::hr(style = "margin:4px 0;"),
             shiny::tags$p(
@@ -204,8 +208,10 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               selected = c("etc", "adequacy_etc", "yield_npp")
             ),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && (input['%s'].indexOf('cwp_bwp') > -1 || input['%s'].indexOf('agg_biomass') > -1 || input['%s'].indexOf('yield_npp') > -1)", 
-                                  ns("an_derived_vars"), ns("an_derived_vars"), ns("an_agg_vars"), ns("an_derived_vars")),
+              condition = sprintf(
+                "input['%s'] && (input['%s'].indexOf('cwp_bwp') > -1 || input['%s'].indexOf('agg_biomass_kg') > -1 || input['%s'].indexOf('agg_biomass_t') > -1 || input['%s'].indexOf('yield_npp') > -1)",
+                ns("an_derived_vars"), ns("an_derived_vars"), ns("an_agg_vars"), ns("an_agg_vars"), ns("an_derived_vars")
+              ),
               shiny::fluidRow(
                 shiny::column(
                   6,
@@ -895,15 +901,27 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     output$vbox_biomass <- shiny::renderText({
       res <- an_results()
       if (is.null(res) || (is.null(res$seasonal_biomass_by_class) && is.null(res$seasonal_biomass) && is.null(res$biomass))) return("--")
-      # Use seasonal_biomass if available (it's the raster), otherwise fallback to biomass component
-      bio_rast <- res$seasonal_biomass %||% res$biomass
-      val <- weighted_class_mean(res$seasonal_biomass_by_class, filtered_class_stats(res), "mean_seasonal_biomass")
+
+      selected_agg <- input$an_agg_vars %||% character(0)
+      unit <- if ("agg_biomass_kg" %in% selected_agg && !"agg_biomass_t" %in% selected_agg) {
+        "kg/ha"
+      } else if ("agg_biomass_t" %in% selected_agg) {
+        "t/ha"
+      } else {
+        input$an_biomass_unit %||% "kg/ha"
+      }
+
+      stats_col <- if (identical(unit, "t/ha")) "mean_seasonal_biomass_t" else "mean_seasonal_biomass_kg"
+      bio_rast <- if (identical(unit, "t/ha")) {
+        res$seasonal_biomass_t %||% if (!is.null(res$seasonal_biomass)) res$seasonal_biomass / 1000 else NULL
+      } else {
+        res$seasonal_biomass_kg %||% res$seasonal_biomass %||% res$biomass
+      }
+      val <- weighted_class_mean(res$seasonal_biomass_by_class, filtered_class_stats(res), stats_col)
       if (is.na(val)) {
         val <- masked_global_mean(bio_rast, res$valid_crop_mask)
       }
 
-      unit <- input$an_biomass_unit %||% "kg/ha"
-      if (unit == "t/ha") val <- val / 1000
       sprintf("%.1f %s", val, unit)
     })
 
@@ -1598,7 +1616,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         if (any(c("agg_pcp", "agg_peff") %in% indicators)) {
           required_vars <- c(required_vars, precip_var)
         }
-        if (any(c("agg_biomass", "yield_npp", "cwp_bwp") %in% indicators)) {
+        if (
+          any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) ||
+          ("cwp_bwp" %in% indicators && is.null(input$an_biomass_file))
+        ) {
           required_vars <- c(required_vars, npp_var)
         }
 
@@ -1816,7 +1837,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           need_aeti_stack <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp") %in% indicators)
           need_ret_stack <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
           need_precip_stack <- any(c("agg_pcp", "agg_peff") %in% indicators)
-          need_npp_stack <- any(c("agg_biomass", "yield_npp", "cwp_bwp") %in% indicators) && is.null(input$an_biomass_file)
+          need_npp_stack <- any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) ||
+            ("cwp_bwp" %in% indicators && is.null(input$an_biomass_file))
 
           shiny::incProgress(0.15, detail = if (use_local) "Loading local data..." else "Fetching remote data...")
           aeti_stack <- ret_stack <- precip_stack <- npp_stack <- NULL
@@ -1970,21 +1992,27 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             )
           }
 
-          if (("agg_biomass" %in% indicators || "yield_npp" %in% indicators) && !is.null(npp_stack)) {
+          if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && !is.null(npp_stack)) {
             shiny::incProgress(0.05, detail = "Computing Biomass...")
-            results$seasonal_biomass <- Rwapor::rwapor_apply_masked_sum(
+            results$seasonal_biomass_kg <- Rwapor::rwapor_apply_masked_sum(
               npp_stack,
               season_weights,
               layer_multipliers = npp_layer_multipliers,
               incremental = use_incremental
             ) * 22.222
+            results$seasonal_biomass <- results$seasonal_biomass_kg
+            results$seasonal_biomass_t <- results$seasonal_biomass_kg / 1000
             results$seasonal_biomass_by_class <- terra::zonal(
-              results$seasonal_biomass,
+              results$seasonal_biomass_kg,
               h_mask,
               fun = "mean",
               na.rm = TRUE
             )
-            names(results$seasonal_biomass_by_class) <- c("class_value", "mean_seasonal_biomass")
+            names(results$seasonal_biomass_by_class) <- c("class_value", "mean_seasonal_biomass_kg")
+            results$seasonal_biomass_by_class$mean_seasonal_biomass_t <-
+              results$seasonal_biomass_by_class$mean_seasonal_biomass_kg / 1000
+            results$seasonal_biomass_by_class$mean_seasonal_biomass <-
+              results$seasonal_biomass_by_class$mean_seasonal_biomass_kg
             rm(npp_stack); gc()
           }
 
@@ -2223,6 +2251,24 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                 terra::writeRaster(results$seasonal_pcp, 
                                   file.path(input$an_folder, paste0(prefix, "_seasonal_pcp.tif")), 
                                   overwrite = TRUE)
+              }
+              # Biomass (kg/ha)
+              if (!is.null(results$seasonal_biomass_kg) &&
+                  any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
+                terra::writeRaster(
+                  results$seasonal_biomass_kg,
+                  file.path(input$an_folder, paste0(prefix, "_seasonal_biomass_kg_ha.tif")),
+                  overwrite = TRUE
+                )
+              }
+              # Biomass (t/ha)
+              if (!is.null(results$seasonal_biomass_t) &&
+                  any(c("agg_biomass_t", "yield_npp") %in% indicators)) {
+                terra::writeRaster(
+                  results$seasonal_biomass_t,
+                  file.path(input$an_folder, paste0(prefix, "_seasonal_biomass_t_ha.tif")),
+                  overwrite = TRUE
+                )
               }
               # Adequacy ETc
               if (!is.null(results$adequacy_etc)) {
