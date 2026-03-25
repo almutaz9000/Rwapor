@@ -20,10 +20,17 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::fluidRow(
               shiny::column(
                 8,
-                shiny::textInput(
-                  ns("folder"),
-                  "Project Folder",
-                  value = file.path(getwd(), "wapor_project")
+                shiny::div(
+                  style = "display: flex; align-items: flex-end; gap: 5px;",
+                  shiny::div(
+                    style = "flex: 1;",
+                    shiny::textInput(
+                      ns("folder"),
+                      "Project Folder",
+                      value = file.path(getwd(), "wapor_project")
+                    )
+                  ),
+                  shiny::uiOutput(ns("favorite_btn_ui"))
                 )
               ),
               shiny::column(
@@ -37,6 +44,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
                 )
               )
             ),
+            shiny::uiOutput(ns("favorites_ui")),
             shiny::selectizeInput(
               ns("dn_variables"),
               "Variable(s)",
@@ -145,6 +153,53 @@ mod_download_server <- function(id, l3_regions_meta) {
     } else {
       c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
     }
+
+    # Favorites logic
+    favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
+    
+    output$favorite_btn_ui <- shiny::renderUI({
+      path <- input$folder %||% ""
+      is_fav <- Rwapor::rwapor_is_favorite(path)
+      
+      shiny::actionLink(
+        session$ns("favorite_btn"),
+        NULL,
+        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        style = "margin-bottom: 11px; font-size: 1.1rem;"
+      )
+    })
+    
+    shiny::observeEvent(input$favorite_btn, {
+      path <- input$folder %||% ""
+      if (!nzchar(path)) return()
+      
+      if (Rwapor::rwapor_is_favorite(path)) {
+        Rwapor::rwapor_remove_favorite(path)
+      } else {
+        Rwapor::rwapor_add_favorite(path, type = "directory")
+      }
+      favs(Rwapor::rwapor_get_favorites())
+    })
+    
+    output$favorites_ui <- shiny::renderUI({
+      f <- favs()
+      f_dirs <- f[f$type == "directory", "path"]
+      if (length(f_dirs) == 0) return(NULL)
+      
+      shiny::selectizeInput(
+        session$ns("quick_fav"),
+        NULL, # No label to keep it compact
+        choices = c("Quick Access Favorites..." = "", f_dirs),
+        options = list(placeholder = "Select a favorite project folder")
+      )
+    })
+    
+    shiny::observeEvent(input$quick_fav, {
+      path <- input$quick_fav
+      if (nzchar(path)) {
+        shiny::updateTextInput(session, "folder", value = path)
+      }
+    })
 
     current_l3_region <- shiny::reactive({
       vars <- input$dn_variables %||% ""

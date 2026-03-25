@@ -127,7 +127,7 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
 
   url <- paste0(base_url, "/", mapset_id, "/rasters?filter=")
 
-  if (!is.null(l3_region)) {
+  if (!is.null(l3_region) && level == "L3") {
     if (!is.character(l3_region) || nchar(l3_region) == 0) {
       stop("'l3_region' must be a non-empty character string", call. = FALSE)
     }
