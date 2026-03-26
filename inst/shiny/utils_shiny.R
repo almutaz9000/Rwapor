@@ -79,3 +79,19 @@ selected_path_options <- resolve_draw_fun(draw_pkg, c("selectedPathOptions", "se
 has_draw_tools <- !is.null(add_draw_toolbar) &&
   !is.null(edit_toolbar_options) &&
   !is.null(selected_path_options)
+
+# --- shinyFiles Helpers ---
+
+# Returns a named vector of available file system roots for shinyFiles widgets.
+# Computed once at module init; volumes/cwd don't change during a session.
+get_shinyfiles_roots <- function() {
+  tryCatch({
+    vols <- shinyFiles::getVolumes()()
+    if (length(vols) > 0) {
+      names(vols) <- gsub(":\\\\", ":/", names(vols))
+    }
+    c(vols, Project = getwd())
+  }, error = function(e) {
+    c(Project = getwd(), Home = normalizePath("~", winslash = "/"))
+  })
+}

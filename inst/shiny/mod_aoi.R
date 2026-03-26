@@ -132,12 +132,8 @@ mod_aoi_server <- function(id,
       NULL
     })
 
-    # Cross-platform roots for shinyFiles
-    roots <- if (.Platform$OS.type == "windows") {
-      c(shinyFiles::getVolumes()(), Project = getwd())
-    } else {
-      c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
-    }
+    roots <- get_shinyfiles_roots()
+
     shinyFiles::shinyFileChoose(
       input,
       "browse_vector",
@@ -248,7 +244,7 @@ mod_aoi_server <- function(id,
     }
 
     shiny::observeEvent(input$browse_vector, {
-      file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
+      file_info <- shinyFiles::parseFilePaths(roots(), input$browse_vector)
       if (nrow(file_info) > 0) {
         path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
         handle_vector_file(path)
