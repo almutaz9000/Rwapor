@@ -49,20 +49,31 @@ Look for section markers:
 - `## --- Zonal Statistics`
 
 ## Best Practices
-- `shinyvalidate` for input validation (see mod_download.R:214)
-- `shinyFiles` for file/folder browsing
+- `shinyvalidate::InputValidator` for robust input validation (see mod_download.R:214)
+- `shinyFiles::shinyDirButton` and `shinyDirChoose` for project folder selection
 - `leaflet::leafletProxy()` for map updates without full redraw
 - `future.apply::future_lapply()` for long tasks
 - Return reactive lists from modules for cross-module communication
 
 ## Common Patterns
+
 ```r
-# Favorites toggle (from mod_aoi.R)
+# Input Validation (standard pattern)
+iv <- shinyvalidate::InputValidator$new()
+iv$add_rule("folder", shinyvalidate::sv_required("Folder is required."))
+iv$enable()
+
+# Folder Selection (shinyFiles)
+shinyFiles::shinyDirChoose(input, "browse_folder", roots = roots, session = session)
+dir_path <- shinyFiles::parseDirPath(roots, input$browse_folder)
+
+# Favorites toggle (persistent folder access)
 if (Rwapor::rwapor_is_favorite(path)) {
   Rwapor::rwapor_remove_favorite(path)
 } else {
-  Rwapor::rwapor_add_favorite(path, type = "file")
+  Rwapor::rwapor_add_favorite(path, type = "directory")
 }
+```
 
 # Progress feedback
 shiny::withProgress(message = "Processing", value = 0, {

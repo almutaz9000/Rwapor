@@ -58,7 +58,7 @@ mod_visualisation_ui <- function(id) {
                 "Carto Positron" = "CartoDB.Positron",
                 "Carto Dark" = "CartoDB.DarkMatter"
               ),
-              selected = "CartoDB.Positron"),
+              selected = "Esri.WorldImagery"),
             shiny::hr(style = "margin:4px 0;"),
             shiny::tags$p(shiny::tags$strong("Analysis Layers"), style = "font-size:0.8rem; margin-bottom:2px;"),
             shiny::checkboxInput(ns("show_crop_mask"),    "Crop Mask",  FALSE),
@@ -111,6 +111,25 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       }
       r
     }
+    
+    # ── Zoom Helper ────────────────────────────────────────────────────────
+    zoom_to_raster <- function(r) {
+      shiny::req(r)
+      ext <- terra::ext(r)
+      if (!terra::is.lonlat(r)) {
+        # Project extent envelope to WGS84 for leaflet
+        ext_poly <- terra::as.polygons(ext, crs = terra::crs(r))
+        ext_wgs84 <- terra::project(ext_poly, "EPSG:4326")
+        ext <- terra::ext(ext_wgs84)
+      }
+      
+      leaflet::leafletProxy("analysis_map", session = session) |>
+        leaflet::fitBounds(
+          lng1 = as.numeric(ext$xmin), lat1 = as.numeric(ext$ymin),
+          lng2 = as.numeric(ext$xmax), lat2 = as.numeric(ext$ymax)
+        )
+    }
+
 
     # ── Folder Scanning ────────────────────────────────────────────────────
     raster_choices <- shiny::reactive({
@@ -179,18 +198,8 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           selected = 1
         )
         
-        # Zoom to raster extent with a slight delay to ensure map readiness
-        ext <- terra::ext(r)
-        if (!is.na(terra::crs(r)) && !terra::is.lonlat(r)) {
-          e_pts <- terra::as.points(ext, crs = terra::crs(r))
-          e_wgs84 <- terra::project(e_pts, "EPSG:4326")
-          ext <- terra::ext(e_wgs84)
-        }
-        
-        shinyjs::runjs(sprintf("setTimeout(function() { 
-          var map = HTMLWidgets.find('#%s').getMap();
-          map.fitBounds([[%f, %f], [%f, %f]]);
-        }, 300);", session$ns("analysis_map"), ext$ymin, ext$xmin, ext$ymax, ext$xmax))
+        # Zoom to raster extent
+        zoom_to_raster(r)
           
       }, error = function(e) {
         shiny::showNotification(paste("Error processing raster:", e$message), type = "error")
@@ -237,9 +246,10 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     # ── Map Rendering ──────────────────────────────────────────────────────
     output$analysis_map <- leaflet::renderLeaflet({
       leaflet::leaflet() |>
-        leaflet::addProviderTiles("CartoDB.Positron") |>
+        leaflet::addProviderTiles("Esri.WorldImagery") |>
         leaflet::setView(lng = 18, lat = 2, zoom = 3)
     })
+
 
     shiny::observeEvent(input$basemap_analysis, {
       leaflet::leafletProxy("analysis_map", session = session) |>
@@ -278,7 +288,11 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       proxy |> leaflet::clearGroup("lyr_crop_mask") |> leaflet::removeControl("leg_crop_mask") |>
         leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_crop_mask") |>
         leaflet::addLegend(position = "bottomleft", colors = cls_cols, labels = cls_labels, title = "Crop Mask", opacity = opacity, layerId = "leg_crop_mask")
+      
+      # Zoom if just toggled on
+      zoom_to_raster(r)
     })
+
 
     shiny::observe({
       r <- an_start_rast()
@@ -306,7 +320,10 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       proxy |> leaflet::clearGroup("lyr_season_start") |> leaflet::removeControl("leg_season_start") |>
         leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_season_start") |>
         leaflet::addLegend(position = "bottomleft", pal = pal, values = vals, title = "Season Start", opacity = opacity, layerId = "leg_season_start")
+
+      zoom_to_raster(r)
     })
+
 
     shiny::observe({
       r <- an_end_rast()
@@ -334,7 +351,10 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       proxy |> leaflet::clearGroup("lyr_season_end") |> leaflet::removeControl("leg_season_end") |>
         leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_season_end") |>
         leaflet::addLegend(position = "bottomleft", pal = pal, values = vals, title = "Season End", opacity = opacity, layerId = "leg_season_end")
+
+      zoom_to_raster(r)
     })
+
 
     # Raster Overlay observer
     shiny::observe({

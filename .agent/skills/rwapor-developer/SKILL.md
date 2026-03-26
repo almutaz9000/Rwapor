@@ -101,12 +101,12 @@ Full function-level detail is in `references/architecture.md`.
 | `R/wapor_map.R` | `wapor_map()` — download rasters for region/period |
 | `R/wapor_ts.R` | `wapor_ts()` — extract time series + zonal statistics |
 | `R/plan_wapor_time_slices.R` | `plan_wapor_time_slices()` — optimal mixed-resolution download plan |
-| `R/analysis.R` | Crop mask loading, season weights, Kc curve, local raster scan |
+| `R/analysis.R` | Crop mask loading, season weights, Kc curve, local raster scan (`rwapor_scan_local_variables`) |
 | `R/analysis_indicators.R` | AETI, RET, ETc, Peff, adequacy, CWP, BWP, yield-from-NPP |
 | `R/api_client.R` | Low-level WaPOR API calls and URL generation |
 | `R/metadata.R` | `WAPOR3_VARS`, `AGERA5_VARS`, `L3_REGIONS` data objects + `get_variable_metadata()` |
 | `R/unit_convertor.R` | `df_unit_convertor()`, `raster_unit_convertor()` |
-| `R/utils.R` | `parse_region()`, date/unit helpers, L3 extent cache, zonal helpers |
+| `R/utils.R` | `parse_region()`, `safe_project()`, date/unit helpers, L3 extent cache, zonal helpers |
 | `R/gdal_config.R` | `wapor_configure_gdal()`, `wapor_fix_proj()`, `wapor_gdal_settings()` |
 | `R/crop_defaults.R` | `rwapor_list_crops()`, `rwapor_get_crop_defaults()`, `rwapor_validate_crop_defaults()` |
 | `R/seasonal_download.R` | `download_seasonal_rasters()` — internal download+match helper |
@@ -144,6 +144,22 @@ Full function-level detail is in `references/architecture.md`.
 - **`memoise`** for caching API responses
 - **`future.apply`** for parallelism
 - Roxygen2 docstrings on all exported functions (`@param`, `@return`, `@examples`)
+
+### Common Patterns
+
+```r
+# Safe CRS projection (Windows fix)
+v <- safe_project(v, r_crs)
+
+# Check geometry match
+if (!compare_geom(x, template)) {
+  x <- rwapor_harmonize_to_template(x, template)
+}
+
+# Scan local folder for variables
+local_vars <- rwapor_scan_local_variables(folder)
+```
+
 - `tryCatch()` wrapping all I/O and API calls
 - No hardcoded paths — all paths via function arguments
 - `snake_case` function names; package-exported functions prefixed with `rwapor_`
