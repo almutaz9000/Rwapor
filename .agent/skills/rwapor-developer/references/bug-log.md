@@ -16,7 +16,41 @@ _No bugs logged yet. Add entries as encountered and confirmed._
 
 ## Resolved Bugs
 
-_None yet._
+### B01 — Extent mismatch in Raster Harmonization
+- **File**: `R/analysis.R`
+- **Function**: `rwapor_harmonize_to_template()`
+- **Reported**: 2026-03-23 (Session b4246)
+- **Symptom**: "extents do not match" error during analysis.
+- **Root cause**: Harmonization was attempted on rasters with slightly different origins/resolutions without a robust comparison check.
+- **Fix applied**: Implemented `compare_geom()` helper to handle epsilon-tolerance geometry checks before resampling.
+- **Status**: ✅ Resolved
+
+### B02 — Date alignment error for non-standard dekad starts
+- **File**: `R/analysis.R`
+- **Function**: `build_dekad_table()`
+- **Reported**: 2026-03-25 (Session 5bfef)
+- **Symptom**: Analysis period starting on non-standard date (e.g. 5th of month) caused data misalignment.
+- **Root cause**: Logic assumed all analysis periods start on the 1st, 11th, or 21st.
+- **Fix applied**: Modified table generation to correctly clamp and align periods to standard WaPOR dekad keys.
+- **Status**: ✅ Resolved
+
+### B03 — Missing export for local variable scan
+- **File**: `R/analysis.R`
+- **Function**: `rwapor_scan_local_variables()`
+- **Reported**: 2026-03-19 (Session 02374)
+- **Symptom**: `could not find function "rwapor_scan_local_variables"` in Shiny app.
+- **Root cause**: Function was defined but missing `@export` tag.
+- **Fix applied**: Added `@export` and ran `devtools::document()`.
+- **Status**: ✅ Resolved
+
+### B04 — Double-scaling in indicator calculations
+- **File**: `R/analysis_indicators.R`
+- **Function**: `rwapor_apply_masked_sum()`
+- **Reported**: 2026-03-25 (Session ba84b)
+- **Symptom**: Indicator values (AETI, RET) were 10x too small/large.
+- **Root cause**: Scale factors were applied both during download and during analysis.
+- **Fix applied**: Standardized on unit-conversion at download; analysis now expects raw scaled values or uses explicit `layer_multipliers`.
+- **Status**: ✅ Resolved
 
 ---
 
