@@ -45,8 +45,8 @@ ret_stack  <- terra::rast(lapply(1:n_layers, function(j) terra::init(template, f
 crop_params <- data.frame(
   class_value = 1:10,
   crop_label = paste("Crop", 1:10),
-  L_ini_days = 20, L_dev_days = 30, L_mid_days = 60, L_late_days = 30,
-  Kc_ini = 0.3, Kc_mid = 1.1, Kc_end = 0.5,
+  l_ini_days = 20, L_dev_days = 30, l_mid_days = 60, l_late_days = 30,
+  kc_ini = 0.3, kc_mid = 1.1, kc_end = 0.5,
   HI = 0.45, MC = 0.12, fc = 1.0, AOT = 0.8
 )
 
@@ -56,7 +56,7 @@ crop_params <- data.frame(
 cat("\n--- Kernel 1: Season Weights (36 dekads, 1000x1000 pixels) ---\n")
 gc()
 t1 <- proc.time()
-sw <- rwapor_build_season_weights_dekad(
+sw <- wapor_build_season_weights(
   "2021-01-01", "2021-12-31", 
   start_rast, end_rast, 
   reference_year = 2021
@@ -71,7 +71,7 @@ cat(sprintf("  Memory peak: %.1f MB\n", sum(gc()[, 6])))
 cat("\n--- Kernel 2: ETc-by-class (10 classes, 36 layers) ---\n")
 total_days_vec <- rep(140, 10) # fixed duration
 names(total_days_vec) <- as.character(1:10)
-kc_by_class <- rwapor_build_kc_by_class(crop_params, total_days_vec)
+kc_by_class <- wapor_build_kc_by_class(crop_params, total_days_vec)
 
 gc()
 t2 <- proc.time()
@@ -81,10 +81,10 @@ for (j in seq_len(nrow(crop_params))) {
   cls <- as.character(crop_params$class_value[j])
   kc_daily <- kc_by_class[[cls]]
   # NEW: Must aggregate to dekad first
-  kc_dekad <- rwapor_aggregate_kc_dekad(kc_daily, sw$dekad_table, as.Date("2021-01-01"))
+  kc_dekad <- wapor_aggregate_kc(kc_daily, sw$dekad_table, as.Date("2021-01-01"))
   
   # NEW: Use the optimized incremental accumulator
-  etc_seasonal <- rwapor_calc_seasonal_etc_incremental(ret_stack, sw$weights, kc_dekad)
+  etc_seasonal <- wapor_calc_seasonal_etc(ret_stack, sw$weights, kc_dekad)
   etc_by_class[[cls]] <- etc_seasonal
 }
 t2_elapsed <- (proc.time() - t2)[["elapsed"]]
@@ -99,7 +99,7 @@ seasonal_aeti <- terra::app(aeti_stack * sw$weights, fun="sum")
 
 gc()
 t3 <- proc.time()
-p95_res <- rwapor_calc_class_p95_aeti(seasonal_aeti, crop_mask)
+p95_res <- wapor_calc_p95_aeti(seasonal_aeti, crop_mask)
 t3_elapsed <- (proc.time() - t3)[["elapsed"]]
 cat(sprintf("  Wall time: %.2f s\n", t3_elapsed))
 cat(sprintf("  Memory peak: %.1f MB\n", sum(gc()[, 6])))

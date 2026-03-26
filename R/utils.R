@@ -29,22 +29,22 @@
 #'
 #' @examples
 #' # Parse a bounding box (xmin, ymin, xmax, ymax)
-#' region_info <- parse_region(c(35.0, 33.0, 36.0, 34.0))
+#' region_info <- wapor_parse_region(c(35.0, 33.0, 36.0, 34.0))
 #' region_info$type
 #' # [1] "bbox"
 #'
 #' # Parse an L3 region code
-#' region_info <- parse_region("AWA")
+#' region_info <- wapor_parse_region("AWA")
 #' region_info$type
 #' # [1] "l3_code"
 #'
 #' \dontrun{
 #' # Parse a shapefile
-#' region_info <- parse_region("path/to/region.shp")
+#' region_info <- wapor_parse_region("path/to/region.shp")
 #' region_info$type
 #' # [1] "vector"
 #' }
-parse_region <- function(region) {
+wapor_parse_region <- function(region) {
   if (is.null(region)) {
     stop("'region' cannot be NULL", call. = FALSE)
   }
@@ -91,7 +91,7 @@ parse_region <- function(region) {
         }
         
         p <- terra::as.polygons(r_ext, crs = r_crs)
-        p4326 <- safe_project(p, 4326)
+        p4326 <- wapor_safe_project(p, 4326)
         ext_4326 <- terra::ext(p4326)
         
         # Simple named numeric vector returned as bbox
@@ -257,7 +257,7 @@ resolve_output_unit_conversion <- function(variable, unit_conversion = NULL) {
 
   parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
   tres <- parts[length(parts)]
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
 
   if (identical(tres, "D") && identical(unit_time, "day")) {
@@ -276,7 +276,7 @@ resolve_output_unit_conversion <- function(variable, unit_conversion = NULL) {
 get_seasonal_aggregation_rule <- function(variable) {
   parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
   tres <- parts[length(parts)]
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
 
   if (tres %in% c("D", "E") && is.null(unit_time)) {
@@ -289,7 +289,7 @@ get_seasonal_aggregation_rule <- function(variable) {
 #' Compute Seasonal Multipliers for Planned Raster Slices
 #'
 #' @param variable Character variable code for the slices being downloaded.
-#' @param plan_rows Data frame rows from `plan_wapor_time_slices()`.
+#' @param plan_rows Data frame rows from `wapor_plan_time_slices()`.
 #' @param aggregation_rule Seasonal aggregation rule for the requested variable.
 #' @return Numeric vector of per-layer multipliers.
 #' @keywords internal
@@ -305,7 +305,7 @@ get_seasonal_multiplier_values <- function(variable, plan_rows, aggregation_rule
 
   parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
   tres <- parts[length(parts)]
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
 
   if (tres %in% c("D", "E") && identical(unit_time, "day")) {
@@ -330,7 +330,7 @@ get_analysis_layer_multipliers <- function(variable, period_table) {
 
   parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
   tres <- parts[length(parts)]
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
 
   if (identical(tres, "D") && identical(unit_time, "day")) {
@@ -348,7 +348,7 @@ get_analysis_layer_multipliers <- function(variable, period_table) {
 #' @keywords internal
 #' @noRd
 get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_aggregation_rule(variable)) {
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   if (is.null(meta) || is.null(meta$units)) {
     return(NULL)
   }
@@ -383,7 +383,7 @@ get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_
 #'
 #' @examples
 #' # Parse dekadal data URL (WaPOR format: WAPOR-3.L1-AETI-D.YYYY-MM-DX.tif)
-#' date_info <- get_date_info(
+#' date_info <- wapor_date_info(
 #'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif",
 #'   tres = "D"
 #' )
@@ -393,13 +393,13 @@ get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_
 #' # [1] 10
 #'
 #' # Parse monthly data URL (WaPOR format: WAPOR-3.L1-AETI-M.YYYY-MM.tif)
-#' date_info <- get_date_info(
+#' date_info <- wapor_date_info(
 #'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-06.tif",
 #'   tres = "M"
 #' )
 #' date_info$start_date
 #' # [1] "2023-06-01"
-get_date_info <- function(url, tres) {
+wapor_date_info <- function(url, tres) {
   # Input validation
   if (!is.character(url) || length(url) != 1) {
     stop("'url' must be a single character string", call. = FALSE)
@@ -526,7 +526,7 @@ get_date_info <- function(url, tres) {
 #' @return SpatVector or SpatRaster
 #' @export
 #' @keywords internal
-safe_project <- function(x, y) {
+wapor_safe_project <- function(x, y) {
   y_crs <- y
   if (is.character(y) && grepl("ID\\[\"EPSG\"", y)) {
     m <- regmatches(y, regexpr("ID\\[\"EPSG\",\\s*([0-9]+)\\]\\]$", y))
@@ -543,7 +543,7 @@ safe_project <- function(x, y) {
   }
   
   res_sf <- tryCatch(suppressWarnings(sf::st_transform(x_sf, y_crs)), error=function(e) {
-      stop(sprintf("safe_project sf projection failed: %s", e$message), call. = FALSE)
+      stop(sprintf("wapor_safe_project sf projection failed: %s", e$message), call. = FALSE)
   })
   
   if (inherits(x, "SpatVector")) {
@@ -609,7 +609,7 @@ save_l3_extent_cache <- function(cache) {
 #' @importFrom terra rast ext as.polygons crs
 #' @export
 #' @keywords internal
-get_l3_raster_extent <- function(url, code) {
+wapor_l3_extent <- function(url, code) {
   # Check persistent cache first
   cache <- load_l3_extent_cache()
   if (code %in% names(cache)) {
@@ -629,7 +629,7 @@ get_l3_raster_extent <- function(url, code) {
   r_ext <- tryCatch(terra::ext(r), error = function(e) NULL)
   if (is.null(r_ext)) return(NULL)
   r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
-  r_poly_4326 <- safe_project(r_poly, 4326)
+  r_poly_4326 <- wapor_safe_project(r_poly, 4326)
 
   # Save to persistent cache
   ext_4326 <- terra::ext(r_poly_4326)
@@ -643,13 +643,13 @@ get_l3_raster_extent <- function(url, code) {
 #' Guess L3 Region from Spatial Intersection
 #'
 #' @param variable Character. The WaPOR variable name (e.g., L3-AETI-D)
-#' @param reg_info List from parse_region()
+#' @param reg_info List from wapor_parse_region()
 #' @param period Date period vector
 #' @return Character vector of intersecting L3 regions, or NULL
 #' @importFrom terra rast ext as.polygons is.related crs project vect
 #' @export
 #' @keywords internal
-guess_l3_region <- function(variable, reg_info, period) {
+wapor_guess_region <- function(variable, reg_info, period) {
   # Temporarily suppress the warning from wapor_generate_urls
   urls <- suppressWarnings(wapor_generate_urls(variable, period = c(period[1], period[1])))
 
@@ -685,7 +685,7 @@ guess_l3_region <- function(variable, reg_info, period) {
     v <- suppressWarnings(terra::vect(reg_info$value))
     v_ext <- terra::ext(v)
     v_bb_poly <- terra::as.polygons(v_ext, crs = terra::crs(v))
-    user_poly <- safe_project(v_bb_poly, 4326)
+    user_poly <- wapor_safe_project(v_bb_poly, 4326)
   } else if (reg_info$type == "bbox") {
     bbox <- reg_info$value
     # Ensure correct order for terra::ext
@@ -699,7 +699,7 @@ guess_l3_region <- function(variable, reg_info, period) {
     code <- extracted_codes[i]
 
     # Use persistent disk cache for L3 extents
-    r_poly_4326 <- tryCatch(get_l3_raster_extent(unique_urls[i], code), error = function(e) NULL)
+    r_poly_4326 <- tryCatch(wapor_l3_extent(unique_urls[i], code), error = function(e) NULL)
     if (is.null(r_poly_4326)) next
 
     if (!is.null(user_poly) &&
@@ -724,12 +724,12 @@ guess_l3_region <- function(variable, reg_info, period) {
 #' across wapor_map, wapor_ts, and seasonal_download.
 #'
 #' @param r SpatRaster to crop.
-#' @param reg_info List from \code{parse_region()} with \code{$type} and \code{$value}.
+#' @param reg_info List from \code{wapor_parse_region()} with \code{$type} and \code{$value}.
 #' @param do_mask Logical. If TRUE, also mask to vector geometry (not just crop).
 #' @return Cropped (and optionally masked) SpatRaster.
 #' @keywords internal
 #' @export
-crop_to_region <- function(r, reg_info, do_mask = FALSE) {
+wapor_crop_to_region <- function(r, reg_info, do_mask = FALSE) {
   r_crs <- terra::crs(r)
   
   # Handle empty CRS (common if PROJ DB is misconfigured or metadata is missing)
@@ -753,7 +753,7 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     v <- suppressWarnings(terra::vect(vect_data))
     v_crs <- terra::crs(v)
     if (has_r_crs && nzchar(v_crs) && v_crs != r_crs) {
-      v <- safe_project(v, r_crs)
+      v <- wapor_safe_project(v, r_crs)
     }
     r <- suppressWarnings(terra::crop(r, v, snap = "out"))
     if (do_mask) {
@@ -776,11 +776,11 @@ crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     }
     
     if (needs_proj) {
-      bb_poly <- safe_project(bb_poly, r_crs)
+      bb_poly <- wapor_safe_project(bb_poly, r_crs)
     }
     
     if (needs_proj) {
-      bb_poly <- safe_project(bb_poly, r_crs)
+      bb_poly <- wapor_safe_project(bb_poly, r_crs)
     }
     
     r <- suppressWarnings(terra::crop(r, bb_poly, snap = "out"))
@@ -840,7 +840,7 @@ assign_raster_metadata <- function(r, variable, unit_conversion = "none", units_
   # Safety check: ensure r is a SpatRaster and not empty
   if (!inherits(r, "SpatRaster") || terra::nlyr(r) == 0) return(r)
 
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   if (is.null(meta)) return(r)
 
   # Determine units

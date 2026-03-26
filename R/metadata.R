@@ -40,7 +40,7 @@
 #' grep("^L3-", names(WAPOR3_VARS), value = TRUE)
 #'
 #' @seealso [AGERA5_VARS] for climate variables, [L3_REGIONS] for L3 region
-#'   codes, [get_variable_metadata()] for dynamic metadata fetching
+#'   codes, [wapor_variable_metadata()] for dynamic metadata fetching
 #'
 #' @export
 WAPOR3_VARS <- list(
@@ -376,19 +376,19 @@ get_variable_metadata_internal <- function(variable) {
 #'
 #' @examples
 #' # Get metadata for a WaPOR variable
-#' meta <- get_variable_metadata("L1-AETI-D")
+#' meta <- wapor_variable_metadata("L1-AETI-D")
 #' meta$long_name
 #' # [1] "Actual EvapoTranspiration and Interception"
 #' meta$units
 #' # [1] "mm/day"
 #'
 #' # Get metadata for an AgERA5 variable
-#' meta <- get_variable_metadata("AGERA5-ET0-E")
+#' meta <- wapor_variable_metadata("AGERA5-ET0-E")
 #' meta$units
 #' # [1] "mm/day"
 #'
 #' # Get metadata for L3 variable (now in static list)
-#' meta <- get_variable_metadata("L3-AETI-D")
+#' meta <- wapor_variable_metadata("L3-AETI-D")
 #' meta$units
 #' # [1] "mm/day"
-get_variable_metadata <- memoise::memoise(get_variable_metadata_internal)
+wapor_variable_metadata <- memoise::memoise(get_variable_metadata_internal)

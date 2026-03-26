@@ -3,62 +3,62 @@
 # =============================================================================
 
 test_that("crop defaults validation works", {
-  expect_true(rwapor_validate_crop_defaults(FAO_CROP_DEFAULTS))
+  expect_true(wapor_validate_crop_defaults(FAO_CROP_DEFAULTS))
 
   # Missing columns
-  bad_df <- data.frame(crop_name = "Test", Kc_ini = 0.3)
-  expect_error(rwapor_validate_crop_defaults(bad_df), "Missing required columns")
+  bad_df <- data.frame(crop_name = "Test", kc_ini = 0.3)
+  expect_error(wapor_validate_crop_defaults(bad_df), "Missing required columns")
 
   # Negative Kc
   bad_df2 <- FAO_CROP_DEFAULTS
-  bad_df2$Kc_ini[1] <- -0.1
-  expect_error(rwapor_validate_crop_defaults(bad_df2), "non-negative")
+  bad_df2$kc_ini[1] <- -0.1
+  expect_error(wapor_validate_crop_defaults(bad_df2), "non-negative")
 
   # NA stage lengths
   bad_df3 <- FAO_CROP_DEFAULTS
-  bad_df3$L_ini_days[1] <- NA
+  bad_df3$l_ini_days[1] <- NA
 
-  expect_error(rwapor_validate_crop_defaults(bad_df3), "must not be NA")
+  expect_error(wapor_validate_crop_defaults(bad_df3), "must not be NA")
 })
 
-test_that("rwapor_list_crops returns crop names", {
-  crops <- rwapor_list_crops()
+test_that("wapor_list_crops returns crop names", {
+  crops <- wapor_list_crops()
   expect_true(length(crops) >= 3)
   expect_true("Winter Wheat" %in% crops)
   expect_true("Sorghum" %in% crops)
   expect_true("Sugarbeet" %in% crops)
 })
 
-test_that("rwapor_get_crop_defaults works", {
-  ww <- rwapor_get_crop_defaults("Winter Wheat")
+test_that("wapor_crop_defaults works", {
+  ww <- wapor_crop_defaults("Winter Wheat")
   expect_true(!is.null(ww))
   expect_equal(nrow(ww), 1)
-  expect_equal(ww$Kc_mid, 1.15)
+  expect_equal(ww$kc_mid, 1.15)
 
   # Case insensitive
-  sg <- rwapor_get_crop_defaults("sorghum")
+  sg <- wapor_crop_defaults("sorghum")
   expect_true(!is.null(sg))
 
   # Not found
-  expect_null(rwapor_get_crop_defaults("NonexistentCrop"))
+  expect_null(wapor_crop_defaults("NonexistentCrop"))
 })
 
 test_that("continuous Julian date logic works", {
   # Same year
-  expect_equal(rwapor_continuous_julian("2023-01-01", 2023), 1L)
-  expect_equal(rwapor_continuous_julian("2023-12-31", 2023), 365L)
+  expect_equal(wapor_continuous_julian("2023-01-01", 2023), 1L)
+  expect_equal(wapor_continuous_julian("2023-12-31", 2023), 365L)
 
   # Cross-year
-  expect_equal(rwapor_continuous_julian("2024-01-01", 2023), 366L)
-  expect_equal(rwapor_continuous_julian("2024-01-15", 2023), 380L)
+  expect_equal(wapor_continuous_julian("2024-01-01", 2023), 366L)
+  expect_equal(wapor_continuous_julian("2024-01-15", 2023), 380L)
 
   # Leap year
-  expect_equal(rwapor_continuous_julian("2024-12-31", 2024), 366L)
-  expect_equal(rwapor_continuous_julian("2025-01-01", 2024), 367L)
+  expect_equal(wapor_continuous_julian("2024-12-31", 2024), 366L)
+  expect_equal(wapor_continuous_julian("2025-01-01", 2024), 367L)
 })
 
 test_that("daily Kc curve generation works", {
-  kc <- rwapor_build_daily_kc(0.4, 1.15, 0.30, 30, 60, 40, 30)
+  kc <- wapor_build_kc(0.4, 1.15, 0.30, 30, 60, 40, 30)
   expect_equal(length(kc), 160)  # 30 + 60 + 40 + 30
 
   # Initial stage is constant
@@ -80,15 +80,15 @@ test_that("daily Kc curve generation works", {
 test_that("Kc by class generation works", {
   params <- data.frame(
     class_value = c(1L, 2L),
-    Kc_ini = c(0.4, 0.3),
-    Kc_mid = c(1.15, 1.05),
-    Kc_end = c(0.30, 0.55),
-    L_ini_days = c(30L, 20L),
-    L_mid_days = c(40L, 40L),
-    L_late_days = c(30L, 30L),
+    kc_ini = c(0.4, 0.3),
+    kc_mid = c(1.15, 1.05),
+    kc_end = c(0.30, 0.55),
+    l_ini_days = c(30L, 20L),
+    l_mid_days = c(40L, 40L),
+    l_late_days = c(30L, 30L),
     stringsAsFactors = FALSE
   )
-  result <- rwapor_build_kc_by_class(params, c("1" = 160, "2" = 150))
+  result <- wapor_build_kc_by_class(params, c("1" = 160, "2" = 150))
   expect_true(length(result) == 2)
   expect_equal(length(result[["1"]]), 160)
   expect_equal(length(result[["2"]]), 150)
@@ -96,36 +96,36 @@ test_that("Kc by class generation works", {
 
 test_that("Peff USDA monthly calculation works", {
   # P <= 250
-  expect_equal(rwapor_calc_peff_usda_monthly(0), 0)
-  expect_equal(rwapor_calc_peff_usda_monthly(100), 100 * (125 - 20) / 125)
+  expect_equal(wapor_calc_peff_usda(0), 0)
+  expect_equal(wapor_calc_peff_usda(100), 100 * (125 - 20) / 125)
 
   # P > 250
-  expect_equal(rwapor_calc_peff_usda_monthly(300), 125 + 30)
+  expect_equal(wapor_calc_peff_usda(300), 125 + 30)
 
   # Vectorized
-  peff <- rwapor_calc_peff_usda_monthly(c(50, 120, 300))
+  peff <- wapor_calc_peff_usda(c(50, 120, 300))
   expect_equal(length(peff), 3)
 })
 
 test_that("CWP and BWP calculations work", {
   # 5000 kg/ha yield, 400 mm AETI
-  cwp <- rwapor_calc_cwp(5000, 400)
+  cwp <- wapor_calc_cwp(5000, 400)
   expect_equal(cwp, 5000 / (400 * 10))  # kg/m3
 
   # t/ha unit
-  cwp_t <- rwapor_calc_cwp(5, 400, yield_unit = "t/ha")
+  cwp_t <- wapor_calc_cwp(5, 400, yield_unit = "t/ha")
   expect_equal(cwp_t, cwp)
 
   # Zero AETI returns NA
-  expect_true(is.na(rwapor_calc_cwp(5000, 0)))
+  expect_true(is.na(wapor_calc_cwp(5000, 0)))
 
   # BWP
-  bwp <- rwapor_calc_bwp(12000, 400)
+  bwp <- wapor_calc_bwp(12000, 400)
   expect_equal(bwp, 12000 / (400 * 10))
 })
 
 test_that("crop mask harmonization requires SpatRaster inputs", {
-  expect_error(rwapor_harmonize_to_template("not_a_raster", "also_not"),
+  expect_error(wapor_harmonize_raster("not_a_raster", "also_not"),
     "must be a SpatRaster")
 })
 
@@ -147,7 +147,7 @@ test_that("season raster harmonization validates overlap", {
   r2 <- terra::rast(nrows = 10, ncols = 10, xmin = 100, xmax = 110,
                      ymin = 100, ymax = 110, vals = 1L)
   # Harmonizing should error because extents don't overlap
-  expect_error(rwapor_harmonize_to_template(r1, r2, method = "near"),
+  expect_error(wapor_harmonize_raster(r1, r2, method = "near"),
                "No spatial overlap")
 })
 
@@ -161,7 +161,7 @@ test_that("harmonization works with overlapping but different extents", {
                              ymin = 5, ymax = 15, vals = 1L)
 
   # Harmonization should succeed
-  result <- rwapor_harmonize_to_template(r_source, r_template, method = "bilinear")
+  result <- wapor_harmonize_raster(r_source, r_template, method = "bilinear")
 
   expect_true(inherits(result, "SpatRaster"))
   expect_equal(dim(result)[1:2], dim(r_template)[1:2])
@@ -188,7 +188,7 @@ test_that("harmonization works for multi-layer stacks (regression test for exten
   names(weights) <- names(stack)
 
   # Without harmonization, this operation would fail with extent mismatch
-  harmonized_stack <- rwapor_harmonize_to_template(stack, template, method = "bilinear")
+  harmonized_stack <- wapor_harmonize_raster(stack, template, method = "bilinear")
 
   # Now the multiplication should work
   result <- harmonized_stack * weights
@@ -202,10 +202,10 @@ test_that("total days and ldev computation works", {
   skip_if_not_installed("terra")
   start_r <- terra::rast(nrows = 5, ncols = 5, vals = 1)
   end_r   <- terra::rast(nrows = 5, ncols = 5, vals = 160)
-  total_r <- rwapor_compute_total_days_raster(start_r, end_r)
+  total_r <- wapor_season_days(start_r, end_r)
   expect_equal(as.numeric(terra::values(total_r)[1, 1]), 160)
 
-  ldev_r <- rwapor_compute_ldev_raster(total_r, 30, 40, 30)
+  ldev_r <- wapor_season_ldev(total_r, 30, 40, 30)
   expect_equal(as.numeric(terra::values(ldev_r)[1, 1]), 60)  # 160 - 100
 })
 
@@ -213,7 +213,7 @@ test_that("apply_masked_sum works with matching layers", {
   skip_if_not_installed("terra")
   x <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 10)
   w <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 0.5)
-  result <- rwapor_apply_masked_sum(x, w)
+  result <- wapor_masked_sum(x, w)
   expect_equal(as.numeric(terra::values(result)[1, 1]), 15)  # 10 * 0.5 * 3
 })
 
@@ -221,7 +221,7 @@ test_that("apply_masked_sum honors per-layer multipliers", {
   skip_if_not_installed("terra")
   x <- terra::rast(nrows = 3, ncols = 3, nlyrs = 3, vals = 10)
   w <- terra::rast(nrows = 3, ncols = 3, nlyrs = 3, vals = 0.5)
-  result <- rwapor_apply_masked_sum(x, w, layer_multipliers = c(10, 10, 11))
+  result <- wapor_masked_sum(x, w, layer_multipliers = c(10, 10, 11))
   expect_equal(as.numeric(terra::values(result)[1, 1]), 155)
 })
 
@@ -229,7 +229,7 @@ test_that("apply_masked_sum errors on mismatched layers", {
   skip_if_not_installed("terra")
   x <- terra::rast(nrows = 5, ncols = 5, nlyrs = 3, vals = 10)
   w <- terra::rast(nrows = 5, ncols = 5, nlyrs = 2, vals = 0.5)
-  expect_error(rwapor_apply_masked_sum(x, w), "Layer count mismatch")
+  expect_error(wapor_masked_sum(x, w), "Layer count mismatch")
 })
 
 test_that("analysis layer multipliers use dekad day counts for daily-rate D variables", {
@@ -252,7 +252,7 @@ test_that("seasonal ETc incremental honors per-layer multipliers", {
   skip_if_not_installed("terra")
   ret <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 1)
   w <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 0.5)
-  result <- rwapor_calc_seasonal_etc_incremental(
+  result <- wapor_calc_seasonal_etc(
     ret,
     w,
     kc_dekad = c(1, 1, 1),
@@ -262,9 +262,9 @@ test_that("seasonal ETc incremental honors per-layer multipliers", {
 })
 
 test_that("adequacy_etc handles zero ETc", {
-  expect_true(is.na(rwapor_calc_adequacy_etc(100, 0)))
-  expect_equal(rwapor_calc_adequacy_etc(400, 400), 1)
-  expect_equal(rwapor_calc_adequacy_etc(300, 400), 0.75)
+  expect_true(is.na(wapor_calc_adequacy_etc(100, 0)))
+  expect_equal(wapor_calc_adequacy_etc(400, 400), 1)
+  expect_equal(wapor_calc_adequacy_etc(300, 400), 0.75)
 })
 
 test_that("class p95 validity counts only non-missing analysis pixels", {
@@ -272,7 +272,7 @@ test_that("class p95 validity counts only non-missing analysis pixels", {
   aeti <- terra::rast(nrows = 2, ncols = 2, vals = c(1, NA, 3, 4))
   crop_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 1, 2, 2))
 
-  result <- rwapor_calc_class_p95_aeti(aeti, crop_mask, min_pixels = 2)
+  result <- wapor_calc_p95_aeti(aeti, crop_mask, min_pixels = 2)
   result <- result[order(result$class_value), ]
 
   expect_equal(result$n_pixels, c(1L, 2L))
@@ -287,7 +287,7 @@ test_that("aggregate_precip_monthly works", {
     value = rep(2, 90),
     stringsAsFactors = FALSE
   )
-  monthly <- rwapor_aggregate_precip_monthly(ts)
+  monthly <- wapor_aggregate_precip(ts)
   expect_equal(nrow(monthly), 3)
   expect_equal(monthly$p_monthly_mm[1], 62)  # 31 days * 2
   expect_equal(monthly$p_monthly_mm[2], 56)  # 28 days * 2
@@ -296,7 +296,7 @@ test_that("aggregate_precip_monthly works", {
 
 test_that("NPP to TBP conversion works", {
   npp <- 100
-  tbp <- rwapor_convert_npp_to_tbp(npp)
+  tbp <- wapor_convert_npp_tbp(npp)
   expect_equal(tbp, 100 * 22.222)
 })
 
@@ -316,6 +316,6 @@ test_that("Yield calculation from NPP works", {
   expected_agbm <- (0.8 * 1.6 * (dmp / (1 - 0.7))) / 1000
   expected_yield <- 1.0 * expected_agbm
   
-  yield <- rwapor_calc_yield_npp(npp, MC, fc, AOT, HI)
+  yield <- wapor_calc_yield_npp(npp, MC, fc, AOT, HI)
   expect_equal(yield, expected_yield)
 })

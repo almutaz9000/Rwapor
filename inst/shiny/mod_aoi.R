@@ -143,7 +143,7 @@ mod_aoi_server <- function(id,
     )
 
     # Favorites logic
-    favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
+    favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
     current_upload_path <- shiny::reactiveVal(NULL)
     
     shiny::observe({
@@ -162,7 +162,7 @@ mod_aoi_server <- function(id,
       path <- current_upload_path() %||% ""
       if (!nzchar(path)) return(NULL)
       
-      is_fav <- Rwapor::rwapor_is_favorite(path)
+      is_fav <- Rwapor::wapor_is_favorite(path)
       shiny::actionLink(
         session$ns("favorite_vector_btn"),
         NULL,
@@ -175,12 +175,12 @@ mod_aoi_server <- function(id,
       path <- current_upload_path() %||% ""
       if (!nzchar(path)) return()
       
-      if (Rwapor::rwapor_is_favorite(path)) {
-        Rwapor::rwapor_remove_favorite(path)
+      if (Rwapor::wapor_is_favorite(path)) {
+        Rwapor::wapor_remove_favorite(path)
       } else {
-        Rwapor::rwapor_add_favorite(path, type = "file")
+        Rwapor::wapor_add_favorite(path, type = "file")
       }
-      favs(Rwapor::rwapor_get_favorites())
+      favs(Rwapor::wapor_get_favorites())
     })
     
     output$fav_vector_list_ui <- shiny::renderUI({

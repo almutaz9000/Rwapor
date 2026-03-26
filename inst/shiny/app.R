@@ -10,6 +10,10 @@ library(shinyFiles)
 library(shinyvalidate)
 library(shinyjs)
 library(shinyAce)
+library(ggplot2)
+library(dplyr)
+library(DT)
+library(shinycssloaders)
 library(Rwapor)
 
 # --- Source Utility Functions and Modules ---
@@ -18,6 +22,7 @@ source("mod_aoi.R")
 source("mod_download.R")
 source("mod_visualisation.R")
 source("mod_analysis.R")
+source("mod_timeseries.R")
 
 # --- Global / Static Configuration ---
 # Build variable list from package metadata
@@ -69,6 +74,9 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Analysis", icon = shiny::icon("flask"),
     mod_analysis_ui("an", all_vars, l3_region_choices)
   ),
+  bslib::nav_panel("Timeseries", icon = shiny::icon("chart-line"),
+    mod_timeseries_ui("ts")
+  ),
 
   bslib::nav_spacer(),
   bslib::nav_item(shiny::actionButton("exit_btn", "Exit", icon = shiny::icon("power-off"), class = "btn-danger btn-sm"))
@@ -113,6 +121,12 @@ server <- function(input, output, session) {
                           an_start_rast = an_out$start_rast,
                           an_end_rast = an_out$end_rast,
                           an_crop_params = an_out$crop_params)
+  
+  # 4. Timeseries Module
+  # Uses the shared folder and AOI from the download tab
+  mod_timeseries_server("ts",
+                       global_folder = dl_out$folder,
+                       aoi_region = dl_out$region)
 }
 
 shiny::shinyApp(ui, server)

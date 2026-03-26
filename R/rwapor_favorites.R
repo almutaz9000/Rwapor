@@ -10,7 +10,7 @@ get_favorites_path <- function() {
 #'
 #' @return A data frame of favorites with 'path' and 'type' columns
 #' @export
-rwapor_get_favorites <- function() {
+wapor_get_favorites <- function() {
   path <- get_favorites_path()
   if (!file.exists(path)) {
     return(data.frame(path = character(0), type = character(0), stringsAsFactors = FALSE))
@@ -33,14 +33,14 @@ rwapor_get_favorites <- function() {
 #' @param type Character. One of "directory" or "file".
 #' @return Logical. TRUE if successful.
 #' @export
-rwapor_add_favorite <- function(path, type = c("directory", "file")) {
+wapor_add_favorite <- function(path, type = c("directory", "file")) {
   type <- match.arg(type)
   if (is.null(path) || !nzchar(path)) return(FALSE)
   
   # Normalize path
   path <- normalizePath(path, winslash = "/", mustWork = FALSE)
   
-  favs <- rwapor_get_favorites()
+  favs <- wapor_get_favorites()
   
   if (path %in% favs$path) {
     return(TRUE) # Already exists
@@ -59,11 +59,11 @@ rwapor_add_favorite <- function(path, type = c("directory", "file")) {
 #' @param path Character. Path to remove.
 #' @return Logical. TRUE if successful.
 #' @export
-rwapor_remove_favorite <- function(path) {
+wapor_remove_favorite <- function(path) {
   if (is.null(path) || !nzchar(path)) return(FALSE)
   
   path <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  favs <- rwapor_get_favorites()
+  favs <- wapor_get_favorites()
   
   if (!path %in% favs$path) {
     return(TRUE) # Already removed
@@ -82,9 +82,9 @@ rwapor_remove_favorite <- function(path) {
 #' @param path Character. Path to check.
 #' @return Logical. TRUE if favorited.
 #' @export
-rwapor_is_favorite <- function(path) {
+wapor_is_favorite <- function(path) {
   if (is.null(path) || !nzchar(path)) return(FALSE)
   path <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  favs <- rwapor_get_favorites()
+  favs <- wapor_get_favorites()
   path %in% favs$path
 }

@@ -39,7 +39,7 @@ season_end <- rast(end_path)
 
 # 4. Resolve L3 region
 cat("Resolving L3 region...\n")
-reg_info <- parse_region(mask_path)
+reg_info <- wapor_parse_region(mask_path)
 l3_code <- guess_l3_region(aeti_var, reg_info, period)[1]
 cat("Detected L3 Region:", l3_code, "\n")
 
@@ -56,9 +56,9 @@ cat("Raster extent (raw):", paste(as.vector(ext(r_raw)), collapse=", "), "\n")
 cat("Mask extent (4326):", paste(as.vector(reg_info$value), collapse=", "), "\n")
 template_r <- crop_to_region(r_raw, reg_info)
 
-h_mask <- rwapor_harmonize_crop_mask(crop_mask, template_r)
-h_start <- rwapor_harmonize_to_template(season_start, template_r)
-h_end <- rwapor_harmonize_to_template(season_end, template_r)
+h_mask <- wapor_harmonize_crop_mask(crop_mask, template_r)
+h_start <- wapor_harmonize_raster(season_start, template_r)
+h_end <- wapor_harmonize_raster(season_end, template_r)
 
 # Check alignment
 cat("Template Dim:", paste(dim(template_r), collapse="x"), "\n")
@@ -73,13 +73,13 @@ if(!compareGeom(template_r, h_mask, stopOnError=FALSE)) cat("WARN: Template and 
 crop_params <- data.frame(
   class_value = c(1, 2),
   crop_name = c("Wheat", "Sugarbeet"),
-  L_ini_days = c(20, 25),
+  l_ini_days = c(20, 25),
   L_dev_days = c(50, 45),
-  L_mid_days = c(70, 80),
-  L_late_days = c(40, 50),
-  Kc_ini = c(0.3, 0.35),
-  Kc_mid = c(1.15, 1.2),
-  Kc_end = c(0.4, 0.7),
+  l_mid_days = c(70, 80),
+  l_late_days = c(40, 50),
+  kc_ini = c(0.3, 0.35),
+  kc_mid = c(1.15, 1.2),
+  kc_end = c(0.4, 0.7),
   HI = c(0.45, 0.7),
   AOT = c(0.85, 0.8),
   fc = c(0.48, 0.5),
@@ -89,7 +89,7 @@ crop_params <- data.frame(
 
 # 7. Build Season Weights
 cat("Building season weights...\n")
-sw <- rwapor_build_season_weights_dekad(period[1], period[2], h_start, h_end, ref_year)
+sw <- wapor_build_season_weights(period[1], period[2], h_start, h_end, ref_year)
 
 # 8. Load Data Stacks (Streaming)
 cat("Streaming data stacks...\n")
@@ -99,7 +99,7 @@ load_stack <- function(var, l3 = NULL) {
   s <- rast(paste0("/vsicurl/", urls))
   s <- crop_to_region(s, reg_info)
   # MUST harmonize to template resolution (20m) for calculations
-  s <- rwapor_harmonize_to_template(s, template_r)
+  s <- wapor_harmonize_raster(s, template_r)
   meta <- get_variable_metadata(var)
   if (!is.null(meta$scale)) s <- s * meta$scale
   s
@@ -115,19 +115,19 @@ cat("Computing Indicators...\n")
 results <- list()
 
 # Seasonal AETI
-results$seasonal_aeti <- rwapor_calc_seasonal_aeti_masked(aeti_stack, sw$weights)
+results$seasonal_aeti <- wapor_calc_seasonal_aeti(aeti_stack, sw$weights)
 
 # Seasonal RET
-results$seasonal_ret <- rwapor_calc_seasonal_ret_masked(ret_stack, sw$weights)
+results$seasonal_ret <- wapor_calc_seasonal_ret(ret_stack, sw$weights)
 
 # Seasonal PCP
-results$seasonal_pcp <- rwapor_apply_masked_sum(pcp_stack, sw$weights)
+results$seasonal_pcp <- wapor_masked_sum(pcp_stack, sw$weights)
 
 # Seasonal ETc (Incremental)
-total_days_r <- rwapor_compute_total_days_raster(h_start, h_end)
+total_days_r <- wapor_season_days(h_start, h_end)
 mean_total_days <- as.numeric(global(total_days_r, "mean", na.rm = TRUE)[1,1])
 total_days_vec <- setNames(rep(mean_total_days, nrow(crop_params)), as.character(crop_params$class_value))
-kc_by_class <- rwapor_build_kc_by_class(crop_params, total_days_vec)
+kc_by_class <- wapor_build_kc_by_class(crop_params, total_days_vec)
 
 results$etc_by_class <- list()
 for (i in seq_len(nrow(crop_params))) {
@@ -136,19 +136,19 @@ for (i in seq_len(nrow(crop_params))) {
   
   # Aggregate daily Kc to dekads matching the stack
   # Use period[1] as anchor for temporal alignment
-  kc_dekad <- rwapor_aggregate_kc_dekad(kc_by_class[[cls]], sw$dekad_table, period[1])
+  kc_dekad <- wapor_aggregate_kc(kc_by_class[[cls]], sw$dekad_table, period[1])
   
   class_mask <- ifel(h_mask == as.integer(cls), 1L, NA)
-  etc_inc <- rwapor_calc_seasonal_etc_incremental(ret_stack, sw$weights, kc_dekad)
+  etc_inc <- wapor_calc_seasonal_etc(ret_stack, sw$weights, kc_dekad)
   results$etc_by_class[[cls]] <- list(etc_seasonal = etc_inc * class_mask)
 }
 
 # Adequacy P95
-p95_table <- rwapor_calc_class_p95_aeti(results$seasonal_aeti$raster, h_mask)
-results$adequacy_p95 <- rwapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
+p95_table <- wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
+results$adequacy_p95 <- wapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
 
 # Biomass
-results$seasonal_biomass <- rwapor_apply_masked_sum(npp_stack, sw$weights) * 22.222
+results$seasonal_biomass <- wapor_masked_sum(npp_stack, sw$weights) * 22.222
 
 # 10. Save Rasters
 cat("Saving results to", output_dir, "...\n")

@@ -45,6 +45,9 @@ Suggests:
     shinyvalidate,
     shinyjs,
     shinyAce,
+    DT,
+    shinycssloaders,
+    arrow,
     raster,
     future
 Config/testthat/edition: 3

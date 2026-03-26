@@ -55,6 +55,6 @@ grep("^L3-", names(WAPOR3_VARS), value = TRUE)
 }
 \seealso{
 \link{AGERA5_VARS} for climate variables, \link{L3_REGIONS} for L3 region
-codes, \code{\link[=get_variable_metadata]{get_variable_metadata()}} for dynamic metadata fetching
+codes, \code{\link[=wapor_variable_metadata]{wapor_variable_metadata()}} for dynamic metadata fetching
 }
 \keyword{datasets}
