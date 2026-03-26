@@ -34,6 +34,31 @@ It provides a robust, parallelized workflow to download raster data, extract tim
 | 🔁 **Unit Conversion** | Built-in support for converting units (e.g., `mm/dekad` → `mm/day`) on the fly |
 | 💾 **Efficient Caching** | API responses are cached with `memoise` to minimize network traffic |
 | 🌾 **Crop Analysis** | Seasonal water productivity analysis with crop mask and Kc curve support |
+ 
+ ---
+ 
+ ## 🖥️ Interactive Dashboard
+ 
+ **Rwapor** includes a built-in Shiny dashboard for easy data exploration, download, and analysis without writing any code.
+ 
+ ![Rwapor Dashboard Screenshot](man/figures/dashboard_screenshot.png)
+ 
+ ### Quick Start: Launching the Dashboard
+ 
+ To open the dashboard, simply run:
+ 
+ ```r
+ library(Rwapor)
+ 
+ # Launch with default settings
+ run_wapor()
+ 
+ # Or specify a folder to store downloaded data
+ run_wapor(data_folder = "C:/Users/YourName/Documents/Rwapor_Data")
+ ```
+ 
+ ---
+
 
 ---
 
