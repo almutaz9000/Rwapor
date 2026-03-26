@@ -1,193 +1,193 @@
 # Test suite for Rwapor package
 
 # =============================================================================
-# Tests for parse_region()
+# Tests for wapor_parse_region()
 # =============================================================================
 
-test_that("parse_region handles bounding box correctly", {
+test_that("wapor_parse_region handles bounding box correctly", {
   # Valid bounding box
-  result <- parse_region(c(35.0, 33.0, 36.0, 34.0))
+  result <- wapor_parse_region(c(35.0, 33.0, 36.0, 34.0))
   expect_equal(result$type, "bbox")
   expect_s3_class(result$value, "bbox")
   expect_equal(as.numeric(result$value["xmin"]), 35.0)
   expect_equal(as.numeric(result$value["ymax"]), 34.0)
 })
 
-test_that("parse_region rejects invalid bounding boxes", {
+test_that("wapor_parse_region rejects invalid bounding boxes", {
   # xmin >= xmax
   expect_error(
-    parse_region(c(36.0, 33.0, 35.0, 34.0)),
+    wapor_parse_region(c(36.0, 33.0, 35.0, 34.0)),
     "xmin must be less than xmax"
   )
 
   # ymin >= ymax
   expect_error(
-    parse_region(c(35.0, 35.0, 36.0, 34.0)),
+    wapor_parse_region(c(35.0, 35.0, 36.0, 34.0)),
     "ymin must be less than ymax"
   )
 
   # Out of range longitude
   expect_error(
-    parse_region(c(-200, 33.0, 36.0, 34.0)),
+    wapor_parse_region(c(-200, 33.0, 36.0, 34.0)),
     "longitude must be between"
   )
 
   # Out of range latitude
   expect_error(
-    parse_region(c(35.0, -100, 36.0, 34.0)),
+    wapor_parse_region(c(35.0, -100, 36.0, 34.0)),
     "latitude must be between"
   )
 
   # Wrong number of elements
   expect_error(
-    parse_region(c(35.0, 33.0, 36.0)),
+    wapor_parse_region(c(35.0, 33.0, 36.0)),
     "exactly 4 elements"
   )
 })
 
-test_that("parse_region handles L3 codes correctly", {
-  result <- parse_region("AWA")
+test_that("wapor_parse_region handles L3 codes correctly", {
+  result <- wapor_parse_region("AWA")
   expect_equal(result$type, "l3_code")
   expect_equal(result$value, "AWA")
 
-  result2 <- parse_region("ETH")
+  result2 <- wapor_parse_region("ETH")
   expect_equal(result2$type, "l3_code")
 })
 
-test_that("parse_region rejects invalid inputs", {
-  expect_error(parse_region(NULL), "cannot be NULL")
-  expect_error(parse_region(list(a = 1)), "Invalid 'region' type")
-  expect_error(parse_region("nonexistent_file.shp"), "neither a valid file path")
+test_that("wapor_parse_region rejects invalid inputs", {
+  expect_error(wapor_parse_region(NULL), "cannot be NULL")
+  expect_error(wapor_parse_region(list(a = 1)), "Invalid 'region' type")
+  expect_error(wapor_parse_region("nonexistent_file.shp"), "neither a valid file path")
 })
 
 # =============================================================================
-# Tests for get_date_info()
+# Tests for wapor_date_info()
 # =============================================================================
 
-test_that("get_date_info parses dekadal dates correctly", {
+test_that("wapor_date_info parses dekadal dates correctly", {
   # WaPOR URL format: WAPOR-3.L1-AETI-D.YYYY-MM-DX.tif
   # First dekad
-  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif", "D")
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif", "D")
   expect_equal(result$start_date, "2023-01-01")
   expect_equal(result$end_date, "2023-01-10")
   expect_equal(result$number_of_days, 10)
 
   # Second dekad
-  result2 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D2.tif", "D")
+  result2 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D2.tif", "D")
   expect_equal(result2$start_date, "2023-01-11")
   expect_equal(result2$end_date, "2023-01-20")
   expect_equal(result2$number_of_days, 10)
 
   # Third dekad (variable length)
-  result3 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D3.tif", "D")
+  result3 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D3.tif", "D")
   expect_equal(result3$start_date, "2023-01-21")
   expect_equal(result3$end_date, "2023-01-31")
   expect_equal(result3$number_of_days, 11)
 
   # February third dekad (shorter month)
-  result4 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-02-D3.tif", "D")
+  result4 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-02-D3.tif", "D")
   expect_equal(result4$end_date, "2023-02-28")
   expect_equal(result4$number_of_days, 8)
 })
 
-test_that("get_date_info parses monthly dates correctly", {
+test_that("wapor_date_info parses monthly dates correctly", {
   # WaPOR URL format: WAPOR-3.L1-AETI-M.YYYY-MM.tif
-  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-06.tif", "M")
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-06.tif", "M")
   expect_equal(result$start_date, "2023-06-01")
   expect_equal(result$end_date, "2023-06-30")
   expect_equal(result$number_of_days, 30)
 
   # 31-day month
-  result2 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-07.tif", "M")
+  result2 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-07.tif", "M")
   expect_equal(result2$end_date, "2023-07-31")
   expect_equal(result2$number_of_days, 31)
 })
 
-test_that("get_date_info parses annual dates correctly", {
+test_that("wapor_date_info parses annual dates correctly", {
   # WaPOR URL format: WAPOR-3.L1-AETI-A.YYYY.tif
-  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-A/WAPOR-3.L1-AETI-A.2023.tif", "A")
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-A/WAPOR-3.L1-AETI-A.2023.tif", "A")
   expect_equal(result$start_date, "2023-01-01")
   expect_equal(result$end_date, "2023-12-31")
   expect_equal(result$number_of_days, 365)
 })
 
-test_that("get_date_info handles leap year annual correctly", {
-  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-A/WAPOR-3.L1-AETI-A.2024.tif", "A")
+test_that("wapor_date_info handles leap year annual correctly", {
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-A/WAPOR-3.L1-AETI-A.2024.tif", "A")
   expect_equal(result$start_date, "2024-01-01")
   expect_equal(result$end_date, "2024-12-31")
   expect_equal(result$number_of_days, 366)
 })
 
-test_that("get_date_info parses daily dates correctly", {
+test_that("wapor_date_info parses daily dates correctly", {
   # AgERA5 URL format: C3S.AGERA5-ET0-E.YYYY-MM-DD.tif
-  result <- get_date_info("https://gismgr.fao.org/DATA/C3S/MAPSET/AGERA5-ET0-E/C3S.AGERA5-ET0-E.2023-06-15.tif", "E")
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/C3S/MAPSET/AGERA5-ET0-E/C3S.AGERA5-ET0-E.2023-06-15.tif", "E")
   expect_equal(result$start_date, "2023-06-15")
   expect_equal(result$end_date, "2023-06-15")
   expect_equal(result$number_of_days, 1)
 })
 
-test_that("get_date_info parses L3 URLs with region code correctly", {
+test_that("wapor_date_info parses L3 URLs with region code correctly", {
   # L3 URL format includes region code: WAPOR-3.L3-AETI-D.AWA.YYYY-MM-DX.tif
   # Dekadal L3
 
-  result <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-D/WAPOR-3.L3-AETI-D.AWA.2018-01-D1.tif", "D")
+  result <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-D/WAPOR-3.L3-AETI-D.AWA.2018-01-D1.tif", "D")
   expect_equal(result$start_date, "2018-01-01")
   expect_equal(result$end_date, "2018-01-10")
   expect_equal(result$number_of_days, 10)
 
   # Second dekad L3
-  result2 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-D/WAPOR-3.L3-AETI-D.ETH.2023-06-D2.tif", "D")
+  result2 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-D/WAPOR-3.L3-AETI-D.ETH.2023-06-D2.tif", "D")
   expect_equal(result2$start_date, "2023-06-11")
   expect_equal(result2$end_date, "2023-06-20")
 
   # Monthly L3
-  result3 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-M/WAPOR-3.L3-AETI-M.AWA.2023-06.tif", "M")
+  result3 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-M/WAPOR-3.L3-AETI-M.AWA.2023-06.tif", "M")
   expect_equal(result3$start_date, "2023-06-01")
   expect_equal(result3$end_date, "2023-06-30")
   expect_equal(result3$number_of_days, 30)
 
   # Annual L3
-  result4 <- get_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-A/WAPOR-3.L3-AETI-A.AWA.2022.tif", "A")
+  result4 <- wapor_date_info("https://gismgr.fao.org/DATA/WAPOR-3/MOSAICSET/L3-AETI-A/WAPOR-3.L3-AETI-A.AWA.2022.tif", "A")
   expect_equal(result4$start_date, "2022-01-01")
   expect_equal(result4$end_date, "2022-12-31")
   expect_equal(result4$number_of_days, 365)
 })
 
-test_that("get_date_info validates inputs", {
-  expect_error(get_date_info(123, "D"), "must be a single character")
-  expect_error(get_date_info("test.tif", "X"), "Must be one of: D, M, A, E")
+test_that("wapor_date_info validates inputs", {
+  expect_error(wapor_date_info(123, "D"), "must be a single character")
+  expect_error(wapor_date_info("test.tif", "X"), "Must be one of: D, M, A, E")
 })
 
 # =============================================================================
-# Tests for get_variable_metadata()
+# Tests for wapor_variable_metadata()
 # =============================================================================
 
-test_that("get_variable_metadata returns static WaPOR metadata", {
-  meta <- get_variable_metadata("L1-AETI-D")
+test_that("wapor_variable_metadata returns static WaPOR metadata", {
+  meta <- wapor_variable_metadata("L1-AETI-D")
   expect_type(meta, "list")
   expect_equal(meta$long_name, "Actual EvapoTranspiration and Interception")
   expect_equal(meta$units, "mm/day")
   expect_equal(meta$scale, 0.1)
 })
 
-test_that("get_variable_metadata returns static AgERA5 metadata", {
-  meta <- get_variable_metadata("AGERA5-ET0-E")
+test_that("wapor_variable_metadata returns static AgERA5 metadata", {
+  meta <- wapor_variable_metadata("AGERA5-ET0-E")
   expect_type(meta, "list")
   expect_equal(meta$long_name, "Reference Evapotranspiration")
   expect_equal(meta$units, "mm/day")
   expect_equal(meta$scale, 1.0)
 })
 
-test_that("get_variable_metadata validates input", {
-  expect_error(get_variable_metadata(123), "must be a single character")
-  expect_error(get_variable_metadata(c("L1-AETI-D", "L2-AETI-D")), "must be a single character")
+test_that("wapor_variable_metadata validates input", {
+  expect_error(wapor_variable_metadata(123), "must be a single character")
+  expect_error(wapor_variable_metadata(c("L1-AETI-D", "L2-AETI-D")), "must be a single character")
 })
 
 test_that("Dynamic Metadata Fetching works", {
   skip_if_no_live_api()
 
   # L1-RET-E is not in static list, should fetch from API
-  meta <- get_variable_metadata("L1-RET-E")
+  meta <- wapor_variable_metadata("L1-RET-E")
 
   expect_type(meta, "list")
   expect_true(!is.null(meta$units))
@@ -238,10 +238,10 @@ test_that("wapor_generate_urls generates correct URLs", {
 })
 
 # =============================================================================
-# Tests for df_unit_convertor()
+# Tests for wapor_convert_units()
 # =============================================================================
 
-test_that("df_unit_convertor returns unchanged for 'none'", {
+test_that("wapor_convert_units returns unchanged for 'none'", {
   df <- data.frame(
     mean = c(2.5, 3.0),
     start_date = c("2023-01-01", "2023-01-11"),
@@ -249,11 +249,11 @@ test_that("df_unit_convertor returns unchanged for 'none'", {
   )
   attr(df, "units") <- "mm/day"
 
-  result <- df_unit_convertor(df, "none")
+  result <- wapor_convert_units(df, "none")
   expect_equal(result$mean, df$mean)
 })
 
-test_that("df_unit_convertor converts day to month", {
+test_that("wapor_convert_units converts day to month", {
   df <- data.frame(
     mean = c(1.0, 1.0),
     min = c(0.5, 0.5),
@@ -263,7 +263,7 @@ test_that("df_unit_convertor converts day to month", {
   )
   attr(df, "units") <- "mm/day"
 
-  result <- df_unit_convertor(df, "month")
+  result <- wapor_convert_units(df, "month")
 
   # January has 31 days, February has 28 days
   expect_equal(result$mean[1], 31)
@@ -272,10 +272,10 @@ test_that("df_unit_convertor converts day to month", {
   expect_equal(attr(result, "original_units"), "mm/day")
 })
 
-test_that("df_unit_convertor validates inputs", {
-  expect_error(df_unit_convertor("not a df", "day"), "must be a data.frame")
+test_that("wapor_convert_units validates inputs", {
+  expect_error(wapor_convert_units("not a df", "day"), "must be a data.frame")
   expect_error(
-    df_unit_convertor(data.frame(x = 1), "invalid"),
+    wapor_convert_units(data.frame(x = 1), "invalid"),
     "must be one of"
   )
 })
@@ -321,7 +321,7 @@ test_that("calculate_conversion_factor handles leap years correctly", {
   )
 })
 
-test_that("df_unit_convertor handles leap year dates correctly", {
+test_that("wapor_convert_units handles leap year dates correctly", {
   df <- data.frame(
     mean = c(1.0),
     start_date = c("2024-02-01"),  # 2024 is a leap year
@@ -329,7 +329,7 @@ test_that("df_unit_convertor handles leap year dates correctly", {
   )
   attr(df, "units") <- "mm/day"
 
-  result <- df_unit_convertor(df, "year")
+  result <- wapor_convert_units(df, "year")
   # Leap year: should multiply by 366, not 365
   expect_equal(result$mean[1], 366)
   expect_equal(attr(result, "units"), "mm/year")
@@ -342,7 +342,7 @@ test_that("wapor_map has mask parameter", {
   expect_equal(args$mask, FALSE)
 })
 
-test_that("crop_to_region applies mask when do_mask is TRUE", {
+test_that("wapor_crop_to_region applies mask when do_mask is TRUE", {
   skip_if_not_installed("terra")
   skip_if_not_installed("sf")
 
@@ -364,12 +364,12 @@ test_that("crop_to_region applies mask when do_mask is TRUE", {
   reg_info <- list(type = "vector", value = sf_poly)
 
   # Without mask: should have no NA from masking
-  r_crop <- crop_to_region(r, reg_info, do_mask = FALSE)
+  r_crop <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
   vals_crop <- terra::values(r_crop, na.rm = FALSE)
   expect_true(all(!is.na(vals_crop)))  # rectangular crop, no NAs
 
   # With mask: pixels outside polygon boundary should be NA
-  r_masked <- crop_to_region(r, reg_info, do_mask = TRUE)
+  r_masked <- wapor_crop_to_region(r, reg_info, do_mask = TRUE)
   vals_masked <- terra::values(r_masked, na.rm = FALSE)
   expect_true(any(is.na(vals_masked)))  # polygon mask creates NAs at corners
   # Masked version should have fewer non-NA pixels than cropped

@@ -3,14 +3,14 @@ library(Rwapor)
 library(terra)
 
 # 1. Test Season Weights (Rate vs Total)
-print("Testing rwapor_build_season_weights_dekad...")
+print("Testing wapor_build_season_weights...")
 start_r <- rast(nrows=10, ncols=10, vals=280) # Season start DOY 280 (Oct 7)
 end_r   <- rast(nrows=10, ncols=10, vals=30)  # Season end DOY 30 (Jan 30) (cross-year)
 ref_year <- 2023
 
 # Period covering Oct to Dec
 period <- c("2023-10-01", "2023-12-31")
-sw <- rwapor_build_season_weights_dekad(period[1], period[2], start_r, end_r, ref_year)
+sw <- wapor_build_season_weights(period[1], period[2], start_r, end_r, ref_year)
 
 # Check first dekad (2023-10-01 to 2023-10-10)
 # DOYs are 274 to 283.
@@ -44,7 +44,7 @@ peff_monthly <- data.frame(
 # Nov: 30 days. End 10. Overlap: 1, 2, ..., 10 (10 days).
 # Expected: 100 * (11/31) + 100 * (10/30) = 32.25 + 33.33 = 65.58
 
-val_peff <- rwapor_calc_peff_seasonal(peff_monthly, "2023-10-21", "2023-11-10")
+val_peff <- wapor_calc_peff(peff_monthly, "2023-10-21", "2023-11-10")
 print(paste("Pro-rated Peff:", val_peff))
 
 expected_peff <- 100 * (11/31) + 100 * (10/30)

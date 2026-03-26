@@ -46,19 +46,19 @@
 #'
 #' @examples
 #' # Plan for L2 AETI (no daily data) over a partial season
-#' plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("A", "M", "D"))
+#' plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("A", "M", "D"))
 #' print(plan)
 #'
 #' # Downstream seasonal aggregation uses the plan together with variable metadata.
 #'
 #' # Plan for a multi-year range
-#' plan <- plan_wapor_time_slices("2018-01-01", "2023-06-22", avail = c("A", "M", "D"))
+#' plan <- wapor_plan_time_slices("2018-01-01", "2023-06-22", avail = c("A", "M", "D"))
 #' print(plan)
 #'
 #' # If only monthly data is available
-#' plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
+#' plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
 #' print(plan)
-plan_wapor_time_slices <- function(start_date, end_date,
+wapor_plan_time_slices <- function(start_date, end_date,
                                    avail = c("A", "M", "D", "E"),
                                    inclusive = TRUE) {
   # --- Input validation ---
@@ -324,12 +324,12 @@ plan_wapor_time_slices <- function(start_date, end_date,
 #' @export
 #'
 #' @examples
-#' get_available_temporal_codes("L1-AETI-D")
+#' wapor_temporal_codes("L1-AETI-D")
 #' # [1] "A" "M" "D"
 #'
-#' get_available_temporal_codes("L2-NPP-D")
+#' wapor_temporal_codes("L2-NPP-D")
 #' # [1] "M" "D"
-get_available_temporal_codes <- function(variable) {
+wapor_temporal_codes <- function(variable) {
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
   }

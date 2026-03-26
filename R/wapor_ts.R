@@ -132,11 +132,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Parse region
-  reg_info <- parse_region(region)
+  reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
   if (is.null(l3_code) && grepl("^L3-", variable)) {
-    guessed_codes <- guess_l3_region(variable, reg_info, period)
+    guessed_codes <- wapor_guess_region(variable, reg_info, period)
     if (is.null(guessed_codes)) {
         stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
     }
@@ -268,7 +268,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
 
     # Determine final units from seasonal aggregation semantics.
-    source_var_meta <- get_variable_metadata(variable)
+    source_var_meta <- wapor_variable_metadata(variable)
     if (!is.null(source_var_meta)) {
       attr(result_df, "units") <- get_seasonal_output_units(variable, aggregation_rule) %||% source_var_meta$units
       attr(result_df, "long_name") <- source_var_meta$long_name
@@ -299,7 +299,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   tres <- tail(parts, 1)
 
   # Gather metadata for all layers
-  meta_list <- lapply(urls, function(u) get_date_info(u, tres))
+  meta_list <- lapply(urls, function(u) wapor_date_info(u, tres))
   meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
   meta_df$layer_index <- seq_len(nrow(meta_df))
 
@@ -359,7 +359,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
 
     # Crop to region
-    r <- crop_to_region(r, reg_info, do_mask = FALSE)
+    r <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
 
     if (!is.null(vect)) {
       # Zonal statistics for polygons using exactextractr
@@ -442,7 +442,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   final_df <- do.call(rbind, all_batch_results)
 
   # Get variable metadata for units
-  source_var_meta <- get_variable_metadata(variable)
+  source_var_meta <- wapor_variable_metadata(variable)
 
   if (!is.null(source_var_meta)) {
     attr(final_df, "units") <- source_var_meta$units
@@ -452,7 +452,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Apply unit conversion
-  final_df <- df_unit_convertor(final_df, unit_conversion)
+  final_df <- wapor_convert_units(final_df, unit_conversion)
 
   message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)

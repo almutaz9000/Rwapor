@@ -15,7 +15,7 @@
 #'   Recommended for very long seasons or low RAM. Default FALSE.
 #' @return A single-layer SpatRaster of weighted sums.
 #' @export
-rwapor_apply_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
+wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
   if (terra::nlyr(x) != terra::nlyr(weights)) {
     stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
                  terra::nlyr(x), terra::nlyr(weights)), call. = FALSE)
@@ -62,10 +62,10 @@ rwapor_apply_masked_sum <- function(x, weights, layer_multipliers = NULL, increm
 #'     \item{by_class}{data.frame of mean seasonal AETI per crop class (if crop_mask provided)}
 #'   }
 #' @export
-rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
+wapor_calc_seasonal_aeti <- function(aeti_dekad, season_weights,
                                              crop_mask = NULL, layer_multipliers = NULL,
                                              incremental = FALSE) {
-  seasonal_aeti <- rwapor_apply_masked_sum(
+  seasonal_aeti <- wapor_masked_sum(
     aeti_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -93,10 +93,10 @@ rwapor_calc_seasonal_aeti_masked <- function(aeti_dekad, season_weights,
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A list with raster and by_class components (same as AETI version).
 #' @export
-rwapor_calc_seasonal_ret_masked <- function(ret_dekad, season_weights,
+wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
                                             crop_mask = NULL, layer_multipliers = NULL,
                                             incremental = FALSE) {
-  seasonal_ret <- rwapor_apply_masked_sum(
+  seasonal_ret <- wapor_masked_sum(
     ret_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -127,7 +127,7 @@ rwapor_calc_seasonal_ret_masked <- function(ret_dekad, season_weights,
 #'   If a numeric vector, each value is applied uniformly to the
 #'   corresponding layer.
 #' @return A SpatRaster of dekadal ETc.
-rwapor_calc_etc_dekad <- function(ret_dekad, kc_dekad) {
+wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }
 
@@ -143,7 +143,7 @@ rwapor_calc_etc_dekad <- function(ret_dekad, kc_dekad) {
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
-rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_dekad,
+wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                                                  layer_multipliers = NULL) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
@@ -190,7 +190,7 @@ rwapor_calc_seasonal_etc_incremental <- function(ret_dekad, season_weights, kc_d
 #' @param etc_seasonal SpatRaster or numeric. Seasonal ETc.
 #' @return SpatRaster or numeric of adequacy ratio.
 #' @export
-rwapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
+wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   # Avoid division by zero
   if (inherits(etc_seasonal, "SpatRaster")) {
     etc_safe <- terra::ifel(etc_seasonal == 0, NA, etc_seasonal)
@@ -210,7 +210,7 @@ rwapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #'   Classes with fewer pixels return NA. Default 30.
 #' @return A data.frame with columns: class_value, p95_aeti, n_pixels, valid.
 #' @export
-rwapor_calc_class_p95_aeti <- function(aeti_seasonal, crop_mask,
+wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
   # Fast grouped quantile calculation using terra::zonal
   # Note: zonal only works with functions that return a single value
@@ -248,10 +248,10 @@ rwapor_calc_class_p95_aeti <- function(aeti_seasonal, crop_mask,
 #'
 #' @param aeti_seasonal SpatRaster. Seasonal AETI raster.
 #' @param crop_mask SpatRaster. Crop mask.
-#' @param p95_table data.frame. Output from rwapor_calc_class_p95_aeti().
+#' @param p95_table data.frame. Output from wapor_calc_p95_aeti().
 #' @return A SpatRaster of P95-based adequacy.
 #' @export
-rwapor_calc_adequacy_p95 <- function(aeti_seasonal, crop_mask, p95_table) {
+wapor_calc_adequacy_p95 <- function(aeti_seasonal, crop_mask, p95_table) {
   # Build a raster of P95 values mapped from crop class
   p95_rast <- terra::classify(
     crop_mask,
@@ -272,7 +272,7 @@ rwapor_calc_adequacy_p95 <- function(aeti_seasonal, crop_mask, p95_table) {
 #' @param precip_ts data.frame with columns: date, value (daily or dekadal precip).
 #' @return A data.frame with columns: year, month, p_monthly_mm.
 #' @export
-rwapor_aggregate_precip_monthly <- function(precip_ts) {
+wapor_aggregate_precip <- function(precip_ts) {
   if (!all(c("date", "value") %in% names(precip_ts))) {
     stop("precip_ts must have 'date' and 'value' columns", call. = FALSE)
   }
@@ -296,8 +296,8 @@ rwapor_aggregate_precip_monthly <- function(precip_ts) {
 #' @return Numeric vector of monthly effective precipitation in mm.
 #' @export
 #' @examples
-#' rwapor_calc_peff_usda_monthly(c(50, 120, 300))
-rwapor_calc_peff_usda_monthly <- function(p_monthly) {
+#' wapor_calc_peff_usda(c(50, 120, 300))
+wapor_calc_peff_usda <- function(p_monthly) {
   ifelse(p_monthly <= 250,
          p_monthly * (125 - 0.2 * p_monthly) / 125,
          125 + 0.1 * p_monthly)
@@ -315,7 +315,7 @@ rwapor_calc_peff_usda_monthly <- function(p_monthly) {
 #' @param season_year Integer. Legacy season year.
 #' @return Numeric. Total seasonal effective precipitation in mm.
 #' @export
-rwapor_calc_peff_seasonal <- function(peff_monthly, start_date = NULL,
+wapor_calc_peff <- function(peff_monthly, start_date = NULL,
                                       end_date = NULL, season_months = NULL,
                                       season_year = NULL) {
   if (!is.null(start_date) && !is.null(end_date)) {
@@ -368,8 +368,8 @@ rwapor_calc_peff_seasonal <- function(peff_monthly, start_date = NULL,
 #' @return Numeric or SpatRaster. CWP in kg/m3.
 #' @export
 #' @examples
-#' rwapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
-rwapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
+#' wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
+wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
   # Convert yield to kg/ha if needed
   if (tolower(yield_unit) == "t/ha") {
     yield_value <- yield_value * 1000
@@ -396,8 +396,8 @@ rwapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' @return Numeric or SpatRaster. BWP in kg/m3.
 #' @export
 #' @examples
-#' rwapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
-rwapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
+#' wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
+wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
   if (tolower(biomass_unit) == "t/ha") {
     biomass_value <- biomass_value * 1000
   }
@@ -418,28 +418,28 @@ rwapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
 #' @return Numeric. TBP in kgDM/ha.
 #' @export
-rwapor_convert_npp_to_tbp <- function(npp_gc_m2) {
+wapor_convert_npp_tbp <- function(npp_gc_m2) {
   npp_gc_m2 * 22.222
 }
 
 #' Calculate Crop Yield from NPP
 #'
 #' Implementation of the provided yield formula based on NPP:
-#' AGBM = (AOT * fc * (NPP * 22.222 / (1 - MC))) / 1000
+#' AGBM = (aot * fc * (NPP * 22.222 / (1 - MC))) / 1000
 #' CropYield = HI * AGBM
 #'
 #' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
-#' @param MC Numeric. Moisture content (0-1).
+#' @param mc Numeric. Moisture content (0-1).
 #' @param fc Numeric. Light use efficiency correction factor.
-#' @param AOT Numeric. Above ground over total biomass production ratio.
-#' @param HI Numeric. Harvest index.
+#' @param aot Numeric. Above ground over total biomass production ratio.
+#' @param hi Numeric. Harvest index.
 #' @return Numeric. Crop yield in t/ha.
 #' @export
-rwapor_calc_yield_npp <- function(npp_gc_m2, MC, fc, AOT, HI) {
+wapor_calc_yield_npp <- function(npp_gc_m2, MC, fc, aot, HI) {
   # NPP * 22.222 converts gC/m2 to kgDM/ha (DMP)
   dmp <- npp_gc_m2 * 22.222
   # Calculate Above Ground Biomass (ton/ha)
-  agbm <- (AOT * fc * (dmp / (1 - MC))) / 1000
+  agbm <- (aot * fc * (dmp / (1 - MC))) / 1000
   # Calculate Yield
   yield <- HI * agbm
   yield
@@ -462,7 +462,7 @@ rwapor_calc_yield_npp <- function(npp_gc_m2, MC, fc, AOT, HI) {
 #' @param period Character vector of length 2: c(start_date, end_date).
 #' @return A list with data.frames: aeti_ts, ret_ts, precip_ts.
 #' @export
-rwapor_prepare_analysis_ts <- function(region, aeti_var, ret_var, precip_var,
+wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
                                        period) {
   aeti_ts <- wapor_ts(region = region, variable = aeti_var, period = period,
                        unit_conversion = "none")
@@ -482,7 +482,7 @@ rwapor_prepare_analysis_ts <- function(region, aeti_var, ret_var, precip_var,
 #' @param precip_ts data.frame from wapor_ts().
 #' @return A merged data.frame.
 #' @export
-rwapor_merge_analysis_timeseries <- function(aeti_ts, ret_ts, precip_ts) {
+wapor_merge_ts <- function(aeti_ts, ret_ts, precip_ts) {
   # Rename value columns to avoid collision
   aeti_sub <- data.frame(
     start_date = aeti_ts$start_date,

@@ -10,7 +10,7 @@
 #' @param path Character. File path to the crop mask raster.
 #' @return A SpatRaster with integer class values.
 #' @export
-rwapor_load_crop_mask <- function(path) {
+wapor_load_crop_mask <- function(path) {
   if (!file.exists(path)) {
     stop(sprintf("Crop mask file not found: %s", path), call. = FALSE)
   }
@@ -39,7 +39,7 @@ rwapor_load_crop_mask <- function(path) {
 #' @param path Character. File path to the season raster.
 #' @return A SpatRaster with integer Julian date values.
 #' @export
-rwapor_load_season_raster <- function(path) {
+wapor_load_season_raster <- function(path) {
   if (!file.exists(path)) {
     stop(sprintf("Season raster file not found: %s", path), call. = FALSE)
   }
@@ -74,7 +74,7 @@ rwapor_load_season_raster <- function(path) {
 #'   Use "bilinear" for continuous data.
 #' @return A SpatRaster aligned to the template.
 #' @export
-rwapor_harmonize_to_template <- function(x, template, method = "near") {
+wapor_harmonize_raster <- function(x, template, method = "near") {
   if (!inherits(x, "SpatRaster")) {
     stop("'x' must be a SpatRaster", call. = FALSE)
   }
@@ -166,8 +166,8 @@ rwapor_harmonize_to_template <- function(x, template, method = "near") {
 #' @param target_raster SpatRaster. The AETI raster defining the target geometry.
 #' @return A harmonized SpatRaster.
 #' @export
-rwapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
-  result <- rwapor_harmonize_to_template(crop_mask, target_raster, method = "near")
+wapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
+  result <- wapor_harmonize_raster(crop_mask, target_raster, method = "near")
 
   # Validate non-empty overlap
   vals <- terra::values(result, na.rm = TRUE)
@@ -191,7 +191,7 @@ rwapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
 #' @param nodata_values Numeric vector. Values to treat as NoData.
 #' @return A data.frame with columns: class_value, pixel_count, area_ha.
 #' @export
-rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10, nodata_values = c(0, 255, -9999, -32768, 65535, -3.4e+38)) {
+wapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pixels = 10, nodata_values = c(0, 255, -9999, -32768, 65535, -3.4e+38)) {
   if (!inherits(crop_mask, "SpatRaster")) {
     stop("'crop_mask' must be a SpatRaster", call. = FALSE)
   }
@@ -271,17 +271,17 @@ rwapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pi
 #' @param crop_defaults Optional data.frame of defaults (same format as FAO_CROP_DEFAULTS).
 #' @return A data.frame with one row per class, columns for all crop parameters.
 #' @export
-rwapor_build_crop_assignment_table <- function(class_values, crop_defaults = NULL) {
+wapor_build_crop_assignments <- function(class_values, crop_defaults = NULL) {
   n <- length(class_values)
   tbl <- data.frame(
     class_value  = as.integer(class_values),
     crop_label   = rep(NA_character_, n),
-    Kc_ini       = rep(NA_real_, n),
-    Kc_mid       = rep(NA_real_, n),
-    Kc_end       = rep(NA_real_, n),
-    L_ini_days   = rep(NA_integer_, n),
-    L_mid_days   = rep(NA_integer_, n),
-    L_late_days  = rep(NA_integer_, n),
+    kc_ini       = rep(NA_real_, n),
+    kc_mid       = rep(NA_real_, n),
+    kc_end       = rep(NA_real_, n),
+    l_ini_days   = rep(NA_integer_, n),
+    l_mid_days   = rep(NA_integer_, n),
+    l_late_days  = rep(NA_integer_, n),
     max_height_m = rep(NA_real_, n),
     MC           = rep(NA_real_, n),
     fc           = rep(NA_real_, n),
@@ -308,9 +308,9 @@ rwapor_build_crop_assignment_table <- function(class_values, crop_defaults = NUL
 #' @return Integer. Continuous Julian day index.
 #' @export
 #' @examples
-#' rwapor_continuous_julian("2023-03-15", 2023)
-#' rwapor_continuous_julian("2024-01-15", 2023)  # cross-year
-rwapor_continuous_julian <- function(date, reference_year) {
+#' wapor_continuous_julian("2023-03-15", 2023)
+#' wapor_continuous_julian("2024-01-15", 2023)  # cross-year
+wapor_continuous_julian <- function(date, reference_year) {
   if (is.character(date)) date <- as.Date(date)
   ref_start <- as.Date(sprintf("%04d-01-01", reference_year))
   ref_year_length <- ifelse(
@@ -333,14 +333,14 @@ rwapor_continuous_julian <- function(date, reference_year) {
 #' @param reference_year Integer. The season reference year.
 #' @return A SpatRaster with one layer per date, values 0 or 1.
 #' @export
-rwapor_build_season_mask_daily <- function(dates, start_raster, end_raster,
+wapor_build_season_mask <- function(dates, start_raster, end_raster,
                                            reference_year) {
   if (!inherits(start_raster, "SpatRaster") || !inherits(end_raster, "SpatRaster")) {
     stop("start_raster and end_raster must be SpatRaster objects", call. = FALSE)
   }
   if (is.character(dates)) dates <- as.Date(dates)
 
-  jd_values <- vapply(dates, rwapor_continuous_julian,
+  jd_values <- vapply(dates, wapor_continuous_julian,
                        reference_year = reference_year, FUN.VALUE = integer(1))
 
   masks <- lapply(jd_values, function(jd) {
@@ -429,7 +429,7 @@ build_dekad_table <- function(start_date, end_date) {
 #'     \item{dekad_table}{data.frame of dekad periods}
 #'   }
 #' @export
-rwapor_build_season_weights_dekad <- function(start_date, end_date,
+wapor_build_season_weights <- function(start_date, end_date,
                                               start_raster, end_raster,
                                               reference_year) {
   dekad_tbl <- build_dekad_table(start_date, end_date)
@@ -440,8 +440,8 @@ rwapor_build_season_weights_dekad <- function(start_date, end_date,
     d <- dekad_tbl[i, ]
     
     # Convert dekad boundaries to continuous Julian days
-    d_start_jd <- rwapor_continuous_julian(d$dekad_start, reference_year)
-    d_end_jd   <- rwapor_continuous_julian(d$dekad_end, reference_year)
+    d_start_jd <- wapor_continuous_julian(d$dekad_start, reference_year)
+    d_end_jd   <- wapor_continuous_julian(d$dekad_end, reference_year)
     
     # Calculate overlap using terra::clamp (robust for SpatRaster/scalar)
     o_start <- terra::clamp(start_raster, lower = d_start_jd)
@@ -478,23 +478,23 @@ rwapor_build_season_weights_dekad <- function(start_date, end_date,
 #' @param end_raster SpatRaster. Pixel-wise season end Julian days.
 #' @return A SpatRaster of total season days per pixel.
 #' @export
-rwapor_compute_total_days_raster <- function(start_raster, end_raster) {
+wapor_season_days <- function(start_raster, end_raster) {
   end_raster - start_raster + 1L
 }
 
 #' Compute Development Stage Length Raster
 #'
-#' Derives L_dev dynamically: L_dev = total_days - (L_ini + L_mid + L_late).
+#' Derives l_dev dynamically: l_dev = total_days - (l_ini + l_mid + l_late).
 #'
 #' @param total_days_raster SpatRaster. Total season days per pixel.
-#' @param L_ini_days Integer. Length of initial stage.
-#' @param L_mid_days Integer. Length of mid-season stage.
-#' @param L_late_days Integer. Length of late-season stage.
+#' @param l_ini_days Integer. Length of initial stage.
+#' @param l_mid_days Integer. Length of mid-season stage.
+#' @param l_late_days Integer. Length of late-season stage.
 #' @return A SpatRaster of development stage days per pixel.
 #' @export
-rwapor_compute_ldev_raster <- function(total_days_raster, L_ini_days,
-                                       L_mid_days, L_late_days) {
-  fixed_sum <- as.integer(L_ini_days) + as.integer(L_mid_days) + as.integer(L_late_days)
+wapor_season_ldev <- function(total_days_raster, l_ini_days,
+                                       l_mid_days, l_late_days) {
+  fixed_sum <- as.integer(l_ini_days) + as.integer(l_mid_days) + as.integer(l_late_days)
   ldev <- total_days_raster - fixed_sum
   ldev
 }
@@ -509,57 +509,57 @@ rwapor_compute_ldev_raster <- function(total_days_raster, L_ini_days,
 #' Generates a daily Kc curve based on the four-stage FAO-56 model:
 #' constant initial, linear development, constant mid-season, linear late.
 #'
-#' @param Kc_ini Numeric. Kc during initial stage.
-#' @param Kc_mid Numeric. Kc during mid-season stage.
-#' @param Kc_end Numeric. Kc during end/late stage.
-#' @param L_ini Integer. Initial stage length (days).
-#' @param L_dev Integer. Development stage length (days).
-#' @param L_mid Integer. Mid-season stage length (days).
-#' @param L_late Integer. Late-season stage length (days).
+#' @param kc_ini Numeric. Kc during initial stage.
+#' @param kc_mid Numeric. Kc during mid-season stage.
+#' @param kc_end Numeric. Kc during end/late stage.
+#' @param l_ini Integer. Initial stage length (days).
+#' @param l_dev Integer. Development stage length (days).
+#' @param l_mid Integer. Mid-season stage length (days).
+#' @param l_late Integer. Late-season stage length (days).
 #' @return Numeric vector of daily Kc values.
 #' @export
 #' @examples
-#' kc <- rwapor_build_daily_kc(0.4, 1.15, 0.30, 30, 60, 40, 30)
+#' kc <- wapor_build_kc(0.4, 1.15, 0.30, 30, 60, 40, 30)
 #' plot(kc, type = "l", ylab = "Kc", xlab = "Day")
-rwapor_build_daily_kc <- function(Kc_ini, Kc_mid, Kc_end,
-                                  L_ini, L_dev, L_mid, L_late) {
-  L_ini  <- as.integer(L_ini)
-  L_dev  <- as.integer(L_dev)
-  L_mid  <- as.integer(L_mid)
-  L_late <- as.integer(L_late)
-  total  <- L_ini + L_dev + L_mid + L_late
+wapor_build_kc <- function(kc_ini, kc_mid, kc_end,
+                                  l_ini, l_dev, l_mid, l_late) {
+  l_ini  <- as.integer(l_ini)
+  l_dev  <- as.integer(l_dev)
+  l_mid  <- as.integer(l_mid)
+  l_late <- as.integer(l_late)
+  total  <- l_ini + l_dev + l_mid + l_late
 
   if (total <= 0) return(numeric(0))
-  if (L_dev < 0) {
-    warning("L_dev is negative; clamping to 0", call. = FALSE)
-    L_dev <- 0L
-    total <- L_ini + L_mid + L_late
+  if (l_dev < 0) {
+    warning("l_dev is negative; clamping to 0", call. = FALSE)
+    l_dev <- 0L
+    total <- l_ini + l_mid + l_late
   }
 
   kc <- numeric(total)
   idx <- 0L
 
-  # Initial stage: constant Kc_ini
-  if (L_ini > 0) {
-    kc[(idx + 1):(idx + L_ini)] <- Kc_ini
-    idx <- idx + L_ini
+  # Initial stage: constant kc_ini
+  if (l_ini > 0) {
+    kc[(idx + 1):(idx + l_ini)] <- kc_ini
+    idx <- idx + l_ini
   }
 
-  # Development stage: linear Kc_ini -> Kc_mid
-  if (L_dev > 0) {
-    kc[(idx + 1):(idx + L_dev)] <- seq(Kc_ini, Kc_mid, length.out = L_dev + 1)[-1]
-    idx <- idx + L_dev
+  # Development stage: linear kc_ini -> kc_mid
+  if (l_dev > 0) {
+    kc[(idx + 1):(idx + l_dev)] <- seq(kc_ini, kc_mid, length.out = l_dev + 1)[-1]
+    idx <- idx + l_dev
   }
 
-  # Mid-season stage: constant Kc_mid
-  if (L_mid > 0) {
-    kc[(idx + 1):(idx + L_mid)] <- Kc_mid
-    idx <- idx + L_mid
+  # Mid-season stage: constant kc_mid
+  if (l_mid > 0) {
+    kc[(idx + 1):(idx + l_mid)] <- kc_mid
+    idx <- idx + l_mid
   }
 
-  # Late stage: linear Kc_mid -> Kc_end
-  if (L_late > 0) {
-    kc[(idx + 1):(idx + L_late)] <- seq(Kc_mid, Kc_end, length.out = L_late + 1)[-1]
+  # Late stage: linear kc_mid -> kc_end
+  if (l_late > 0) {
+    kc[(idx + 1):(idx + l_late)] <- seq(kc_mid, kc_end, length.out = l_late + 1)[-1]
   }
 
   kc
@@ -571,13 +571,13 @@ rwapor_build_daily_kc <- function(Kc_ini, Kc_mid, Kc_end,
 #' by unique season duration patterns.
 #'
 #' @param crop_assignment data.frame with crop parameters per class.
-#'   Must include columns: class_value, Kc_ini, Kc_mid, Kc_end,
-#'   L_ini_days, L_mid_days, L_late_days.
+#'   Must include columns: class_value, kc_ini, kc_mid, kc_end,
+#'   l_ini_days, l_mid_days, l_late_days.
 #' @param total_days Integer or named integer vector of total season days per class.
 #'   If a single value, applied to all classes.
 #' @return A named list of numeric vectors (daily Kc values), one per class.
 #' @export
-rwapor_build_kc_by_class <- function(crop_assignment, total_days) {
+wapor_build_kc_by_class <- function(crop_assignment, total_days) {
   if (!is.data.frame(crop_assignment) || nrow(crop_assignment) == 0) {
     stop("'crop_assignment' must be a non-empty data.frame", call. = FALSE)
   }
@@ -588,25 +588,25 @@ rwapor_build_kc_by_class <- function(crop_assignment, total_days) {
     cls <- as.character(row$class_value)
 
     td <- if (length(total_days) == 1) total_days else total_days[cls]
-    L_dev <- td - (row$L_ini_days + row$L_mid_days + row$L_late_days)
+    l_dev <- td - (row$l_ini_days + row$l_mid_days + row$l_late_days)
 
-    if (is.na(L_dev) || L_dev < 0) {
-      warning(sprintf("Class %s: L_dev=%s (total=%s, ini+mid+late=%s). Skipping.",
-                       cls, L_dev, td,
-                       row$L_ini_days + row$L_mid_days + row$L_late_days),
+    if (is.na(l_dev) || l_dev < 0) {
+      warning(sprintf("Class %s: l_dev=%s (total=%s, ini+mid+late=%s). Skipping.",
+                       cls, l_dev, td,
+                       row$l_ini_days + row$l_mid_days + row$l_late_days),
               call. = FALSE)
       result[[cls]] <- numeric(0)
       next
     }
 
-    result[[cls]] <- rwapor_build_daily_kc(
-      Kc_ini  = row$Kc_ini,
-      Kc_mid  = row$Kc_mid,
-      Kc_end  = row$Kc_end,
-      L_ini   = row$L_ini_days,
-      L_dev   = L_dev,
-      L_mid   = row$L_mid_days,
-      L_late  = row$L_late_days
+    result[[cls]] <- wapor_build_kc(
+      kc_ini  = row$kc_ini,
+      kc_mid  = row$kc_mid,
+      kc_end  = row$kc_end,
+      l_ini   = row$l_ini_days,
+      l_dev   = l_dev,
+      l_mid   = row$l_mid_days,
+      l_late  = row$l_late_days
     )
   }
   result
@@ -622,7 +622,7 @@ rwapor_build_kc_by_class <- function(crop_assignment, total_days) {
 #' @param season_start Date. The first day of the season.
 #' @return Numeric vector of mean Kc per dekad.
 #' @export
-rwapor_aggregate_kc_dekad <- function(kc_daily, dekad_table, season_start) {
+wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
   if (is.character(season_start)) season_start <- as.Date(season_start)
   total_kc_days <- length(kc_daily)
 
@@ -652,7 +652,7 @@ rwapor_aggregate_kc_dekad <- function(kc_daily, dekad_table, season_start) {
 #' @return A data.frame with columns: variable, file_count, min_date, max_date, folder_path.
 #'   Returns empty data.frame if no variables found.
 #' @export
-rwapor_scan_local_variables <- function(folder) {
+wapor_scan_local <- function(folder) {
 
   if (!dir.exists(folder)) {
     return(data.frame(
@@ -774,7 +774,7 @@ compare_geom <- function(r1, r2) {
 #' @param r2 SpatRaster. Second raster to compare.
 #' @return Logical.
 #' @export
-rwapor_compare_geom <- function(r1, r2) {
+wapor_compare_geom <- function(r1, r2) {
   compare_geom(r1, r2)
 }
 
@@ -790,7 +790,7 @@ rwapor_compare_geom <- function(r1, r2) {
 #' @param end_date Character or Date. End of date range.
 #' @return Character vector of full file paths, sorted by date.
 #' @export
-rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
+wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   var_path <- file.path(folder, variable)
 
   if (!dir.exists(var_path)) {
@@ -902,7 +902,7 @@ rwapor_get_local_rasters <- function(folder, variable, start_date, end_date) {
 #'     \item{found_count}{Integer. Number of dekads found locally.}
 #'   }
 #' @export
-rwapor_check_local_files <- function(urls, var, folder) {
+wapor_check_local <- function(urls, var, folder) {
   if (length(urls) == 0) return(list(optimized_paths = character(0), missing_dates = character(0), found_count = 0L))
 
   # Normalize folder path (handle potential issues with trailing slashes, etc.)
@@ -935,7 +935,7 @@ rwapor_check_local_files <- function(urls, var, folder) {
 
   for (i in seq_along(urls)) {
     u <- urls[i]
-    date_info <- get_date_info(u, tres = tres_code)
+    date_info <- wapor_date_info(u, tres = tres_code)
     raw_date <- date_info$raw_date
     dash_date <- date_info$start_date
 

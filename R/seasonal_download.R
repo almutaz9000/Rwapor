@@ -10,8 +10,8 @@
 #' @param period Character vector of length 2. Date range as
 #'   \code{c(start_date, end_date)} in "YYYY-MM-DD" format.
 #' @param l3_code Character or NULL. L3 region code extracted from
-#'   \code{parse_region()}.
-#' @param reg_info List from \code{parse_region()} with \code{$type} and
+#'   \code{wapor_parse_region()}.
+#' @param reg_info List from \code{wapor_parse_region()} with \code{$type} and
 #'   \code{$value}.
 #'
 #' @return A list with components:
@@ -28,7 +28,7 @@
 #'           seasonal semantics, not only from the temporal code suffix.
 #'       }
 #'     }
-#'     \item{plan}{The data.frame from \code{plan_wapor_time_slices()}}
+#'     \item{plan}{The data.frame from \code{wapor_plan_time_slices()}}
 #'     \item{aggregation_rule}{Requested-variable aggregation rule used for the final seasonal result}
 #'   }
 #'
@@ -39,11 +39,11 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
   aggregation_rule <- get_seasonal_aggregation_rule(variable)
 
-  avail <- get_available_temporal_codes(variable)
+  avail <- wapor_temporal_codes(variable)
   message(sprintf("Building seasonal plan for %s (%s to %s)", variable, period[1], period[2]))
   message(sprintf("Available temporal resolutions: %s", paste(avail, collapse = ", ")))
 
-  plan <- plan_wapor_time_slices(period[1], period[2], avail = avail)
+  plan <- wapor_plan_time_slices(period[1], period[2], avail = avail)
 
   if (nrow(plan) == 0) {
     stop("Seasonal plan is empty. Check your date range and variable.", call. = FALSE)
@@ -74,7 +74,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     # Parse each URL to get start_date for matching to plan rows
     url_start_dates <- vapply(urls, function(u) {
-      get_date_info(u, tres = code)$start_date
+      wapor_date_info(u, tres = code)$start_date
     }, character(1))
 
     # Match plan rows to URLs and compute multipliers (pre-allocated)
@@ -122,7 +122,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     if (is.null(r)) next
 
     # Crop to region; optionally mask to polygon boundary
-    r <- crop_to_region(r, reg_info, do_mask = do_mask)
+    r <- wapor_crop_to_region(r, reg_info, do_mask = do_mask)
     names(r) <- layer_ids
     message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
                     var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))

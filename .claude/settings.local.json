@@ -33,7 +33,20 @@
       "Bash(npx skills add https://github.com/vercel-labs/skills --skill find-skills)",
       "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\" -e \"devtools::load_all\\(\\)\" 2>&1)",
       "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\" -e \"devtools::document\\(\\)\" 2>&1)",
-      "Bash(find 'C:\\\\Users\\\\Mohammedal\\\\OneDrive - Food and Agriculture Organization\\\\Documents\\\\GitHub\\\\Rwapor\\\\inst' -name *.R)"
+      "Bash(find 'C:\\\\Users\\\\Mohammedal\\\\OneDrive - Food and Agriculture Organization\\\\Documents\\\\GitHub\\\\Rwapor\\\\inst' -name *.R)",
+      "Bash(perl -pi -e ':*)",
+      "Bash(ALL_R_FILES=\"R/utils.R R/metadata.R R/plan_wapor_time_slices.R R/unit_convertor.R R/wapor_map.R R/wapor_ts.R R/seasonal_download.R R/api_client.R R/analysis.R R/analysis_indicators.R R/crop_defaults.R R/run_dashboard.R R/gdal_config.R\")",
+      "Bash(ALL_SHINY=\"inst/shiny/mod_analysis.R inst/shiny/mod_aoi.R inst/shiny/mod_download.R inst/shiny/utils_shiny.R inst/shiny/app.R inst/shiny/mod_timeseries.R inst/shiny/mod_visualisation.R\")",
+      "Bash(Rscript -e \"devtools::document\\(\\)\")",
+      "Read(//c/Program Files/R//**)",
+      "Read(//c/Users/almut/AppData/Local/Programs/**)",
+      "Skill(document)",
+      "Skill(document:*)",
+      "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\" -e \"devtools::document\\(\\)\")",
+      "Skill(test)",
+      "Skill(test:*)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \"devtools::test\\(filter = ''''analysis'''', stop_on_failure = FALSE\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \":*)"
     ]
   }
 }

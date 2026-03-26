@@ -9,12 +9,12 @@ A data.frame with columns:
 \describe{
 \item{crop_name}{Character. Name of the crop}
 \item{region}{Character. Reference region for the growth parameters}
-\item{Kc_ini}{Numeric. Crop coefficient during initial stage}
-\item{Kc_mid}{Numeric. Crop coefficient during mid-season stage}
-\item{Kc_end}{Numeric. Crop coefficient during late/end stage}
-\item{L_ini_days}{Integer. Length of initial growth stage in days}
-\item{L_mid_days}{Integer. Length of mid-season stage in days}
-\item{L_late_days}{Integer. Length of late-season stage in days}
+\item{kc_ini}{Numeric. Crop coefficient during initial stage}
+\item{kc_mid}{Numeric. Crop coefficient during mid-season stage}
+\item{kc_end}{Numeric. Crop coefficient during late/end stage}
+\item{l_ini_days}{Integer. Length of initial growth stage in days}
+\item{l_mid_days}{Integer. Length of mid-season stage in days}
+\item{l_late_days}{Integer. Length of late-season stage in days}
 \item{max_height_m}{Numeric. Maximum crop height in meters}
 \item{notes}{Character. Additional notes}
 }
@@ -27,8 +27,8 @@ A data.frame containing default crop coefficients and growth stage lengths
 for common crops, sourced from FAO Irrigation and Drainage Paper 56.
 }
 \details{
-Note that L_dev (development stage) is not stored here. It is derived
-dynamically as: L_dev = total_season_days - (L_ini + L_mid + L_late).
+Note that l_dev (development stage) is not stored here. It is derived
+dynamically as: l_dev = total_season_days - (l_ini + l_mid + l_late).
 Total season length comes from the user-supplied season start/end rasters.
 }
 \keyword{datasets}

@@ -150,11 +150,11 @@ mod_download_server <- function(id, l3_regions_meta) {
     roots <- get_shinyfiles_roots()
 
     # Favorites logic
-    favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
+    favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
     
     output$favorite_btn_ui <- shiny::renderUI({
       path <- input$folder %||% ""
-      is_fav <- Rwapor::rwapor_is_favorite(path)
+      is_fav <- Rwapor::wapor_is_favorite(path)
       
       shiny::actionLink(
         session$ns("favorite_btn"),
@@ -168,12 +168,12 @@ mod_download_server <- function(id, l3_regions_meta) {
       path <- input$folder %||% ""
       if (!nzchar(path)) return()
       
-      if (Rwapor::rwapor_is_favorite(path)) {
-        Rwapor::rwapor_remove_favorite(path)
+      if (Rwapor::wapor_is_favorite(path)) {
+        Rwapor::wapor_remove_favorite(path)
       } else {
-        Rwapor::rwapor_add_favorite(path, type = "directory")
+        Rwapor::wapor_add_favorite(path, type = "directory")
       }
-      favs(Rwapor::rwapor_get_favorites())
+      favs(Rwapor::wapor_get_favorites())
     })
     
     output$favorites_ui <- shiny::renderUI({

@@ -1,27 +1,27 @@
-# Tests for plan_wapor_time_slices()
+# Tests for wapor_plan_time_slices()
 # ==============================================================================
 
 # --- Input validation ---------------------------------------------------------
 
-test_that("plan_wapor_time_slices() validates inputs", {
-  expect_error(plan_wapor_time_slices("not-a-date", "2023-01-01"),
+test_that("wapor_plan_time_slices() validates inputs", {
+  expect_error(wapor_plan_time_slices("not-a-date", "2023-01-01"),
                "start_date")
-  expect_error(plan_wapor_time_slices("2023-01-01", "not-a-date"),
+  expect_error(wapor_plan_time_slices("2023-01-01", "not-a-date"),
                "end_date")
-  expect_error(plan_wapor_time_slices("2023-06-01", "2023-01-01"),
+  expect_error(wapor_plan_time_slices("2023-06-01", "2023-01-01"),
                "start_date.*before")
-  expect_error(plan_wapor_time_slices("2023-01-01", "2023-06-01", avail = c("X")),
+  expect_error(wapor_plan_time_slices("2023-01-01", "2023-06-01", avail = c("X")),
                "Invalid temporal codes")
-  expect_error(plan_wapor_time_slices("2023-01-01", "2023-06-01", avail = character(0)),
+  expect_error(wapor_plan_time_slices("2023-01-01", "2023-06-01", avail = character(0)),
                "non-empty")
-  expect_error(plan_wapor_time_slices("2023-01-01", "2023-06-01", inclusive = "yes"),
+  expect_error(wapor_plan_time_slices("2023-01-01", "2023-06-01", inclusive = "yes"),
                "inclusive")
 })
 
 # --- Test 1: Partial season with M and D available ---------------------------
 
 test_that("Test 1: 2022-10-13 to 2023-04-17 with avail = c('M', 'D')", {
-  plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
+  plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
 
   # Should have 9 rows total
   expect_equal(nrow(plan), 9L)
@@ -70,7 +70,7 @@ test_that("Test 1: 2022-10-13 to 2023-04-17 with avail = c('M', 'D')", {
 # --- Test 2: No full years available ------------------------------------------
 
 test_that("Test 2: 2019-10-15 to 2020-05-25 with avail = c('A', 'M', 'D')", {
-  plan <- plan_wapor_time_slices("2019-10-15", "2020-05-25", avail = c("A", "M", "D"))
+  plan <- wapor_plan_time_slices("2019-10-15", "2020-05-25", avail = c("A", "M", "D"))
 
   # No full annual slices
   annual <- plan[plan$code == "A", ]
@@ -93,7 +93,7 @@ test_that("Test 2: 2019-10-15 to 2020-05-25 with avail = c('A', 'M', 'D')", {
 # --- Test 3: Multi-year with full years ---------------------------------------
 
 test_that("Test 3: 2018-01-01 to 2023-06-22 with avail = c('A', 'M', 'D')", {
-  plan <- plan_wapor_time_slices("2018-01-01", "2023-06-22", avail = c("A", "M", "D"))
+  plan <- wapor_plan_time_slices("2018-01-01", "2023-06-22", avail = c("A", "M", "D"))
 
   # Full years: 2018, 2019, 2020, 2021, 2022 (start is Jan 1 so 2018 is full)
   annual <- plan[plan$code == "A", ]
@@ -135,7 +135,7 @@ test_that("Test 3: 2018-01-01 to 2023-06-22 with avail = c('A', 'M', 'D')", {
 # --- Test 4: No D available, fractional months --------------------------------
 
 test_that("Test 4: 2022-10-13 to 2023-04-17 with avail = c('M', 'A')", {
-  plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M", "A"))
+  plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M", "A"))
 
   # No annual slices (no full year)
   annual <- plan[plan$code == "A", ]
@@ -169,7 +169,7 @@ test_that("Test 4: 2022-10-13 to 2023-04-17 with avail = c('M', 'A')", {
 # --- Additional edge cases ----------------------------------------------------
 
 test_that("Single day range works", {
-  plan <- plan_wapor_time_slices("2023-06-15", "2023-06-15", avail = c("D"))
+  plan <- wapor_plan_time_slices("2023-06-15", "2023-06-15", avail = c("D"))
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$code, "D")
   expect_equal(plan$period_id, "2023-06-D2")
@@ -178,7 +178,7 @@ test_that("Single day range works", {
 })
 
 test_that("Exact full year", {
-  plan <- plan_wapor_time_slices("2022-01-01", "2022-12-31", avail = c("A", "M", "D"))
+  plan <- wapor_plan_time_slices("2022-01-01", "2022-12-31", avail = c("A", "M", "D"))
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$code, "A")
   expect_equal(plan$period_id, "2022")
@@ -187,7 +187,7 @@ test_that("Exact full year", {
 })
 
 test_that("Exact full month", {
-  plan <- plan_wapor_time_slices("2023-02-01", "2023-02-28", avail = c("M", "D"))
+  plan <- wapor_plan_time_slices("2023-02-01", "2023-02-28", avail = c("M", "D"))
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$code, "M")
   expect_equal(plan$period_id, "2023-02")
@@ -196,19 +196,19 @@ test_that("Exact full month", {
 
 test_that("Leap year February handled correctly", {
   # 2024 is a leap year
-  plan <- plan_wapor_time_slices("2024-02-01", "2024-02-29", avail = c("M", "D"))
+  plan <- wapor_plan_time_slices("2024-02-01", "2024-02-29", avail = c("M", "D"))
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$code, "M")
   expect_equal(plan$slice_days, 29L)
 
   # Full leap year
-  plan_y <- plan_wapor_time_slices("2024-01-01", "2024-12-31", avail = c("A"))
+  plan_y <- wapor_plan_time_slices("2024-01-01", "2024-12-31", avail = c("A"))
   expect_equal(plan_y$slice_days, 366L)
 })
 
 test_that("inclusive = FALSE works (half-open range)", {
   # [2023-01-01, 2023-02-01) = entire January
-  plan <- plan_wapor_time_slices("2023-01-01", "2023-02-01",
+  plan <- wapor_plan_time_slices("2023-01-01", "2023-02-01",
                                   avail = c("M"), inclusive = FALSE)
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$period_id, "2023-01")
@@ -216,7 +216,7 @@ test_that("inclusive = FALSE works (half-open range)", {
 })
 
 test_that("Daily-only variable uses E slices", {
-  plan <- plan_wapor_time_slices("2023-03-28", "2023-04-02", avail = c("E"))
+  plan <- wapor_plan_time_slices("2023-03-28", "2023-04-02", avail = c("E"))
   expect_equal(nrow(plan), 6L)
   expect_true(all(plan$code == "E"))
   expect_true(all(plan$weight == 1))
@@ -224,56 +224,56 @@ test_that("Daily-only variable uses E slices", {
 })
 
 test_that("Within single dekad", {
-  plan <- plan_wapor_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
+  plan <- wapor_plan_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
   expect_equal(nrow(plan), 1L)
   expect_equal(plan$period_id, "2023-01-D1")
   expect_equal(plan$overlap_days, 6L)
   expect_equal(plan$weight, 6 / 10)
 })
 
-# --- get_available_temporal_codes() -------------------------------------------
+# --- wapor_temporal_codes() -------------------------------------------
 
-test_that("get_available_temporal_codes() returns correct codes", {
+test_that("wapor_temporal_codes() returns correct codes", {
   # L1-AETI has A, D, M
-  codes <- get_available_temporal_codes("L1-AETI-D")
+  codes <- wapor_temporal_codes("L1-AETI-D")
   expect_true("A" %in% codes)
   expect_true("M" %in% codes)
   expect_true("D" %in% codes)
   expect_false("E" %in% codes)
 
   # L2-NPP has D and M only (no A, no E)
-  codes <- get_available_temporal_codes("L2-NPP-D")
+  codes <- wapor_temporal_codes("L2-NPP-D")
   expect_true("D" %in% codes)
   expect_true("M" %in% codes)
   expect_false("A" %in% codes)
   expect_false("E" %in% codes)
 
   # L1-PCP has A, D, E, M
-  codes <- get_available_temporal_codes("L1-PCP-E")
+  codes <- wapor_temporal_codes("L1-PCP-E")
   expect_true("A" %in% codes)
   expect_true("D" %in% codes)
   expect_true("E" %in% codes)
   expect_true("M" %in% codes)
 
   # AgERA5-ET0 has A, D, E, M
-  codes <- get_available_temporal_codes("AGERA5-ET0-E")
+  codes <- wapor_temporal_codes("AGERA5-ET0-E")
   expect_true(length(codes) == 4)
 })
 
-test_that("get_available_temporal_codes() handles L3 fallback", {
+test_that("wapor_temporal_codes() handles L3 fallback", {
   # L3-AETI-D doesn't exist in metadata, but L2-AETI does
-  codes <- get_available_temporal_codes("L3-AETI-D")
+  codes <- wapor_temporal_codes("L3-AETI-D")
   expect_true(length(codes) > 0)
   expect_true("D" %in% codes)
 })
 
-test_that("get_available_temporal_codes() validates input", {
-  expect_error(get_available_temporal_codes(123), "character")
-  expect_error(get_available_temporal_codes("INVALID"), "Invalid variable format")
+test_that("wapor_temporal_codes() validates input", {
+  expect_error(wapor_temporal_codes(123), "character")
+  expect_error(wapor_temporal_codes("INVALID"), "Invalid variable format")
 })
 
 test_that("seasonal helper semantics use metadata rather than suffix alone", {
-  plan <- plan_wapor_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
+  plan <- wapor_plan_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
 
   expect_equal(resolve_output_unit_conversion("L1-AETI-D"), "dekad")
   expect_equal(resolve_output_unit_conversion("AGERA5-ET0-D"), "none")
@@ -300,7 +300,7 @@ test_that("seasonal helper semantics use metadata rather than suffix alone", {
 
 test_that("Seasonal multipliers are correct for mixed D/M plan", {
   # This verifies the logic that wapor_map/wapor_ts use for weighting
-  plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
+  plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M", "D"))
 
   # D rows: daily rate variables -> multiplier = overlap_days
   d_rows <- plan[plan$code == "D", ]
@@ -320,7 +320,7 @@ test_that("Seasonal multipliers are correct for mixed D/M plan", {
 })
 
 test_that("Seasonal multiplier for fractional monthly (no D)", {
-  plan <- plan_wapor_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
+  plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
 
   # October 2022: 19 days overlap out of 31 -> weight = 19/31
   oct <- plan[plan$period_id == "2022-10", ]
@@ -334,7 +334,7 @@ test_that("Seasonal multiplier for fractional monthly (no D)", {
 test_that("Seasonal sum arithmetic is correct for D variable", {
   # Simulate: L2-NPP-D from 2023-01-05 to 2023-01-25
   # avail = c("D")
-  plan <- plan_wapor_time_slices("2023-01-05", "2023-01-25", avail = c("D"))
+  plan <- wapor_plan_time_slices("2023-01-05", "2023-01-25", avail = c("D"))
 
   # D1: Jan 1-10, overlap 5-10 = 6 days. Rate raster: multiply by 6.
   # D2: Jan 11-20, overlap 11-20 = 10 days. Rate raster: multiply by 10.
@@ -357,7 +357,7 @@ test_that("Seasonal sum arithmetic is correct for D variable", {
 
 test_that("Seasonal sum arithmetic is correct for mixed M+D", {
   # Simulate: L2-AETI-D from 2023-01-15 to 2023-03-10
-  plan <- plan_wapor_time_slices("2023-01-15", "2023-03-10", avail = c("M", "D"))
+  plan <- wapor_plan_time_slices("2023-01-15", "2023-03-10", avail = c("M", "D"))
 
   # Full month: February (M, weight = 1)
   feb <- plan[plan$period_id == "2023-02", ]

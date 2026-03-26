@@ -128,7 +128,7 @@ wapor_map <- function(
   }
 
   # Parse region once
-  reg_info <- parse_region(region)
+  reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
   get_current_unit_conv <- function(var, u_conv) {
@@ -145,7 +145,7 @@ wapor_map <- function(
       
       current_l3_code <- l3_code
       if (is.null(current_l3_code) && grepl("^L3-", var)) {
-         guessed_codes <- guess_l3_region(var, reg_info, period)
+         guessed_codes <- wapor_guess_region(var, reg_info, period)
          if (is.null(guessed_codes)) {
             warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
             return(NULL)
@@ -296,7 +296,7 @@ wapor_map <- function(
 
     current_l3_code <- l3_code
     if (is.null(current_l3_code) && grepl("^L3-", var)) {
-        guessed_codes <- guess_l3_region(var, reg_info, period)
+        guessed_codes <- wapor_guess_region(var, reg_info, period)
         if (is.null(guessed_codes)) {
             warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
             return(NULL)
@@ -362,16 +362,16 @@ wapor_map <- function(
       if (is.null(r)) return(NULL)
 
       # Crop to region; optionally mask to polygon boundary
-      r <- crop_to_region(r, reg_info, do_mask = mask)
+      r <- wapor_crop_to_region(r, reg_info, do_mask = mask)
 
       # Unit Conversion
       if (current_unit_conv != "none") {
-        r <- raster_unit_convertor(r, var, chunk_urls, current_unit_conv)
+        r <- wapor_convert_raster(r, var, chunk_urls, current_unit_conv)
       }
 
       # Standardize layer names to "YYYY-MM-DD"
       layer_names <- vapply(chunk_urls, function(u) {
-        get_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
+        wapor_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
       }, character(1))
       names(r) <- layer_names
 

@@ -57,14 +57,14 @@ h_end <- rast(s_end_path)
 
 # 4. Step 1: Build Season Weights
 cat("\n--- Step 1: Building Season Weights ---\n")
-sw <- rwapor_build_season_weights_dekad(period[1], period[2], h_start, h_end, ref_year)
+sw <- wapor_build_season_weights(period[1], period[2], h_start, h_end, ref_year)
 print(sw$weights)
 
 # 5. Step 2: Build Kc Curves
 cat("\n--- Step 2: Building Kc Curves ---\n")
 mean_total_days <- 180 
 total_days_vec <- setNames(rep(mean_total_days, nrow(crop_params)), as.character(crop_params$class_value))
-kc_by_class <- rwapor_build_kc_by_class(crop_params, total_days_vec)
+kc_by_class <- wapor_build_kc_by_class(crop_params, total_days_vec)
 
 # 6. Step 3: Mock Data
 n_layers <- nlyr(sw$weights)
@@ -76,7 +76,7 @@ names(ret_stack) <- as.character(sw$dekad_table$dekad_start)
 
 # 7. Step 4: Run Aggregations
 cat("\n--- Step 3: Running Aggregations ---\n")
-results_aeti <- rwapor_calc_seasonal_aeti_masked(aeti_stack, sw$weights, h_mask, incremental = TRUE)
+results_aeti <- wapor_calc_seasonal_aeti(aeti_stack, sw$weights, h_mask, incremental = TRUE)
 print(results_aeti$by_class)
 
 # Seasonal ETc (Incremental)
@@ -84,19 +84,19 @@ etc_by_class <- list()
 for (j in seq_len(nrow(crop_params))) {
   cls <- as.character(crop_params$class_value[j])
   kc_daily <- kc_by_class[[cls]]
-  v_dekad <- rwapor_aggregate_kc_dekad(kc_daily, sw$update_table %||% sw$dekad_table, period[1])
+  v_dekad <- wapor_aggregate_kc(kc_daily, sw$update_table %||% sw$dekad_table, period[1])
   
   # For the test, we need to match the actual n_layers
   v_dekad <- v_dekad[seq_len(n_layers)]
   
-  etc_seasonal <- rwapor_calc_seasonal_etc_incremental(ret_stack, sw$weights, v_dekad)
+  etc_seasonal <- wapor_calc_seasonal_etc(ret_stack, sw$weights, v_dekad)
   cls_mask <- ifel(h_mask == as.integer(cls), 1L, NA)
   etc_by_class[[cls]] <- etc_seasonal * cls_mask
 }
 
 # 8. Adequacy & P95
 cat("\n--- Step 4: Final Indicators ---\n")
-p95_tbl <- rwapor_calc_class_p95_aeti(results_aeti$raster, h_mask)
+p95_tbl <- wapor_calc_p95_aeti(results_aeti$raster, h_mask)
 print(p95_tbl)
 
 cat("\nAnalysis test with sample rasters complete.\n")

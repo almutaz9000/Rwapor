@@ -47,10 +47,10 @@
 #' attr(df, "units") <- "mm/day"
 #'
 #' # Convert to monthly totals
-#' df_monthly <- df_unit_convertor(df, "month")
+#' df_monthly <- wapor_convert_units(df, "month")
 #' attr(df_monthly, "units")
 #' # [1] "mm/month"
-df_unit_convertor <- function(df, unit_conversion) {
+wapor_convert_units <- function(df, unit_conversion) {
   # Input validation
   if (!is.data.frame(df)) {
     stop("'df' must be a data.frame", call. = FALSE)
@@ -158,14 +158,14 @@ df_unit_convertor <- function(df, unit_conversion) {
 #' \dontrun{
 #' # Load raster and convert dekadal to monthly
 #' r <- terra::rast(urls)
-#' r_monthly <- raster_unit_convertor(
+#' r_monthly <- wapor_convert_raster(
 #'   r,
 #'   variable = "L1-AETI-D",
 #'   urls = urls,
 #'   unit_conversion = "month"
 #' )
 #' }
-raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
+wapor_convert_raster <- function(r, variable, urls, unit_conversion) {
   # Input validation
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster object from the terra package", call. = FALSE)
@@ -196,7 +196,7 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   tres <- tail(parts, 1)
 
   # Determine source time from variable metadata units
-  meta <- get_variable_metadata(variable)
+  meta <- wapor_variable_metadata(variable)
   if (!is.null(meta) && !is.null(meta$units) && grepl("/", meta$units)) {
     unit_parts <- strsplit(meta$units, "/")[[1]]
     source_time <- unit_parts[length(unit_parts)]
@@ -216,7 +216,7 @@ raster_unit_convertor <- function(r, variable, urls, unit_conversion) {
   # no repeated raster reads). terra broadcasts a numeric vector of length
   # nlyr(r) element-wise across layers, so the multiplication below triggers
   # a single read pass instead of nlyr separate passes.
-  date_infos <- lapply(urls, function(u) get_date_info(u, tres))
+  date_infos <- lapply(urls, function(u) wapor_date_info(u, tres))
 
   factors <- vapply(date_infos, function(di) {
     sd <- lubridate::ymd(di$start_date)

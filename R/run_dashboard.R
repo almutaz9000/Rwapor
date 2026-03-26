@@ -46,7 +46,8 @@ run_wapor <- function(display.mode = "normal", launch.browser = interactive(), .
   }
   
   # Ensure required suggest packages are available
-  required_pkgs <- c("shiny", "leaflet", "bslib", "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce")
+  required_pkgs <- c("shiny", "leaflet", "bslib", "shinyFiles", "shinyvalidate", 
+                     "shinyjs", "shinyAce", "ggplot2", "DT", "shinycssloaders")
   missing_pkgs <- required_pkgs[!vapply(required_pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
   
   if (length(missing_pkgs) > 0) {
