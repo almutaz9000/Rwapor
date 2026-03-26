@@ -27,3 +27,5 @@ src/*.so
 tests/testthat/test_output/
 libs/
 nul
+/.claude
+/.agents
