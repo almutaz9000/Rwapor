@@ -147,12 +147,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 
 mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
-    # Cross-platform roots for shinyFiles
-    roots <- if (.Platform$OS.type == "windows") {
-      c(shinyFiles::getVolumes()(), Project = getwd())
-    } else {
-      c(Home = normalizePath("~", winslash = "/"), Root = "/", Project = getwd())
-    }
+    roots <- get_shinyfiles_roots()
 
     # Favorites logic
     favs <- shiny::reactiveVal(Rwapor::rwapor_get_favorites())
@@ -218,7 +213,11 @@ mod_download_server <- function(id, l3_regions_meta) {
     # --- Validation ---
     iv <- shinyvalidate::InputValidator$new()
     iv$add_rule("folder", shinyvalidate::sv_required("Project Folder is required."))
-    iv$add_rule("dn_variables", shinyvalidate::sv_required("Select at least one variable."))
+    iv$add_rule("dn_variables", function(value) {
+      if (is.null(value) || length(value) == 0 || (length(value) == 1 && !nzchar(value))) {
+        return("Select at least one variable.")
+      }
+    })
     iv$add_rule("period", function(value) {
       if (length(value) != 2 || any(is.na(value))) return("Select a valid date range.")
       if (value[2] < value[1]) return("End date must be after start date.")

@@ -8,6 +8,8 @@
       "Bash(where Rscript:*)",
       "Bash(where:*)",
       "Bash(dir \"C:\\\\Program Files\\\\R\" /s /b)",
+      "Bash(\"C:\\\\Users\\\\Mohammedal\\\\AppData\\\\Local\\\\Programs\\\\R\\\\R-4.5.3\\\\bin\\\\x64\\\\Rscript.exe\":*)",
+      "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\":*)",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::document\\(\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::test\\(\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"devtools::check\\(\\)\")",
@@ -27,7 +29,11 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"\nlibrary\\(memoise\\)\n# Test: does memoise work with vector arguments?\nf <- function\\(x, y = NULL\\) { cat\\(''called\\\\n''\\); Sys.sleep\\(0.5\\); x }\nmf <- memoise\\(f\\)\nt1 <- system.time\\(mf\\(''a'', y = c\\(''2020-01-01'',''2023-12-31''\\)\\)\\)\nt2 <- system.time\\(mf\\(''a'', y = c\\(''2020-01-01'',''2023-12-31''\\)\\)\\)\ncat\\(sprintf\\(''First call: %.3fs, Second call: %.3fs\\\\n'', t1[3], t2[3]\\)\\)\n\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"library\\(memoise\\); f <- function\\(x, y=NULL\\) { cat\\(''called ''\\); x }; mf <- memoise\\(f\\); mf\\(''a'', y=c\\(''1'',''2''\\)\\); mf\\(''a'', y=c\\(''1'',''2''\\)\\); cat\\(''done\\\\n''\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" tests/benchmark_debug.R)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npx skills add https://github.com/vercel-labs/skills --skill find-skills)",
+      "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\" -e \"devtools::load_all\\(\\)\" 2>&1)",
+      "Bash(\"/c/Users/Mohammedal/AppData/Local/Programs/R/R-4.5.3/bin/x64/Rscript.exe\" -e \"devtools::document\\(\\)\" 2>&1)",
+      "Bash(find 'C:\\\\Users\\\\Mohammedal\\\\OneDrive - Food and Agriculture Organization\\\\Documents\\\\GitHub\\\\Rwapor\\\\inst' -name *.R)"
     ]
   }
 }
