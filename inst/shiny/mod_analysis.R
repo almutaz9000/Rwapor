@@ -1996,12 +1996,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               )
             }
 
-            meta <- Rwapor::get_variable_metadata(var)
-            if (!is.null(meta) && !is.null(meta$scale)) {
-              stack <- stack * meta$scale
-            }
             stack
           }
+
 
           if (need_aeti_stack) {
             aeti_stack <- load_var_stack(aeti_var, use_local, folder, period, l3_code, reg_info)
