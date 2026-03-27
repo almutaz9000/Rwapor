@@ -1491,8 +1491,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           paste0("h_start <- wapor_harmonize_raster(s_start, template_r, method = \"near\")\n",
                  "h_end   <- wapor_harmonize_raster(s_end, template_r, method = \"near\")")
         } else {
-          paste0("h_start <- template_r * 0 + ", as.integer(strftime(period[1], "%j")), "\n",
-                 "h_end   <- template_r * 0 + ", as.integer(strftime(period[2], "%j")))
+          paste0("# Continuous Julian days relative to ref_year handle cross-year seasons correctly\n",
+                 "h_start <- template_r * 0 + wapor_continuous_julian(period[1], ref_year)  # ",
+                 wapor_continuous_julian(period[1], ref_year), "\n",
+                 "h_end   <- template_r * 0 + wapor_continuous_julian(period[2], ref_year)  # ",
+                 wapor_continuous_julian(period[2], ref_year))
         },
         "",
         "sw <- wapor_build_season_weights(period[1], period[2], h_start, h_end, ref_year)",
@@ -1905,15 +1908,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           h_start <- if (isTRUE(input$an_use_season_rasters)) {
             Rwapor::wapor_harmonize_raster(an_start_rast(), template_r, method = "near")
           } else {
-            doy_start <- as.integer(strftime(input$an_period[1], "%j"))
-            template_r * 0 + doy_start
+            # Use continuous Julian days (relative to ref_year) so cross-year
+            # seasons (e.g. Nov-to-May) produce positive total_days values.
+            template_r * 0 + Rwapor::wapor_continuous_julian(period[1], ref_year)
           }
 
           h_end <- if (isTRUE(input$an_use_season_rasters)) {
             Rwapor::wapor_harmonize_raster(an_end_rast(), template_r, method = "near")
           } else {
-            doy_end <- as.integer(strftime(input$an_period[2], "%j"))
-            template_r * 0 + doy_end
+            template_r * 0 + Rwapor::wapor_continuous_julian(period[2], ref_year)
           }
 
           s_start_vals <- tryCatch({
@@ -1933,7 +1936,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
 
           shiny::incProgress(0.10, detail = "Computing season duration...")
-          total_days_r <- Rwapor::wapor_season_days(h_start, h_end)
+          total_days_r <- Rwapor::wapor_season_days(h_start, h_end, ref_year)
           mask_class_stats <- Rwapor::wapor_extract_crop_classes(h_mask, min_pixels = 0)
           valid_crop_mask <- build_valid_class_mask(h_mask, crop_params$class_value)
           class_total_days <- terra::zonal(total_days_r, h_mask, fun = "mean", na.rm = TRUE)
@@ -2047,20 +2050,35 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           align_stack_to_weights <- function(s, target_dates) {
             if (is.null(s)) return(NULL)
             nms <- names(s)
-            
-            # Simple extractor for dates from layer names (handles YYYY-MM-DD and YYYYMMDD)
-            # terra names often strip hyphens or prefix with variable names
-            found_dates <- nms
-            if (any(grepl("\\d{4}-\\d{2}-\\d{2}", nms))) {
-              found_dates <- gsub(".*(\\d{4}-\\d{2}-\\d{2}).*", "\\1", nms)
-            } else if (any(grepl("\\d{8}", nms))) {
-              found_dates <- gsub(".*(\\d{4})(\\d{2})(\\d{2}).*", "\\1-\\2-\\3", nms)
+
+            # Robustly extract YYYY-MM-DD from layer names.
+            # Handles:
+            #   - Local files:  "L1-AETI-D.2020-11-01"      -> "2020-11-01"
+            #   - WaPOR URLs:   "...202011010000_..."         -> "2020-11-01"
+            #   - 8-digit only: "L1-AETI-D.20201101"         -> "2020-11-01"
+            extract_ymd <- function(nm) {
+              # 1. Hyphenated date present
+              m <- regmatches(nm, regexpr("\\d{4}-\\d{2}-\\d{2}", nm))
+              if (length(m)) return(m)
+              # 2. 12-digit WaPOR timestamp YYYYMMDDHHNN — take first 8 digits
+              m <- regmatches(nm, regexpr("(?<![0-9])\\d{12}(?![0-9])", nm, perl = TRUE))
+              if (length(m)) {
+                return(paste(substr(m, 1, 4), substr(m, 5, 6), substr(m, 7, 8), sep = "-"))
+              }
+              # 3. Standalone 8-digit date YYYYMMDD not surrounded by more digits
+              m <- regmatches(nm, regexpr("(?<![0-9])\\d{8}(?![0-9])", nm, perl = TRUE))
+              if (length(m)) {
+                return(paste(substr(m, 1, 4), substr(m, 5, 6), substr(m, 7, 8), sep = "-"))
+              }
+              NA_character_
             }
-            
+
+            found_dates <- vapply(nms, extract_ymd, character(1), USE.NAMES = FALSE)
+
             indices <- match(as.character(target_dates), found_dates)
             if (any(is.na(indices))) {
               missing_idx <- which(is.na(indices))
-              stop(sprintf("Missing data for dekad starting %s. Alignment failed.", 
+              stop(sprintf("Missing data for dekad starting %s. Alignment failed.",
                            target_dates[missing_idx[1]]), call. = FALSE)
             }
             s[[indices]]

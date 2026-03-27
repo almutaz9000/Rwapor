@@ -435,13 +435,13 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
 #' @param hi Numeric. Harvest index.
 #' @return Numeric. Crop yield in t/ha.
 #' @export
-wapor_calc_yield_npp <- function(npp_gc_m2, MC, fc, aot, HI) {
+wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
   # NPP * 22.222 converts gC/m2 to kgDM/ha (DMP)
   dmp <- npp_gc_m2 * 22.222
   # Calculate Above Ground Biomass (ton/ha)
-  agbm <- (aot * fc * (dmp / (1 - MC))) / 1000
+  agbm <- (aot * fc * (dmp / (1 - mc))) / 1000
   # Calculate Yield
-  yield <- HI * agbm
+  yield <- hi * agbm
   yield
 }
 

@@ -46,7 +46,19 @@
       "Skill(test)",
       "Skill(test:*)",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \"devtools::test\\(filter = ''''analysis'''', stop_on_failure = FALSE\\)\")",
-      "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \":*)"
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \":*)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/x64/Rscript.exe\" -e \"devtools::document\\(\\)\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(Rscript -e \"devtools::test\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''analysis''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"Sys.getenv\\(c\\(''PROJ_DATA'', ''PROJ_LIB'', ''GDAL_DATA''\\)\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"terra::terraOptions\\(\\); cat\\(''''\\\\n''''\\); Sys.getenv\\(''''PROJ_LIB''''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"cat\\(system.file\\(''proj'', package=''terra''\\), ''\\\\n''\\); cat\\(system.file\\(''gdal'', package=''terra''\\), ''\\\\n''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''plan_wapor_time''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::check\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::check\\(vignettes = FALSE\\)\")"
     ]
   }
 }
