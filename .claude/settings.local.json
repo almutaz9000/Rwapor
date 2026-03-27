@@ -71,7 +71,14 @@
       "Bash('/c/Program Files/R/R-4.4.2/bin/Rscript.exe' --version)",
       "Bash('/c/Program Files/R/R-4.5.3/bin/Rscript.exe' --version)",
       "Bash(powershell.exe -Command 'Get-Command Rscript')",
-      "Bash(powershell.exe -Command \":*)"
+      "Bash(powershell.exe -Command \":*)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"tryCatch\\(parse\\(file=''inst/shiny/mod_timeseries.R''\\), error=function\\(e\\) stop\\(e\\)\\); cat\\(''Parse OK\\\\n''\\)\")",
+      "Read(//c/Program Files/R/**)",
+      "Read(//c//**)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"tryCatch\\(parse\\(file=''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/inst/shiny/mod_timeseries.R''\\), error=function\\(e\\) stop\\(e\\)\\); cat\\(''Parse OK\\\\n''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"tryCatch\\(parse\\(file=''''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/inst/shiny/mod_timeseries.R''''\\), error=function\\(e\\) stop\\(e$message\\)\\); cat\\(''''Parse OK\\\\n''''\\)\")",
+      "Bash(xargs -I{} basename {})",
+      "Bash(sort -u find \"/c/Users/almut/Desktop/Savola\" -mindepth 1 -maxdepth 1 -type d)"
     ]
   }
 }

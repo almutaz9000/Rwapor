@@ -56,10 +56,50 @@ ui <- bslib::page_navbar(
   ),
   header = shiny::tagList(
     shiny::tags$head(shiny::tags$style(shiny::HTML("
+      /* ── Layout helpers ─────────────────────────────────── */
       .main-map-output .leaflet-container { height: calc(100vh - 130px) !important; min-height: 480px; }
-      .sidebar-scroll-area { flex: 1 1 auto; overflow-y: auto; padding: 0.5rem 0.75rem; }
-      .sidebar-sticky-footer { flex-shrink: 0; position: sticky; bottom: 0; background: #f8f9fa; border-top: 1px solid #dee2e6; padding: 0.6rem 0.75rem; z-index: 20; }
-      .code-preview-body { max-height: 220px; overflow-y: auto; font-size: 0.78rem; background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
+      .sidebar-scroll-area  { flex: 1 1 auto; overflow-y: auto; padding: 0.4rem 0.7rem; }
+      .sidebar-sticky-footer{ flex-shrink: 0; position: sticky; bottom: 0; background: #f8f9fa;
+                               border-top: 1px solid #dee2e6; padding: 0.55rem 0.7rem; z-index: 20; }
+      .code-preview-body    { max-height: 220px; overflow-y: auto; font-size: 0.78rem;
+                               background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
+
+      /* ── Global sidebar typography ──────────────────────── */
+      .bslib-sidebar-layout .accordion-button {
+        font-size: 0.82rem; padding: 0.42rem 0.85rem; font-weight: 600; }
+      .bslib-sidebar-layout .accordion-body { padding: 0.5rem 0.85rem 0.6rem; }
+      .bslib-sidebar-layout .form-label,
+      .bslib-sidebar-layout label:not(.btn):not(.form-check-label) {
+        font-size: 0.82rem; margin-bottom: 2px; font-weight: 500; }
+      .bslib-sidebar-layout .form-check-label  { font-size: 0.81rem; }
+      .bslib-sidebar-layout .form-control,
+      .bslib-sidebar-layout .form-select       { font-size: 0.82rem; }
+      .bslib-sidebar-layout .help-block,
+      .bslib-sidebar-layout .shiny-input-container > .help-block {
+        font-size: 0.77rem; color: #6c757d; margin-top: 2px; }
+
+      /* ── Reusable utility classes ────────────────────────── */
+      .ctrl-group-label {
+        font-size: 0.72rem; font-weight: 700; color: #6c757d;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        margin: 7px 0 3px; display: block; }
+      .ctrl-divider { border: none; border-top: 1px solid #e9ecef; margin: 6px 0 5px; }
+      .check-row    { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+      .check-row .form-check { margin-bottom: 2px; }
+      .inline-row   { display: flex; align-items: flex-end; gap: 5px; }
+      .inline-row > .flex-1 { flex: 1 1 auto; min-width: 0; }
+
+      /* ── Save panel (Timeseries tab) ─────────────────────── */
+      .ts-save-panel {
+        background: #f0f4f8; border: 1px solid #cdd9e8;
+        border-radius: 6px; padding: 0.6rem 0.75rem; margin-top: 0.5rem; }
+      .ts-save-panel .save-title {
+        font-size: 0.72rem; font-weight: 700; color: #495057;
+        text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; display: block; }
+
+      /* ── Value box tweaks ────────────────────────────────── */
+      .bslib-value-box .value-box-title  { font-size: 0.78rem !important; }
+      .bslib-value-box .value-box-value  { font-size: 1.1rem  !important; }
     "))),
     shinyjs::useShinyjs()
   ),

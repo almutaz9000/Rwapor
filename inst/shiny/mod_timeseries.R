@@ -22,7 +22,7 @@
     bw       = ggplot2::theme_bw(base_size        = base_size),
     light    = ggplot2::theme_light(base_size      = base_size),
     linedraw = ggplot2::theme_linedraw(base_size   = base_size),
-    ggplot2::theme_minimal(base_size = base_size)   # default: minimal
+    ggplot2::theme_minimal(base_size = base_size)
   )
   base + ggplot2::theme(
     plot.title       = ggplot2::element_text(face = "bold", size = base_size + 2,
@@ -37,6 +37,37 @@
   )
 }
 
+# ── All API variables (computed once at source time) ──────────────────────────
+.ts_all_api_vars <- tryCatch(
+  sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))),
+  error = function(e) character(0)
+)
+
+# ── Helpers for reading saved datasets ────────────────────────────────────────
+
+.read_saved_ts <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  switch(ext,
+    csv     = utils::read.csv(path, stringsAsFactors = FALSE),
+    rds     = readRDS(path),
+    parquet = {
+      if (!requireNamespace("arrow", quietly = TRUE))
+        stop("Install the 'arrow' package to read Parquet files.")
+      arrow::read_parquet(path)
+    },
+    stop(sprintf("Unsupported file type: '.%s'  (use CSV, RDS, or Parquet)", ext))
+  )
+}
+
+.validate_ts_df <- function(df) {
+  # Returns NULL if valid, character error message if not
+  required <- c("start_date", "mean", "variable")
+  missing  <- setdiff(required, names(df))
+  if (length(missing) > 0)
+    return(sprintf("Missing required columns: %s", paste(missing, collapse = ", ")))
+  NULL
+}
+
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
 #' Timeseries Module UI
@@ -47,120 +78,250 @@ mod_timeseries_ui <- function(id) {
 
   bslib::page_fillable(
     padding = 0,
-    # Compact sidebar accordion styling
-    shiny::tags$head(shiny::tags$style(shiny::HTML(
-      sprintf("
-        #%s .accordion-button { font-size: 0.82rem; padding: 0.45rem 0.8rem; font-weight: 600; }
-        #%s .accordion-body   { padding: 0.5rem 0.8rem 0.6rem; }
-        #%s .form-label, #%s label { font-size: 0.82rem; margin-bottom: 2px; }
-        #%s .form-control, #%s .form-select { font-size: 0.82rem; }
-        #%s .help-block { font-size: 0.78rem; color: #6c757d; margin-top: 2px; }
-      ", ns(""), ns(""), ns(""), ns(""), ns(""), ns(""), ns(""))
-    ))),
 
     bslib::layout_sidebar(
       fillable = TRUE,
 
       # ── SIDEBAR ────────────────────────────────────────────────────────────
       sidebar = bslib::sidebar(
-        width = 300,
-        open  = TRUE,
-        gap   = "0.3rem",
+        width   = 315,
+        open    = TRUE,
+        gap     = "0.3rem",
         padding = "0.5rem",
 
-        # 1 · Vector File ─────────────────────────────────────────────────────
         bslib::accordion(
           open = TRUE, multiple = TRUE,
+
+          # 1 · Data Source ──────────────────────────────────────────────────
           bslib::accordion_panel(
-            "Vector File", icon = shiny::icon("map"),
-            shiny::fileInput(
-              ns("vec_file"), NULL,
-              accept      = c(".shp", ".geojson", ".gpkg", ".kml", ".json"),
-              buttonLabel = shiny::icon("folder-open"),
-              placeholder = "GeoJSON / SHP / GPKG / KML"
+            "Data Source", icon = shiny::icon("database"),
+
+            shiny::radioButtons(
+              ns("data_source"), NULL,
+              choices = c(
+                "Local folder TIFs"       = "local",
+                "All WaPOR/AgERA5 (API)"  = "api",
+                "Load saved dataset"      = "saved"
+              ),
+              selected = "local"
+            ),
+
+            # Local folder sub-panel
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'local'", ns("data_source")),
+              shiny::tags$span("Raster folder", class = "ctrl-group-label"),
+              shiny::div(
+                class = "inline-row",
+                shiny::div(
+                  class = "flex-1",
+                  shiny::textInput(
+                    ns("ts_folder"), NULL,
+                    placeholder = "Path to folder containing .tif files"
+                  )
+                ),
+                shinyFiles::shinyDirButton(
+                  ns("ts_browse_folder"),
+                  label = shiny::icon("folder-open"),
+                  title = "Select folder with raster files",
+                  class = "btn-outline-secondary btn-sm",
+                  style = "padding:0.37rem 0.6rem;"
+                )
+              ),
+              shiny::uiOutput(ns("ts_folder_info_ui")),
+              shiny::actionButton(
+                ns("btn_scan"), "Scan for variables",
+                icon  = shiny::icon("magnifying-glass"),
+                class = "btn-outline-primary btn-sm w-100 mt-1"
+              )
+            ),
+
+            # Saved dataset sub-panel
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'saved'", ns("data_source")),
+              shiny::tags$span("Load file", class = "ctrl-group-label"),
+              shiny::fileInput(
+                ns("saved_file"), NULL,
+                accept      = c(".csv", ".rds", ".parquet"),
+                buttonLabel = shiny::icon("folder-open"),
+                placeholder = "CSV / RDS / Parquet"
+              ),
+              shiny::uiOutput(ns("saved_info_ui")),
+              shiny::uiOutput(ns("saved_var_filter_ui"))
+            )
+          ),
+
+          # 2 · Area / Vector File ──────────────────────────────────────────
+          bslib::accordion_panel(
+            "Area of Interest", icon = shiny::icon("draw-polygon"),
+
+            shiny::radioButtons(
+              ns("vec_source"), NULL,
+              choices  = c("Upload vector file" = "upload",
+                           "Use project AOI"    = "aoi"),
+              selected = "upload",
+              inline   = TRUE
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'upload'", ns("vec_source")),
+              shiny::fileInput(
+                ns("vec_file"), NULL,
+                accept      = c(".shp", ".geojson", ".gpkg", ".kml", ".json"),
+                buttonLabel = shiny::icon("folder-open"),
+                placeholder = "SHP / GeoJSON / GPKG / KML"
+              )
             ),
             shiny::uiOutput(ns("vec_info_ui")),
             shiny::uiOutput(ns("vec_id_col_ui"))
           ),
 
-          # 2 · Variables ───────────────────────────────────────────────────
+          # 3 · Variables & Period ──────────────────────────────────────────
           bslib::accordion_panel(
-            "Variables", icon = shiny::icon("layer-group"),
-            shiny::selectInput(
-              ns("vars_ts"), "Time Series Variables",
-              choices = NULL, multiple = TRUE
-            ),
-            shiny::div(
-              style = "border-top: 1px dashed #dee2e6; margin: 6px 0 4px;",
-              shiny::helpText("Regression axes (seasonal)", style = "font-size:0.78rem; color:#888;")
-            ),
-            shiny::selectInput(ns("vars_reg_x"), "X variable", choices = NULL),
-            shiny::selectInput(ns("vars_reg_y"), "Y variable", choices = NULL)
-          ),
+            "Variables & Period", icon = shiny::icon("layer-group"),
 
-          # 3 · Period ──────────────────────────────────────────────────────
-          bslib::accordion_panel(
-            "Period", icon = shiny::icon("calendar"),
-            shiny::dateRangeInput(
-              ns("period"), NULL,
-              start  = Sys.Date() - 730,
-              end    = Sys.Date(),
-              format = "yyyy-mm-dd"
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] != 'saved'", ns("data_source")),
+
+              shiny::tags$span("Variables to plot", class = "ctrl-group-label"),
+              shiny::selectInput(
+                ns("vars_ts"), NULL,
+                choices  = NULL,
+                multiple = TRUE
+              ),
+
+              shiny::tags$hr(class = "ctrl-divider"),
+              shiny::tags$span("Extraction period", class = "ctrl-group-label"),
+              shiny::dateRangeInput(
+                ns("period"), NULL,
+                start  = Sys.Date() - 730,
+                end    = Sys.Date(),
+                format = "yyyy-mm-dd"
+              ),
+
+              shiny::tags$hr(class = "ctrl-divider"),
+              shiny::tags$span("Regression axes (seasonal aggregates)", class = "ctrl-group-label"),
+              shiny::div(
+                class = "inline-row",
+                shiny::div(class = "flex-1",
+                  shiny::selectInput(ns("vars_reg_x"), "X", choices = NULL)
+                ),
+                shiny::div(class = "flex-1",
+                  shiny::selectInput(ns("vars_reg_y"), "Y", choices = NULL)
+                )
+              )
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'saved'", ns("data_source")),
+              shiny::helpText(
+                "Variables and period are read from the loaded dataset (Data Source panel).",
+                style = "font-size:0.8rem; color:#6c757d;"
+              )
             )
           ),
 
           # 4 · Plot Style ──────────────────────────────────────────────────
           bslib::accordion_panel(
             "Plot Style", icon = shiny::icon("palette"),
-            shiny::selectInput(
-              ns("gg_theme"), "Theme",
-              choices  = c("Minimal"  = "minimal", "Classic"  = "classic",
-                           "B&W"      = "bw",      "Light"    = "light",
-                           "Linedraw" = "linedraw"),
-              selected = "minimal"
-            ),
-            shiny::selectInput(
-              ns("color_pal"), "Colour palette",
-              choices  = c("viridis", "plasma", "magma",
-                           "Set1", "Set2", "Dark2", "Paired"),
-              selected = "Set2"
-            ),
-            shiny::selectInput(
-              ns("ts_geom"), "Time series geom",
-              choices  = c("Lines"          = "line",
-                           "Points"         = "point",
-                           "Lines + Points" = "both",
-                           "Smoothed trend" = "smooth"),
-              selected = "both"
-            ),
+
             shiny::div(
-              style = "display: flex; gap: 8px; flex-wrap: wrap;",
-              shiny::checkboxInput(ns("show_ribbon"), "Min–Max ribbon", FALSE),
-              shiny::checkboxInput(ns("show_mean"),   "Ensemble mean",  FALSE),
+              class = "inline-row",
+              shiny::div(class = "flex-1",
+                shiny::selectInput(
+                  ns("gg_theme"), "Theme",
+                  choices  = c("Minimal"  = "minimal", "Classic"  = "classic",
+                               "B&W"      = "bw",      "Light"    = "light",
+                               "Linedraw" = "linedraw"),
+                  selected = "minimal"
+                )
+              ),
+              shiny::div(class = "flex-1",
+                shiny::selectInput(
+                  ns("color_pal"), "Colour palette",
+                  choices  = c("viridis", "plasma", "magma",
+                               "Set1", "Set2", "Dark2", "Paired"),
+                  selected = "Set2"
+                )
+              )
+            ),
+
+            shiny::div(
+              class = "inline-row",
+              shiny::div(class = "flex-1",
+                shiny::selectInput(
+                  ns("ts_geom"), "Geometry",
+                  choices  = c("Lines"          = "line",
+                               "Points"         = "point",
+                               "Lines + Points" = "both",
+                               "Smoothed"       = "smooth"),
+                  selected = "both"
+                )
+              ),
+              shiny::div(style = "width:75px;",
+                shiny::numericInput(ns("base_size"), "Font", value = 13, min = 9, max = 20, step = 1)
+              )
+            ),
+
+            shiny::tags$span("Overlays", class = "ctrl-group-label"),
+            shiny::div(
+              class = "check-row",
+              shiny::checkboxInput(ns("show_ribbon"), "Min-Max ribbon",    FALSE),
+              shiny::checkboxInput(ns("show_mean"),   "Ensemble mean",     FALSE),
               shiny::checkboxInput(ns("facet_var"),   "Facet by variable", TRUE)
             ),
-            shiny::sliderInput(ns("base_size"), "Font size", 10, 20, 13,
-                               step = 1, ticks = FALSE),
-            shiny::textInput(ns("plot_title"), "Title",       placeholder = "(auto-fill)"),
-            shiny::textInput(ns("plot_ylab"),  "Y-axis label",placeholder = "(auto-fill)")
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(class = "flex-1",
+                shiny::textInput(ns("plot_title"), "Title",    placeholder = "(auto)")
+              ),
+              shiny::div(class = "flex-1",
+                shiny::textInput(ns("plot_ylab"),  "Y label",  placeholder = "(auto)")
+              )
+            )
           )
         ), # /accordion
 
-        # 5 · Action buttons ───────────────────────────────────────────────
+        # Action buttons (sticky)
         shiny::div(
-          style = "padding-top: 0.5rem;",
+          style = "padding-top:0.4rem;",
+          shiny::uiOutput(ns("run_btn_ui")),
           shiny::actionButton(
-            ns("btn_run"), "Extract & Plot",
-            icon  = shiny::icon("chart-line"),
-            class = "btn-primary w-100 mb-2",
-            style = "font-weight: 600;"
+            ns("btn_reset"), "Clear all",
+            icon  = shiny::icon("trash"),
+            class = "btn-outline-secondary w-100 btn-sm mt-1"
+          )
+        ),
+
+        # Save extracted data to folder
+        shiny::div(
+          class = "ts-save-panel",
+          shiny::tags$span(
+            shiny::icon("floppy-disk"), " Save data to folder",
+            class = "save-title"
+          ),
+          shiny::div(
+            class = "inline-row",
+            shiny::div(class = "flex-1",
+              shiny::textInput(
+                ns("save_filename"), NULL,
+                placeholder = "filename (no extension)"
+              )
+            ),
+            shiny::div(style = "width:100px;",
+              shiny::selectInput(
+                ns("save_format"), NULL,
+                choices  = c("CSV" = "csv", "RDS" = "rds", "Parquet" = "parquet"),
+                selected = "csv"
+              )
+            )
           ),
           shiny::actionButton(
-            ns("btn_reset"), "Clear",
-            icon  = shiny::icon("trash"),
-            class = "btn-outline-secondary w-100"
+            ns("btn_save_folder"), "Save to project folder",
+            icon  = shiny::icon("download"),
+            class = "btn-success btn-sm w-100"
           )
         )
+
       ), # /sidebar
 
       # ── MAIN PANEL ─────────────────────────────────────────────────────────
@@ -223,7 +384,7 @@ mod_timeseries_ui <- function(id) {
               shiny::column(4,
                 shiny::checkboxInput(ns("reg_fit_line"), "Fit OLS line + CI",  TRUE)),
               shiny::column(4,
-                shiny::checkboxInput(ns("reg_show_eq"),  "Equation + R²",      TRUE))
+                shiny::checkboxInput(ns("reg_show_eq"),  "Equation + R\u00b2",  TRUE))
             ),
             shiny::plotOutput(ns("plot_reg"), height = "460px") |>
               shinycssloaders::withSpinner(type = 6, color = "#2c3e50"),
@@ -274,32 +435,137 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
     ns <- session$ns
 
     rv <- reactiveValues(
-      vec_sf        = NULL,   # sf object (uploaded vector)
+      vec_sf        = NULL,   # sf object used for zonal extraction
       ts_data       = NULL,   # data.frame: multi-var time series (long format)
       seasonal_data = NULL,   # data.frame: seasonal aggregates for X/Y vars
-      avail_vars    = character(0)
+      avail_vars    = character(0),
+      loaded_df     = NULL,   # data.frame loaded from a saved file
+      loaded_path   = NULL    # path of the loaded saved file
     )
 
-    ## ── 1. Scan folder for available variables ──────────────────────────────
-    observe({
-      folder <- global_folder()
-      req(!is.null(folder), nzchar(folder), dir.exists(folder))
-      tryCatch({
-        tifs <- list.files(folder, pattern = "\\.tif$", recursive = FALSE)
-        pat  <- "^((?:L[1-3]|AGERA5)-[A-Z0-9]+-[ADEMS])"
-        vars <- sort(unique(regmatches(tifs, regexpr(pat, tifs, perl = TRUE))))
-        vars <- vars[nzchar(vars)]
-        rv$avail_vars <- vars
-        updateSelectInput(session, "vars_ts",    choices = vars, selected = vars[1])
-        updateSelectInput(session, "vars_reg_x", choices = vars, selected = vars[1])
-        updateSelectInput(session, "vars_reg_y", choices = vars,
-                          selected = if (length(vars) > 1) vars[2] else vars[1])
-      }, error = function(e) NULL)
+    roots <- get_shinyfiles_roots()
+
+    # ── Folder browse (local mode) ────────────────────────────────────────────
+    shinyFiles::shinyDirChoose(input, "ts_browse_folder", roots = roots, session = session)
+
+    observeEvent(input$ts_browse_folder, {
+      dir_path <- shinyFiles::parseDirPath(roots, input$ts_browse_folder)
+      if (length(dir_path) > 0 && nzchar(dir_path))
+        shiny::updateTextInput(session, "ts_folder", value = dir_path)
     })
 
-    ## ── 2. Load vector file ─────────────────────────────────────────────────
+    # Sync folder text box from Download tab whenever it changes
+    observe({
+      dl_folder <- tryCatch(global_folder(), error = function(e) NULL)
+      req(!is.null(dl_folder), nzchar(dl_folder))
+      cur <- isolate(input$ts_folder %||% "")
+      if (!nzchar(cur))
+        shiny::updateTextInput(session, "ts_folder", value = dl_folder)
+    })
+
+    # Reactive that returns the effective folder for the local mode
+    ts_folder <- reactive({
+      f <- input$ts_folder %||% ""
+      if (nzchar(f)) f else tryCatch(global_folder(), error = function(e) "")
+    })
+
+    output$ts_folder_info_ui <- renderUI({
+      f <- ts_folder()
+      if (!nzchar(f)) return(NULL)
+      if (!dir.exists(f)) {
+        return(shiny::helpText(
+          shiny::icon("triangle-exclamation"), " Folder not found.",
+          style = "color: #c0392b; font-size: 0.8rem;"
+        ))
+      }
+      n <- length(list.files(f, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE))
+      shiny::helpText(
+        sprintf("%d .tif file(s) found", n),
+        style = "color: #27ae60; font-size: 0.8rem; margin-top: 2px;"
+      )
+    })
+
+    # ── Dynamic action button label ──────────────────────────────────────────
+    output$run_btn_ui <- renderUI({
+      label <- if (isTRUE(input$data_source == "saved")) "Import & Plot" else "Extract & Plot"
+      shiny::actionButton(
+        ns("btn_run"), label,
+        icon  = shiny::icon("chart-line"),
+        class = "btn-primary w-100 mb-2",
+        style = "font-weight: 600;"
+      )
+    })
+
+    # ── 1a. Scan folder for available variables (local mode) ─────────────────
+    .do_scan_folder <- function(folder) {
+      req(nzchar(folder), dir.exists(folder))
+      tifs <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+
+      if (length(tifs) == 0) {
+        showNotification("No .tif files found in this folder or its subdirectories.", type = "warning")
+        return()
+      }
+
+      var_pat <- "(?:L[1-3]|AGERA5)-[A-Z0-9]+-[ADEMS]"
+
+      # 1. Extract code from subdirectory names (handles "L1-PCP-D" and "L1-PCP-D_seasonal")
+      dirs     <- basename(dirname(tifs))
+      m_dir    <- regmatches(dirs,  regexpr(var_pat, dirs,  perl = TRUE))
+      from_dir <- m_dir[nzchar(m_dir)]
+
+      # 2. Extract code from file basenames (e.g. WAPOR-3.L1-PCP-D.2018-01-01.tif)
+      bases     <- basename(tifs)
+      m_file    <- regmatches(bases, regexpr(var_pat, bases, perl = TRUE))
+      from_file <- m_file[nzchar(m_file)]
+
+      vars <- sort(unique(c(from_dir, from_file)))
+
+      if (length(vars) == 0) {
+        showNotification(
+          sprintf("Found %d .tif file(s) but none match WaPOR/AgERA5 naming.", length(tifs)),
+          type = "warning", duration = 8
+        )
+        return()
+      }
+      rv$avail_vars <- vars
+      updateSelectInput(session, "vars_ts",    choices = vars, selected = vars[1])
+      updateSelectInput(session, "vars_reg_x", choices = vars, selected = vars[1])
+      updateSelectInput(session, "vars_reg_y", choices = vars,
+                        selected = if (length(vars) > 1) vars[2] else vars[1])
+      showNotification(sprintf("\u2714 Found %d variable(s) in folder.", length(vars)),
+                       type = "message", duration = 3)
+    }
+
+    # Auto-scan when switching to local mode or when folder path changes
+    observe({
+      req(input$data_source == "local")
+      folder <- ts_folder()
+      req(nzchar(folder), dir.exists(folder))
+      tryCatch(.do_scan_folder(folder), error = function(e) NULL)
+    })
+
+    # Manual scan button
+    observeEvent(input$btn_scan, {
+      req(input$data_source == "local")
+      tryCatch(.do_scan_folder(ts_folder()), error = function(e)
+        showNotification(paste("Scan error:", e$message), type = "error"))
+    })
+
+    # ── 1b. Populate variables from package metadata (API mode) ──────────────
+    observe({
+      req(input$data_source == "api")
+      vars <- .ts_all_api_vars
+      if (length(vars) == 0) return()
+      rv$avail_vars <- vars
+      updateSelectInput(session, "vars_ts",    choices = vars, selected = vars[1])
+      updateSelectInput(session, "vars_reg_x", choices = vars, selected = vars[1])
+      updateSelectInput(session, "vars_reg_y", choices = vars,
+                        selected = if (length(vars) > 1) vars[2] else vars[1])
+    })
+
+    # ── 2. Load vector file (upload mode) ────────────────────────────────────
     observeEvent(input$vec_file, {
-      req(input$vec_file)
+      req(input$vec_file, input$vec_source == "upload")
       tryCatch({
         rv$vec_sf <- sf::st_read(input$vec_file$datapath, quiet = TRUE)
         showNotification(
@@ -311,6 +577,51 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         showNotification(paste("Vector load error:", e$message), type = "error")
         rv$vec_sf <- NULL
       })
+    })
+
+    # ── 3. Use project AOI as vector (aoi mode) ───────────────────────────────
+    observeEvent(input$vec_source, {
+      req(input$vec_source == "aoi")
+      region <- tryCatch(aoi_region(), error = function(e) NULL)
+      if (is.null(region)) {
+        showNotification("No AOI set in the Download tab.", type = "warning"); return()
+      }
+      # Only sf file paths work for per-feature zonal stats
+      if (is.character(region) && !grepl("^[A-Z]{3}$", region) && file.exists(region)) {
+        tryCatch({
+          rv$vec_sf <- sf::st_read(region, quiet = TRUE)
+          showNotification(
+            sprintf("\u2714 Using project AOI: %d features (%s)",
+                    nrow(rv$vec_sf), as.character(sf::st_geometry_type(rv$vec_sf)[1])),
+            type = "message", duration = 5
+          )
+        }, error = function(e) {
+          showNotification(paste("AOI load error:", e$message), type = "error")
+          rv$vec_sf <- NULL
+        })
+      } else if (is.numeric(region) && length(region) == 4) {
+        # Bbox: create a single rectangular polygon
+        bbox_sf <- sf::st_as_sf(
+          data.frame(id = "AOI_bbox"),
+          geometry = sf::st_sfc(
+            sf::st_as_sfc(sf::st_bbox(c(xmin = region[1], ymin = region[2],
+                                         xmax = region[3], ymax = region[4]),
+                                       crs = 4326))[[1]]
+          ),
+          crs = 4326
+        )
+        rv$vec_sf <- bbox_sf
+        showNotification(
+          "\u2714 Using project AOI bounding box as single polygon.",
+          type = "message", duration = 5
+        )
+      } else {
+        showNotification(
+          "Project AOI is an L3 code or path not found. Please upload a vector file.",
+          type = "warning"
+        )
+        rv$vec_sf <- NULL
+      }
     })
 
     output$vec_info_ui <- renderUI({
@@ -331,41 +642,107 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
                          choices = cols, selected = cols[1])
     })
 
-    ## ── 3. Populate seasonal-variable selector once ts_data is ready ────────
+    # ── 4. Load saved dataset ────────────────────────────────────────────────
+    observeEvent(input$saved_file, {
+      req(input$saved_file)
+      tryCatch({
+        df <- .read_saved_ts(input$saved_file$datapath)
+        err <- .validate_ts_df(df)
+        if (!is.null(err)) {
+          showNotification(paste("Invalid dataset:", err), type = "error"); return()
+        }
+        df$start_date <- as.Date(df$start_date)
+        rv$loaded_df   <- df
+        rv$loaded_path <- input$saved_file$name
+        showNotification(
+          sprintf("\u2714 Loaded saved dataset: %d rows, %d variables",
+                  nrow(df), length(unique(df$variable))),
+          type = "message", duration = 5
+        )
+      }, error = function(e) {
+        showNotification(paste("File load error:", e$message), type = "error")
+        rv$loaded_df <- NULL
+      })
+    })
+
+    output$saved_info_ui <- renderUI({
+      req(rv$loaded_df)
+      df   <- rv$loaded_df
+      vars <- unique(df$variable)
+      shiny::helpText(
+        sprintf("%d rows \u00b7 %d variables \u00b7 %s \u2013 %s",
+                nrow(df), length(vars),
+                format(min(df$start_date, na.rm = TRUE), "%d %b %Y"),
+                format(max(df$start_date, na.rm = TRUE), "%d %b %Y")),
+        style = "color: #27ae60; font-size: 0.8rem; margin-top: -4px;"
+      )
+    })
+
+    output$saved_var_filter_ui <- renderUI({
+      req(rv$loaded_df)
+      vars <- sort(unique(rv$loaded_df$variable))
+      shiny::selectInput(
+        ns("saved_var_filter"), "Variables to plot",
+        choices  = vars,
+        selected = vars,
+        multiple = TRUE
+      )
+    })
+
+    # ── 5. Populate seasonal-variable selector once ts_data is ready ─────────
     observe({
       req(rv$ts_data)
       vars <- unique(rv$ts_data$variable)
       updateSelectInput(session, "seas_var_sel", choices = vars, selected = vars[1])
     })
 
-    ## ── 4. Extract on button click ──────────────────────────────────────────
+    # ── 6. Extract / Import on button click ──────────────────────────────────
     observeEvent(input$btn_run, {
 
+      mode <- input$data_source %||% "local"
+
+      # --- Saved dataset mode: just filter and copy ---
+      if (mode == "saved") {
+        df <- rv$loaded_df
+        if (is.null(df)) {
+          showNotification("Load a saved dataset first (Data Source panel).", type = "warning")
+          return()
+        }
+        sel_vars <- input$saved_var_filter
+        if (!is.null(sel_vars) && length(sel_vars) > 0)
+          df <- df[df$variable %in% sel_vars, , drop = FALSE]
+        rv$ts_data       <- df
+        rv$seasonal_data <- NULL
+        showNotification(
+          sprintf("\u2714 %d obs \u00b7 %d variables imported from saved file",
+                  nrow(df), length(unique(df$variable))),
+          type = "message", duration = 4
+        )
+        return()
+      }
+
+      # --- Extraction modes (local / api) ---
       vec_sf  <- rv$vec_sf
       id_col  <- input$vec_id_col
       vars_ts <- input$vars_ts
       x_var   <- input$vars_reg_x
       y_var   <- input$vars_reg_y
-      folder  <- global_folder()
+      folder  <- ts_folder()
       period  <- c(as.character(input$period[1]), as.character(input$period[2]))
 
-      # ·· Input validation ··················································
       if (is.null(vec_sf)) {
-        showNotification("Upload a vector file first.", type = "warning"); return()
+        showNotification("Upload a vector file or set a project AOI first.", type = "warning"); return()
       }
       if (length(vars_ts) == 0) {
         showNotification("Select at least one time-series variable.", type = "warning"); return()
       }
-      if (is.null(folder) || !dir.exists(folder)) {
+      if (mode == "local" && (is.null(folder) || !dir.exists(folder))) {
         showNotification("Set a project folder in the Download tab.", type = "warning"); return()
       }
 
-      all_vars_needed <- unique(c(vars_ts, x_var, y_var))
-
       withProgress(message = "Extracting time series \u2026", value = 0, {
 
-        # ·· Time series (all selected vars) ·································
-        n_ts <- length(vars_ts)
+        n_ts   <- length(vars_ts)
         ts_list <- lapply(seq_along(vars_ts), function(i) {
           setProgress(i / (n_ts + 2), detail = vars_ts[i])
           tryCatch({
@@ -375,8 +752,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
               period     = period,
               identifier = id_col
             )
-            df$variable <- vars_ts[i]
-            # Ensure start_date is Date
+            df$variable   <- vars_ts[i]
             df$start_date <- as.Date(df$start_date)
             df
           }, error = function(e) {
@@ -389,7 +765,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         })
         rv$ts_data <- do.call(rbind, Filter(Negate(is.null), ts_list))
 
-        # ·· Seasonal aggregates for regression X and Y ······················
+        # Seasonal aggregates for regression X and Y
         seas_vars <- unique(c(x_var, y_var))
         seas_list <- lapply(seq_along(seas_vars), function(i) {
           setProgress((n_ts + i) / (n_ts + 2), detail = paste("Seasonal:", seas_vars[i]))
@@ -427,35 +803,70 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       }
     })
 
-    ## ── Internal helpers ────────────────────────────────────────────────────
+    # ── 7. Save to project folder ────────────────────────────────────────────
+    observeEvent(input$btn_save_folder, {
+      df     <- rv$ts_data
+      folder <- tryCatch(ts_folder(), error = function(e) NULL)
 
-    # Resolve identifier column: user choice or "ID"
+      if (is.null(df) || nrow(df) == 0) {
+        showNotification("No data to save. Extract or import data first.", type = "warning"); return()
+      }
+      if (is.null(folder) || !dir.exists(folder)) {
+        showNotification("Set a project folder in the Download tab.", type = "warning"); return()
+      }
+
+      stem   <- trimws(input$save_filename %||% "")
+      if (!nzchar(stem)) stem <- sprintf("timeseries_%s", format(Sys.Date(), "%Y%m%d"))
+      fmt    <- input$save_format %||% "csv"
+      fname  <- sprintf("%s.%s", stem, fmt)
+      fpath  <- file.path(folder, fname)
+
+      tryCatch({
+        switch(fmt,
+          csv     = utils::write.csv(df, fpath, row.names = FALSE),
+          rds     = saveRDS(df, fpath),
+          parquet = {
+            if (!requireNamespace("arrow", quietly = TRUE))
+              stop("Install the 'arrow' package for Parquet export.")
+            arrow::write_parquet(df, fpath)
+          }
+        )
+        showNotification(
+          sprintf("\u2714 Saved: %s  (%d rows)", fname, nrow(df)),
+          type = "message", duration = 6
+        )
+      }, error = function(e) {
+        showNotification(paste("Save error:", e$message), type = "error")
+      })
+    })
+
+    # ── Internal helpers ─────────────────────────────────────────────────────
+
     .id_col <- function(df) {
       ic <- input$vec_id_col
       if (!is.null(ic) && nzchar(ic) && ic %in% names(df)) ic else "ID"
     }
 
-    # Unit string for a variable code
     .units <- function(var_code) {
       m <- Rwapor::WAPOR3_VARS[[var_code]]
+      if (is.null(m)) m <- Rwapor::AGERA5_VARS[[var_code]]
       if (!is.null(m) && !is.null(m$units)) m$units else ""
     }
 
-    # Long name for a variable code
     .long <- function(var_code) {
       m <- Rwapor::WAPOR3_VARS[[var_code]]
+      if (is.null(m)) m <- Rwapor::AGERA5_VARS[[var_code]]
       if (!is.null(m) && !is.null(m$long_name)) m$long_name else var_code
     }
 
-    # Number of distinct geometries in df
     .n_geoms <- function(df, ic) length(unique(df[[if (ic %in% names(df)) ic else "ID"]]))
 
-    ## ── 5. Time Series Plot ─────────────────────────────────────────────────
+    # ── 8. Time Series Plot ──────────────────────────────────────────────────
     .make_ts_plot <- function() {
       df <- rv$ts_data
       req(df, nrow(df) > 0, "start_date" %in% names(df))
 
-      id_col   <- .id_col(df)
+      id_col <- .id_col(df)
       req(id_col %in% names(df))
 
       geom_sel  <- input$ts_geom   %||% "both"
@@ -513,7 +924,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
           legend.position = if (n_ids <= 12) "right" else "bottom"
         )
 
-      # Optional min–max ribbon (behind lines)
       if (show_rib && all(c("min", "max") %in% names(df))) {
         p <- p + ggplot2::geom_ribbon(
           ggplot2::aes(ymin = min, ymax = max, fill = .data[[id_col]]),
@@ -521,7 +931,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         )
       }
 
-      # Primary geom
       p <- switch(geom_sel,
         line  = p + ggplot2::geom_line(linewidth = 0.75),
         point = p + ggplot2::geom_point(size = 2),
@@ -533,7 +942,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         p + ggplot2::geom_line(linewidth = 0.75)
       )
 
-      # Ensemble mean overlay (dashed black)
       if (show_mean) {
         df_m <- df |>
           dplyr::group_by(start_date, variable) |>
@@ -548,7 +956,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         )
       }
 
-      # Facet by variable (free y-axis; labelled with units)
       if (facet_var && length(vars_used) > 1) {
         unit_labeller <- ggplot2::labeller(
           variable = function(x) {
@@ -561,18 +968,17 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         p <- p + ggplot2::facet_wrap(~ variable, scales = "free_y", ncol = 1,
                                       labeller = unit_labeller)
       }
-
       p
     }
 
     output$plot_ts <- renderPlot({ .make_ts_plot() }, res = 120)
 
-    ## ── 6. Seasonal Values Plot ─────────────────────────────────────────────
+    # ── 9. Seasonal Values Plot ──────────────────────────────────────────────
     .make_seasonal_plot <- function() {
-      df_all   <- rv$ts_data
+      df_all  <- rv$ts_data
       req(df_all, nrow(df_all) > 0)
 
-      sel_var  <- input$seas_var_sel
+      sel_var <- input$seas_var_sel
       req(!is.null(sel_var), nzchar(sel_var))
       df <- df_all[df_all$variable == sel_var, , drop = FALSE]
       req(nrow(df) > 0)
@@ -592,11 +998,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
       u      <- .units(sel_var)
       title  <- sprintf("Seasonal values \u00b7 %s", .long(sel_var))
-
-      # Determine aggregation rule (accumulation vs rate)
       is_accum <- grepl("-AETI|-PCP|-NPP|-TBP|-E-|-T-|-I-", sel_var)
 
-      # Build seasonal summary per geometry
       df_seas <- df |>
         dplyr::group_by(.data[[id_col]], variable) |>
         dplyr::summarise(
@@ -623,7 +1026,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         )
 
       if (plot_type == "bar") {
-        # Sort by value descending for visual hierarchy
         df_seas[[id_col]] <- factor(
           df_seas[[id_col]],
           levels = df_seas[[id_col]][order(df_seas$plot_val, decreasing = TRUE)]
@@ -643,7 +1045,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
           ) +
           ggplot2::scale_fill_manual(values = colors) +
           ggplot2::labs(title = title, x = NULL, y = y_lab,
-                        caption = sprintf("Error bars = IQR  \u00b7  Rwapor")) +
+                        caption = "Error bars = IQR  \u00b7  Rwapor") +
           base_theme +
           ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1))
 
@@ -653,11 +1055,11 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
             ggplot2::aes(x = .data[[id_col]], y = mean, fill = .data[[id_col]])
           ) +
           ggplot2::geom_boxplot(
-            notch        = FALSE,
+            notch         = FALSE,
             outlier.shape = 21,
             outlier.size  = 1.4,
-            colour       = "grey25",
-            linewidth    = 0.45
+            colour        = "grey25",
+            linewidth     = 0.45
           ) +
           ggplot2::scale_fill_manual(values = colors) +
           ggplot2::labs(title = title, x = NULL,
@@ -665,7 +1067,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
           base_theme
 
       } else {
-        # Dot / lollipop (Cleveland-style, sorted)
         df_seas[[id_col]] <- factor(
           df_seas[[id_col]],
           levels = df_seas[[id_col]][order(df_seas$plot_val)]
@@ -696,7 +1097,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
     output$plot_seasonal <- renderPlot({ .make_seasonal_plot() }, res = 120)
 
-    ## ── 7. Regression Plot ──────────────────────────────────────────────────
+    # ── 10. Regression Plot ──────────────────────────────────────────────────
     .make_reg_plot <- function() {
       df_seas <- rv$seasonal_data
       req(df_seas, nrow(df_seas) > 0)
@@ -705,7 +1106,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       y_var <- input$vars_reg_y
       req(!is.null(x_var), nzchar(x_var), !is.null(y_var), nzchar(y_var))
 
-      id_col   <- .id_col(df_seas)
+      id_col    <- .id_col(df_seas)
       base_size <- input$base_size %||% 13
       gg_theme  <- input$gg_theme  %||% "minimal"
       pal       <- input$color_pal %||% "Set2"
@@ -716,7 +1117,6 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       df_x <- df_seas[df_seas$variable == x_var, ]
       df_y <- df_seas[df_seas$variable == y_var, ]
 
-      # Handle case where id_col might not be present (fall back to ID)
       join_col <- if (id_col %in% names(df_x) && id_col %in% names(df_y)) id_col else "ID"
       cols_x   <- intersect(c(join_col, "mean"), names(df_x))
       cols_y   <- intersect(c(join_col, "mean"), names(df_y))
@@ -779,15 +1179,13 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
           ggplot2::aes(x = x_val, y = y_val),
           data        = df_join
         )
-
-        # Equation + R² annotation
         if (show_eq && nrow(df_join) >= 3) {
-          fit  <- stats::lm(y_val ~ x_val, data = df_join)
-          cf   <- stats::coef(fit)
-          r2   <- summary(fit)$r.squared
-          pval <- stats::coef(summary(fit))[2, 4]
+          fit      <- stats::lm(y_val ~ x_val, data = df_join)
+          cf       <- stats::coef(fit)
+          r2       <- summary(fit)$r.squared
+          pval     <- stats::coef(summary(fit))[2, 4]
           sign_chr <- if (cf[2] >= 0) "+" else "\u2212"
-          eq_str <- sprintf(
+          eq_str   <- sprintf(
             "y = %.4f x  %s  %.3f\nR\u00b2 = %.3f    p = %.4f",
             cf[2], sign_chr, abs(cf[1]), r2, pval
           )
@@ -814,9 +1212,9 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
     output$reg_lm_text <- renderPrint({
       df_seas <- rv$seasonal_data
       req(df_seas, nrow(df_seas) > 0)
-      x_var  <- input$vars_reg_x;  req(!is.null(x_var), nzchar(x_var))
-      y_var  <- input$vars_reg_y;  req(!is.null(y_var), nzchar(y_var))
-      id_col <- .id_col(df_seas)
+      x_var    <- input$vars_reg_x;  req(!is.null(x_var), nzchar(x_var))
+      y_var    <- input$vars_reg_y;  req(!is.null(y_var), nzchar(y_var))
+      id_col   <- .id_col(df_seas)
       join_col <- if (id_col %in% names(df_seas)) id_col else "ID"
 
       df_x <- df_seas[df_seas$variable == x_var, c(join_col, "mean")]
@@ -831,11 +1229,10 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       print(summary(fit))
     })
 
-    ## ── 8. Data Table ───────────────────────────────────────────────────────
+    # ── 11. Data Table ───────────────────────────────────────────────────────
     output$tbl_ts <- DT::renderDT({
       req(rv$ts_data)
-      df <- rv$ts_data
-
+      df       <- rv$ts_data
       num_cols <- intersect(c("mean", "min", "max"), names(df))
 
       DT::datatable(
@@ -860,14 +1257,22 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         )
     })
 
-    ## ── 9. Summary ──────────────────────────────────────────────────────────
+    # ── 12. Summary ──────────────────────────────────────────────────────────
     output$txt_summary <- renderPrint({
       req(rv$ts_data)
       df     <- rv$ts_data
       id_col <- .id_col(df)
+      src    <- input$data_source %||% "local"
+      src_lbl <- switch(src,
+        local = "local folder TIFs",
+        api   = "WaPOR/AgERA5 API",
+        saved = sprintf("saved file: %s", rv$loaded_path %||% "unknown"),
+        src
+      )
 
       cat("\u2550\u2550 Time Series Summary ",
           paste(rep("\u2550", 38), collapse = ""), "\n\n", sep = "")
+      cat(sprintf("  Source        : %s\n",  src_lbl))
       cat(sprintf("  Observations  : %d\n",  nrow(df)))
       cat(sprintf("  Variables     : %s\n",  paste(unique(df$variable), collapse = ", ")))
       cat(sprintf("  Period        : %s \u2013 %s\n",
@@ -882,10 +1287,10 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         cat(sprintf("\u2500\u2500 %s (%s) \u2500\n", v, .units(v)))
         cat(sprintf("  n=%d  mean=%.3f  sd=%.3f  [%.3f, %.3f]\n\n",
                     nrow(sub),
-                    mean(sub$mean,  na.rm = TRUE),
+                    mean(sub$mean,      na.rm = TRUE),
                     stats::sd(sub$mean, na.rm = TRUE),
-                    min(sub$mean,   na.rm = TRUE),
-                    max(sub$mean,   na.rm = TRUE)))
+                    min(sub$mean,       na.rm = TRUE),
+                    max(sub$mean,       na.rm = TRUE)))
       }
 
       if (!is.null(rv$seasonal_data) && nrow(rv$seasonal_data) > 0) {
@@ -900,9 +1305,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       }
     })
 
-    ## ── 10. Download handlers ───────────────────────────────────────────────
+    # ── 13. Download handlers ────────────────────────────────────────────────
 
-    # Generic plot → file download
     .plot_dl <- function(plot_fn, stem, fmt, w = 10, h = 7) {
       shiny::downloadHandler(
         filename = function()
@@ -947,12 +1351,14 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       content  = function(file) { req(rv$ts_data); saveRDS(rv$ts_data, file) }
     )
 
-    ## ── 11. Reset ────────────────────────────────────────────────────────────
+    # ── 14. Reset ────────────────────────────────────────────────────────────
     observeEvent(input$btn_reset, {
       rv$vec_sf        <- NULL
       rv$ts_data       <- NULL
       rv$seasonal_data <- NULL
-      updateSelectInput(session, "vars_ts",    selected = character(0))
+      rv$loaded_df     <- NULL
+      rv$loaded_path   <- NULL
+      updateSelectInput(session, "vars_ts", selected = character(0))
       shiny::showNotification("Cleared.", type = "message", duration = 2)
     })
 
