@@ -10,6 +10,7 @@ description: >
   any Rwapor code. MUST be consulted BEFORE writing, editing, or reviewing any
   Rwapor code — no exceptions. Trigger even for vague references like "the
   dashboard", "the analysis tab", "the download function", or "the seasonal logic".
+version: 1.1.0
 ---
 
 # Rwapor Developer Skill
@@ -18,132 +19,119 @@ You are the lead developer of the **Rwapor** R package — an FAO tool for
 downloading and processing WaPOR and AgERA5 data, with a built-in Shiny
 dashboard for seasonal crop water productivity analysis.
 
-- **Version**: 0.1.0 (experimental)  
-- **GitHub**: https://github.com/almutaz9000/Rwapor (public)  
-- **License**: MIT  
-- **Entry point**: `run_wapor()` launches the Shiny dashboard  
-- **R >= 4.1.0** required  
+- **Version**: 0.1.0 (experimental)
+- **GitHub**: https://github.com/almutaz9000/Rwapor (public)
+- **License**: MIT
+- **Entry point**: `run_wapor()` launches the Shiny dashboard
+- **R >= 4.1.0** required
 
 ---
 
-## Step 0 — Before Any Code
+## Critical: Pre-Code Workflow
 
-**Always do this before writing or editing code:**
+**Before writing or editing ANY code, always:**
 
-1. Load `references/architecture.md` — identify affected file(s) and function(s)
-2. Load `references/bug-log.md` — check for known issues in that area
-3. Load `references/feature-log.md` — check if this is a tracked request
-4. Output the **DEV BRIEF block** (below)
-5. Then and only then write code
+1. Identify which module the change affects (API, download, analysis, dashboard, utilities)
+2. Load `references/architecture.md` — identify affected file(s) and function(s)
+3. Load `references/bug-log.md` — check for known issues in that area
+4. Load `references/feature-log.md` — check if this is a tracked request
+5. For UI changes, also load `references/ui-decisions.md`
+6. Output the **DEV BRIEF block** (see below)
+7. Then and only then write code
+
+**Never skip this workflow.** It prevents regressions and ensures consistency.
+
+**Token efficiency** — load only what's needed per task type:
+
+| Task Type | Load These Files |
+|---|---|
+| Bug fix | `architecture.md` + `bug-log.md` |
+| UI/UX change | `architecture.md` + `ui-decisions.md` |
+| New feature | `architecture.md` + `bug-log.md` + `feature-log.md` |
+| Unknown area | `bug-log.md` first, then `architecture.md` |
+| New session / lost context | `prompt-history.md` + `architecture.md` |
 
 ---
 
 ## Mandatory Pre-Code Declaration
 
-Output this block before EVERY code edit or addition:
+Before EVERY code change, output:
 
 ```
 📦 RWAPOR DEV BRIEF
 ─────────────────────────────────────────
+Module              : [Core API | Download | Analysis | Dashboard | Utilities]
 Affected file(s)    : <R/filename.R or inst/shiny/mod_*.R>
 Affected function(s): <function_name()>
 Change type         : [Bug Fix | Feature | Refactor | UI/UX | Method]
 Related log entry   : [Bug #N | Feature #N | none]
-Known constraints   : <confirmed patterns or failures from logs>
+Known constraints   : <relevant patterns from logs>
 ─────────────────────────────────────────
 ```
 
-Never skip this block. If the file is uncertain, say so explicitly.
-
 ---
 
-## Auto-Summary Rule
+## Context Brief (Auto-Generated)
 
-At the start of each Rwapor prompt output a brief context block:
+At the start of each Rwapor task, output:
 
 ```
-🔍 CONTEXT BRIEF
-• Module/file   : <file and function>
-• Current state : <what it currently does>
-• Open issues   : <any bug or pending feature>
-• Last confirmed: <last working approach for this area>
+🔍 RWAPOR CONTEXT
+• Working on     : <module/file/function>
+• Current state  : <what it does now>
+• Open issues    : <known bugs/limitations if any>
+• Last confirmed : <relevant working pattern from logs>
 ```
 
-Omit lines with no relevant match. Max 5 lines total.
+Omit lines with no match. Keep to 3–5 lines max.
 
 ---
 
-## Reference Files — When to Load Each
+## Package Structure Quick Reference
 
-| File | Load when... |
-|---|---|
-| `references/architecture.md` | Any code question — always load this first |
-| `references/feature-log.md` | Adding functionality or checking request status |
-| `references/bug-log.md` | Fixing errors, regressions, or unexpected outputs |
-| `references/ui-decisions.md` | Any Shiny UI/UX change (layout, tabs, widgets) |
-| `references/prompt-history.md` | New session or when context seems incomplete |
-
-**Token efficiency**: load only what's needed per task type:
-- Bug fix → `architecture.md` + `bug-log.md`
-- UI change → `architecture.md` + `ui-decisions.md`
-- New feature → all five files
-
----
-
-## Package Architecture Summary
+```
+Rwapor/
+├── R/
+│   ├── api_client.R           → Core API module
+│   ├── metadata.R             → Core API module
+│   ├── wapor_map.R            → Download module
+│   ├── wapor_ts.R             → Download module
+│   ├── plan_wapor_time_slices.R  → Download module
+│   ├── seasonal_download.R    → Download module
+│   ├── analysis.R             → Analysis module
+│   ├── analysis_indicators.R  → Analysis module
+│   ├── unit_convertor.R       → Utilities module
+│   ├── utils.R                → Utilities module
+│   ├── gdal_config.R          → Utilities module
+│   ├── crop_defaults.R        → Utilities module
+│   ├── rwapor_favorites.R     → Utilities module
+│   └── run_dashboard.R        → Dashboard module
+├── inst/shiny/
+│   ├── app.R                  → Dashboard module
+│   ├── mod_*.R                → Dashboard module
+│   └── utils_shiny.R          → Dashboard module
+├── fao_crop_coefficients.csv  → Analysis module
+└── fao_growth_stages.csv      → Analysis module
+```
 
 Full function-level detail is in `references/architecture.md`.
-
-### R/ Source Files
-
-| File | Responsibility |
-|---|---|
-| `R/wapor_map.R` | `wapor_map()` — download rasters for region/period |
-| `R/wapor_ts.R` | `wapor_ts()` — extract time series + zonal statistics |
-| `R/plan_wapor_time_slices.R` | `plan_wapor_time_slices()` — optimal mixed-resolution download plan |
-| `R/analysis.R` | Crop mask loading, season weights, Kc curve, local raster scan (`rwapor_scan_local_variables`) |
-| `R/analysis_indicators.R` | AETI, RET, ETc, Peff, adequacy, CWP, BWP, yield-from-NPP |
-| `R/api_client.R` | Low-level WaPOR API calls and URL generation |
-| `R/metadata.R` | `WAPOR3_VARS`, `AGERA5_VARS`, `L3_REGIONS` data objects + `get_variable_metadata()` |
-| `R/unit_convertor.R` | `df_unit_convertor()`, `raster_unit_convertor()` |
-| `R/utils.R` | `parse_region()`, `safe_project()`, date/unit helpers, L3 extent cache, zonal helpers |
-| `R/gdal_config.R` | `wapor_configure_gdal()`, `wapor_fix_proj()`, `wapor_gdal_settings()` |
-| `R/crop_defaults.R` | `rwapor_list_crops()`, `rwapor_get_crop_defaults()`, `rwapor_validate_crop_defaults()` |
-| `R/seasonal_download.R` | `download_seasonal_rasters()` — internal download+match helper |
-| `R/interval_helpers.R` | Date interval arithmetic (overlap, subtraction, month helpers) |
-| `R/run_dashboard.R` | `run_wapor()` — launches Shiny app from `inst/shiny/` |
-| `R/rwapor_favorites.R` | Favorites system: add/remove/list local data folders |
-
-### Shiny App (`inst/shiny/`)
-
-| File | Responsibility |
-|---|---|
-| `app.R` | `bslib::page_navbar` — 3 tabs: **Download**, **Visualisation**, **Analysis** |
-| `mod_download.R` | `mod_download_ui/server()` — variable/region/period/folder selection + download trigger |
-| `mod_visualisation.R` | `mod_visualisation_ui/server()` — leaflet map, raster layer rendering |
-| `mod_analysis.R` | `mod_analysis_ui/server()` — full seasonal analysis pipeline (largest module, ~2400 lines) |
-| `mod_aoi.R` | `mod_aoi_ui/server()` — Area of Interest selection (bbox, vector file, L3 code) |
-| `utils_shiny.R` | Shiny helpers: bbox extraction, polygon builder, logging, `crop_to_region_shiny()` |
-
-### Data Files (package root)
-
-| File | Contents |
-|---|---|
-| `fao_crop_coefficients.csv` | Kc_ini, Kc_mid, Kc_end per crop (FAO-56 derived) |
-| `fao_growth_stages.csv` | Development stage lengths per crop (FAO-56 Table 11) |
 
 ---
 
 ## Coding Standards
 
-- **Tidyverse style guide** for all R code
-- **`terra`** for all raster operations (never deprecated `raster`)
-- **`sf`** for all vector/polygon operations
-- **`exactextractr`** for pixel-weighted zonal statistics
-- **`httr2`** for all API calls
-- **`memoise`** for caching API responses
-- **`future.apply`** for parallelism
+- **Tidyverse style guide** — snake_case, 2-space indent
+- **terra** for all raster operations (never deprecated `raster`)
+- **sf** for all vector/polygon operations
+- **exactextractr** for pixel-weighted zonal statistics
+- **httr2** for all API calls
+- **memoise** for caching API responses
+- **future.apply** for parallelism
 - Roxygen2 docstrings on all exported functions (`@param`, `@return`, `@examples`)
+- `tryCatch()` on all I/O and API calls
+- No hardcoded paths — all paths via function arguments
+- Package-exported functions prefixed with `rwapor_`
+  (exceptions: `wapor_map`, `wapor_ts`, `run_wapor`)
 
 ### Common Patterns
 
@@ -151,19 +139,14 @@ Full function-level detail is in `references/architecture.md`.
 # Safe CRS projection (Windows fix)
 v <- safe_project(v, r_crs)
 
-# Check geometry match
+# Check geometry match before operations
 if (!compare_geom(x, template)) {
   x <- rwapor_harmonize_to_template(x, template)
 }
 
-# Scan local folder for variables
+# Scan local folder for downloaded variables
 local_vars <- rwapor_scan_local_variables(folder)
 ```
-
-- `tryCatch()` wrapping all I/O and API calls
-- No hardcoded paths — all paths via function arguments
-- `snake_case` function names; package-exported functions prefixed with `rwapor_`
-  (exception: top-level user-facing functions: `wapor_map`, `wapor_ts`, `run_wapor`)
 
 ---
 
@@ -172,7 +155,6 @@ local_vars <- rwapor_scan_local_variables(folder)
 - **WaPOR ETLook**: https://bitbucket.org/cioapps/wapor-et-look/wiki/Home
 - **PyWaPOR**: https://bitbucket.org/cioapps/pywapor/src/master/
 - **FAO-56** (Allen et al. 1998) — for Kc, ETc, Peff (USDA SCS method)
-- **wapor-r-pkg skill** — internal methodology encoding (Peff, ETc, adequacy, GBWP/NBWP)
 - **FAO WaPOR portal**: https://www.fao.org/in-action/remote-sensing-for-water-productivity/
 
 ---
@@ -183,7 +165,11 @@ After any confirmed fix, feature, or decision, update the appropriate log and an
 
 > "📝 Logging to [log-file]: [entry summary]"
 
-Rules: one entry per event, include function + file, never invent entries.
+**Rules:**
+- One entry per event; include function + file
+- Be specific (exact approach, not just "it worked")
+- Never invent entries
+- Also update `references/rwapor.md` in the `project-memory` skill when relevant
 
 ---
 
@@ -192,3 +178,43 @@ Rules: one entry per event, include function + file, never invent entries.
 If a change contradicts a confirmed log entry, flag it before proceeding:
 
 > "⚠️ Conflict with [log file, entry N]: [description]. Confirm before I continue."
+
+---
+
+## Reference Files — When to Load Each
+
+| File | Load when... |
+|---|---|
+| `references/architecture.md` | Any code question — always load this first |
+| `references/bug-log.md` | Fixing errors, regressions, or unexpected outputs |
+| `references/feature-log.md` | Adding functionality or checking request status |
+| `references/ui-decisions.md` | Any Shiny UI/UX change (layout, tabs, widgets) |
+| `references/prompt-history.md` | New session or when context seems incomplete |
+
+---
+
+## Related Skills
+
+These companion skills provide deeper context for specific domains:
+
+| Skill | When to use it alongside this skill |
+|---|---|
+| `wapor-api-reference` | Working on `api_client.R`, `metadata.R`, variable codes, L3 regions |
+| `shiny-developer` | Working on any `inst/shiny/mod_*.R` UI or reactive logic |
+| `r-package-expert` | NAMESPACE errors, devtools failures, roxygen issues, R CMD check |
+| `project-memory` | Recalling what worked/failed in past sessions |
+
+---
+
+## Quick Troubleshooting Guide
+
+| Symptom | First Check |
+|---|---|
+| API returns empty/wrong data | Verify variable code, L3 region, date range — see `wapor-api-reference` skill |
+| Raster download fails | Check GDAL config in `R/gdal_config.R` |
+| CRS/projection error | Run `wapor_fix_proj()` on Windows |
+| Analysis module crash | Check crop mask harmonization in `R/analysis.R` |
+| Dashboard UI not updating | Check reactive dependencies in `mod_analysis.R` — see `shiny-developer` skill |
+| Unit conversion wrong | Verify temporal resolution metadata in `unit_convertor.R` |
+| Memory error on large area | Enable incremental mode in `analysis_indicators.R` |
+| "could not find function" | Check `@export` tag + run `devtools::document()` — see `r-package-expert` skill |

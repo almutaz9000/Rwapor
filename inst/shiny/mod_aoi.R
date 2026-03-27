@@ -244,7 +244,7 @@ mod_aoi_server <- function(id,
     }
 
     shiny::observeEvent(input$browse_vector, {
-      file_info <- shinyFiles::parseFilePaths(roots(), input$browse_vector)
+      file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
       if (nrow(file_info) > 0) {
         path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
         handle_vector_file(path)

@@ -1,6 +1,14 @@
 ---
 name: shiny-developer
-description: Shiny module development for Rwapor dashboard
+description: >
+  Shiny module development and UI/UX work for the Rwapor dashboard. Trigger when
+  the user mentions a specific Shiny issue: reactive not updating, UI not rendering,
+  leaflet map problems, input validation (shinyvalidate), folder/file picker
+  (shinyFiles), progress bars, module communication (shared reactives), tab layout,
+  bslib theming, "the dashboard tab", "the analysis tab UI", "the download UI",
+  "the AOI module", sidebar layout, output not displaying, observeEvent not firing,
+  or any bug/feature scoped to inst/shiny/ files. Always load alongside rwapor-developer
+  for full project context.
 ---
 
 # Shiny Developer - Rwapor Context

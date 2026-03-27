@@ -1,5 +1,9 @@
 # CLAUDE.md - Rwapor Project Agent Instructions
 
+## Project Overview
+
+This is an R package (Rwapor). Use devtools workflows: `devtools::test()`, `devtools::check()`, `devtools::document()`. Raster operations use terra/raster packages — be careful with lazy evaluation and temp file handling.
+
 ## Quick Reference
 
 **Package**: Rwapor v0.1.0
@@ -23,6 +27,8 @@
 
 ## Operational Rules
 
+
+
 ### Before Any Task
 1. State which specific file(s) are affected
 2. Do NOT analyze the whole package for localized fixes
@@ -41,6 +47,13 @@
 - Use `shinyvalidate` for input validation
 - Long tasks: use `future` patterns to avoid UI blocking
 
+### Testing section 
+
+After making changes to any function, always run the full test suite with `devtools::test()` or `R CMD check` before considering the task complete.
+
+### Refactoring section
+
+When renaming or refactoring functions, grep the entire package (R/, tests/, man/, vignettes/, NAMESPACE) for all references before committing changes.
 ---
 
 ## WaPOR API Quick Reference
@@ -118,3 +131,8 @@ Rscript -e "Rwapor::run_wapor()"
 | Session | Files Modified | Summary |
 |---------|----------------|---------|
 | -- | -- | Initial manifest created |
+
+
+
+
+

@@ -1,6 +1,13 @@
 ---
 name: r-package-expert
-description: R package maintenance for Rwapor
+description: >
+  R package infrastructure and maintenance for the Rwapor package. Trigger when
+  the user mentions NAMESPACE errors, devtools failures, roxygen2 documentation,
+  DESCRIPTION file, package versioning, R CMD check warnings/notes/errors,
+  missing @export tags, "could not find function" errors for package functions,
+  testthat failures, package build errors, or any task involving devtools::check(),
+  devtools::document(), devtools::test(), devtools::build(), or devtools::install().
+  Use alongside rwapor-developer for domain-specific context.
 ---
 
 # R Package Expert - Rwapor Context

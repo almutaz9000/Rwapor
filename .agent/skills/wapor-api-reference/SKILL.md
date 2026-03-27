@@ -1,6 +1,14 @@
 ---
 name: wapor-api-reference
-description: FAO GIS Manager API reference for Rwapor
+description: >
+  FAO GIS Manager API reference for the Rwapor package. Trigger when the user
+  asks about WaPOR API endpoints, variable codes (e.g. L1-AETI-D, AGERA5-ET0-E),
+  L3 region codes (AWA, BKA, ETH, etc.), API filter syntax, pagination, download
+  URLs, /vsicurl/ streaming, memoised URL generation, API response structure,
+  collect_responses(), wapor_generate_urls(), get_variable_metadata(), or when
+  diagnosing "empty API results", "wrong variable code", "API timeout", or any
+  issue in R/api_client.R or R/metadata.R. Use alongside rwapor-developer for
+  broader project context.
 ---
 
 # WaPOR API Reference - Rwapor Context

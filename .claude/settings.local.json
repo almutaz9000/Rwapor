@@ -64,7 +64,14 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \":*)",
       "Bash(PROJ_LIB=\"C:/Users/almut/R/win-library/4.5/terra/proj\" GDAL_DATA=\"C:/Users/almut/R/win-library/4.5/terra/gdal\" \"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"parsed <- tryCatch\\(parse\\(''inst/shiny/mod_timeseries.R''\\), error=function\\(e\\) e\\); if\\(inherits\\(parsed,''error''\\)\\) cat\\(''PARSE ERROR:'',parsed$message,''\\\\n''\\) else cat\\(''Parse OK -'',length\\(parsed\\),''expressions\\\\n''\\)\")",
       "Bash(PROJ_LIB=\"C:/Users/almut/R/win-library/4.5/terra/proj\" GDAL_DATA=\"C:/Users/almut/R/win-library/4.5/terra/gdal\" \"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \":*)",
-      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''''____none____''''\\)\")"
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''''____none____''''\\)\")",
+      "Bash(jq -e '.hooks.PostToolUseFailure[] | select\\(.matcher == \"\"Bash\"\"\\) | .hooks[] | select\\(.type == \"\"command\"\"\\) | .command' \"c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/settings.json\")",
+      "Bash(jq -e '.hooks.Stop[].hooks[] | select\\(.type == \"\"command\"\"\\) | .command' \"c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/settings.json\")",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"cat\\(jsonlite::toJSON\\(jsonlite::fromJSON\\(''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/settings.json''\\), auto_unbox=TRUE, pretty=TRUE\\)\\)\")",
+      "Bash('/c/Program Files/R/R-4.4.2/bin/Rscript.exe' --version)",
+      "Bash('/c/Program Files/R/R-4.5.3/bin/Rscript.exe' --version)",
+      "Bash(powershell.exe -Command 'Get-Command Rscript')",
+      "Bash(powershell.exe -Command \":*)"
     ]
   }
 }
