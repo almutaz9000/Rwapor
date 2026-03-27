@@ -6,180 +6,200 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
   bslib::layout_sidebar(
     sidebar = bslib::sidebar(
-      width = 360,
-      open = TRUE,
+      width = 350,
+      open  = TRUE,
       title = "Crop Season Analysis",
       shiny::div(
         class = "sidebar-scroll-area",
         bslib::accordion(
-          id = ns("analysis_config_accordion"),
-          open = c("Season Definition", "Data Inputs"),
+          id   = ns("analysis_config_accordion"),
+          open = c("Season Definition", "Variables"),
+
+          # ── 1. Season Definition ─────────────────────────────────
           bslib::accordion_panel(
-            "Season Definition",
-            icon = shiny::icon("calendar"),
+            "Season Definition", icon = shiny::icon("calendar"),
+
             shiny::textInput(
-              ns("an_season_label"),
-              "Season Label",
-              value = "Winter 2023",
-              placeholder = "e.g. Winter 2023"
+              ns("an_season_label"), "Season Label",
+              value = "Winter 2023", placeholder = "e.g. Winter 2023"
             ),
-            shiny::fluidRow(
-              shiny::column(
-                5,
+
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                style = "width: 90px;",
                 shiny::numericInput(
-                  ns("an_ref_year"),
-                  "Ref. Year",
-                  value = 2023,
-                  min = 2009,
-                  max = 2030,
-                  step = 1
+                  ns("an_ref_year"), "Reference Year",
+                  value = 2023, min = 2009, max = 2030, step = 1
                 )
               ),
-              shiny::column(
-                7,
+              shiny::div(
+                class = "flex-1",
                 shiny::dateRangeInput(
-                  ns("an_period"),
-                  "Analysis Period",
-                  start = "2023-01-01",
-                  end = "2023-12-31",
+                  ns("an_period"), "Analysis Period",
+                  start = "2023-01-01", end = "2023-12-31",
                   format = "yyyy-mm-dd"
                 )
               )
             )
           ),
+
+          # ── 2. Data Source ───────────────────────────────────────
           bslib::accordion_panel(
-            "Data Source",
-            icon = shiny::icon("database"),
+            "Data Source", icon = shiny::icon("database"),
+
             shiny::radioButtons(
-              ns("an_data_source"),
-              "Get WaPOR data from:",
+              ns("an_data_source"), NULL,
               choices = c(
-                "Stream from API (requires internet)" = "api",
-                "Use local downloaded files (offline)" = "local"
+                "Stream from API (online)"      = "api",
+                "Use local downloaded files"    = "local"
               ),
               selected = "api"
             ),
-            shiny::helpText(
-              class = "text-muted small",
-              "Streaming uses GDAL vsicurl to read only the required pixels from Cloud-Optimized GeoTIFFs on the WaPOR server."
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'api'", ns("an_data_source")),
+              shiny::helpText(
+                "Reads Cloud-Optimized GeoTIFFs directly from the WaPOR server via GDAL vsicurl. Internet required."
+              )
             ),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'local'", ns("an_data_source")),
               shiny::tags$div(
-                class = "alert alert-info p-2 mb-2",
-                shiny::icon("info-circle"),
-                " Using local files from the Download folder. Make sure you've downloaded the required variables first."
+                class = "alert alert-info p-2 mb-2 small",
+                shiny::icon("circle-info"),
+                " Uses files from the Download folder. Download the required variables first."
               ),
               shiny::actionButton(
-                ns("an_scan_local"),
-                "Scan Local Folder",
-                icon = shiny::icon("magnifying-glass"),
+                ns("an_scan_local"), "Scan Local Folder",
+                icon  = shiny::icon("magnifying-glass"),
                 class = "btn-sm btn-outline-primary w-100 mb-2"
               ),
               shiny::verbatimTextOutput(ns("an_local_vars_info"))
             )
           ),
+
+          # ── 3. Variables ─────────────────────────────────────────
           bslib::accordion_panel(
-            "Data Inputs",
-            icon = shiny::icon("upload"),
-            shiny::checkboxInput(ns("an_use_crop_mask"), "Use a crop mask raster?", value = FALSE),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s']", ns("an_use_crop_mask")),
-              shiny::fileInput(ns("an_crop_mask"), "Crop Mask", accept = c(".tif", ".tiff")),
-              shiny::helpText(
-                class = "text-muted small",
-                "Upload a GeoTIFF with integer class values (1, 2, 3, etc.)"
-              )
-            ),
-            shiny::checkboxInput(ns("an_use_season_rasters"), "Use pixel-wise season start/end rasters?", value = FALSE),
-            shiny::conditionalPanel(
-              condition = sprintf("input['%s']", ns("an_use_season_rasters")),
-              shiny::fluidRow(
-                shiny::column(
-                  6,
-                  shiny::fileInput(ns("an_season_start"), "Season Start (DOY)", accept = c(".tif", ".tiff"))
-                ),
-                shiny::column(
-                  6,
-                  shiny::fileInput(ns("an_season_end"), "Season End (DOY)", accept = c(".tif", ".tiff"))
-                )
-              ),
-              shiny::helpText(
-                class = "text-muted small",
-                "GeoTIFFs with Julian Day of Year values (1-366). For cross-year seasons, end DOY can exceed 366."
-              )
-            ),
-          shiny::hr(),
-            shiny::fluidRow(
-              shiny::column(
-                6,
+            "Variables", icon = shiny::icon("layer-group"),
+
+            shiny::tags$span("Primary variables", class = "ctrl-group-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
                 shiny::selectInput(
-                  ns("an_aeti_var"),
-                  "AETI",
-                  choices = grep("AETI-D", all_vars, value = TRUE),
+                  ns("an_aeti_var"), "AETI (Actual ET)",
+                  choices  = grep("AETI-D", all_vars, value = TRUE),
                   selected = if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else NULL
                 )
               ),
-              shiny::column(
-                6,
+              shiny::div(
+                class = "flex-1",
                 shiny::selectInput(
-                  ns("an_ret_var"),
-                  "RET",
-                  choices = grep("RET|ET0", all_vars, value = TRUE),
+                  ns("an_ret_var"), "RET (Reference ET)",
+                  choices  = grep("RET|ET0", all_vars, value = TRUE),
                   selected = if ("L1-RET-D" %in% all_vars) "L1-RET-D" else NULL
                 )
               )
             ),
-            shiny::fluidRow(
-              shiny::column(
-                6,
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
                 shiny::selectInput(
-                  ns("an_precip_var"),
-                  "Precip",
-                  choices = grep("PCP|PF", all_vars, value = TRUE),
+                  ns("an_precip_var"), "Precipitation",
+                  choices  = grep("PCP|PF", all_vars, value = TRUE),
                   selected = if ("L1-PCP-D" %in% all_vars) "L1-PCP-D" else NULL
                 )
               ),
-              shiny::column(
-                6,
+              shiny::div(
+                class = "flex-1",
                 shiny::selectInput(
-                  ns("an_npp_var"),
-                  "NPP",
-                  choices = grep("NPP|TBP", all_vars, value = TRUE),
+                  ns("an_npp_var"), "Biomass (NPP)",
+                  choices  = grep("NPP|TBP", all_vars, value = TRUE),
                   selected = if ("L1-NPP-D" %in% all_vars) "L1-NPP-D" else NULL
                 )
               )
             ),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] && input['%s'].startsWith('L3-')", ns("an_aeti_var"), ns("an_aeti_var")),
+              condition = sprintf(
+                "input['%s'] && input['%s'].startsWith('L3-')",
+                ns("an_aeti_var"), ns("an_aeti_var")
+              ),
               shiny::selectInput(ns("an_l3_region"), "L3 Region", choices = l3_region_choices)
             )
           ),
+
+          # ── 4. Optional Inputs ───────────────────────────────────
           bslib::accordion_panel(
-            "Crop Classes",
-            icon = shiny::icon("seedling"),
-            shiny::helpText("Upload crop mask first, then assign profiles per class."),
+            "Optional Inputs", icon = shiny::icon("upload"),
+
+            shiny::tags$span("Crop Mask", class = "ctrl-group-label"),
+            shiny::checkboxInput(
+              ns("an_use_crop_mask"),
+              "Upload a crop mask raster",
+              value = FALSE
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s']", ns("an_use_crop_mask")),
+              shiny::fileInput(
+                ns("an_crop_mask"), NULL,
+                accept      = c(".tif", ".tiff"),
+                placeholder = "GeoTIFF with integer class values"
+              )
+            ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Pixel-wise Season Boundaries", class = "ctrl-group-label"),
+            shiny::checkboxInput(
+              ns("an_use_season_rasters"),
+              "Upload season start / end rasters",
+              value = FALSE
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s']", ns("an_use_season_rasters")),
+              shiny::div(
+                class = "inline-row",
+                shiny::div(
+                  class = "flex-1",
+                  shiny::fileInput(
+                    ns("an_season_start"), "Start (DOY)",
+                    accept = c(".tif", ".tiff")
+                  )
+                ),
+                shiny::div(
+                  class = "flex-1",
+                  shiny::fileInput(
+                    ns("an_season_end"), "End (DOY)",
+                    accept = c(".tif", ".tiff")
+                  )
+                )
+              ),
+              shiny::helpText(
+                "Julian Day-of-Year rasters (1-366). End DOY may exceed 366 for cross-year seasons."
+              )
+            )
+          ),
+
+          # ── 5. Crop Classes ──────────────────────────────────────
+          bslib::accordion_panel(
+            "Crop Classes", icon = shiny::icon("seedling"),
+            shiny::helpText("Upload a crop mask (Optional Inputs) first, then assign Kc profiles per class."),
             shiny::uiOutput(ns("an_crop_class_ui"))
           ),
+
+          # ── 6. Indicators ────────────────────────────────────────
           bslib::accordion_panel(
-            "Indicators",
-            icon = shiny::icon("chart-line"),
-            shiny::tags$p(
-              shiny::tags$strong("Seasonal Aggregation"),
-              style = "font-size:0.8rem; color:#2c3e50; margin-bottom:2px;"
-            ),
-            shiny::tags$small(
-              class = "text-muted d-block mb-1",
-              "Select which variables to aggregate over the season."
-            ),
+            "Indicators", icon = shiny::icon("chart-bar"),
+
+            shiny::tags$span("Seasonal Aggregations", class = "ctrl-group-label"),
             shiny::checkboxGroupInput(
-              ns("an_agg_vars"),
-              NULL,
-              choiceNames = list(
-                "AETI  (Actual ET)",
-                "RET   (Reference ET)",
-                "PCP   (Precipitation)",
-                "Peff  (Effective Precip, USDA)",
+              ns("an_agg_vars"), NULL,
+              choiceNames  = list(
+                "AETI \u2013 Actual Evapotranspiration",
+                "RET \u2013 Reference ET",
+                "PCP \u2013 Total Precipitation",
+                "Peff \u2013 Effective Precipitation (USDA)",
                 "Biomass (kg/ha)",
                 "Biomass (t/ha)"
               ),
@@ -189,107 +209,112 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               ),
               selected = c("agg_aeti", "agg_ret", "agg_biomass_t")
             ),
-            shiny::hr(style = "margin:4px 0;"),
-            shiny::tags$p(
-              shiny::tags$strong("Derived Indicators"),
-              style = "font-size:0.8rem; color:#2c3e50; margin-bottom:2px;"
-            ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Derived Indicators", class = "ctrl-group-label"),
             shiny::checkboxGroupInput(
-              ns("an_derived_vars"),
-              NULL,
-              choiceNames = list(
-                "ETc  (RET x Kc)",
-                "Adequacy - ETc",
-                "Adequacy - P95",
-                "CWP / BWP",
-                "Yield (NPP-based)"
+              ns("an_derived_vars"), NULL,
+              choiceNames  = list(
+                "ETc \u2013 Crop ET (RET \u00d7 Kc)",
+                "Water Adequacy \u2013 ETc basis",
+                "Water Adequacy \u2013 P95 basis",
+                "CWP / BWP \u2013 Water Productivity",
+                "Yield \u2013 NPP-based estimate"
               ),
-              choiceValues = list("etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp"),
+              choiceValues = list(
+                "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp"
+              ),
               selected = c("etc", "adequacy_etc", "yield_npp")
             ),
+
             shiny::conditionalPanel(
               condition = sprintf(
                 "input['%s'] && (input['%s'].indexOf('cwp_bwp') > -1 || input['%s'].indexOf('agg_biomass_kg') > -1 || input['%s'].indexOf('agg_biomass_t') > -1 || input['%s'].indexOf('yield_npp') > -1)",
-                ns("an_derived_vars"), ns("an_derived_vars"), ns("an_agg_vars"), ns("an_agg_vars"), ns("an_derived_vars")
+                ns("an_derived_vars"),
+                ns("an_derived_vars"), ns("an_agg_vars"), ns("an_agg_vars"), ns("an_derived_vars")
               ),
-              shiny::fluidRow(
-                shiny::column(
-                  6,
-                  shiny::fileInput(ns("an_yield_file"), "Optional Yield Raster", accept = c(".tif", ".tiff")),
-                  shiny::selectInput(ns("an_yield_unit"), "Yield Unit", choices = c("kg/ha", "t/ha"), selected = "t/ha")
+              shiny::tags$hr(class = "ctrl-divider"),
+              shiny::tags$span("Optional Reference Rasters", class = "ctrl-group-label"),
+              shiny::div(
+                class = "inline-row",
+                shiny::div(
+                  class = "flex-1",
+                  shiny::fileInput(
+                    ns("an_yield_file"), "Yield raster",
+                    accept = c(".tif", ".tiff")
+                  ),
+                  shiny::selectInput(
+                    ns("an_yield_unit"), "Yield unit",
+                    choices = c("kg/ha", "t/ha"), selected = "t/ha"
+                  )
                 ),
-                shiny::column(
-                  6,
-                  shiny::fileInput(ns("an_biomass_file"), "Optional Biomass Raster", accept = c(".tif", ".tiff")),
-                  shiny::selectInput(ns("an_biomass_unit"), "Biomass Unit", choices = c("kg/ha", "t/ha"), selected = "t/ha")
+                shiny::div(
+                  class = "flex-1",
+                  shiny::fileInput(
+                    ns("an_biomass_file"), "Biomass raster",
+                    accept = c(".tif", ".tiff")
+                  ),
+                  shiny::selectInput(
+                    ns("an_biomass_unit"), "Biomass unit",
+                    choices = c("kg/ha", "t/ha"), selected = "t/ha"
+                  )
                 )
               )
             )
           ),
+
+          # ── 7. Output Settings ───────────────────────────────────
           bslib::accordion_panel(
-            "Output Settings",
-            icon = shiny::icon("folder"),
-            shiny::fluidRow(
-              shiny::column(
-                8,
-                shiny::div(
-                  style = "display: flex; align-items: flex-end; gap: 5px;",
-                  shiny::div(
-                    style = "flex: 1;",
-                    shiny::textInput(
-                      ns("an_folder"),
-                      "Output Folder",
-                      value = file.path(getwd(), "analysis_output")
-                    )
-                  ),
-                  shiny::uiOutput(ns("an_favorite_btn_ui"))
+            "Output Settings", icon = shiny::icon("folder-open"),
+
+            shiny::tags$span("Output Folder", class = "ctrl-group-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::textInput(
+                  ns("an_folder"), NULL,
+                  value       = file.path(getwd(), "analysis_output"),
+                  placeholder = "Path to output folder"
                 )
               ),
-              shiny::column(
-                4,
-                shinyFiles::shinyDirButton(
-                  ns("an_browse_folder"),
-                  "Browse",
-                  "Select output directory",
-                  width = "100%",
-                  class = "mt-4"
-                )
+              shiny::uiOutput(ns("an_favorite_btn_ui")),
+              shinyFiles::shinyDirButton(
+                ns("an_browse_folder"), label = shiny::icon("folder-open"),
+                title = "Select output folder",
+                class = "btn-outline-secondary btn-sm",
+                style = "padding:0.37rem 0.6rem;"
               )
             ),
             shiny::uiOutput(ns("an_favorites_ui")),
-            shiny::checkboxInput(ns("an_save_rasters"), "Save Analysis Rasters to Folder", value = TRUE)
+            shiny::checkboxInput(
+              ns("an_save_rasters"),
+              "Save analysis rasters to folder",
+              value = TRUE
+            )
           )
         )
-        ),
+      ),
+
       shiny::div(
         class = "sidebar-sticky-footer",
-        shiny::fluidRow(
-          shiny::column(
-            4,
-            shiny::actionButton(
-              ns("an_validate_btn"),
-              "Validate",
-              class = "btn-sm btn-outline-primary w-100",
-              icon = shiny::icon("check-circle")
-            )
+        shiny::div(
+          style = "display:flex; gap:5px;",
+          shiny::actionButton(
+            ns("an_validate_btn"), "Validate",
+            class = "btn-sm btn-outline-primary flex-fill",
+            icon  = shiny::icon("check-circle")
           ),
-          shiny::column(
-            4,
-            shiny::actionButton(
-              ns("an_run_btn"),
-              "Run",
-              class = "btn-sm btn-primary w-100",
-              icon = shiny::icon("play")
-            )
+          shiny::actionButton(
+            ns("an_run_btn"), "Run Analysis",
+            class = "btn-sm btn-primary flex-fill",
+            icon  = shiny::icon("play")
           ),
-          shiny::column(
-            4,
-            shiny::actionButton(
-              ns("an_reset_btn"),
-              "Reset",
-              class = "btn-sm btn-outline-danger w-100",
-              icon = shiny::icon("rotate-left")
-            )
+          shiny::actionButton(
+            ns("an_reset_btn"), NULL,
+            class = "btn-sm btn-outline-danger",
+            icon  = shiny::icon("rotate-left"),
+            title = "Reset all inputs"
           )
         )
       )

@@ -6,95 +6,105 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 
   bslib::layout_sidebar(
     sidebar = bslib::sidebar(
-      width = 300,
-      open = TRUE,
+      width = 305,
+      open  = TRUE,
       title = "Download Configuration",
       shiny::div(
         class = "sidebar-scroll-area",
         bslib::accordion(
-          id = ns("download_accordion"),
-          open = c("Project & Variable", "Area of Interest"),
+          id     = ns("download_accordion"),
+          open   = c("Data Selection", "Area of Interest"),
+
+          # ── 1. Data Selection ────────────────────────────────────────
           bslib::accordion_panel(
-            "Project & Variable",
-            icon = shiny::icon("database"),
-            shiny::fluidRow(
-              shiny::column(
-                8,
-                shiny::div(
-                  style = "display: flex; align-items: flex-end; gap: 5px;",
-                  shiny::div(
-                    style = "flex: 1;",
-                    shiny::textInput(
-                      ns("folder"),
-                      "Project Folder",
-                      value = file.path(getwd(), "wapor_project")
-                    )
-                  ),
-                  shiny::uiOutput(ns("favorite_btn_ui"))
+            "Data Selection", icon = shiny::icon("database"),
+
+            shiny::tags$span("Project Folder", class = "ctrl-group-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::textInput(
+                  ns("folder"), NULL,
+                  value       = file.path(getwd(), "wapor_project"),
+                  placeholder = "Path to output folder"
                 )
               ),
-              shiny::column(
-                4,
-                shinyFiles::shinyDirButton(
-                  ns("browse_folder"),
-                  "Browse",
-                  "Select project directory",
-                  width = "100%",
-                  class = "mt-4"
-                )
+              shiny::uiOutput(ns("favorite_btn_ui")),
+              shinyFiles::shinyDirButton(
+                ns("browse_folder"), label = shiny::icon("folder-open"),
+                title = "Select project folder",
+                class = "btn-outline-secondary btn-sm",
+                style = "padding:0.37rem 0.6rem;"
               )
             ),
             shiny::uiOutput(ns("favorites_ui")),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Variables", class = "ctrl-group-label"),
             shiny::selectizeInput(
-              ns("dn_variables"),
-              "Variable(s)",
-              choices = all_vars,
+              ns("dn_variables"), NULL,
+              choices  = all_vars,
               selected = default_var,
               multiple = TRUE,
-              options = list(placeholder = "Select one or more variables")
+              options  = list(placeholder = "Select one or more WaPOR / AgERA5 variables")
             ),
             shiny::conditionalPanel(
               condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
               ns = ns,
-              shiny::selectInput(ns("l3_region"), "L3 Region (for L3 variables)", choices = l3_region_choices),
-              shiny::helpText("L3 variables require a specific region.")
+              shiny::selectInput(
+                ns("l3_region"), "L3 Region",
+                choices = l3_region_choices
+              ),
+              shiny::helpText("Required for L3-level variables.")
             ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Time Period", class = "ctrl-group-label"),
             shiny::dateRangeInput(
-              ns("period"),
-              "Period",
-              start = Sys.Date() - 30,
-              end = Sys.Date(),
+              ns("period"), NULL,
+              start  = Sys.Date() - 30,
+              end    = Sys.Date(),
               format = "yyyy-mm-dd"
             )
           ),
+
+          # ── 2. Output Settings ──────────────────────────────────────
           bslib::accordion_panel(
-            "Output Settings",
-            icon = shiny::icon("folder"),
-            shiny::checkboxInput(ns("seasonal"), "Seasonal Aggregation", FALSE),
-            shiny::checkboxInput(ns("separate_files"), "Save Individual Time-Step Files", TRUE),
+            "Output Settings", icon = shiny::icon("gear"),
+
+            shiny::tags$span("File options", class = "ctrl-group-label"),
+            shiny::div(
+              class = "check-row",
+              shiny::checkboxInput(ns("seasonal"),       "Seasonal aggregate",       FALSE),
+              shiny::checkboxInput(ns("separate_files"), "Save per-timestep files",  TRUE)
+            ),
             shiny::conditionalPanel(
               condition = "input.seasonal && input.separate_files",
               ns = ns,
-              shiny::helpText(
-                shiny::tags$em("Both selected: Individual files (dekadal/daily) AND a seasonal aggregate.")
-              )
+              shiny::helpText("Both checked: dekadal/daily files + one seasonal aggregate.")
             ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Unit Conversion", class = "ctrl-group-label"),
             shiny::selectInput(
-              ns("unit_conversion"),
-              "Unit Conversion",
-              choices = c("none", "day", "dekad", "month", "year"),
+              ns("unit_conversion"), NULL,
+              choices  = c("No conversion" = "none",
+                           "Per day"       = "day",
+                           "Per dekad"     = "dekad",
+                           "Per month"     = "month",
+                           "Per year"      = "year"),
               selected = "none"
             )
           ),
+
+          # ── 3. Area of Interest ─────────────────────────────────────
           bslib::accordion_panel(
-            "Area of Interest",
-            icon = shiny::icon("map"),
+            "Area of Interest", icon = shiny::icon("map"),
             shiny::conditionalPanel(
               condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
               ns = ns,
-              shiny::helpText(
-                shiny::tags$em("AOI clips data; leave empty to download the whole L3 region.")
-              )
+              shiny::helpText("AOI clips L3 data. Leave empty to get the full region.")
             ),
             mod_aoi_ui(ns("aoi"))
           )
@@ -103,10 +113,9 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
       shiny::div(
         class = "sidebar-sticky-footer",
         shiny::actionButton(
-          ns("download_btn"),
-          "Download Data",
+          ns("download_btn"), "Download Data",
           class = "btn-primary w-100",
-          icon = shiny::icon("cloud-download")
+          icon  = shiny::icon("cloud-download")
         )
       )
     ),

@@ -6,69 +6,104 @@ mod_visualisation_ui <- function(id) {
   
   bslib::layout_sidebar(
     sidebar = bslib::sidebar(
-      width = 260,
+      width = 285,
       open  = TRUE,
       title = "Raster Visualization",
-      
+
       shiny::div(
         class = "sidebar-scroll-area",
         bslib::accordion(
-          id = ns("analysis_accordion"),
+          id   = ns("analysis_accordion"),
           open = c("Raster Selection", "Color Palette"),
-          
-          # ── Raster Selection ──
+
+          # ── 1. Raster Selection ──────────────────────────────────
           bslib::accordion_panel(
-            "Raster Selection",
-            icon = shiny::icon("file-image"),
-            shiny::actionButton(ns("scan_rasters"), "Scan Folder",
-              icon  = shiny::icon("magnifying-glass"),
-              class = "btn-outline-primary w-100 mb-2 btn-sm"),
-            shiny::selectInput(ns("raster_file"), "Select Raster", choices = NULL),
-            shiny::selectInput(ns("raster_band"), "Band / Layer",  choices = NULL)
+            "Raster Selection", icon = shiny::icon("file-image"),
+
+            shiny::div(
+              class = "inline-row mb-1",
+              shiny::div(
+                class = "flex-1",
+                shiny::selectInput(ns("raster_file"), "Raster File", choices = NULL)
+              ),
+              shiny::actionButton(
+                ns("scan_rasters"), NULL,
+                icon  = shiny::icon("rotate"),
+                title = "Rescan folder for raster files",
+                class = "btn-outline-secondary btn-sm mt-4",
+                style = "padding:0.37rem 0.6rem;"
+              )
+            ),
+            shiny::selectInput(ns("raster_band"), "Band / Layer", choices = NULL)
           ),
-          
-          # ── Color Palette ──
+
+          # ── 2. Color Palette ─────────────────────────────────────
           bslib::accordion_panel(
-            "Color Palette",
-            icon = shiny::icon("palette"),
-            shiny::selectInput(ns("palette_name"), "Palette",
-              choices = as.list(c(
-                "viridis", "magma", "plasma", "inferno", "cividis",
-                "RdYlGn", "RdYlBu", "Spectral", "BrBG")),
-              selected = "viridis"),
-            shiny::sliderInput(ns("n_colors"), "Classes",
-              min = 3, max = 15, value = 7, step = 1),
-            shiny::sliderInput(ns("raster_opacity"), "Opacity",
-              min = 0, max = 1, value = 0.8, step = 0.05),
-            shiny::checkboxInput(ns("reverse_palette"), "Reverse Palette", FALSE),
-            shiny::radioButtons(ns("color_method"), "Method",
-              choices  = as.list(c("Continuous" = "numeric", "Binned" = "bin")),
+            "Color Palette", icon = shiny::icon("palette"),
+
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::selectInput(ns("palette_name"), "Palette",
+                  choices  = c("viridis", "magma", "plasma", "inferno", "cividis",
+                               "RdYlGn", "RdYlBu", "Spectral", "BrBG"),
+                  selected = "viridis")
+              ),
+              shiny::div(
+                style = "width:70px;",
+                shiny::numericInput(ns("n_colors"), "Classes",
+                  value = 7, min = 3, max = 15, step = 1)
+              )
+            ),
+
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::sliderInput(ns("raster_opacity"), "Opacity",
+                  min = 0, max = 1, value = 0.8, step = 0.05, ticks = FALSE)
+              ),
+              shiny::div(
+                style = "padding-top:1.8rem;",
+                shiny::checkboxInput(ns("reverse_palette"), "Reverse", FALSE)
+              )
+            ),
+
+            shiny::tags$span("Colour method", class = "ctrl-group-label"),
+            shiny::radioButtons(ns("color_method"), NULL,
+              choices  = c("Continuous" = "numeric", "Binned" = "bin"),
               selected = "numeric", inline = TRUE)
           ),
-          
-          # ── Overlay Options ──
+
+          # ── 3. Map & Layers ──────────────────────────────────────
           bslib::accordion_panel(
-            "Overlay Options",
-            icon = shiny::icon("layer-group"),
-            shiny::checkboxInput(ns("overlay_aoi"), "Show AOI Boundary", TRUE),
+            "Map & Layers", icon = shiny::icon("layer-group"),
+
             shiny::selectInput(ns("basemap_analysis"), "Basemap",
               choices = c(
-                "Esri Imagery" = "Esri.WorldImagery",
-                "OpenStreetMap" = "OpenStreetMap",
-                "Carto Positron" = "CartoDB.Positron",
-                "Carto Dark" = "CartoDB.DarkMatter"
+                "Esri Satellite"  = "Esri.WorldImagery",
+                "OpenStreetMap"   = "OpenStreetMap",
+                "Carto Light"     = "CartoDB.Positron",
+                "Carto Dark"      = "CartoDB.DarkMatter"
               ),
               selected = "Esri.WorldImagery"),
-            shiny::hr(style = "margin:4px 0;"),
-            shiny::tags$p(shiny::tags$strong("Analysis Layers"), style = "font-size:0.8rem; margin-bottom:2px;"),
-            shiny::checkboxInput(ns("show_crop_mask"),    "Crop Mask",  FALSE),
-            shiny::checkboxInput(ns("show_season_start"), "Season Start", FALSE),
-            shiny::checkboxInput(ns("show_season_end"),   "Season End",   FALSE),
+
+            shiny::checkboxInput(ns("overlay_aoi"), "Show AOI boundary", TRUE),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::tags$span("Analysis Layer Overlays", class = "ctrl-group-label"),
+            shiny::div(
+              class = "check-row",
+              shiny::checkboxInput(ns("show_crop_mask"),    "Crop Mask",    FALSE),
+              shiny::checkboxInput(ns("show_season_start"), "Season Start", FALSE),
+              shiny::checkboxInput(ns("show_season_end"),   "Season End",   FALSE)
+            ),
             shiny::conditionalPanel(
-              condition = sprintf("input['%s'] || input['%s'] || input['%s']", 
+              condition = sprintf("input['%s'] || input['%s'] || input['%s']",
                                   ns("show_crop_mask"), ns("show_season_start"), ns("show_season_end")),
               shiny::sliderInput(ns("an_layer_opacity"), "Layer Opacity",
-                min = 0, max = 1, value = 0.75, step = 0.05)
+                min = 0, max = 1, value = 0.75, step = 0.05, ticks = FALSE)
             )
           )
         )
