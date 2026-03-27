@@ -1,0 +1,191 @@
+[
+  {
+    "code": "L3-AETI-A",
+    "long_name": "Actual EvapoTranspiration and Interception",
+    "units": "mm/year",
+    "scale": 0.1,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-AETI-D",
+    "long_name": "Actual EvapoTranspiration and Interception",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-AETI-E",
+    "long_name": "Actual EvapoTranspiration and Interception",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-AETI-M",
+    "long_name": "Actual EvapoTranspiration and Interception",
+    "units": "mm/month",
+    "scale": 0.1,
+    "temporal_resolution": "M",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-E-A",
+    "long_name": "Evaporation",
+    "units": "mm/year",
+    "scale": 0.1,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-E-D",
+    "long_name": "Evaporation",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-E-E",
+    "long_name": "Evaporation",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-GBWP-A",
+    "long_name": "Gross Biomass Water Productivity",
+    "units": "kg/m³",
+    "scale": 0.001,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-I-A",
+    "long_name": "Interception",
+    "units": "mm/year",
+    "scale": 0.1,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-I-D",
+    "long_name": "Interception",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-I-E",
+    "long_name": "Interception",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-NBWP-A",
+    "long_name": "Net Biomass Water Productivity",
+    "units": "kg/m³",
+    "scale": 0.001,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-NPP-D",
+    "long_name": "Net Primary Production",
+    "units": "gC/m²/day",
+    "scale": 0.001,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-NPP-E",
+    "long_name": "Net Primary Production",
+    "units": "gC/m²/day",
+    "scale": 0.001,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-NPP-M",
+    "long_name": "Net Primary Production",
+    "units": "gC/m²/month",
+    "scale": 0.001,
+    "temporal_resolution": "M",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-RSM-D",
+    "long_name": "Relative Soil Moisture",
+    "units": "%",
+    "scale": 0.001,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-RSM-E",
+    "long_name": "Relative Soil Moisture",
+    "units": "%",
+    "scale": 0.001,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-T-A",
+    "long_name": "Transpiration",
+    "units": "mm/year",
+    "scale": 0.1,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-T-D",
+    "long_name": "Transpiration",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "D",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-T-E",
+    "long_name": "Transpiration",
+    "units": "mm/day",
+    "scale": 0.1,
+    "temporal_resolution": "E",
+    "spatial_extent": null,
+    "level": "L3"
+  },
+  {
+    "code": "L3-TBP-A",
+    "long_name": "Total Biomass Production",
+    "units": "kg/ha",
+    "scale": 1.0,
+    "temporal_resolution": "A",
+    "spatial_extent": null,
+    "level": "L3"
+  }
+]
