@@ -14,6 +14,10 @@
 ^\.vscode$
 ^\.devcontainer$
 ^\.claude$
+^\.agent$
+^\.agents$
+^CLAUDE\.md$
+^rwapor-skills-backup\.zip$
 ^tests/manual$
 ^scripts$
 ^fao_crop_coefficients\.csv$

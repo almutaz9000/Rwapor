@@ -447,11 +447,7 @@ test_that("wapor_map seasonal separate_files isolates seasonal components", {
     overlap_days = c(6L, 28L),
     stringsAsFactors = FALSE
   )
-  mock_env <- if (requireNamespace("Rwapor", quietly = TRUE)) asNamespace("Rwapor") else globalenv()
-
-  original_download_seasonal_rasters <- get("download_seasonal_rasters", envir = mock_env)
-  withr::defer(assign("download_seasonal_rasters", original_download_seasonal_rasters, envir = mock_env))
-  assign("download_seasonal_rasters", function(...) {
+  mock_download <- function(...) {
     list(
       groups = list(
         D_group = list(
@@ -472,7 +468,12 @@ test_that("wapor_map seasonal separate_files isolates seasonal components", {
       plan = mock_plan,
       aggregation_rule = "weighted_sum"
     )
-  }, envir = mock_env)
+  }
+
+  local_mocked_bindings(
+    download_seasonal_rasters = mock_download,
+    .package = "Rwapor"
+  )
 
   result <- wapor_map(
     region = c(35, 33, 36, 34),

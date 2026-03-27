@@ -4,16 +4,16 @@
 \alias{wapor_calc_yield_npp}
 \title{Calculate Crop Yield from NPP}
 \usage{
-wapor_calc_yield_npp(npp_gc_m2, MC, fc, aot, HI)
+wapor_calc_yield_npp(npp_gc_m2, mc, fc, aot, hi)
 }
 \arguments{
 \item{npp_gc_m2}{Numeric. Seasonal sum of NPP in gC/m2.}
 
+\item{mc}{Numeric. Moisture content (0-1).}
+
 \item{fc}{Numeric. Light use efficiency correction factor.}
 
 \item{aot}{Numeric. Above ground over total biomass production ratio.}
-
-\item{mc}{Numeric. Moisture content (0-1).}
 
 \item{hi}{Numeric. Harvest index.}
 }

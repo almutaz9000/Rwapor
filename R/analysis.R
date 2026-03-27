@@ -432,6 +432,14 @@ build_dekad_table <- function(start_date, end_date) {
 wapor_build_season_weights <- function(start_date, end_date,
                                               start_raster, end_raster,
                                               reference_year) {
+  # Handle cross-year seasons (e.g. Nov-to-May): if end DOY < start DOY,
+  # the raster stores raw day-of-year values that wrap around the year
+  # boundary. Add the reference year's length to bring end into continuous
+  # Julian day space before computing overlaps.
+  ref_days <- ifelse(lubridate::leap_year(as.integer(reference_year)), 366L, 365L)
+  end_raster <- terra::ifel(end_raster < start_raster,
+                             end_raster + ref_days, end_raster)
+
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
   # Analytical overlap calculation:
@@ -473,12 +481,23 @@ wapor_build_season_weights <- function(start_date, end_date,
 #' Compute Total Season Days Raster
 #'
 #' For each pixel, computes total_days = end_jd - start_jd + 1.
+#' When `reference_year` is supplied, cross-year seasons are handled
+#' automatically: pixels where `end_raster < start_raster` (e.g. a
+#' Nov-to-May season stored as raw day-of-year values) have the
+#' reference-year length added to `end_raster` before the subtraction.
 #'
 #' @param start_raster SpatRaster. Pixel-wise season start Julian days.
 #' @param end_raster SpatRaster. Pixel-wise season end Julian days.
+#' @param reference_year Integer or NULL. When supplied, corrects
+#'   cross-year seasons where `end_raster` DOY < `start_raster` DOY.
 #' @return A SpatRaster of total season days per pixel.
 #' @export
-wapor_season_days <- function(start_raster, end_raster) {
+wapor_season_days <- function(start_raster, end_raster, reference_year = NULL) {
+  if (!is.null(reference_year)) {
+    ref_days <- ifelse(lubridate::leap_year(as.integer(reference_year)), 366L, 365L)
+    end_raster <- terra::ifel(end_raster < start_raster,
+                               end_raster + ref_days, end_raster)
+  }
   end_raster - start_raster + 1L
 }
 

@@ -13,7 +13,8 @@ dir.create(project_folder, showWarnings = FALSE)
 # Use the existing crop_mask.tif from the project
 mask_file <- "tests/rasters_inputs_samples/crop_mask.tif"
 if (!file.exists(mask_file)) {
-  stop("Crop mask file not found at tests/rasters_inputs_samples/crop_mask.tif")
+  message("Skipping test_implementation_fixes.R: crop_mask.tif not found (expected when run via R CMD check)")
+  quit(save = "no", status = 0)
 }
 
 # Create a vector from its extent

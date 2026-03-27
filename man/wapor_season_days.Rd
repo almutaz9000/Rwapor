@@ -4,16 +4,23 @@
 \alias{wapor_season_days}
 \title{Compute Total Season Days Raster}
 \usage{
-wapor_season_days(start_raster, end_raster)
+wapor_season_days(start_raster, end_raster, reference_year = NULL)
 }
 \arguments{
 \item{start_raster}{SpatRaster. Pixel-wise season start Julian days.}
 
 \item{end_raster}{SpatRaster. Pixel-wise season end Julian days.}
+
+\item{reference_year}{Integer or NULL. When supplied, corrects
+cross-year seasons where \code{end_raster} DOY < \code{start_raster} DOY.}
 }
 \value{
 A SpatRaster of total season days per pixel.
 }
 \description{
 For each pixel, computes total_days = end_jd - start_jd + 1.
+When \code{reference_year} is supplied, cross-year seasons are handled
+automatically: pixels where \code{end_raster < start_raster} (e.g. a
+Nov-to-May season stored as raw day-of-year values) have the
+reference-year length added to \code{end_raster} before the subtraction.
 }
