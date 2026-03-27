@@ -17,11 +17,7 @@
 ^\.agent$
 ^\.agents$
 ^CLAUDE\.md$
-^rwapor-skills-backup\.zip$
 ^tests/manual$
 ^scripts$
 ^fao_crop_coefficients\.csv$
 ^fao_growth_stages\.csv$
-^test_attributes\.R$
-^test_metags\.R$
-^test_metadata$

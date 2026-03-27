@@ -58,7 +58,13 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"cat\\(system.file\\(''proj'', package=''terra''\\), ''\\\\n''\\); cat\\(system.file\\(''gdal'', package=''terra''\\), ''\\\\n''\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''plan_wapor_time''\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::check\\(\\)\")",
-      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::check\\(vignettes = FALSE\\)\")"
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::check\\(vignettes = FALSE\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::document\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''wapor_metadata_cache''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \":*)",
+      "Bash(PROJ_LIB=\"C:/Users/almut/R/win-library/4.5/terra/proj\" GDAL_DATA=\"C:/Users/almut/R/win-library/4.5/terra/gdal\" \"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"parsed <- tryCatch\\(parse\\(''inst/shiny/mod_timeseries.R''\\), error=function\\(e\\) e\\); if\\(inherits\\(parsed,''error''\\)\\) cat\\(''PARSE ERROR:'',parsed$message,''\\\\n''\\) else cat\\(''Parse OK -'',length\\(parsed\\),''expressions\\\\n''\\)\")",
+      "Bash(PROJ_LIB=\"C:/Users/almut/R/win-library/4.5/terra/proj\" GDAL_DATA=\"C:/Users/almut/R/win-library/4.5/terra/gdal\" \"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \":*)",
+      "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript\" -e \"devtools::test\\(filter=''''____none____''''\\)\")"
     ]
   }
 }
