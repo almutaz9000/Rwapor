@@ -214,7 +214,9 @@ mod_download_server <- function(id, l3_regions_meta) {
     iv <- shinyvalidate::InputValidator$new()
     iv$add_rule("folder", shinyvalidate::sv_required("Project Folder is required."))
     iv$add_rule("dn_variables", function(value) {
-      if (is.null(value) || length(value) == 0 || (length(value) == 1 && !nzchar(value))) {
+      # Filter out empty strings that may occur during selectizeInput transitions
+      valid_vars <- value[nzchar(value)]
+      if (is.null(value) || length(valid_vars) == 0) {
         return("Select at least one variable.")
       }
     })
@@ -344,6 +346,17 @@ mod_download_server <- function(id, l3_regions_meta) {
 
     shiny::observe({
       reg <- current_region()
+      
+      # Guard: skip code generation if no variables selected
+      if (is.null(input$dn_variables) || length(input$dn_variables) == 0) {
+        shinyAce::updateAceEditor(
+          session, 
+          "code_preview", 
+          value = "# Please select at least one variable to generate download code"
+        )
+        return()
+      }
+      
       if (is.null(reg)) {
         reg_str <- "NULL  # Please select an AOI on the map or upload a file"
       } else if (is_l3_code(reg)) {

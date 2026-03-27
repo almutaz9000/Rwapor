@@ -3,5 +3,32 @@
     "allow": [
       "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"setwd\\(''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor''\\); devtools::document\\(\\)\")"
     ]
+  },
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"[HOOK] Bash command failed. R/devtools error? Log it -> .agent/skills/rwapor-developer/references/bug-log.md (symptom, file, function, root cause, status).\"}'",
+            "timeout": 5,
+            "statusMessage": "Checking for loggable errors..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"[HOOK] Session end. (1) Code edited? -> log to prompt-history.md. (2) Approach confirmed/rejected? -> update rwapor.md in project-memory skill.\"}'",
+            "timeout": 5,
+            "statusMessage": "Checking memory logs..."
+          }
+        ]
+      }
+    ]
   }
 }
