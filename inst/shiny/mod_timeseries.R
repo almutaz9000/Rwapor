@@ -272,6 +272,21 @@ mod_timeseries_ui <- function(id) {
             shiny::div(
               class = "inline-row",
               shiny::div(class = "flex-1",
+                shiny::selectInput(
+                  ns("x_axis_col"), "X-axis date",
+                  choices  = c("Start date" = "start_date", "End date" = "end_date"),
+                  selected = "start_date"
+                )
+              ),
+              shiny::div(style = "width:110px; padding-top:1.6rem;",
+                shiny::checkboxInput(ns("show_legend"), "Show legend", TRUE)
+              )
+            ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(class = "flex-1",
                 shiny::textInput(ns("plot_title"), "Title",    placeholder = "(auto)")
               ),
               shiny::div(class = "flex-1",
@@ -386,8 +401,25 @@ mod_timeseries_ui <- function(id) {
               shiny::column(4,
                 shiny::checkboxInput(ns("reg_show_eq"),  "Equation + R\u00b2",  TRUE))
             ),
-            shiny::plotOutput(ns("plot_reg"), height = "460px") |>
-              shinycssloaders::withSpinner(type = 6, color = "#2c3e50"),
+            bslib::layout_column_wrap(
+              width = "1/2", gap = "0.75rem",
+              shiny::div(
+                shiny::tags$p(
+                  shiny::icon("chart-line"), shiny::tags$b(" Time Series"),
+                  class = "text-muted mb-1", style = "font-size:0.82rem;"
+                ),
+                shiny::plotOutput(ns("plot_ts_in_reg"), height = "420px") |>
+                  shinycssloaders::withSpinner(type = 6, color = "#2c3e50")
+              ),
+              shiny::div(
+                shiny::tags$p(
+                  shiny::icon("braille"), shiny::tags$b(" Seasonal Regression"),
+                  class = "text-muted mb-1", style = "font-size:0.82rem;"
+                ),
+                shiny::plotOutput(ns("plot_reg"), height = "420px") |>
+                  shinycssloaders::withSpinner(type = 6, color = "#2c3e50")
+              )
+            ),
             shiny::hr(style = "margin: 6px 0;"),
             shiny::verbatimTextOutput(ns("reg_lm_text")),
             shiny::div(
@@ -754,6 +786,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
             )
             df$variable   <- vars_ts[i]
             df$start_date <- as.Date(df$start_date)
+            if ("end_date" %in% names(df))
+              df$end_date <- as.Date(df$end_date)
             df
           }, error = function(e) {
             showNotification(
@@ -864,20 +898,26 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
     # ── 8. Time Series Plot ──────────────────────────────────────────────────
     .make_ts_plot <- function() {
       df <- rv$ts_data
-      req(df, nrow(df) > 0, "start_date" %in% names(df))
+      req(df, nrow(df) > 0)
+
+      # Resolve x-axis column: fall back to start_date if chosen col absent
+      x_col <- input$x_axis_col %||% "start_date"
+      if (!x_col %in% names(df)) x_col <- "start_date"
+      req(x_col %in% names(df))
 
       id_col <- .id_col(df)
       req(id_col %in% names(df))
 
-      geom_sel  <- input$ts_geom   %||% "both"
-      show_rib  <- isTRUE(input$show_ribbon)
-      show_mean <- isTRUE(input$show_mean)
-      facet_var <- isTRUE(input$facet_var)
-      base_size <- input$base_size %||% 13
-      gg_theme  <- input$gg_theme  %||% "minimal"
-      pal       <- input$color_pal %||% "Set2"
-      user_title <- trimws(input$plot_title %||% "")
-      user_ylab  <- trimws(input$plot_ylab  %||% "")
+      geom_sel    <- input$ts_geom      %||% "both"
+      show_rib    <- isTRUE(input$show_ribbon)
+      show_mean   <- isTRUE(input$show_mean)
+      facet_var   <- isTRUE(input$facet_var)
+      show_legend <- isTRUE(input$show_legend %||% TRUE)
+      base_size   <- input$base_size %||% 13
+      gg_theme    <- input$gg_theme  %||% "minimal"
+      pal         <- input$color_pal %||% "Set2"
+      user_title  <- trimws(input$plot_title %||% "")
+      user_ylab   <- trimws(input$plot_ylab  %||% "")
 
       df[[id_col]] <- as.character(df[[id_col]])
       ids    <- sort(unique(df[[id_col]]))
@@ -885,6 +925,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       colors <- stats::setNames(.ts_pal(n_ids, pal), ids)
 
       vars_used <- unique(df$variable)
+
+      x_label <- if (x_col == "end_date") "End Date" else NULL
 
       y_label <- if (nzchar(user_ylab)) user_ylab else {
         if (length(vars_used) == 1) {
@@ -898,7 +940,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
       p <- ggplot2::ggplot(
           df,
-          ggplot2::aes(x = start_date, y = mean,
+          ggplot2::aes(x = .data[[x_col]], y = mean,
                        colour = .data[[id_col]], group = .data[[id_col]])
         ) +
         ggplot2::scale_colour_manual(values = colors, name = id_col) +
@@ -909,19 +951,20 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         ) +
         ggplot2::labs(
           title   = title,
-          x       = NULL,
+          x       = x_label,
           y       = y_label,
           colour  = id_col,
           fill    = id_col,
           caption = sprintf(
             "Period: %s \u2013 %s  \u00b7  Rwapor",
-            format(min(df$start_date, na.rm = TRUE), "%d %b %Y"),
-            format(max(df$start_date, na.rm = TRUE), "%d %b %Y")
+            format(min(df[[x_col]], na.rm = TRUE), "%d %b %Y"),
+            format(max(df[[x_col]], na.rm = TRUE), "%d %b %Y")
           )
         ) +
         .ts_theme(gg_theme, base_size) +
         ggplot2::theme(
-          legend.position = if (n_ids <= 12) "right" else "bottom"
+          legend.position = if (!show_legend) "none"
+                            else if (n_ids <= 12) "right" else "bottom"
         )
 
       if (show_rib && all(c("min", "max") %in% names(df))) {
@@ -944,11 +987,11 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
       if (show_mean) {
         df_m <- df |>
-          dplyr::group_by(start_date, variable) |>
+          dplyr::group_by(.data[[x_col]], variable) |>
           dplyr::summarise(y_mean = mean(mean, na.rm = TRUE), .groups = "drop")
         p <- p + ggplot2::geom_line(
           data        = df_m,
-          ggplot2::aes(x = start_date, y = y_mean),
+          ggplot2::aes(x = .data[[x_col]], y = y_mean),
           colour      = "#2c3e50",
           linewidth   = 1.3,
           linetype    = "dashed",
@@ -971,7 +1014,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       p
     }
 
-    output$plot_ts <- renderPlot({ .make_ts_plot() }, res = 120)
+    output$plot_ts        <- renderPlot({ .make_ts_plot() }, res = 120)
+    output$plot_ts_in_reg <- renderPlot({ .make_ts_plot() }, res = 120)
 
     # ── 9. Seasonal Values Plot ──────────────────────────────────────────────
     .make_seasonal_plot <- function() {
