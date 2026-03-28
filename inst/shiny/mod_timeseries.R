@@ -472,8 +472,21 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       seasonal_data = NULL,   # data.frame: seasonal aggregates for X/Y vars
       avail_vars    = character(0),
       loaded_df     = NULL,   # data.frame loaded from a saved file
-      loaded_path   = NULL    # path of the loaded saved file
+      loaded_path   = NULL,   # path of the loaded saved file
+      extracting    = FALSE   # TRUE while an async extraction is running
     )
+
+    # ── Input validation ─────────────────────────────────────────────────────
+    iv <- shinyvalidate::InputValidator$new()
+    iv$add_rule("period", function(val) {
+      if (length(val) != 2 || any(is.na(val))) return("Select a valid date range.")
+      if (val[2] < val[1]) return("End date must be after start date.")
+    })
+    iv$add_rule("vars_ts", function(val) {
+      if (input$data_source != "saved" && (is.null(val) || length(val) == 0))
+        return("Select at least one variable.")
+    })
+    iv$enable()
 
     roots <- get_shinyfiles_roots()
 
@@ -772,69 +785,111 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
         showNotification("Set a project folder in the Download tab.", type = "warning"); return()
       }
 
-      withProgress(message = "Extracting time series \u2026", value = 0, {
+      # Disable run button to prevent double-submission
+      rv$extracting <- TRUE
+      shinyjs::disable("btn_run")
+      notif_id <- showNotification(
+        shiny::span(shiny::icon("circle-notch", class = "fa-spin"), " Extracting time series \u2026"),
+        duration = NULL, closeButton = FALSE, type = "message"
+      )
 
-        n_ts   <- length(vars_ts)
-        ts_list <- lapply(seq_along(vars_ts), function(i) {
-          setProgress(i / (n_ts + 2), detail = vars_ts[i])
-          tryCatch({
-            df <- Rwapor::wapor_ts(
-              region     = vec_sf,
-              variable   = vars_ts[i],
-              period     = period,
-              identifier = id_col
-            )
-            df$variable   <- vars_ts[i]
-            df$start_date <- as.Date(df$start_date)
-            if ("end_date" %in% names(df))
-              df$end_date <- as.Date(df$end_date)
-            df
-          }, error = function(e) {
-            showNotification(
-              sprintf("TS extraction failed for %s: %s", vars_ts[i], e$message),
-              type = "warning", duration = 8
-            )
-            NULL
-          })
-        })
-        rv$ts_data <- do.call(rbind, Filter(Negate(is.null), ts_list))
+      # Capture everything needed by the future (no reactive reads inside)
+      .vec_sf    <- vec_sf
+      .vars_ts   <- vars_ts
+      .seas_vars <- unique(c(x_var, y_var))
+      .period    <- period
+      .id_col    <- id_col
 
-        # Seasonal aggregates for regression X and Y
-        seas_vars <- unique(c(x_var, y_var))
-        seas_list <- lapply(seq_along(seas_vars), function(i) {
-          setProgress((n_ts + i) / (n_ts + 2), detail = paste("Seasonal:", seas_vars[i]))
-          tryCatch({
-            df <- Rwapor::wapor_ts(
-              region     = vec_sf,
-              variable   = seas_vars[i],
-              period     = period,
-              identifier = id_col,
-              seasonal   = TRUE
-            )
-            df$variable <- seas_vars[i]
-            df
-          }, error = function(e) {
-            showNotification(
-              sprintf("Seasonal extraction failed for %s: %s", seas_vars[i], e$message),
-              type = "warning", duration = 8
-            )
-            NULL
-          })
-        })
-        rv$seasonal_data <- do.call(rbind, Filter(Negate(is.null), seas_list))
+      promises::future_promise({
+        # ── Time series extraction (parallel across variables) ──────────────
+        # Group variables by resolution key to avoid cross-resolution stacking.
+        # Each group is extracted with wapor_ts() independently.
+        res_groups <- Rwapor::wapor_group_by_res(.vars_ts)
 
-        setProgress(1, detail = "Done")
+        ts_list <- future.apply::future_lapply(
+          .vars_ts,
+          function(v) {
+            tryCatch({
+              df <- Rwapor::wapor_ts(
+                region     = .vec_sf,
+                variable   = v,
+                period     = .period,
+                identifier = .id_col
+              )
+              df$variable   <- v
+              df$start_date <- as.Date(df$start_date)
+              if ("end_date" %in% names(df))
+                df$end_date <- as.Date(df$end_date)
+              df
+            }, error = function(e) {
+              list(.__error__ = sprintf("TS failed for %s: %s", v, e$message))
+            })
+          },
+          future.seed = TRUE
+        )
+
+        # ── Seasonal extraction ─────────────────────────────────────────────
+        seas_list <- future.apply::future_lapply(
+          .seas_vars,
+          function(v) {
+            tryCatch({
+              df <- Rwapor::wapor_ts(
+                region     = .vec_sf,
+                variable   = v,
+                period     = .period,
+                identifier = .id_col,
+                seasonal   = TRUE
+              )
+              df$variable <- v
+              df
+            }, error = function(e) {
+              list(.__error__ = sprintf("Seasonal failed for %s: %s", v, e$message))
+            })
+          },
+          future.seed = TRUE
+        )
+
+        list(ts = ts_list, seas = seas_list, res_groups = res_groups)
+
+      }) %...>% (function(result) {
+        removeNotification(notif_id)
+        shinyjs::enable("btn_run")
+        rv$extracting <- FALSE
+
+        # Surface any per-variable errors as warnings
+        for (item in result$ts) {
+          if (is.list(item) && !is.null(item$.__error__))
+            showNotification(item$.__error__, type = "warning", duration = 8)
+        }
+        for (item in result$seas) {
+          if (is.list(item) && !is.null(item$.__error__))
+            showNotification(item$.__error__, type = "warning", duration = 8)
+        }
+
+        ok_ts   <- Filter(function(x) is.data.frame(x), result$ts)
+        ok_seas <- Filter(function(x) is.data.frame(x), result$seas)
+        rv$ts_data       <- do.call(rbind, ok_ts)
+        rv$seasonal_data <- if (length(ok_seas) > 0) do.call(rbind, ok_seas) else NULL
+
+        if (!is.null(rv$ts_data) && nrow(rv$ts_data) > 0) {
+          id_c <- .id_col
+          showNotification(
+            sprintf("\u2714 %d obs \u00b7 %d variables \u00b7 %d geometries",
+                    nrow(rv$ts_data),
+                    length(unique(rv$ts_data$variable)),
+                    length(unique(rv$ts_data[[if (id_c %in% names(rv$ts_data)) id_c else "ID"]]))),
+            type = "message", duration = 5
+          )
+        }
+
+      }) %...!% (function(e) {
+        removeNotification(notif_id)
+        shinyjs::enable("btn_run")
+        rv$extracting <- FALSE
+        showNotification(paste("Extraction error:", e$message), type = "error", duration = 10)
       })
 
-      if (!is.null(rv$ts_data) && nrow(rv$ts_data) > 0) {
-        showNotification(
-          sprintf("\u2714 %d obs \u00b7 %d variables \u00b7 %d geometries",
-                  nrow(rv$ts_data),
-                  length(unique(rv$ts_data$variable)),
-                  .n_geoms(rv$ts_data, id_col)),
-          type = "message", duration = 5
-        )
-      }
+      NULL  # return immediately; result arrives via promise callback
     })
 
     # ── 7. Save to project folder ────────────────────────────────────────────

@@ -14,7 +14,15 @@ library(ggplot2)
 library(dplyr)
 library(DT)
 library(shinycssloaders)
+library(future)
+library(promises)
+library(future.apply)
 library(Rwapor)
+
+# ── Parallel plan ─────────────────────────────────────────────────────────────
+# Use 2 background workers for async extraction and analysis tasks.
+# Cap at 2 to avoid overwhelming the WaPOR API or local disk I/O.
+future::plan(future::multisession, workers = min(2L, future::availableCores() - 1L))
 
 # --- Source Utility Functions and Modules ---
 source("utils_shiny.R")
