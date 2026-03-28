@@ -584,14 +584,42 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       }
     })
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
-    an_start_rast <- shiny::reactiveVal(NULL)
-    an_end_rast <- shiny::reactiveVal(NULL)
-    an_crop_classes <- shiny::reactiveVal(NULL)
-    an_crop_params <- shiny::reactiveVal(NULL)
-    an_results <- shiny::reactiveVal(NULL)
-    an_peff_monthly <- shiny::reactiveVal(NULL)
-    an_local_vars <- shiny::reactiveVal(NULL)
+    an_start_rast     <- shiny::reactiveVal(NULL)
+    an_end_rast       <- shiny::reactiveVal(NULL)
+    an_crop_classes   <- shiny::reactiveVal(NULL)
+    an_crop_params    <- shiny::reactiveVal(NULL)
+    an_results        <- shiny::reactiveVal(NULL)
+    an_peff_monthly   <- shiny::reactiveVal(NULL)
+    an_local_vars     <- shiny::reactiveVal(NULL)
+
+    # ── Harmonized-raster cache ──────────────────────────────────────────────
+    # Stores list(key, h_mask, h_start, h_end, template_r) so that re-runs
+    # with the same period/variable/region skip expensive wapor_harmonize_*
+    # calls.  Invalidated when a source raster is re-uploaded.
+    .h_cache     <- shiny::reactiveVal(NULL)
+
+    # ── Analysis running flag ────────────────────────────────────────────────
+    .an_running  <- shiny::reactiveVal(FALSE)
+
     analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+
+    # ── Lazy raster guard ────────────────────────────────────────────────────
+    # Checks that a SpatRaster stored in a reactiveVal still has valid layers
+    # (temp-file pointers can go stale between upload and use).
+    .safe_rast <- function(rv, label = "raster") {
+      r <- rv()
+      if (is.null(r)) return(NULL)
+      ok <- tryCatch({ terra::nlyr(r) > 0 }, error = function(e) FALSE)
+      if (!ok) {
+        shiny::showNotification(
+          sprintf("%s reference expired — please re-upload the file.", label),
+          type = "warning", duration = 8
+        )
+        rv(NULL)
+        return(NULL)
+      }
+      r
+    }
 
     build_valid_class_mask <- function(mask_rast, class_values) {
       if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
@@ -691,6 +719,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       tryCatch({
         r <- terra::rast(f$datapath)
         an_crop_mask_rast(r)
+        .h_cache(NULL)  # invalidate harmonization cache
         
         # Auto-detect L3 region if an L3 variable is selected or potentially selected
         aeti_v <- input$an_aeti_var
@@ -718,6 +747,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       tryCatch({
         r <- terra::rast(f$datapath)
         an_start_rast(r)
+        .h_cache(NULL)  # invalidate harmonization cache
       }, error = function(e) shiny::showNotification(paste("Error loading season start:", e$message), type = "error"))
     })
 
@@ -727,6 +757,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       tryCatch({
         r <- terra::rast(f$datapath)
         an_end_rast(r)
+        .h_cache(NULL)  # invalidate harmonization cache
       }, error = function(e) shiny::showNotification(paste("Error loading season end:", e$message), type = "error"))
     })
 
@@ -1690,10 +1721,21 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       an_results(NULL)
       an_peff_monthly(NULL)
       an_local_vars(NULL)
-      shiny::showNotification("Analysis state reset.", type = "message")
+      .h_cache(NULL)
+
+      # Remove terra temp files accumulated during analysis to free disk space
+      tryCatch(terra::tmpFiles(remove = TRUE), error = function(e) NULL)
+
+      shiny::showNotification("Analysis state reset and temp files cleared.", type = "message")
     })
 
     shiny::observeEvent(input$an_run_btn, {
+      # Prevent double-submission
+      if (isTRUE(.an_running())) {
+        shiny::showNotification("Analysis is already running. Please wait.", type = "warning")
+        return()
+      }
+
       # 1. Immediate validation and input resolution
       if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) {
         shiny::showNotification("Please upload a crop mask raster or uncheck the 'Use a crop mask raster?' option.", type = "error")
@@ -1702,6 +1744,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       if (isTRUE(input$an_use_season_rasters) && (is.null(an_start_rast()) || is.null(an_end_rast()))) {
         shiny::showNotification("Please upload season start and end rasters or uncheck the 'Use pixel-wise season start/end rasters?' option.", type = "error")
         return()
+      }
+
+      # Validate raster references haven't gone stale
+      if (isTRUE(input$an_use_crop_mask))
+        if (is.null(.safe_rast(an_crop_mask_rast, "Crop mask"))) return()
+      if (isTRUE(input$an_use_season_rasters)) {
+        if (is.null(.safe_rast(an_start_rast, "Season start raster"))) return()
+        if (is.null(.safe_rast(an_end_rast,   "Season end raster")))   return()
       }
 
       indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
@@ -1853,6 +1903,19 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
       # 4. Run Analysis
       an_peff_monthly(NULL)
+      .an_running(TRUE)
+      shinyjs::disable("an_run_btn")
+
+      # Build a cache key from all parameters that affect harmonization
+      .cache_key <- paste(
+        paste(period, collapse = "_"),
+        aeti_var, ret_var, precip_var,
+        if (is.null(final_reg)) "no_reg" else paste(round(final_reg, 4), collapse = "_"),
+        isTRUE(input$an_use_crop_mask),
+        isTRUE(input$an_use_season_rasters),
+        sep = "|"
+      )
+
       shiny::withProgress(message = "Running analysis...", value = 0, {
         tryCatch({
           use_local <- isTRUE(input$an_data_source == "local")
@@ -1920,28 +1983,48 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
 
           shiny::incProgress(0.10, detail = "Harmonizing rasters...")
-          
-          # Handle optional crop mask
-          h_mask <- if (isTRUE(input$an_use_crop_mask)) {
-            Rwapor::wapor_harmonize_crop_mask(an_crop_mask_rast(), template_r)
-          } else {
-            # Constant 1 raster with template's geometry
-            terra::classify(template_r * 0 + 1, cbind(NA, NA))
-          }
 
-          # Handle optional season rasters
-          h_start <- if (isTRUE(input$an_use_season_rasters)) {
-            Rwapor::wapor_harmonize_raster(an_start_rast(), template_r, method = "near")
+          # ── Harmonization cache ─────────────────────────────────────────────
+          cached <- .h_cache()
+          if (!is.null(cached) && identical(cached$key, .cache_key) &&
+              !is.null(cached$template_r)) {
+            shiny::incProgress(0, detail = "Using cached harmonized rasters...")
+            h_mask     <- cached$h_mask
+            h_start    <- cached$h_start
+            h_end      <- cached$h_end
+            template_r <- cached$template_r
           } else {
-            # Use continuous Julian days (relative to ref_year) so cross-year
-            # seasons (e.g. Nov-to-May) produce positive total_days values.
-            template_r * 0 + Rwapor::wapor_continuous_julian(period[1], ref_year)
-          }
+            # Handle optional crop mask
+            h_mask <- if (isTRUE(input$an_use_crop_mask)) {
+              Rwapor::wapor_harmonize_crop_mask(an_crop_mask_rast(), template_r)
+            } else {
+              # Constant 1 raster with template's geometry
+              terra::classify(template_r * 0 + 1, cbind(NA, NA))
+            }
 
-          h_end <- if (isTRUE(input$an_use_season_rasters)) {
-            Rwapor::wapor_harmonize_raster(an_end_rast(), template_r, method = "near")
-          } else {
-            template_r * 0 + Rwapor::wapor_continuous_julian(period[2], ref_year)
+            # Handle optional season rasters
+            h_start <- if (isTRUE(input$an_use_season_rasters)) {
+              Rwapor::wapor_harmonize_raster(an_start_rast(), template_r, method = "near")
+            } else {
+              # Use continuous Julian days (relative to ref_year) so cross-year
+              # seasons (e.g. Nov-to-May) produce positive total_days values.
+              template_r * 0 + Rwapor::wapor_continuous_julian(period[1], ref_year)
+            }
+
+            h_end <- if (isTRUE(input$an_use_season_rasters)) {
+              Rwapor::wapor_harmonize_raster(an_end_rast(), template_r, method = "near")
+            } else {
+              template_r * 0 + Rwapor::wapor_continuous_julian(period[2], ref_year)
+            }
+
+            # Store in cache for next run
+            .h_cache(list(
+              key        = .cache_key,
+              h_mask     = h_mask,
+              h_start    = h_start,
+              h_end      = h_end,
+              template_r = template_r
+            ))
           }
 
           s_start_vals <- tryCatch({
@@ -2001,72 +2084,80 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           shiny::incProgress(0.15, detail = if (use_local) "Loading local data..." else "Fetching remote data...")
           aeti_stack <- ret_stack <- precip_stack <- npp_stack <- NULL
 
-          # Helper function to load raster stack from local or remote
-          load_var_stack <- function(var, use_local, folder, period, l3_code, reg_info) {
+          # ── Helper: resolve file paths / vsicurl URLs for a variable ─────────
+          # Returns paths/URLs only — does NOT load into memory.  This is safe
+          # to call in parallel because it only touches metadata and the filesystem.
+          resolve_var_paths <- function(var, use_local, folder, period, l3_code) {
             if (use_local) {
-              local_paths <- Rwapor::wapor_local_rasters(folder, var, period[1], period[2])
-              if (length(local_paths) == 0) {
-                warning(sprintf("No local files found for %s", var))
-                return(NULL)
-              }
-              stack <- terra::rast(local_paths)
+              paths <- Rwapor::wapor_local_rasters(folder, var, period[1], period[2])
+              if (length(paths) == 0) return(NULL)
+              paths
             } else {
               urls <- Rwapor::wapor_generate_urls(var, l3_region = l3_code, period = period)
               if (length(urls) == 0) return(NULL)
-              stack <- terra::rast(paste0("/vsicurl/", urls))
+              paste0("/vsicurl/", urls)
             }
+          }
 
-            if (!is.null(reg_info)) {
-              stack <- crop_to_region_shiny(
-                stack,
-                reg_info,
-                do_mask = identical(reg_info$type, "vector")
-              )
-            }
-
+          # ── Load raster stack from resolved paths and crop to region ─────────
+          load_stack_from_paths <- function(paths, reg_info) {
+            if (is.null(paths)) return(NULL)
+            stack <- terra::rast(paths)
+            if (!is.null(reg_info))
+              stack <- crop_to_region_shiny(stack, reg_info,
+                                            do_mask = identical(reg_info$type, "vector"))
             stack
           }
 
+          # ── Resolve all needed paths in parallel (I/O-bound, no terra objects) ─
+          npp_var_current <- input$an_npp_var
+          vars_to_resolve <- list()
+          if (need_aeti_stack)   vars_to_resolve[["aeti"]]   <- aeti_var
+          if (need_ret_stack)    vars_to_resolve[["ret"]]    <- ret_var
+          if (need_precip_stack) vars_to_resolve[["precip"]] <- precip_var
+          if (need_npp_stack && !is.null(npp_var_current))
+            vars_to_resolve[["npp"]] <- npp_var_current
 
+          resolved_paths <- future.apply::future_lapply(
+            vars_to_resolve,
+            function(v) resolve_var_paths(v, use_local, folder, period, l3_code),
+            future.seed = TRUE
+          )
+
+          # ── Load stacks sequentially (terra objects can't cross process boundaries) ─
+          shiny::incProgress(0.05, detail = "Building raster stacks...")
           if (need_aeti_stack) {
-            aeti_stack <- load_var_stack(aeti_var, use_local, folder, period, l3_code, reg_info)
-            if (is.null(aeti_stack)) {
-              stop(sprintf("Failed to load AETI data for %s. %s",
-                           aeti_var,
+            aeti_stack <- load_stack_from_paths(resolved_paths[["aeti"]], reg_info)
+            if (is.null(aeti_stack))
+              stop(sprintf("Failed to load AETI data for %s. %s", aeti_var,
                            if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
-            }
-            # Harmonize AETI stack to template to ensure exact extent/resolution alignment
             shiny::incProgress(0.02, detail = "Harmonizing AETI to template...")
             aeti_stack <- Rwapor::wapor_harmonize_raster(aeti_stack, template_r, method = "bilinear")
           }
 
           if (need_ret_stack) {
-            ret_stack <- load_var_stack(ret_var, use_local, folder, period, l3_code, reg_info)
-            if (is.null(ret_stack)) {
-              stop(sprintf("Failed to load RET data for %s. %s",
-                           ret_var,
+            ret_stack <- load_stack_from_paths(resolved_paths[["ret"]], reg_info)
+            if (is.null(ret_stack))
+              stop(sprintf("Failed to load RET data for %s. %s", ret_var,
                            if (use_local) "Check that the variable is downloaded." else "Check your internet connection."))
-            }
             shiny::incProgress(0.05, detail = "Harmonizing RET to AETI...")
             ret_stack <- Rwapor::wapor_harmonize_raster(ret_stack, template_r)
           }
 
-          if (need_precip_stack) {
-            precip_stack <- load_var_stack(precip_var, use_local, folder, period, l3_code, reg_info)
+          if (need_precip_stack && !is.null(resolved_paths[["precip"]])) {
+            precip_stack <- load_stack_from_paths(resolved_paths[["precip"]], reg_info)
             if (!is.null(precip_stack)) {
-               shiny::incProgress(0.05, detail = "Harmonizing Precipitation to AETI...")
-               precip_stack <- Rwapor::wapor_harmonize_raster(precip_stack, template_r)
+              shiny::incProgress(0.05, detail = "Harmonizing Precipitation to AETI...")
+              precip_stack <- Rwapor::wapor_harmonize_raster(precip_stack, template_r)
             }
           }
 
-          if (need_npp_stack) {
-            npp_var <- input$an_npp_var
-            if (!is.null(npp_var)) {
-              npp_stack <- load_var_stack(npp_var, use_local, folder, period, l3_code, reg_info)
-              if (!is.null(npp_stack)) {
-                 shiny::incProgress(0.05, detail = "Harmonizing NPP to AETI...")
-                 npp_stack <- Rwapor::wapor_harmonize_raster(npp_stack, template_r)
-              }
+          if (need_npp_stack && !is.null(npp_var_current) &&
+              !is.null(resolved_paths[["npp"]])) {
+            npp_stack <- load_stack_from_paths(resolved_paths[["npp"]], reg_info)
+            if (!is.null(npp_stack)) {
+              shiny::incProgress(0.05, detail = "Harmonizing NPP to AETI...")
+              npp_stack <- Rwapor::wapor_harmonize_raster(npp_stack, template_r)
             }
           }
 
@@ -2121,7 +2212,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           aeti_layer_multipliers <- if (!is.null(aeti_stack)) analysis_layer_multipliers(aeti_var, dekad_table) else NULL
           ret_layer_multipliers <- if (!is.null(ret_stack)) analysis_layer_multipliers(ret_var, dekad_table) else NULL
           precip_layer_multipliers <- if (!is.null(precip_stack)) analysis_layer_multipliers(precip_var, dekad_table) else NULL
-          npp_layer_multipliers <- if (!is.null(npp_stack) && !is.null(npp_var)) analysis_layer_multipliers(npp_var, dekad_table) else NULL
+          npp_layer_multipliers <- if (!is.null(npp_stack) && !is.null(npp_var_current)) analysis_layer_multipliers(npp_var_current, dekad_table) else NULL
 
           shiny::incProgress(0.10, detail = "Computing seasonal aggregations...")
           results <- list(
@@ -2472,6 +2563,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
         }, error = function(e) {
           shiny::showNotification(paste("Analysis failed:", e$message), type = "error", duration = 15)
+        }, finally = {
+          # Always re-enable the run button and clear the running flag
+          .an_running(FALSE)
+          shinyjs::enable("an_run_btn")
         })
       })
     })
