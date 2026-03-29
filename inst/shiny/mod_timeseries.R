@@ -121,7 +121,8 @@ mod_timeseries_ui <- function(id) {
                 ),
                 shinyFiles::shinyDirButton(
                   ns("ts_browse_folder"),
-                  label = shiny::icon("folder-open"),
+                  label = "",
+                  icon  = shiny::icon("folder-open"),
                   title = "Select folder with raster files",
                   class = "btn-outline-secondary btn-sm",
                   style = "padding:0.37rem 0.6rem;"
@@ -402,7 +403,7 @@ mod_timeseries_ui <- function(id) {
                 shiny::checkboxInput(ns("reg_show_eq"),  "Equation + R\u00b2",  TRUE))
             ),
             bslib::layout_column_wrap(
-              width = "1/2", gap = "0.75rem",
+              width = 1/2, gap = "0.75rem",
               shiny::div(
                 shiny::tags$p(
                   shiny::icon("chart-line"), shiny::tags$b(" Time Series"),
@@ -446,7 +447,7 @@ mod_timeseries_ui <- function(id) {
 
         # Tab 5 · Summary ─────────────────────────────────────────────────────
         bslib::nav_panel(
-          "Summary", icon = shiny::icon("info-circle"),
+          "Summary", icon = shiny::icon("circle-info"),
           bslib::card_body(shiny::verbatimTextOutput(ns("txt_summary")))
         )
       ) # /navset_card_tab

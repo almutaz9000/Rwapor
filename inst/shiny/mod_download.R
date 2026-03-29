@@ -32,7 +32,8 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
               ),
               shiny::uiOutput(ns("favorite_btn_ui")),
               shinyFiles::shinyDirButton(
-                ns("browse_folder"), label = shiny::icon("folder-open"),
+                ns("browse_folder"), label = "",
+                icon  = shiny::icon("folder-open"),
                 title = "Select project folder",
                 class = "btn-outline-secondary btn-sm",
                 style = "padding:0.37rem 0.6rem;"
@@ -115,7 +116,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
         shiny::actionButton(
           ns("download_btn"), "Download Data",
           class = "btn-primary w-100",
-          icon  = shiny::icon("cloud-download")
+          icon  = shiny::icon("cloud-arrow-down")
         )
       )
     ),
@@ -168,7 +169,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       shiny::actionLink(
         session$ns("favorite_btn"),
         NULL,
-        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
         style = "margin-bottom: 11px; font-size: 1.1rem;"
       )
     })
