@@ -166,7 +166,7 @@ mod_aoi_server <- function(id,
       shiny::actionLink(
         session$ns("favorite_vector_btn"),
         NULL,
-        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
         style = "font-size: 1.1rem;"
       )
     })

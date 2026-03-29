@@ -280,7 +280,8 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               ),
               shiny::uiOutput(ns("an_favorite_btn_ui")),
               shinyFiles::shinyDirButton(
-                ns("an_browse_folder"), label = shiny::icon("folder-open"),
+                ns("an_browse_folder"), label = "",
+                icon  = shiny::icon("folder-open"),
                 title = "Select output folder",
                 class = "btn-outline-secondary btn-sm",
                 style = "padding:0.37rem 0.6rem;"
@@ -303,7 +304,7 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
           shiny::actionButton(
             ns("an_validate_btn"), "Validate",
             class = "btn-sm btn-outline-primary flex-fill",
-            icon  = shiny::icon("check-circle")
+            icon  = shiny::icon("circle-check")
           ),
           shiny::actionButton(
             ns("an_run_btn"), "Run Analysis",
@@ -463,7 +464,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       shiny::actionLink(
         session$ns("an_favorite_btn"),
         NULL,
-        icon = if (is_fav) shiny::icon("star-fill", style = "color: #ffc107;") else shiny::icon("star"),
+        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
         style = "margin-bottom: 11px; font-size: 1.1rem;"
       )
     })
@@ -1267,7 +1268,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           return(shiny::tagList(
             shiny::tags$div(
               class = "alert alert-info",
-              shiny::icon("info-circle"),
+              shiny::icon("circle-info"),
               " Please upload a crop mask raster to define crop classes."
             )
           ))
@@ -1280,7 +1281,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         return(shiny::tagList(
           shiny::tags$div(
             class = "alert alert-warning",
-            shiny::icon("exclamation-triangle"),
+            shiny::icon("triangle-exclamation"),
             " No valid classes found in the crop mask. Check your raster values."
           )
         ))

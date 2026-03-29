@@ -78,7 +78,13 @@
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"tryCatch\\(parse\\(file=''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/inst/shiny/mod_timeseries.R''\\), error=function\\(e\\) stop\\(e\\)\\); cat\\(''Parse OK\\\\n''\\)\")",
       "Bash(\"/c/Program Files/R/R-4.5.2/bin/Rscript.exe\" -e \"tryCatch\\(parse\\(file=''''c:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/inst/shiny/mod_timeseries.R''''\\), error=function\\(e\\) stop\\(e$message\\)\\); cat\\(''''Parse OK\\\\n''''\\)\")",
       "Bash(xargs -I{} basename {})",
-      "Bash(sort -u find \"/c/Users/almut/Desktop/Savola\" -mindepth 1 -maxdepth 1 -type d)"
+      "Bash(sort -u find \"/c/Users/almut/Desktop/Savola\" -mindepth 1 -maxdepth 1 -type d)",
+      "Bash(\"C:/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"devtools::document\\(\\)\")",
+      "Bash(gh repo:*)",
+      "Bash(gh auth:*)",
+      "Bash(rm \"C:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/agents/wapor-agent.md\")",
+      "Bash(rm \"C:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/agents/wapor-r-subagent.md\")",
+      "Bash(rmdir \"C:/Users/almut/OneDrive/Documents/Bitbucket/wapordl/Rwapor/.claude/agents/\")"
     ]
   }
 }

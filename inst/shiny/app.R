@@ -113,7 +113,7 @@ ui <- bslib::page_navbar(
   ),
 
   # ── Tabs ──
-  bslib::nav_panel("Download", icon = shiny::icon("cloud-download"),
+  bslib::nav_panel("Download", icon = shiny::icon("cloud-arrow-down"),
     mod_download_ui("dl", all_vars, default_var, l3_region_choices)
   ),
   bslib::nav_panel("Visualisation", icon = shiny::icon("chart-area"),
