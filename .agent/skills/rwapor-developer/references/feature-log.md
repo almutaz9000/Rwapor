@@ -1,5 +1,5 @@
 # Rwapor — Feature Request Log
-_Last updated: 2026-03-26_
+_Last updated: 2026-03-31_
 
 > Status: 🟡 Pending | 🔵 In Progress | ✅ Done | ❌ Rejected
 
@@ -29,6 +29,24 @@ _Last updated: 2026-03-26_
 | F18 | L3 regional data support with extent caching | R/utils.R | ✅ Done |
 | F19 | GDAL configuration helper + Windows PROJ fix | R/gdal_config.R | ✅ Done |
 | F20 | Memoised API calls for performance | R/api_client.R, R/metadata.R | ✅ Done |
+| F21 | Automatic Kelvin to Celsius conversion for temperature | R/unit_convertor.R, R/wapor_map.R, R/wapor_ts.R, R/seasonal_download.R | ✅ Done |
+
+---
+
+## Recently Completed
+
+### F21 — Automatic Temperature Conversion (K → °C)
+- **File(s)**: R/unit_convertor.R, R/wapor_map.R, R/wapor_ts.R, R/seasonal_download.R, R/utils.R
+- **Function(s)**: `wapor_convert_temperature()`, `is_temperature_variable()`, modifications to `assign_raster_metadata()`, `get_seasonal_output_units()`
+- **Description**: Automatically convert AGERA5 temperature variables (TMIN, TMAX) from Kelvin to Celsius during download. Update metadata units from "K" to "degC". Apply conversion in all download paths (map, ts, seasonal).
+- **Requested**: 2026-03-31 (Session: Temperature unit discussion)
+- **Status**: ✅ Done
+- **Notes**: 
+  - Conversion formula: °C = K - 273.15
+  - Applied after cropping, before saving/processing
+  - User receives console message when temperature conversion is applied
+  - Seasonal temperature correctly uses weighted_mean aggregation
+  - Documented in new aggregation-logic skill
 
 ---
 

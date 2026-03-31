@@ -31,3 +31,7 @@ libs/
 nul
 /.claude
 /.agents
+/.agent
+/.agent
+/.agent/skills/rwapor-developer
+/.agent

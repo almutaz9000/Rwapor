@@ -190,6 +190,46 @@ Analysis:
 7. Update NEWS.md with user-facing description
 ```
 
+### 5. Memory Maintenance & Session Management
+```
+AUTOMATIC TRIGGERS:
+- When context usage reaches ~70% (140k/200k tokens)
+- After implementing major features (3+ files modified)
+- After long debugging sessions with key insights
+- When user says: "update memory", "save session", "document learnings"
+
+PROCESS:
+1. Invoke memory-maintenance skill
+2. Generate session summary (goals, changes, insights, decisions)
+3. Identify skill update opportunities:
+   - New design patterns → project-memory
+   - Bug fixes → bug-log.md
+   - Features → feature-log.md
+   - Complex concepts → new/existing skills
+   - Common pitfalls → diagnosis checklists
+4. Assess update risks (Low/Medium/High)
+5. Present recommendations to user for approval
+6. Apply approved updates
+7. Verify no breaking changes in documentation
+
+DECISION MATRIX:
+- Auto-apply (LOW RISK): New memory entries, completed tasks, resolved bugs
+- Seek approval (MEDIUM): Modifying existing content, adding constraints
+- Careful review (HIGH): Changing core principles, updating workflows
+
+QUALITY CHECKS:
+✓ Accuracy - verified from session evidence
+✓ Clarity - specific and concrete
+✓ Consistency - aligns with existing docs
+✓ Non-duplication - not already documented
+✓ Usefulness - will help future sessions
+```
+
+**When to Update Memory**:
+- **After this session** (context at 88k/200k): Should trigger maintenance soon
+- **Best practice**: Don't wait until 100% context usage
+- **User prompt**: "Let's update memory" or "Save today's learnings"
+
 ## Output Format
 
 When providing solutions:
