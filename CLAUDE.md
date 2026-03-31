@@ -103,18 +103,20 @@ Analysis chain:
 
 ## Commands
 
+**CRITICAL**: Always use R 4.5.3 located at: `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe`
+
 ```powershell
 # Document changes (after modifying R/ files)
-Rscript -e "devtools::document()"
+C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "devtools::document()"
 
 # Run tests
-Rscript -e "devtools::test()"
+C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "devtools::test()"
 
 # Check package
-Rscript -e "devtools::check()"
+C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "devtools::check()"
 
 # Launch Shiny dashboard
-Rscript -e "Rwapor::run_wapor()"
+C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "Rwapor::run_wapor()"
 ```
 
 ---
@@ -122,7 +124,8 @@ Rscript -e "Rwapor::run_wapor()"
 ## Requirements Log
 
 <!-- Add user-defined constraints here as they emerge -->
-*Empty - awaiting constraints*
+- **R Version**: Must use R 4.5.3 (`C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3`)
+- **Reason**: Ensures consistency across development environment
 
 ---
 
