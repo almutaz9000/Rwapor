@@ -845,14 +845,17 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             )
           }
 
-          # Auto-update date range based on available data
+          # Show date range info but DON'T auto-change user's selected period
+          # (Users complained that their selected period gets overwritten on rescan)
           if (nrow(local_vars) > 0) {
             all_min <- min(as.Date(local_vars$min_date[!is.na(local_vars$min_date)]), na.rm = TRUE)
             all_max <- max(as.Date(local_vars$max_date[!is.na(local_vars$max_date)]), na.rm = TRUE)
             if (!is.na(all_min) && !is.na(all_max)) {
-              shiny::updateDateRangeInput(session, "an_period",
-                start = all_min,
-                end = all_max
+              shiny::showNotification(
+                sprintf("Local data available from %s to %s. Adjust Analysis Period if needed.", 
+                        all_min, all_max),
+                type = "message",
+                duration = 8
               )
             }
           }
@@ -878,7 +881,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       cat("Folder:", folder, "\n\n")
 
       if (is.null(local_vars)) {
-        cat("Click 'Scan Local Folder' to detect available variables.\n")
+        cat("Not scanned yet.\n")
+        cat("Folder is auto-scanned when switching to local mode.\n")
+        cat("Click 'Re-scan Folder' to refresh.\n")
         return()
       }
 
@@ -894,10 +899,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         cat(sprintf("%s:\n", v$variable))
         cat(sprintf("  Files: %d\n", v$file_count))
         if (!is.na(v$min_date) && !is.na(v$max_date)) {
-          cat(sprintf("  Date range: %s to %s\n", v$min_date, v$max_date))
+          cat(sprintf("  Coverage: %s to %s\n", v$min_date, v$max_date))
         }
         cat("\n")
       }
+      
+      cat("Note: Analysis Period can extend beyond available data.\n")
+      cat("Validation will warn if data is missing for your selected period.\n")
     })
 
     # --- Validation ---
@@ -1835,22 +1843,22 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           duration = 15
         )
       } else if (validation$overall == "warning") {
-        msg_parts <- list()
+        msg_parts <- list("<b>⚠️ Validation Warnings (Analysis can still proceed):</b>")
         if (length(validation$warnings) > 0) {
-          msg_parts <- c(msg_parts, "<b>Warnings:</b>",
-                        paste("-", validation$warnings, collapse = "<br>"))
+          msg_parts <- c(msg_parts,
+                        paste("•", validation$warnings, collapse = "<br>"))
         }
         if (length(validation$recommendations) > 0) {
-          msg_parts <- c(msg_parts, "<br><b>Recommendations:</b>",
-                        paste("-", validation$recommendations, collapse = "<br>"))
+          msg_parts <- c(msg_parts, "<br><b>💡 Recommendations:</b>",
+                        paste("•", validation$recommendations, collapse = "<br>"))
         }
         shiny::showNotification(
           shiny::HTML(paste(msg_parts, collapse = "<br>")),
           type = "warning",
           duration = 15
         )
-        shiny::showNotification("Configuration is valid but has warnings. Review before running.", 
-                               type = "message")
+        shiny::showNotification("✓ Configuration is valid with warnings. You can proceed or address the warnings first.", 
+                               type = "message", duration = 5)
         # Generate script preview on validation success
         shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
       } else {

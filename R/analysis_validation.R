@@ -284,12 +284,21 @@ wapor_preflight_check <- function(config, data_source = "api", folder = NULL,
       )
       
       if (!coverage$complete) {
+        # Build detailed message about missing data
+        missing_details <- vapply(names(coverage$missing), function(var) {
+          n_missing <- length(coverage$missing[[var]])
+          sprintf("%s (%d timesteps)", var, n_missing)
+        }, character(1))
+        
         results$warnings <- c(results$warnings,
-          sprintf("Missing local data for: %s", 
-                  paste(names(coverage$missing), collapse = ", "))
+          sprintf("Some local data is missing for: %s", 
+                  paste(missing_details, collapse = ", "))
         )
         results$recommendations <- c(results$recommendations,
-          "Download missing data via the Download tab or switch to API mode"
+          "Options: (1) Download missing data via Download tab, (2) Adjust Analysis Period to match available data, or (3) Switch to API mode to stream data directly"
+        )
+        results$recommendations <- c(results$recommendations,
+          "Note: Analysis can proceed with partial data coverage if your season falls within the available dates"
         )
       }
     }
