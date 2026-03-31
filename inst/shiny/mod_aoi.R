@@ -217,10 +217,23 @@ mod_aoi_server <- function(id,
           ext_obj <- terra::ext(r)
           
           # Get CRS and transform extent to WGS84 if needed
-          raster_crs <- terra::crs(r, describe = TRUE)$code
+          raster_crs_desc <- tryCatch(terra::crs(r, describe = TRUE), error = function(e) NULL)
+          raster_crs <- if (!is.null(raster_crs_desc) && "code" %in% names(raster_crs_desc)) {
+            raster_crs_desc$code
+          } else {
+            NA_character_
+          }
+          
           if (!is.na(raster_crs) && raster_crs != "EPSG:4326") {
             # Create a polygon from extent and transform
             ext_poly <- terra::as.polygons(ext_obj, crs = terra::crs(r))
+            
+            # Remove attributes that may contain NA values (fixes "row names contain missing values" error)
+            if (nrow(terra::as.data.frame(ext_poly)) > 0) {
+              # Clear all attributes to avoid NA issues
+              terra::values(ext_poly) <- NULL
+            }
+            
             ext_poly_4326 <- terra::project(ext_poly, "EPSG:4326")
             ext_4326 <- terra::ext(ext_poly_4326)
           } else {
