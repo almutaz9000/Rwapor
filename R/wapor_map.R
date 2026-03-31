@@ -196,6 +196,9 @@ wapor_map <- function(
           layer_clean <- terra::subst(r_group[[i]], NaN, NA)
           layer <- layer_clean
 
+          # Apply temperature conversion if needed (Kelvin to Celsius)
+          layer <- wapor_convert_temperature(layer, g$variable)
+
           if (is.null(ref_raster)) {
             ref_raster <- layer
           } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
@@ -293,6 +296,11 @@ wapor_map <- function(
     if (is.null(unit_conversion) && identical(current_unit_conv, "dekad")) {
        log_msg(sprintf("Variable %s is Dekadal. Defaulting unit_conversion to 'dekad'.", var))
     }
+    
+    # Inform user about automatic temperature conversion
+    if (grepl("^AGERA5-(TMIN|TMAX)-", var, ignore.case = FALSE)) {
+      log_msg(sprintf("Variable %s is temperature. Automatically converting from Kelvin to Celsius.", var))
+    }
 
     current_l3_code <- l3_code
     if (is.null(current_l3_code) && grepl("^L3-", var)) {
@@ -368,6 +376,9 @@ wapor_map <- function(
       if (current_unit_conv != "none") {
         r <- wapor_convert_raster(r, var, chunk_urls, current_unit_conv)
       }
+
+      # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+      r <- wapor_convert_temperature(r, var)
 
       # Standardize layer names to "YYYY-MM-DD"
       layer_names <- vapply(chunk_urls, function(u) {

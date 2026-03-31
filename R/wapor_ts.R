@@ -122,6 +122,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       unit_conversion <- "none"
     }
   }
+  
+  # Inform user about automatic temperature conversion
+  if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
+    message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
+  }
 
   valid_conversions <- c("none", "day", "dekad", "month", "year")
   if (!unit_conversion %in% valid_conversions) {
@@ -360,6 +365,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
     # Crop to region
     r <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
+
+    # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+    r <- wapor_convert_temperature(r, variable)
 
     if (!is.null(vect)) {
       # Zonal statistics for polygons using exactextractr

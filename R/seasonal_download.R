@@ -123,6 +123,10 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     # Crop to region; optionally mask to polygon boundary
     r <- wapor_crop_to_region(r, reg_info, do_mask = do_mask)
+    
+    # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+    r <- wapor_convert_temperature(r, var_for_code)
+    
     names(r) <- layer_ids
     message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
                     var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))

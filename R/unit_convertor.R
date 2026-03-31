@@ -236,3 +236,61 @@ wapor_convert_raster <- function(r, variable, urls, unit_conversion) {
 
   return(r)
 }
+
+#' Check if Variable is a Temperature Variable
+#'
+#' Determines if a variable represents temperature data that should be
+#' converted from Kelvin to Celsius.
+#'
+#' @param variable Character. Variable name (e.g., "AGERA5-TMIN-E", "AGERA5-TMAX-E").
+#' @return Logical. TRUE if variable is a temperature variable.
+#' @keywords internal
+#' @noRd
+is_temperature_variable <- function(variable) {
+  grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)
+}
+
+#' Convert Temperature Raster from Kelvin to Celsius
+#'
+#' Converts AgERA5 temperature rasters from Kelvin to degrees Celsius
+#' by subtracting 273.15. This function is automatically applied to
+#' TMIN and TMAX variables during download.
+#'
+#' @param r A `SpatRaster` object from the terra package.
+#' @param variable Character. Variable name to verify it's a temperature variable.
+#'
+#' @return The input `SpatRaster` with values converted to Celsius,
+#'   or the original raster unchanged if not a temperature variable.
+#'
+#' @details
+#' The conversion formula is: °C = K - 273.15
+#'
+#' This conversion is automatically applied during download for:
+#' * AGERA5-TMIN-E (Minimum Air Temperature)
+#' * AGERA5-TMAX-E (Maximum Air Temperature)
+#'
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' # Load temperature raster in Kelvin
+#' r <- terra::rast("AGERA5-TMIN-E_2023-01-01.tif")
+#' 
+#' # Convert to Celsius
+#' r_celsius <- wapor_convert_temperature(r, "AGERA5-TMIN-E")
+#' }
+wapor_convert_temperature <- function(r, variable) {
+  # Input validation
+  if (!inherits(r, "SpatRaster")) {
+    stop("'r' must be a SpatRaster object from the terra package", call. = FALSE)
+  }
+  
+  if (!is_temperature_variable(variable)) {
+    return(r)
+  }
+  
+  # Convert Kelvin to Celsius: °C = K - 273.15
+  r <- r - 273.15
+  
+  return(r)
+}
