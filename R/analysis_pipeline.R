@@ -185,6 +185,7 @@ wapor_analysis_pipeline <- function(config,
   if (is.null(final_reg) && !is.null(crop_mask)) {
     cm_ext <- terra::ext(crop_mask)
     cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(crop_mask))
+    terra::values(cm_poly) <- NULL  # Clear NA attributes
     cm_poly_4326 <- wapor_safe_project(cm_poly, "EPSG:4326")
     e <- terra::ext(cm_poly_4326)
     final_reg <- c(e$xmin, e$ymin, e$xmax, e$ymax)

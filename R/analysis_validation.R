@@ -209,6 +209,7 @@ wapor_validate_data_coverage <- function(folder, variables, period, l3_code = NU
     # If CRS differ, project second to first
     if (crs1 != crs2 && nzchar(crs1) && nzchar(crs2)) {
       poly2 <- terra::as.polygons(ext2, crs = crs2)
+      terra::values(poly2) <- NULL  # Clear NA attributes
       poly2_proj <- terra::project(poly2, crs1)
       ext2 <- terra::ext(poly2_proj)
     }

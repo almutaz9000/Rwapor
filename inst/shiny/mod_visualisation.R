@@ -154,6 +154,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       if (!terra::is.lonlat(r)) {
         # Project extent envelope to WGS84 for leaflet
         ext_poly <- terra::as.polygons(ext, crs = terra::crs(r))
+        terra::values(ext_poly) <- NULL  # Clear NA attributes
         ext_wgs84 <- terra::project(ext_poly, "EPSG:4326")
         ext <- terra::ext(ext_wgs84)
       }

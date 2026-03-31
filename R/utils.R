@@ -91,6 +91,8 @@ wapor_parse_region <- function(region) {
         }
         
         p <- terra::as.polygons(r_ext, crs = r_crs)
+        # Clear NA attributes to prevent "row names contain missing values" error
+        terra::values(p) <- NULL
         p4326 <- wapor_safe_project(p, 4326)
         ext_4326 <- terra::ext(p4326)
         
@@ -622,7 +624,9 @@ wapor_l3_extent <- function(url, code) {
   if (code %in% names(cache)) {
     ext_vec <- cache[[code]]
     bb_ext <- terra::ext(ext_vec[1], ext_vec[3], ext_vec[2], ext_vec[4])
-    return(terra::as.polygons(bb_ext, crs = "EPSG:4326"))
+    poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
+    terra::values(poly) <- NULL  # Clear NA attributes
+    return(poly)
   }
 
   # Fetch from remote
@@ -636,6 +640,7 @@ wapor_l3_extent <- function(url, code) {
   r_ext <- tryCatch(terra::ext(r), error = function(e) NULL)
   if (is.null(r_ext)) return(NULL)
   r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
+  terra::values(r_poly) <- NULL  # Clear NA attributes
   r_poly_4326 <- wapor_safe_project(r_poly, 4326)
 
   # Save to persistent cache
@@ -692,12 +697,14 @@ wapor_guess_region <- function(variable, reg_info, period) {
     v <- suppressWarnings(terra::vect(reg_info$value))
     v_ext <- terra::ext(v)
     v_bb_poly <- terra::as.polygons(v_ext, crs = terra::crs(v))
+    terra::values(v_bb_poly) <- NULL  # Clear NA attributes
     user_poly <- wapor_safe_project(v_bb_poly, 4326)
   } else if (reg_info$type == "bbox") {
     bbox <- reg_info$value
     # Ensure correct order for terra::ext
     bb_ext <- terra::ext(as.numeric(bbox[c("xmin", "xmax", "ymin", "ymax")]))
     user_poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
+    terra::values(user_poly) <- NULL  # Clear NA attributes
   }
 
   intersecting_codes <- character()
