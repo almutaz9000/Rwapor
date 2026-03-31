@@ -77,8 +77,8 @@ mod_aoi_ui <- function(id) {
             style = "flex: 1;",
             shinyFiles::shinyFilesButton(
               ns("browse_vector"),
-              "Browse for Vector File",
-              "Select vector file",
+              "Browse for File",
+              "Select vector or raster file",
               multiple = FALSE,
               class = "w-100 btn-sm btn-outline-secondary",
               icon = shiny::icon("folder-open")
@@ -139,7 +139,7 @@ mod_aoi_server <- function(id,
       "browse_vector",
       roots = roots,
       session = session,
-      filetypes = c("shp", "geojson", "gpkg", "kml")
+      filetypes = c("shp", "geojson", "gpkg", "kml", "tif", "tiff", "nc", "grd", "asc", "sdat")
     )
 
     # Favorites logic
@@ -185,15 +185,15 @@ mod_aoi_server <- function(id,
     
     output$fav_vector_list_ui <- shiny::renderUI({
       f <- favs()
-      # Filter to show only vector-like files for this module
-      f_files <- f[f$type == "file" & grepl("\\.(shp|geojson|gpkg|kml)$", f$path, ignore.case = TRUE), "path"]
+      # Filter to show vector and raster files for this module
+      f_files <- f[f$type == "file" & grepl("\\.(shp|geojson|gpkg|kml|tif|tiff|nc|grd|asc|sdat)$", f$path, ignore.case = TRUE), "path"]
       if (length(f_files) == 0) return(NULL)
       
       shiny::selectizeInput(
         session$ns("quick_fav_vector"),
         NULL,
-        choices = c("Quick Access Vector Favorites..." = "", f_files),
-        options = list(placeholder = "Select a favorite vector file")
+        choices = c("Quick Access Favorites..." = "", f_files),
+        options = list(placeholder = "Select a favorite file (vector or raster)")
       )
     })
     
@@ -207,39 +207,99 @@ mod_aoi_server <- function(id,
 
     handle_vector_file <- function(path) {
       tryCatch({
-        shp <- sf::st_read(path, quiet = TRUE)
-        if (nrow(shp) == 0) stop("Vector file contains no features.")
-
-        shp_map <- shp
-        shp_crs <- sf::st_crs(shp_map)
-        if (!is.na(shp_crs) && shp_crs$epsg != 4326) {
-          shp_map <- sf::st_transform(shp_map, 4326)
-        }
-
-        bbox <- sf::st_bbox(shp_map)
-        leaflet::leafletProxy(map_id, session = map_session) |>
-          leaflet::clearGroup("manual_draw") |>
-          leaflet::clearGroup("manual_preview") |>
-          leaflet::clearShapes() |>
-          leaflet::clearGroup("draw") |>
-          leaflet::addPolygons(
-            data = shp_map,
-            color = "red",
-            fill = FALSE,
-            weight = 2
-          ) |>
-          leaflet::fitBounds(
-            lng1 = as.numeric(bbox["xmin"]),
-            lat1 = as.numeric(bbox["ymin"]),
-            lng2 = as.numeric(bbox["xmax"]),
-            lat2 = as.numeric(bbox["ymax"])
+        # Detect if file is raster or vector by extension
+        ext <- tolower(tools::file_ext(path))
+        is_raster <- ext %in% c("tif", "tiff", "nc", "grd", "asc", "sdat", "img")
+        
+        if (is_raster) {
+          # Handle raster file - extract extent
+          r <- terra::rast(path)
+          ext_obj <- terra::ext(r)
+          
+          # Get CRS and transform extent to WGS84 if needed
+          raster_crs <- terra::crs(r, describe = TRUE)$code
+          if (!is.na(raster_crs) && raster_crs != "EPSG:4326") {
+            # Create a polygon from extent and transform
+            ext_poly <- terra::as.polygons(ext_obj, crs = terra::crs(r))
+            ext_poly_4326 <- terra::project(ext_poly, "EPSG:4326")
+            ext_4326 <- terra::ext(ext_poly_4326)
+          } else {
+            ext_4326 <- ext_obj
+          }
+          
+          # Create bbox for leaflet
+          bbox <- c(
+            xmin = ext_4326$xmin,
+            ymin = ext_4326$ymin,
+            xmax = ext_4326$xmax,
+            ymax = ext_4326$ymax
           )
+          
+          # Display extent as rectangle on map
+          leaflet::leafletProxy(map_id, session = map_session) |>
+            leaflet::clearGroup("manual_draw") |>
+            leaflet::clearGroup("manual_preview") |>
+            leaflet::clearShapes() |>
+            leaflet::clearGroup("draw") |>
+            leaflet::addRectangles(
+              lng1 = bbox["xmin"],
+              lat1 = bbox["ymin"],
+              lng2 = bbox["xmax"],
+              lat2 = bbox["ymax"],
+              color = "blue",
+              fill = FALSE,
+              weight = 2,
+              dashArray = "5, 5"
+            ) |>
+            leaflet::fitBounds(
+              lng1 = bbox["xmin"],
+              lat1 = bbox["ymin"],
+              lng2 = bbox["xmax"],
+              lat2 = bbox["ymax"]
+            )
+          
+          shiny::showNotification(
+            sprintf("Raster extent loaded: %.2f° × %.2f°", 
+                    bbox["xmax"] - bbox["xmin"], 
+                    bbox["ymax"] - bbox["ymin"]),
+            type = "message"
+          )
+        } else {
+          # Handle vector file (original code)
+          shp <- sf::st_read(path, quiet = TRUE)
+          if (nrow(shp) == 0) stop("Vector file contains no features.")
+
+          shp_map <- shp
+          shp_crs <- sf::st_crs(shp_map)
+          if (!is.na(shp_crs) && shp_crs$epsg != 4326) {
+            shp_map <- sf::st_transform(shp_map, 4326)
+          }
+
+          bbox <- sf::st_bbox(shp_map)
+          leaflet::leafletProxy(map_id, session = map_session) |>
+            leaflet::clearGroup("manual_draw") |>
+            leaflet::clearGroup("manual_preview") |>
+            leaflet::clearShapes() |>
+            leaflet::clearGroup("draw") |>
+            leaflet::addPolygons(
+              data = shp_map,
+              color = "red",
+              fill = FALSE,
+              weight = 2
+            ) |>
+            leaflet::fitBounds(
+              lng1 = as.numeric(bbox["xmin"]),
+              lat1 = as.numeric(bbox["ymin"]),
+              lng2 = as.numeric(bbox["xmax"]),
+              lat2 = as.numeric(bbox["ymax"])
+            )
+        }
 
         upload_roi(path)
         user_roi(NULL)
         manual_active(FALSE)
       }, error = function(e) {
-        shiny::showNotification(e$message, type = "error")
+        shiny::showNotification(paste("Error loading file:", e$message), type = "error")
       })
     }
 
@@ -261,18 +321,18 @@ mod_aoi_server <- function(id,
         return()
       }
       
-      # Scan for vector files
+      # Scan for vector and raster files
       files <- list.files(
         folder, 
-        pattern = "\\.(shp|geojson|gpkg|kml)$", 
+        pattern = "\\.(shp|geojson|gpkg|kml|tif|tiff|nc|grd|asc|sdat)$", 
         recursive = TRUE, 
         full.names = TRUE
       )
       
       if (length(files) == 0) {
-        shiny::showNotification("No vector files found in the project folder.", type = "warning")
+        shiny::showNotification("No spatial files found in the project folder.", type = "warning")
       } else {
-        shiny::showNotification(sprintf("Found %d vector(s).", length(files)), type = "message")
+        shiny::showNotification(sprintf("Found %d spatial file(s).", length(files)), type = "message")
       }
       project_vectors(files)
     })
