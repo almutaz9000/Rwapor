@@ -25,6 +25,8 @@ src/*.so
 
 # Tests
 tests/testthat/test_output/
+test_metadata/
+test_*.R
 libs/
 nul
 /.claude
