@@ -522,6 +522,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
               shiny::incProgress(0.05, detail = "Resolving extent from crop mask...")
               cm_ext <- terra::ext(cm)
               cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm))
+              terra::values(cm_poly) <- NULL  # Clear NA attributes
               cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
               e <- terra::ext(cm_poly_4326)
               reg <- c(e$xmin, e$ymin, e$xmax, e$ymax)
@@ -1945,6 +1946,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             tryCatch({
               cm_ext <- terra::ext(cm_rast)
               cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+              terra::values(cm_poly) <- NULL  # Clear NA attributes
               cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
               e_4326 <- terra::ext(cm_poly_4326)
               cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
@@ -2091,6 +2093,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
              if (!is.null(cm_ext)) {
                 # Convert extent to WGS84 bbox
                 cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+                terra::values(cm_poly) <- NULL  # Clear NA attributes
                 cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
                 cm_ext_4326 <- tryCatch(terra::ext(cm_poly_4326), error = function(e) NULL)
                
