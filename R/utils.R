@@ -353,11 +353,18 @@ get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_
     return(NULL)
   }
 
-  if (identical(aggregation_rule, "weighted_sum")) {
-    return(sub("/(day|dekad|month|year)$", "", meta$units))
+  result_units <- if (identical(aggregation_rule, "weighted_sum")) {
+    sub("/(day|dekad|month|year)$", "", meta$units)
+  } else {
+    meta$units
   }
-
-  meta$units
+  
+  # Handle temperature conversion (Kelvin to Celsius)
+  if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
+    result_units <- sub("^K$", "degC", result_units)
+  }
+  
+  result_units
 }
 
 #' Extract Date Information from URL
@@ -845,6 +852,12 @@ assign_raster_metadata <- function(r, variable, unit_conversion = "none", units_
 
   # Determine units
   res_units <- units_override %||% meta$units
+  
+  # Handle temperature conversion (Kelvin to Celsius)
+  if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
+    res_units <- sub("^K$", "degC", res_units)
+  }
+  
   if (is.null(units_override) && !is.null(unit_conversion) && unit_conversion != "none") {
     # If converted, update the time part of the unit string
     # e.g., mm/day -> mm/dekad

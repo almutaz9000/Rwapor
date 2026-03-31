@@ -11,6 +11,12 @@ This is an R package (Rwapor). Use devtools workflows: `devtools::test()`, `devt
 **Main Branch**: version-0.9
 **Core Stack**: terra, sf, httr2, exactextractr, shiny
 
+**Key Behaviors**:
+- **Dekadal defaults**: L1/L2/L3 `-D` variables auto-convert to dekadal totals (mm/dekad, gC/m²/dekad)
+- **Temperature conversion**: AGERA5 TMIN/TMAX auto-convert from Kelvin to Celsius
+- **Seasonal aggregation**: Metadata-driven (flux variables sum, intensive properties average)
+- **Scale factors**: Applied automatically by terra (embedded in GeoTIFFs)
+
 ---
 
 ## File Map (Token-Efficient Navigation)
@@ -133,6 +139,7 @@ C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "Rwapor:
 
 | Session | Files Modified | Summary |
 |---------|----------------|---------|
+| 2026-03-31 | R/unit_convertor.R, R/wapor_map.R, R/wapor_ts.R, R/seasonal_download.R, R/utils.R | Added automatic K→°C conversion for AGERA5 temperature variables (TMIN/TMAX). Updated metadata assignment to use "degC" units. |
 | -- | -- | Initial manifest created |
 
 
