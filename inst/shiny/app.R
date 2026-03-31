@@ -22,7 +22,20 @@ library(Rwapor)
 # ── Parallel plan ─────────────────────────────────────────────────────────────
 # Use 2 background workers for async extraction and analysis tasks.
 # Cap at 2 to avoid overwhelming the WaPOR API or local disk I/O.
-future::plan(future::multisession, workers = min(2L, future::availableCores() - 1L))
+
+# Configure future options for Windows compatibility
+options(
+  future.rscript.sh = "auto",  # Auto-detect R script path
+  future.availableCores.fallback = 2L  # Fallback core count
+)
+
+# Fallback to sequential if multisession fails (common on Windows with path issues)
+tryCatch({
+  future::plan(future::multisession, workers = min(2L, future::availableCores() - 1L))
+}, error = function(e) {
+  warning("Could not initialize multisession plan, falling back to sequential: ", e$message)
+  future::plan(future::sequential)
+})
 
 # --- Source Utility Functions and Modules ---
 source("utils_shiny.R")
