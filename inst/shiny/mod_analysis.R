@@ -1681,36 +1681,71 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
 
     shiny::observeEvent(input$an_validate_btn, {
-      errors <- character()
-      if (isTRUE(input$an_use_crop_mask) && is.null(an_crop_mask_rast())) errors <- c(errors, "Crop mask raster not uploaded.")
-      if (isTRUE(input$an_use_season_rasters) && (is.null(an_start_rast()) || is.null(an_end_rast()))) errors <- c(errors, "Season start/end rasters not uploaded.")
-      if (is.null(an_crop_classes())) errors <- c(errors, "No crop classes found.")
-
-      params <- collect_crop_params()
-      if (!is.null(params)) {
-        if (any(is.na(params$kc_ini) | is.na(params$kc_mid) | is.na(params$kc_end))) {
-          errors <- c(errors, "Some Kc values are missing.")
-        }
-        if (any(is.na(params$l_ini_days) | is.na(params$l_mid_days) | is.na(params$l_late_days))) {
-          errors <- c(errors, "Some stage length values are missing.")
-        }
-      }
-      if (length(unique(c(input$an_agg_vars, input$an_derived_vars))) == 0) {
-        errors <- c(errors, "Select at least one indicator.")
-      }
-
-      if (length(errors) > 0) {
-        shiny::showNotification(
-          shiny::HTML(paste("<b>Validation errors:</b><br>", paste("-", errors, collapse = "<br>"))),
-          type = "error",
-          duration = 10
+      # Build configuration object
+      config <- list(
+        ref_year = input$an_ref_year,
+        period = as.character(input$an_period),
+        aeti_var = input$an_aeti_var,
+        ret_var = input$an_ret_var,
+        precip_var = input$an_precip_var,
+        npp_var = input$an_npp_var,
+        crop_params = collect_crop_params(),
+        indicators = unique(c(input$an_agg_vars, input$an_derived_vars)),
+        l3_code = if (any(grepl("^L3-", c(input$an_aeti_var, input$an_ret_var)))) {
+          input$an_l3_region
+        } else NULL
+      )
+      
+      # Run comprehensive pre-flight check
+      validation <- tryCatch({
+        Rwapor::wapor_preflight_check(
+          config = config,
+          data_source = input$an_data_source,
+          folder = global_folder(),
+          crop_mask = an_crop_mask_rast(),
+          season_start = an_start_rast(),
+          season_end = an_end_rast()
         )
+      }, error = function(e) {
+        list(overall = "failed", errors = e$message, warnings = character(), 
+             recommendations = character())
+      })
+      
+      # Display validation results
+      if (validation$overall == "failed") {
+        shiny::showNotification(
+          shiny::HTML(paste(
+            "<b>Validation Failed:</b><br>",
+            paste("-", validation$errors, collapse = "<br>")
+          )),
+          type = "error",
+          duration = 15
+        )
+      } else if (validation$overall == "warning") {
+        msg_parts <- list()
+        if (length(validation$warnings) > 0) {
+          msg_parts <- c(msg_parts, "<b>Warnings:</b>",
+                        paste("-", validation$warnings, collapse = "<br>"))
+        }
+        if (length(validation$recommendations) > 0) {
+          msg_parts <- c(msg_parts, "<br><b>Recommendations:</b>",
+                        paste("-", validation$recommendations, collapse = "<br>"))
+        }
+        shiny::showNotification(
+          shiny::HTML(paste(msg_parts, collapse = "<br>")),
+          type = "warning",
+          duration = 15
+        )
+        shiny::showNotification("Configuration is valid but has warnings. Review before running.", 
+                               type = "message")
+        # Generate script preview on validation success
+        shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
       } else {
-        shiny::showNotification("All inputs validated successfully.", type = "message")
-        # Trigger script generation on successful validation
+        shiny::showNotification("✓ All validation checks passed! Ready to run analysis.", 
+                               type = "message", duration = 5)
+        # Generate script preview on validation success
         shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
       }
-
     })
 
     shiny::observeEvent(input$an_reset_btn, {
