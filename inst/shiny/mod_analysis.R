@@ -67,10 +67,10 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
               shiny::tags$div(
                 class = "alert alert-info p-2 mb-2 small",
                 shiny::icon("circle-info"),
-                " Uses files from the Download folder. Download the required variables first."
+                " Uses files from the project folder (set in Download tab). Folder is scanned automatically when switching to local mode."
               ),
               shiny::actionButton(
-                ns("an_scan_local"), "Scan Local Folder",
+                ns("an_scan_local"), "Re-scan Folder",
                 icon  = shiny::icon("magnifying-glass"),
                 class = "btn-sm btn-outline-primary w-100 mb-2"
               ),
@@ -763,11 +763,29 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
 
     # --- Local Data Source Logic ---
+    
+    # Auto-scan when switching to local mode
+    shiny::observe({
+      if (input$an_data_source == "local") {
+        folder <- global_folder()
+        if (!is.null(folder) && nzchar(folder) && dir.exists(folder)) {
+          # Automatically scan project folder
+          tryCatch({
+            vars_df <- Rwapor::wapor_scan_local(folder)
+            an_local_vars(vars_df)
+          }, error = function(e) {
+            an_local_vars(NULL)
+          })
+        }
+      }
+    })
+    
+    # Manual scan button
     shiny::observeEvent(input$an_scan_local, {
       folder <- global_folder()
       if (is.null(folder) || !nzchar(folder)) {
         shiny::showNotification(
-          "No download folder set. Please configure the output folder in the Download tab first.",
+          "No project folder set. Please configure the project folder in the Download tab first.",
           type = "error"
         )
         return()
@@ -852,7 +870,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       folder <- global_folder()
 
       if (is.null(folder) || !nzchar(folder)) {
-        cat("Download folder not set.\n")
+        cat("Project folder not set.\n")
         cat("Configure it in the Download tab.\n")
         return()
       }
@@ -1273,7 +1291,55 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             )
           ))
         } else {
-          return(shiny::p("Crop mask disabled - using entire area as single class."))
+          # Single-crop mode: No mask, entire area as one crop
+          crop_choices <- c("(Custom)" = "custom", Rwapor::wapor_list_crops())
+          names(crop_choices) <- c("(Custom)", Rwapor::wapor_list_crops())
+          
+          return(shiny::tagList(
+            shiny::tags$div(
+              class = "alert alert-success",
+              shiny::icon("circle-check"),
+              " Single-crop mode: Select crop parameters for the entire analysis area."
+            ),
+            shiny::div(
+              class = "card p-2 mb-2 bg-light",
+              shiny::tags$div(
+                style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;",
+                shiny::tags$strong("Default Crop (All Pixels)")
+              ),
+              shiny::fluidRow(
+                shiny::column(
+                  6,
+                  shiny::selectInput(ns("an_single_crop_profile"), "Crop Profile", 
+                                    choices = crop_choices, width = "100%")
+                ),
+                shiny::column(
+                  6,
+                  shiny::textInput(ns("an_single_crop_label"), "Crop Name", 
+                                  value = "Default Crop", width = "100%")
+                )
+              ),
+              shiny::tags$small(class = "text-primary d-block mb-1", "Kc & Stage Lengths"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::numericInput(ns("an_single_kc_ini"), "Kc ini", value = 0.3, step = 0.05, width = "100%")),
+                shiny::column(4, shiny::numericInput(ns("an_single_kc_mid"), "Kc mid", value = 1.15, step = 0.05, width = "100%")),
+                shiny::column(4, shiny::numericInput(ns("an_single_kc_end"), "Kc end", value = 0.3, step = 0.05, width = "100%"))
+              ),
+              shiny::fluidRow(
+                shiny::column(3, shiny::numericInput(ns("an_single_l_ini"), "Ini(d)", value = 30, min = 0, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_l_mid"), "Mid(d)", value = 40, min = 0, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_l_late"), "End(d)", value = 30, min = 0, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_height"), "H(m)", value = 1.0, step = 0.1, width = "100%"))
+              ),
+              shiny::tags$small(class = "text-success d-block mb-1 mt-1", "Production Parameters"),
+              shiny::fluidRow(
+                shiny::column(3, shiny::numericInput(ns("an_single_hi"), "HI", value = 0.45, min = 0, max = 1, step = 0.05, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_mc"), "MC", value = 0.12, min = 0, max = 1, step = 0.05, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_fc"), "fc", value = 1.0, min = 0, step = 0.1, width = "100%")),
+                shiny::column(3, shiny::numericInput(ns("an_single_aot"), "AOT", value = 0.8, min = 0, max = 1, step = 0.05, width = "100%"))
+              )
+            )
+          ))
         }
       }
 
@@ -1342,6 +1408,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       }))
     })
 
+    # Auto-populate crop parameters when profile is selected (multi-class mode)
     shiny::observe({
       classes <- an_crop_classes()
       shiny::req(classes)
@@ -1375,11 +1442,57 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         })
       }
     })
+    
+    # Auto-populate crop parameters when profile is selected (single-crop mode)
+    shiny::observeEvent(input$an_single_crop_profile, {
+      profile_name <- input$an_single_crop_profile
+      if (!is.null(profile_name) && profile_name != "custom") {
+        defaults <- Rwapor::wapor_crop_defaults(profile_name)
+        if (!is.null(defaults)) {
+          shiny::updateTextInput(session, "an_single_crop_label", value = defaults$crop_name)
+          shiny::updateNumericInput(session, "an_single_kc_ini", value = defaults$kc_ini)
+          shiny::updateNumericInput(session, "an_single_kc_mid", value = defaults$kc_mid)
+          shiny::updateNumericInput(session, "an_single_kc_end", value = defaults$kc_end)
+          shiny::updateNumericInput(session, "an_single_l_ini", value = defaults$l_ini_days)
+          shiny::updateNumericInput(session, "an_single_l_mid", value = defaults$l_mid_days)
+          shiny::updateNumericInput(session, "an_single_l_late", value = defaults$l_late_days)
+          shiny::updateNumericInput(session, "an_single_height", value = defaults$max_height_m)
+          shiny::updateNumericInput(session, "an_single_hi", value = defaults$HI)
+          shiny::updateNumericInput(session, "an_single_mc", value = defaults$MC)
+          shiny::updateNumericInput(session, "an_single_fc", value = defaults$fc)
+          shiny::updateNumericInput(session, "an_single_aot", value = defaults$AOT)
+        }
+      }
+    }, ignoreInit = TRUE)
 
     collect_crop_params <- function() {
       classes <- an_crop_classes()
-      if (is.null(classes)) return(NULL)
+      
+      # Single-crop mode (no mask uploaded)
+      if (is.null(classes)) {
+        if (!isTRUE(input$an_use_crop_mask)) {
+          # Use single-crop parameters
+          return(data.frame(
+            class_value = 1L,
+            crop_label = null_default(input$an_single_crop_label, "Default Crop"),
+            kc_ini = null_default(input$an_single_kc_ini, 0.3),
+            kc_mid = null_default(input$an_single_kc_mid, 1.15),
+            kc_end = null_default(input$an_single_kc_end, 0.3),
+            l_ini_days = as.integer(null_default(input$an_single_l_ini, 30)),
+            l_mid_days = as.integer(null_default(input$an_single_l_mid, 40)),
+            l_late_days = as.integer(null_default(input$an_single_l_late, 30)),
+            max_height_m = null_default(input$an_single_height, 1.0),
+            HI = null_default(input$an_single_hi, 0.45),
+            MC = null_default(input$an_single_mc, 0.12),
+            fc = null_default(input$an_single_fc, 1.0),
+            AOT = null_default(input$an_single_aot, 0.8),
+            stringsAsFactors = FALSE
+          ))
+        }
+        return(NULL)
+      }
 
+      # Multi-class mode (mask uploaded)
       rows <- lapply(seq_len(nrow(classes)), function(i) {
         cls <- classes$class_value[i]
         prefix <- paste0("an_cls_", cls, "_")
@@ -1842,7 +1955,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       # 3. Check data availability if in Local Mode
       if (isTRUE(input$an_data_source == "local")) {
         if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
-          shiny::showNotification("Local data mode selected but download folder is not set. Configure it in the Download tab first.", type = "error")
+          shiny::showNotification("Local data mode selected but project folder is not set. Configure it in the Download tab first.", type = "error")
           return()
         }
 
