@@ -29,9 +29,10 @@ test_metadata/
 test_*.R
 libs/
 nul
-/.claude
-/.agents
-/.agent
-/.agent
-/.agent/skills/rwapor-developer
-/.agent
+
+# Agent/AI Configuration (local development only)
+.github/
+.claude/
+.agents/
+.agent/
+CLAUDE.md

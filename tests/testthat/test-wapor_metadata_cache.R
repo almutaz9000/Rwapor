@@ -73,19 +73,11 @@ test_that("wapor_fetch_metadata('L1') returns data.frame with expected columns",
   withr::with_tempdir({
     write_fixture_json(".", levels = "L1")
 
-    # Redirect system.file() to the temp directory
+    # Mock the internal helper function instead of system.file
     testthat::local_mocked_bindings(
-      system.file = function(..., package = "") {
-        # system.file("metadata", "wapor_L1.json", package = "Rwapor")
-        args <- list(...)
-        if (identical(package, "Rwapor") && length(args) >= 1 &&
-            identical(args[[1]], "metadata")) {
-          if (length(args) == 1) {
-            return(".")     # the metadata dir itself
-          }
-          return(file.path(".", args[[2]]))
-        }
-        base::system.file(..., package = package)
+      .get_metadata_path = function(filename) {
+        # Return path to fixtures in temp directory
+        file.path(".", filename)
       },
       .package = "Rwapor"
     )
@@ -118,15 +110,10 @@ test_that("wapor_fetch_metadata('all') combines all three levels", {
   withr::with_tempdir({
     write_fixture_json(".", levels = c("L1", "L2", "L3"))
 
+    # Mock the internal helper function
     testthat::local_mocked_bindings(
-      system.file = function(..., package = "") {
-        args <- list(...)
-        if (identical(package, "Rwapor") && length(args) >= 1 &&
-            identical(args[[1]], "metadata")) {
-          if (length(args) == 1) return(".")
-          return(file.path(".", args[[2]]))
-        }
-        base::system.file(..., package = package)
+      .get_metadata_path = function(filename) {
+        file.path(".", filename)
       },
       .package = "Rwapor"
     )
@@ -145,10 +132,10 @@ test_that("wapor_fetch_metadata('all') combines all three levels", {
 # ---------------------------------------------------------------------------
 
 test_that("wapor_fetch_metadata stops with informative error when file missing", {
+  # Mock the internal helper to return empty path (file not found)
   testthat::local_mocked_bindings(
-    system.file = function(..., package = "") {
-      # Always return "" (file not found)
-      ""
+    .get_metadata_path = function(filename) {
+      ""  # Simulate file not found
     },
     .package = "Rwapor"
   )
