@@ -49,7 +49,7 @@ wapor_fetch_metadata <- function(level) {
 
   results <- lapply(levels_to_read, function(lvl) {
     fname  <- sprintf("wapor_%s.json", lvl)
-    fpath  <- system.file("metadata", fname, package = "Rwapor")
+    fpath  <- .get_metadata_path(fname)
     if (nchar(fpath) == 0 || !file.exists(fpath)) {
       stop(
         sprintf(
@@ -70,6 +70,17 @@ wapor_fetch_metadata <- function(level) {
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+#' Get the path to a metadata JSON file
+#'
+#' Wrapper around system.file() for testability.
+#' @param filename Character. Name of the JSON file (e.g., "wapor_L1.json").
+#' @return Character path to the file, or "" if not found.
+#' @keywords internal
+#' @noRd
+.get_metadata_path <- function(filename) {
+  system.file("metadata", filename, package = "Rwapor")
+}
 
 #' Parse a list of raw API/JSON items into a tidy data.frame
 #'
