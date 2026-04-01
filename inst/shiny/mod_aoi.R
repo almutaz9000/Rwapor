@@ -86,6 +86,16 @@ mod_aoi_ui <- function(id) {
           ),
           shiny::uiOutput(ns("fav_vector_btn_ui"))
         ),
+        shiny::helpText(
+          "Supported: .shp, .geojson, .gpkg, .kml, .tif, .nc, .grd",
+          shiny::br(),
+          shiny::span(
+            style = "color: #6c757d; font-size: 0.85em;",
+            "⚠️ For OneDrive files: ensure file is ",
+            shiny::strong("fully downloaded"),
+            " (right-click folder → OneDrive → 'Always keep on this device')"
+          )
+        ),
         shiny::uiOutput(ns("fav_vector_list_ui"))
       )
     ),
@@ -213,6 +223,42 @@ mod_aoi_server <- function(id,
         
         if (is_raster) {
           # Handle raster file - extract extent
+          # Verify file exists first (handle paths with spaces and OneDrive)
+          file_exists <- file.exists(path)
+          
+          if (!file_exists) {
+            # Diagnose the issue
+            dir_path <- dirname(path)
+            filename <- basename(path)
+            dir_exists <- dir.exists(dir_path)
+            
+            # Try to list files in the directory to see what's actually there
+            files_in_dir <- character(0)
+            if (dir_exists) {
+              files_in_dir <- list.files(dir_path, pattern = "\\.(tif|tiff|nc|grd)$", ignore.case = TRUE)
+            }
+            
+            diagnostic_msg <- sprintf(
+              "Raster file not found: %s\n\n$Diagnostics:\n• File: %s\n• Directory exists: %s\n",
+              filename,
+              basename(path),
+              dir_exists
+            )
+            
+            if (dir_exists && length(files_in_dir) > 0) {
+              diagnostic_msg <- paste0(
+                diagnostic_msg,
+                "• Files found in directory:\n  - ",
+                paste(files_in_dir, collapse = "\n  - "),
+                "\n"
+              )
+            } else if (dir_exists) {
+              diagnostic_msg <- paste0(diagnostic_msg, "• No raster files found in directory\n")
+            }
+            
+            stop(diagnostic_msg, call. = FALSE)
+          }
+          
           r <- terra::rast(path)
           ext_obj <- terra::ext(r)
           
@@ -312,14 +358,87 @@ mod_aoi_server <- function(id,
         user_roi(NULL)
         manual_active(FALSE)
       }, error = function(e) {
-        shiny::showNotification(paste("Error loading file:", e$message), type = "error")
+        # Provide more detailed error message
+        error_msg <- e$message
+        
+        # Check if it's a file not found issue
+        if (grepl("does not exist|no such file|not found", error_msg, ignore.case = TRUE)) {
+          shiny::showNotification(
+            HTML(paste0(
+              "<strong>⚠️ File not found or not accessible</strong><br/>",
+              "<small style='line-height:1.6'>",
+              error_msg,
+              "<br/><br/>",
+              "<strong>Possible causes:</strong><br/>",
+              "• OneDrive has not fully synced the file to this computer<br/>",
+              "• File was moved, deleted, or renamed<br/>",
+              "• Folder permissions issue<br/>",
+              "• OneDrive 'Files On-Demand' not downloaded<br/>",
+              "<br/>",
+              "<strong>Solutions:</strong><br/>",
+              "1. Right-click the folder in File Explorer → OneDrive → 'Always keep on this device'<br/>",
+              "2. Check Windows File Explorer - navigate to the folder manually<br/>",
+              "3. Try copying the file to a local folder (not OneDrive) and upload from there<br/>",
+              "</small>"
+            )),
+            type = "error",
+            duration = 20
+          )
+        } else if (grepl("CRS|crs|projection", error_msg, ignore.case = TRUE)) {
+          shiny::showNotification(
+            HTML(paste0(
+              "<strong>⚠️ Raster CRS issue</strong><br/>",
+              "<small>",
+              error_msg,
+              "<br/><br/>",
+              "The raster file exists but has CRS/projection problems. ",
+              "Try opening the file in QGIS to check and fix the CRS.",
+              "</small>"
+            )),
+            type = "error",
+            duration = 15
+          )
+        } else {
+          shiny::showNotification(
+            HTML(paste0(
+              "<strong>Error loading file</strong><br/>",
+              "<small>", error_msg, "</small>"
+            )),
+            type = "error",
+            duration = 10
+          )
+        }
       })
     }
 
     shiny::observeEvent(input$browse_vector, {
       file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
       if (nrow(file_info) > 0) {
-        path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
+        # Get the datapath and normalize it carefully
+        path <- file_info$datapath[1]
+        
+        # Try multiple path normalizations to handle various formats
+        if (!file.exists(path)) {
+          # Try with forward slashes
+          path_fwd <- gsub("\\\\", "/", path)
+          if (file.exists(path_fwd)) {
+            path <- path_fwd
+          } else {
+            # Try with expanded path (handles ~ and environment variables)
+            path_expanded <- path.expand(path_fwd)
+            if (file.exists(path_expanded)) {
+              path <- path_expanded
+            } else {
+              # Try normalizePath which handles symlinks and relative paths
+              path_norm <- tryCatch(
+                normalizePath(path_expanded, winslash = "/", mustWork = TRUE),
+                error = function(e) path_expanded
+              )
+              path <- path_norm
+            }
+          }
+        }
+        
         handle_vector_file(path)
       }
     })

@@ -1,0 +1,457 @@
+---
+title: "Using the Rwapor Shiny Dashboard"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using the Rwapor Shiny Dashboard}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Introduction
+
+The Rwapor package includes an interactive Shiny dashboard that provides a user-friendly interface for downloading and analyzing WaPOR and AgERA5 data. This vignette covers the dashboard's features, with special focus on the **L3 Region Auto-Detection** system.
+
+## Launching the Dashboard
+
+```{r launch}
+library(Rwapor)
+
+# Start the dashboard
+run_wapor()
+```
+
+The dashboard will open in your default web browser.
+
+## Dashboard Overview
+
+The dashboard consists of three main tabs:
+
+1. **Download** - Download WaPOR and AgERA5 raster data
+2. **Analysis** - Perform crop water productivity analysis
+3. **Seasonal Comparison** - Compare seasonal patterns across multiple years
+
+## Download Tab Workflow
+
+The Download tab follows an intuitive step-by-step workflow:
+
+### 1. Project Folder
+
+Specify the output directory where downloaded files will be saved.
+
+- **Quick Access**: Use the folder icon to browse for a directory
+- **Favorites**: Star frequently-used folders for quick access
+- **Default**: `wapor_project` in your current working directory
+
+### 2. Area of Interest (AOI)
+
+Define your study area before selecting variables. This enables automatic L3 region detection.
+
+#### AOI Selection Methods
+
+**A. Draw on Map**
+- **Rectangle**: Click twice to define opposite corners
+- **Polygon**: Click multiple points, then click "Finish"
+- Use "Clear" to reset
+
+**B. Upload New**
+- Supported formats:
+  - **Vector**: Shapefile (.shp), GeoJSON, GeoPackage, KML
+  - **Raster**: GeoTIFF (.tif/.tiff), NetCDF (.nc), ESRI Grid (.grd)
+- For rasters: the extent is automatically extracted
+- Star files for quick access in future sessions
+
+**C. Project Assets**
+- Scan the project folder for existing spatial files
+- Quickly reuse AOIs from previous analyses
+
+### 3. Variables
+
+Select one or more WaPOR or AgERA5 variables to download.
+
+**Variable Levels:**
+- **L1**: Continental scale (~250m resolution)
+- **L2**: Country/regional scale (~100m resolution)
+- **L3**: Sub-national / irrigation scheme scale (~10-30m resolution)
+
+**Temporal Resolutions:**
+- **A**: Annual
+- **M**: Monthly
+- **D**: Dekadal (10-day periods)
+- **E**: Daily
+
+### 4. L3 Region Selection (for L3 variables)
+
+When L3 variables are selected, the L3 Region dropdown appears.
+
+---
+
+## L3 Region Auto-Detection Feature
+
+**New in v0.9.3**: The dashboard automatically detects which L3 regions overlap with your selected AOI.
+
+### How It Works
+
+When you define an AOI (via drawing, upload, or project assets), the system:
+
+1. **Detects Spatial Overlap**: Uses `wapor_guess_region()` to identify L3 regions that intersect with your AOI
+2. **Filters Dropdown**: Shows only overlapping regions in the L3 Region dropdown
+3. **Auto-Selects**: If exactly one region overlaps, it's automatically selected
+4. **Provides Feedback**: Displays status messages to guide your selection
+
+### Status Messages
+
+The dashboard provides real-time feedback about L3 region detection:
+
+#### ✅ Success (Green)
+**"Auto-selected: Ethiopia - Awash"**
+- Exactly one L3 region overlaps your AOI
+- The region is automatically selected
+- You can proceed with download
+
+#### ⚠️ Multiple Overlaps (Yellow)
+**"Multiple L3 regions overlap (AWA, KOG, BUS). Please select one."**
+- Your AOI spans multiple L3 regions
+- The dropdown is filtered to show only overlapping regions
+- You must manually select which region to download
+
+#### ⚠️ No Overlap (Yellow)
+**"No L3 regions overlap with this AOI"**
+- Your AOI doesn't intersect any L3 regions
+- L3 data is not available for this area
+- Consider using L1 or L2 variables instead
+
+#### ℹ️ Info (Blue)
+**"Select an AOI to auto-detect L3 regions"**
+- No AOI has been defined yet
+- All L3 regions remain available in the dropdown
+- Define an AOI to enable auto-detection
+
+### Use Cases
+
+#### Use Case 1: Single Irrigation Scheme
+
+You want to download L3 data for the Awash Basin in Ethiopia:
+
+```r
+# 1. Launch dashboard
+run_wapor()
+
+# 2. In the browser:
+#    - Set Project Folder: "~/my_projects/awash_analysis"
+#    - Upload AOI: Upload a shapefile of Awash Basin boundary
+#    - Select Variable: L3-AETI-D (dekadal evapotranspiration)
+#    - Result: "Auto-selected: Ethiopia - Awash (AWA)"
+#    - Select Time Period: 2023-01-01 to 2023-12-31
+#    - Click "Download Data"
+```
+
+#### Use Case 2: Regional Study with Multiple Schemes
+
+You're analyzing water productivity across East Africa:
+
+```r
+# 1. Draw a large rectangle covering Kenya
+# 2. Select L3-GBWP-A (gross biomass water productivity)
+# 3. Result: "Multiple L3 regions overlap (BUS, KMW, KTB)"
+# 4. Manually select one region (e.g., KMW - Mwea)
+# 5. Download completes for selected region
+```
+
+#### Use Case 3: Raster AOI
+
+You have a crop classification raster and want matching L3 data:
+
+```r
+# 1. Upload your raster file (e.g., "crop_mask.tif")
+# 2. System extracts raster extent automatically
+# 3. Detects overlapping L3 regions based on extent
+# 4. Auto-selects if extent overlaps exactly one region
+# 5. Download proceeds with spatial alignment
+```
+
+### Technical Implementation
+
+The auto-detection uses these package functions under the hood:
+
+```{r technical}
+# Parse AOI (bbox or file path)
+region_info <- wapor_parse_region(aoi_bbox)
+
+# Detect overlapping L3 regions
+overlapping_codes <- wapor_guess_region(
+  variable = "L3-AETI-D",
+  reg_info = region_info,
+  period = c("2023-01-01", "2023-01-11")  # Sample period for detection
+)
+
+# Result: character vector of L3 codes, e.g., c("AWA", "KOG")
+```
+
+**Key Functions:**
+- `wapor_parse_region()`: Standardizes AOI input (vector, bbox, or raster)
+- `wapor_guess_region()`: Performs spatial intersection analysis
+- `wapor_l3_extent()`: Retrieves cached L3 region boundaries
+
+### Performance Notes
+
+- **First Detection**: May take 5-10 seconds as L3 extents are downloaded and cached
+- **Subsequent Detections**: Nearly instant using disk cache
+- **Cache Location**: `{R_user_dir}/Rwapor/cache/l3_extents/`
+
+The cache persists across R sessions for fast re-detection.
+
+---
+
+## Time Period
+
+Select the date range for data download:
+
+- **Start Date**: First day of the period
+- **End Date**: Last day of the period
+- **Temporal Coverage**: Depends on variable (WaPOR: 2009-present, AgERA5: 1979-present)
+
+---
+
+## Output Settings
+
+### File Options
+
+**Seasonal Aggregate**
+- Calculates sum (flux variables) or mean (intensive properties) over the entire period
+- Produces one file per variable for the full time range
+
+**Save Per-Timestep Files**
+- Saves individual files for each dekad/day/month
+- Useful for time series analysis
+
+**Both Options**
+- Check both to get individual files + one seasonal aggregate
+- Recommended for comprehensive analysis
+
+### Unit Conversion
+
+Convert temporal resolution of flux variables (ET, precipitation, NPP):
+
+- **No conversion**: Keep original units (mm/day, mm/dekad, etc.)
+- **Per day**: Convert to mm/day or gC/m²/day
+- **Per dekad**: Convert to mm/dekad (10-day total)
+- **Per month**: Convert to mm/month
+- **Per year**: Convert to mm/year or gC/m²/year
+
+**Note**: Intensive properties (temperature, LCC) cannot be converted.
+
+---
+
+## Download Execution
+
+Click **"Download Data"** to start the download process.
+
+### Progress Tracking
+
+- **Progress bar**: Shows overall download progress
+- **Status messages**: Indicate current step (e.g., "Stage 1 of 2: Individual files for L1-AETI-D...")
+- **Completion notification**: Displays number of files downloaded
+
+### Error Handling
+
+Common issues and solutions:
+
+**"No L3 regions overlap with this AOI"**
+- Solution: Use L1 or L2 variables, or select a different AOI
+
+**"Multiple L3 regions overlap. Please select one."**
+- Solution: Manually choose one region from the filtered dropdown
+
+**"Region cannot be NULL"**
+- Solution: Define an AOI before downloading
+
+**Download stalls or fails**
+- Check internet connection
+- Verify date range is within data availability
+- Try smaller spatial/temporal extent
+
+---
+
+## R Code Preview
+
+The dashboard generates equivalent R code for reproducibility. Click the **"R Code Preview"** button at the bottom of the map to view and copy the code.
+
+Example generated code:
+
+```{r example-code}
+library(Rwapor)
+
+region   <- c(35.5, 8.0, 40.5, 12.0)  # bbox
+period   <- c("2023-01-01", "2023-12-31")
+variable <- "L3-AETI-D"
+folder   <- "~/wapor_project"
+
+map_paths <- wapor_map(
+  region = region,
+  variable = variable,
+  period = period,
+  folder = folder,
+  unit_conversion = NULL,
+  seasonal = FALSE,
+  separate_files = TRUE,
+  mask = FALSE
+)
+```
+
+You can copy this code to run downloads programmatically without the dashboard.
+
+---
+
+## Tips and Best Practices
+
+### Efficient AOI Definition
+
+1. **Raster AOI for Exact Matching**: Upload your analysis raster (e.g., crop mask) to ensure perfect spatial alignment
+2. **Favorites for Repeated Analyses**: Star frequently-used shapefiles and folders
+3. **Project Assets**: Keep all AOI files in your project folder for easy scanning
+
+### L3 Region Selection Strategy
+
+1. **Define AOI First**: Always set your AOI before selecting L3 variables to leverage auto-detection
+2. **Use Specific Boundaries**: For multi-region studies, use precise boundaries to avoid ambiguous overlaps
+3. **Check Coverage**: If auto-detection shows no overlap, verify L3 data exists for your area using the L3_REGIONS list:
+
+```{r check-coverage}
+# List all available L3 regions
+names(L3_REGIONS)
+
+# Find regions in a specific country
+Filter(function(r) r$country == "Kenya", L3_REGIONS)
+```
+
+### Download Optimization
+
+1. **Spatial Extent**: Smaller areas download faster
+2. **Temporal Range**: Limit date ranges to reduce file count
+3. **Variable Selection**: Download multiple variables in one operation for efficiency
+4. **Seasonal Aggregate**: Use seasonal option to reduce storage when time series isn't needed
+
+### Debugging Downloads
+
+If downloads fail or produce unexpected results:
+
+1. **Check Generated Code**: Review the R Code Preview for correctness
+2. **Test Programmatically**: Copy the generated code and run with `verbose = TRUE`
+3. **Verify Metadata**: Use `wapor_fetch_metadata()` to confirm variable availability
+4. **Spatial Validation**: Use `wapor_compare_geom()` to check AOI alignment
+
+---
+
+## Integration with Programmatic Workflow
+
+You can seamlessly combine dashboard and programmatic approaches:
+
+```{r integration}
+# 1. Use dashboard to:
+#    - Explore available variables
+#    - Test AOI definitions
+#    - Verify L3 region detection
+#    - Generate initial download code
+
+# 2. Copy generated code to your script
+# 3. Extend with programmatic analysis:
+
+library(Rwapor)
+library(terra)
+
+# Download using dashboard-generated parameters
+aeti_files <- wapor_map(
+  region = "AWA",  # Auto-detected L3 code
+  variable = "L3-AETI-D",
+  period = c("2023-01-01", "2023-12-31"),
+  folder = "~/wapor_project"
+)
+
+# Continue with analysis
+aeti_stack <- rast(aeti_files)
+seasonal_mean <- mean(aeti_stack)
+plot(seasonal_mean, main = "Mean Dekadal AETI (2023)")
+```
+
+---
+
+## Keyboard Shortcuts
+
+When drawing polygons on the map:
+
+- **Escape**: Cancel drawing
+- **Backspace**: Remove last point
+- **Enter**: Finish polygon (alternative to "Finish" button)
+
+---
+
+## Troubleshooting
+
+### L3 Auto-Detection Not Working
+
+**Symptoms**: No status message appears, or dropdown doesn't filter
+
+**Solutions**:
+1. Ensure L3 variables are selected
+2. Verify AOI is defined (check "Selected ROI" display)
+3. Check date range is valid
+4. Clear browser cache and reload dashboard
+
+### "Multiple regions overlap" But I Expected One
+
+**Cause**: AOI extends slightly into adjacent L3 regions
+
+**Solution**:
+- Refine AOI boundary to be fully within one region
+- Or manually select the primary region of interest
+
+### Raster AOI Not Detected
+
+**Symptoms**: Uploaded raster but no overlap detected
+
+**Solutions**:
+1. Verify raster has valid CRS metadata (`gdalinfo file.tif`)
+2. Check raster extent overlaps expected L3 region
+3. Ensure file format is supported (.tif, .tiff, .nc, .grd)
+
+---
+
+## Advanced: Extending the Dashboard
+
+The dashboard is built with modular Shiny components. Key modules:
+
+- `mod_download_ui/server`: Download workflow and L3 detection
+- `mod_aoi_ui/server`: AOI selection and spatial operations
+- `mod_analysis_ui/server`: Crop water productivity analysis
+
+To extend functionality, modify these modules in `inst/shiny/`.
+
+---
+
+## Further Reading
+
+- **Getting Started**: `vignette("getting-started", package = "Rwapor")`
+- **Data Catalog**: `vignette("data-catalog", package = "Rwapor")`
+- **Function Reference**: `help(package = "Rwapor")`
+
+---
+
+## Summary
+
+The Rwapor Shiny dashboard provides an intuitive interface for WaPOR/AgERA5 data access, with the L3 region auto-detection feature significantly streamlining the workflow for sub-national analyses. By defining your AOI first, the system automatically identifies and filters relevant L3 regions, reducing errors and improving efficiency.
+
+Key Takeaways:
+
+1. ✅ Define AOI before selecting L3 variables
+2. ✅ Raster AOIs work seamlessly for spatial alignment
+3. ✅ Auto-detection handles single-region cases automatically
+4. ✅ Multi-region overlaps require manual selection
+5. ✅ Use R Code Preview for reproducible workflows
