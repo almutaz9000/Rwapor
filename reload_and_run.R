@@ -1,0 +1,11 @@
+# Reload package and launch dashboard with fixes
+cat("=========================================\n")
+cat("Reloading Rwapor package with fixes...\n")
+cat("=========================================\n")
+devtools::load_all()
+cat("\n✓ Package reloaded successfully!\n")
+cat("✓ Visualization module updated\n")
+cat("\nLaunching dashboard...\n")
+cat("Watch for debug output in console\n")
+cat("=========================================\n\n")
+Rwapor::run_wapor()
