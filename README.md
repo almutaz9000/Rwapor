@@ -114,8 +114,13 @@ run_wapor(data_folder = "C:/WaPOR_Data")
 ### What You Can Do in the Dashboard
 
 **📍 Download Tab**:
-- Draw your area of interest on an interactive map
-- Upload your own polygons (Shapefile, GeoJSON, KML)
+- **Define Area of Interest** (AOI) - draw on map, upload vector, or upload raster
+- **Smart L3 Region Detection** - automatically identifies overlapping L3 regions
+  - Auto-filters L3 regions to show only those intersecting your AOI
+  - Auto-selects when exactly one region overlaps
+  - Shows status messages for guidance
+  - See [L3 Auto-Detection Guide](.github/L3-AUTO-DETECTION.md) for details
+- Upload your own polygons (Shapefile, GeoJSON, KML, GeoPackage)
 - Select variables (AETI, NPP, Precipitation, etc.)
 - Choose date range and download data
 - Extract time-series statistics for each polygon

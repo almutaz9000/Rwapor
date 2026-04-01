@@ -2,6 +2,23 @@
 
 ## Major Enhancements
 
+### Shiny Dashboard Improvements
+* **NEW**: L3 Region Auto-Detection System
+  - Automatically detects which L3 regions overlap with user-defined AOI
+  - Filters L3 region dropdown to show only relevant regions
+  - Auto-selects when exactly one region overlaps
+  - Provides real-time feedback messages about detection status
+  - Supports vector files, raster files, and drawn geometries as AOI
+  - Leverages `wapor_guess_region()` for spatial intersection analysis
+* **REORGANIZED**: Download workflow UI
+  - AOI selection moved immediately after Project Folder
+  - More intuitive linear workflow: Folder → AOI → Variables → Time Period
+  - Better guidance for users selecting L3 variables
+* **NEW**: Comprehensive Shiny dashboard documentation
+  - New vignette: `vignette("shiny-dashboard")`
+  - Detailed L3 auto-detection usage guide
+  - Troubleshooting tips and best practices
+
 ### Analysis Pipeline Refactoring
 * **NEW**: `wapor_analysis_pipeline()` - Modularized seasonal crop water productivity analysis pipeline
   - Orchestrates data loading, harmonization, seasonal aggregation, and indicator computation
