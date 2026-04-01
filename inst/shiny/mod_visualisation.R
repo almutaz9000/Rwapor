@@ -884,6 +884,13 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
             r_band2 <- terra::resample(r_band2, r_band1, method = "bilinear")
           }
           
+          # Show notification
+          shiny::showNotification(
+            "Split-screen slider activated! Look for the white line with circular handle in the center of the map.",
+            type = "message",
+            duration = 5
+          )
+          
           # Add both rasters to different layer groups
           proxy <- proxy |>
             leaflet::addRasterImage(
@@ -917,122 +924,134 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
               layerId = "leg_raster2"
             )
           
-          # Add custom JavaScript to create split-screen slider effect
-          proxy <- proxy |> htmlwidgets::onRender("
-            function(el, x) {
-              var map = this;
+          # Inject JavaScript to create split-screen slider using shinyjs::runjs()
+          # This executes immediately when swipe mode is activated
+          shinyjs::runjs("
+            (function() {
+              console.log('Split-screen slider initializing...');
               
-              // Remove existing clip divider if present
-              if (map._clipDivider) {
-                map._clipDivider.remove();
-                delete map._clipDivider;
+              // Get the map container
+              var mapContainer = document.getElementById('vis-analysis_map');
+              if (!mapContainer) {
+                console.error('Map container not found! Looking for: vis-analysis_map');
+                return;
+              }
+              console.log('Map container found!');
+              
+              // Remove existing divider if present
+              var existingDivider = mapContainer.querySelector('.leaflet-sbs-container');
+              if (existingDivider) {
+                console.log('Removing old divider');
+                existingDivider.remove();
               }
               
-              // Create a divider container
-              var dividerContainer = L.DomUtil.create('div', 'leaflet-sbs-container');
-              dividerContainer.style.position = 'absolute';
-              dividerContainer.style.top = '0';
-              dividerContainer.style.left = '50%';
-              dividerContainer.style.bottom = '0';
-              dividerContainer.style.width = '40px';
-              dividerContainer.style.marginLeft = '-20px';
-              dividerContainer.style.zIndex = '1000';
-              dividerContainer.style.pointerEvents = 'auto';
-              dividerContainer.style.cursor = 'ew-resize';
-              
-              // Create the visible divider line
-              var divider = L.DomUtil.create('div', 'leaflet-sbs-divider', dividerContainer);
-              divider.style.position = 'absolute';
-              divider.style.left = '50%';
-              divider.style.top = '0';
-              divider.style.bottom = '0';
-              divider.style.width = '3px';
-              divider.style.marginLeft = '-1.5px';
-              divider.style.backgroundColor = '#fff';
-              divider.style.boxShadow = '0 0 10px rgba(0,0,0,0.7)';
-              
-              // Create handle in the middle
-              var handle = L.DomUtil.create('div', 'leaflet-sbs-handle', dividerContainer);
-              handle.style.position = 'absolute';
-              handle.style.left = '50%';
-              handle.style.top = '50%';
-              handle.style.width = '40px';
-              handle.style.height = '40px';
-              handle.style.marginLeft = '-20px';
-              handle.style.marginTop = '-20px';
-              handle.style.backgroundColor = '#fff';
-              handle.style.borderRadius = '50%';
-              handle.style.border = '3px solid #0078d4';
-              handle.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
-              handle.innerHTML = '<div style=\"position:absolute;top:50%;left:8px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:8px solid #0078d4;margin-top:-6px;\"></div><div style=\"position:absolute;top:50%;right:8px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:8px solid #0078d4;margin-top:-6px;\"></div>';
-              
-              map.getContainer().appendChild(dividerContainer);
-              map._clipDivider = dividerContainer;
-              
-              // Function to update clip
-              var updateClip = function(leftPercent) {
-                var mapWidth = map.getContainer().offsetWidth;
-                var x = mapWidth * leftPercent;
+              // Wait a bit for layers to load
+              setTimeout(function() {
+                console.log('Creating divider...');
                 
-                dividerContainer.style.left = x + 'px';
+                // Create a divider container
+                var dividerContainer = document.createElement('div');
+                dividerContainer.className = 'leaflet-sbs-container';
+                dividerContainer.style.position = 'absolute';
+                dividerContainer.style.top = '0';
+                dividerContainer.style.left = '50%';
+                dividerContainer.style.bottom = '0';
+                dividerContainer.style.width = '40px';
+                dividerContainer.style.marginLeft = '-20px';
+                dividerContainer.style.zIndex = '1000';
+                dividerContainer.style.pointerEvents = 'auto';
+                dividerContainer.style.cursor = 'ew-resize';
                 
-                // Get all image layers
-                var overlayPane = map.getPane('overlayPane');
-                if (overlayPane) {
-                  var layers = overlayPane.querySelectorAll('.leaflet-image-layer');
+                // Create the visible divider line
+                var divider = document.createElement('div');
+                divider.className = 'leaflet-sbs-divider';
+                divider.style.position = 'absolute';
+                divider.style.left = '50%';
+                divider.style.top = '0';
+                divider.style.bottom = '0';
+                divider.style.width = '4px';
+                divider.style.marginLeft = '-2px';
+                divider.style.backgroundColor = '#ffffff';
+                divider.style.boxShadow = '0 0 10px rgba(0,0,0,0.8)';
+                dividerContainer.appendChild(divider);
+                
+                // Create handle in the middle
+                var handle = document.createElement('div');
+                handle.className = 'leaflet-sbs-handle';
+                handle.style.position = 'absolute';
+                handle.style.left = '50%';
+                handle.style.top = '50%';
+                handle.style.width = '50px';
+                handle.style.height = '50px';
+                handle.style.marginLeft = '-25px';
+                handle.style.marginTop = '-25px';
+                handle.style.backgroundColor = '#ffffff';
+                handle.style.borderRadius = '50%';
+                handle.style.border = '4px solid #0078d4';
+                handle.style.boxShadow = '0 3px 12px rgba(0,0,0,0.5)';
+                handle.style.display = 'flex';
+                handle.style.alignItems = 'center';
+                handle.style.justifyContent = 'center';
+                handle.innerHTML = '<div style=\"color:#0078d4;font-size:20px;font-weight:bold;\">⇔</div>';
+                dividerContainer.appendChild(handle);
+                
+                // Add to map container
+                mapContainer.appendChild(dividerContainer);
+                console.log('Divider added to map');
+                
+                // Function to update clip
+                var updateClip = function(x) {
+                  var mapWidth = mapContainer.offsetWidth;
+                  var mapHeight = mapContainer.offsetHeight;
+                  
+                  dividerContainer.style.left = x + 'px';
+                  dividerContainer.style.marginLeft = '0px';
+                  
+                  // Get all image layers
+                  var layers = mapContainer.querySelectorAll('.leaflet-overlay-pane .leaflet-image-layer');
+                  console.log('Found ' + layers.length + ' image layers');
                   if (layers.length >= 2) {
                     // First layer (left raster) - show only left portion
-                    layers[0].style.clip = 'rect(0px, ' + x + 'px, 9999px, 0px)';
-                    // Second layer (right raster) - show only right portion
-                    layers[1].style.clip = 'rect(0px, 9999px, 9999px, ' + x + 'px)';
+                    layers[0].style.clip = 'rect(0px, ' + x + 'px, ' + mapHeight + 'px, 0px)';
+                    // Second layer (right raster) - show only right portion  
+                    layers[1].style.clip = 'rect(0px, ' + mapWidth + 'px, ' + mapHeight + 'px, ' + x + 'px)';
+                    console.log('Clipping applied at x=' + x);
                   }
-                }
-              };
-              
-              // Drag functionality
-              var dragging = false;
-              var startX = 0;
-              var startPercent = 0.5;
-              
-              dividerContainer.addEventListener('mousedown', function(e) {
-                dragging = true;
-                startX = e.clientX;
-                var rect = map.getContainer().getBoundingClientRect();
-                startPercent = (dividerContainer.offsetLeft + 20) / rect.width;
-                e.preventDefault();
-                e.stopPropagation();
-              });
-              
-              document.addEventListener('mousemove', function(e) {
-                if (dragging) {
-                  var rect = map.getContainer().getBoundingClientRect();
-                  var x = e.clientX - rect.left;
-                  var percent = Math.max(0, Math.min(1, x / rect.width));
-                  updateClip(percent);
-                }
-              });
-              
-              document.addEventListener('mouseup', function() {
-                dragging = false;
-              });
-              
-              // Prevent map dragging when over slider
-              L.DomEvent.disableClickPropagation(dividerContainer);
-              L.DomEvent.disableScrollPropagation(dividerContainer);
-              
-              // Initial clip at 50%
-              setTimeout(function() {
-                updateClip(0.5);
-              }, 200);
-              
-              // Update on map events
-              map.on('move zoom resize', function() {
-                var rect = map.getContainer().getBoundingClientRect();
-                var currentLeft = dividerContainer.offsetLeft + 20;
-                var percent = currentLeft / rect.width;
-                updateClip(percent);
-              });
-            }
+                };
+                
+                // Drag functionality
+                var dragging = false;
+                
+                dividerContainer.addEventListener('mousedown', function(e) {
+                  dragging = true;
+                  console.log('Drag started');
+                  e.preventDefault();
+                  e.stopPropagation();
+                });
+                
+                document.addEventListener('mousemove', function(e) {
+                  if (dragging) {
+                    var rect = mapContainer.getBoundingClientRect();
+                    var x = e.clientX - rect.left;
+                    x = Math.max(0, Math.min(rect.width, x));
+                    updateClip(x);
+                  }
+                });
+                
+                document.addEventListener('mouseup', function() {
+                  if (dragging) {
+                    console.log('Drag ended');
+                    dragging = false;
+                  }
+                });
+                
+                // Initial clip at 50%
+                var initialX = Math.round(mapContainer.offsetWidth / 2);
+                updateClip(initialX);
+                console.log('Initial clip applied at x=' + initialX);
+                
+              }, 500); // Wait 500ms for rasters to load
+            })();
           ")
         } else {
           # Overlay mode - show both rasters

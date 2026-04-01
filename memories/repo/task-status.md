@@ -1,5 +1,29 @@
 # Task Status Ledger
 
+## 2026-04-01
+
+### Success
+- [x] Fixed conditionalPanel namespace issues in visualization module - replaced with renderUI pattern.
+- [x] Second raster selector now appears correctly in dual/query modes.
+- [x] Fixed "argument is of length zero" errors with NULL checks for dynamic inputs.
+- [x] Map layer clearing improved - explicit clearGroup() for all 7 layer groups.
+- [x] Conditional query panel renders properly with all controls.
+- [x] Implemented split-screen slider JavaScript with CSS clipping approach.
+- [x] Added extensive console logging for slider debugging.
+- [x] Enhanced slider visuals: 4px white line, 50px circular handle with ⇔ symbol.
+- [x] Added notification message when swipe mode activates.
+- [x] Fixed split-screen slider JavaScript execution - replaced htmlwidgets::onRender with shinyjs::runjs.
+
+### Pending
+- [ ] User to verify split-screen slider now appears and functions correctly in browser.
+- [ ] Add keyboard controls for slider positioning once functionality confirmed.
+- [ ] Implement slider position persistence across mode switches.
+- [ ] Add documentation for conditional query and split-screen slider features.
+- [ ] Add regression tests for split-screen slider functionality.
+
+### Failed/Blocked
+(None - previous blocker resolved)
+
 ## 2026-03-31
 
 ### Success
