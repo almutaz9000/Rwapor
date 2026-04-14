@@ -219,10 +219,13 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
                 "Water Adequacy \u2013 ETc basis",
                 "Water Adequacy \u2013 P95 basis",
                 "CWP / BWP \u2013 Water Productivity",
-                "Yield \u2013 NPP-based estimate"
+                "Yield \u2013 NPP-based estimate",
+                "Green Water \u2013 AETI from rainfall (requires Peff)",
+                "Blue Water \u2013 AETI from irrigation (requires Peff)"
               ),
               choiceValues = list(
-                "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp"
+                "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp",
+                "green_water", "blue_water"
               ),
               selected = c("etc", "adequacy_etc", "yield_npp")
             ),
@@ -396,7 +399,8 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
         bslib::nav_panel("Main Results", shiny::tableOutput(ns("an_etc_aeti_table"))),
         bslib::nav_panel("Adequacy", shiny::tableOutput(ns("an_adequacy_table"))),
         bslib::nav_panel("Eff. Precip", shiny::tableOutput(ns("an_peff_table"))),
-        bslib::nav_panel("CWP/BWP", shiny::tableOutput(ns("an_cwp_bwp_table")))
+        bslib::nav_panel("CWP/BWP", shiny::tableOutput(ns("an_cwp_bwp_table"))),
+        bslib::nav_panel("Green/Blue Water", shiny::tableOutput(ns("an_green_blue_table")))
       ),
       bslib::card(
         bslib::card_header(shiny::icon("download"), " Export & Reproducibility"),
@@ -2235,9 +2239,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           dekad_table <- sw$dekad_table
 
 
-          need_aeti_stack <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp") %in% indicators)
+          need_aeti_stack <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water") %in% indicators)
           need_ret_stack <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
-          need_precip_stack <- any(c("agg_pcp", "agg_peff") %in% indicators)
+          need_precip_stack <- any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators)
           need_npp_stack <- any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) ||
             ("cwp_bwp" %in% indicators && is.null(input$an_biomass_file))
 
@@ -2578,6 +2582,40 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             })
           }
 
+          if (any(c("green_water", "blue_water") %in% indicators) &&
+              !is.null(results$seasonal_aeti) && !is.null(precip_stack)) {
+            shiny::incProgress(0.05, detail = "Computing green/blue water consumption...")
+            tryCatch({
+              # Ensure seasonal_pcp raster is available
+              if (is.null(results$seasonal_pcp)) {
+                results$seasonal_pcp <- Rwapor::wapor_masked_sum(
+                  precip_stack,
+                  season_weights,
+                  layer_multipliers = precip_layer_multipliers,
+                  incremental = use_incremental
+                )
+              }
+              # Compute per-pixel Peff raster using USDA SCS formula on seasonal totals
+              peff_raster <- terra::ifel(
+                results$seasonal_pcp <= 250,
+                results$seasonal_pcp * (125 - 0.2 * results$seasonal_pcp) / 125,
+                125 + 0.1 * results$seasonal_pcp
+              )
+              if ("green_water" %in% indicators) {
+                results$green_water <- Rwapor::wapor_calc_green_water(
+                  results$seasonal_aeti$raster, peff_raster
+                )
+              }
+              if ("blue_water" %in% indicators) {
+                results$blue_water <- Rwapor::wapor_calc_blue_water(
+                  results$seasonal_aeti$raster, peff_raster
+                )
+              }
+            }, error = function(e) {
+              warning("Green/blue water computation failed: ", e$message)
+            })
+          }
+
           if ("yield_npp" %in% indicators && !is.null(results$seasonal_biomass)) {
             shiny::incProgress(0.05, detail = "Computing Yield (NPP-based)...")
             yield_layers <- list()
@@ -2710,6 +2748,18 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                                     file.path(input$an_folder, paste0(prefix, "_etc_class_", cls, ".tif")), 
                                     overwrite = TRUE)
                 }
+              }
+              # Green water
+              if (!is.null(results$green_water)) {
+                terra::writeRaster(results$green_water,
+                                  file.path(input$an_folder, paste0(prefix, "_green_water.tif")),
+                                  overwrite = TRUE)
+              }
+              # Blue water
+              if (!is.null(results$blue_water)) {
+                terra::writeRaster(results$blue_water,
+                                  file.path(input$an_folder, paste0(prefix, "_blue_water.tif")),
+                                  overwrite = TRUE)
               }
               shiny::showNotification("Rasters saved successfully.", type = "message")
             }, error = function(e) {
@@ -2921,6 +2971,61 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
       if (length(rows) > 0) do.call(rbind, rows) else {
         data.frame(Message = "Upload yield/biomass rasters and run analysis.", stringsAsFactors = FALSE)
+      }
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    output$an_green_blue_table <- shiny::renderTable({
+      res <- an_results()
+      shiny::req(res)
+
+      rows <- list()
+      mask_rast <- res$h_mask %||% an_crop_mask_rast()
+      params <- res$crop_params
+
+      if (!is.null(res$green_water)) {
+        classes <- if (!is.null(params)) params$class_value else integer(0)
+        for (cls in classes) {
+          cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
+          mean_gw <- masked_global_mean(res$green_water, cls_mask)
+          label <- if (!is.null(params)) {
+            idx <- which(params$class_value == cls)
+            if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
+          } else {
+            as.character(cls)
+          }
+          rows[[length(rows) + 1]] <- data.frame(
+            Class = label,
+            Indicator = "Green Water (mm)",
+            Mean = if (!is.nan(mean_gw)) round(mean_gw, 1) else NA,
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+
+      if (!is.null(res$blue_water)) {
+        classes <- if (!is.null(params)) params$class_value else integer(0)
+        for (cls in classes) {
+          cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
+          mean_bw <- masked_global_mean(res$blue_water, cls_mask)
+          label <- if (!is.null(params)) {
+            idx <- which(params$class_value == cls)
+            if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
+          } else {
+            as.character(cls)
+          }
+          rows[[length(rows) + 1]] <- data.frame(
+            Class = label,
+            Indicator = "Blue Water (mm)",
+            Mean = if (!is.nan(mean_bw)) round(mean_bw, 1) else NA,
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+
+      if (length(rows) > 0) do.call(rbind, rows) else {
+        data.frame(Message = "Run analysis with Green/Blue Water indicators and a precipitation variable selected.", stringsAsFactors = FALSE)
       }
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
 
