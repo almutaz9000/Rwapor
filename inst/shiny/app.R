@@ -44,6 +44,7 @@ source("mod_download.R")
 source("mod_visualisation.R")
 source("mod_analysis.R")
 source("mod_timeseries.R")
+source("mod_monitoring.R")
 
 # --- Global / Static Configuration ---
 # Build variable list from package metadata
@@ -138,6 +139,9 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Timeseries", icon = shiny::icon("chart-line"),
     mod_timeseries_ui("ts")
   ),
+  bslib::nav_panel("Monitoring", icon = shiny::icon("satellite-dish"),
+    mod_monitoring_ui("mon")
+  ),
 
   bslib::nav_spacer(),
   bslib::nav_item(shiny::actionButton("exit_btn", "Exit", icon = shiny::icon("power-off"), class = "btn-danger btn-sm"))
@@ -188,6 +192,12 @@ server <- function(input, output, session) {
   mod_timeseries_server("ts",
                        global_folder = dl_out$folder,
                        aoi_region = dl_out$region)
+
+  # 5. Monitoring Module
+  # Farm-level seasonal monitoring with DuckDB persistence
+  mod_monitoring_server("mon",
+                        global_folder = dl_out$folder,
+                        aoi_region    = dl_out$region)
 }
 
 shiny::shinyApp(ui, server)
