@@ -16,6 +16,26 @@
 #'   \item Configure output formats, unit conversions, and temporal periods.
 #'   \item Preview the exact R code that will be executed.
 #'   \item Trigger data downloads directly from the interface.
+#'   \item Monitor farm performance during the current growing season using the
+#'     \strong{Monitoring} tab, which stores WaPOR time series per farm polygon in a
+#'     local DuckDB database and displays agronomic stress indicators
+#'     (ETa/ETp, transpiration fraction, cumulative AETI, NPP).
+#' }
+#'
+#' @section Monitoring tab:
+#' The Monitoring tab requires the \pkg{duckdb} package
+#' (\code{install.packages("duckdb")}).  It:
+#' \enumerate{
+#'   \item Accepts a vector file (GeoJSON, GeoPackage, Shapefile) of farm polygons.
+#'   \item Allows the user to select the crop-type column, sowing date, and WaPOR
+#'     variables to track.
+#'   \item On each "Monitor / Update" click it fetches only the \emph{missing}
+#'     dekads (incremental update) and appends them to the local DuckDB file.
+#'   \item Optionally clips and stores AOI raster layers as BLOB objects in the
+#'     same database for offline visualisation.
+#'   \item Displays a farm map coloured by stress index, per-farm time-series
+#'     plots, a raster viewer, and a stress dashboard with colour-coded farm
+#'     performance table.
 #' }
 #'
 #' @export
@@ -56,6 +76,15 @@ run_wapor <- function(display.mode = "normal", launch.browser = interactive(), .
          "\n\nPlease install them using:\n  install.packages(c('", 
          paste(missing_pkgs, collapse = "', '"), "'))", 
          call. = FALSE)
+  }
+
+  # Inform user if duckdb is missing (needed for the Monitoring tab)
+  if (!requireNamespace("duckdb", quietly = TRUE)) {
+    message(
+      "NOTE: The 'duckdb' package is not installed.\n",
+      "      The Monitoring tab will show an error until you install it:\n",
+      "      install.packages('duckdb')"
+    )
   }
   
   # Ensure PROJ and GDAL are correctly configured to prevent crashes on Windows 
