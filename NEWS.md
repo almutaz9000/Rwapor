@@ -1,3 +1,15 @@
+# Rwapor 0.9.5
+
+## Changes
+
+### Shiny Dashboard
+* **REMOVED**: Split-screen slider (swipe) display mode from Dual Raster Comparison. The "Dual Raster Display" panel now offers "Overlay" and "Intersection Only" modes.
+* **FIXED**: Debug `cat()` statements removed from Visualization module server-side renderUI outputs.
+* **FIXED**: Added missing `viridisLite` and `RColorBrewer` packages to `Suggests` in DESCRIPTION.
+* **FIXED**: Removed stale `raster_left`/`raster_right` layer-group clearing calls that were only used by the removed swipe mode.
+
+---
+
 # Rwapor 0.9.3
 
 ## Major Enhancements
