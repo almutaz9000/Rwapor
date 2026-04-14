@@ -410,6 +410,50 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
   biomass_value / aeti_safe
 }
 
+# =============================================================================
+# Green and Blue Water Consumption
+# =============================================================================
+
+#' Compute Green Water Consumption
+#'
+#' Green water = min(AETI, Peff) — the portion of actual evapotranspiration
+#' sourced from effective precipitation (rainfall stored in the soil).
+#'
+#' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
+#' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
+#' @return SpatRaster or numeric. Green water consumption (mm).
+#' @export
+#' @examples
+#' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
+wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
+  if (inherits(aeti_seasonal, "SpatRaster")) {
+    terra::ifel(aeti_seasonal <= peff_seasonal, aeti_seasonal, peff_seasonal)
+  } else {
+    pmin(aeti_seasonal, peff_seasonal)
+  }
+}
+
+#' Compute Blue Water Consumption
+#'
+#' Blue water = max(0, AETI - Peff) — the portion of actual evapotranspiration
+#' sourced from irrigation (surface water or groundwater).
+#'
+#' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
+#' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
+#' @return SpatRaster or numeric. Blue water consumption (mm).
+#' @export
+#' @examples
+#' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
+wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
+  diff_val <- aeti_seasonal - peff_seasonal
+  if (inherits(diff_val, "SpatRaster")) {
+    terra::ifel(diff_val > 0, diff_val, 0)
+  } else {
+    pmax(diff_val, 0)
+  }
+}
+
+
 #' Convert NPP to Total Biomass Production (TBP)
 #'
 #' Converts seasonal NPP (gC/m2) to TBP (kgDM/ha) using the
