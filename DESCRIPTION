@@ -1,6 +1,6 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
-Version: 0.9.3
+Version: 0.9.5
 Authors@R: c(
     person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
     person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
@@ -50,7 +50,9 @@ Suggests:
     shinycssloaders,
     arrow,
     raster,
-    promises
+    promises,
+    viridisLite,
+    RColorBrewer
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3

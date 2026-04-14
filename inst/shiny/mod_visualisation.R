@@ -189,9 +189,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     output$raster2_ui <- shiny::renderUI({
       mode <- input$viz_mode
       
-      # Debug output
-      cat("raster2_ui: mode =", mode, "\n")
-      
       if (is.null(mode) || mode == "single") {
         return(NULL)
       }
@@ -209,9 +206,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     # Render query panel controls
     output$query_panel_ui <- shiny::renderUI({
       mode <- input$viz_mode
-      
-      # Debug output
-      cat("query_panel_ui: mode =", mode, "\n")
       
       if (is.null(mode) || mode != "query") {
         return(shiny::tags$p("Switch to 'Conditional Query' mode to use this feature.", 
@@ -278,9 +272,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     output$raster2_palette_ui <- shiny::renderUI({
       mode <- input$viz_mode
       
-      # Debug output
-      cat("raster2_palette_ui: mode =", mode, "\n")
-      
       if (is.null(mode) || mode != "dual") {
         return(NULL)
       }
@@ -309,12 +300,9 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       )
     })
     
-    # Render dual display mode controls (with new swipe slider option)
+    # Render dual display mode controls
     output$dual_display_ui <- shiny::renderUI({
       mode <- input$viz_mode
-      
-      # Debug output
-      cat("dual_display_ui: mode =", mode, "\n")
       
       if (is.null(mode) || mode != "dual") {
         return(NULL)
@@ -328,7 +316,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           NULL,
           choices = c(
             "Overlay" = "overlay",
-            "Split Screen Slider" = "swipe",
             "Intersection Only" = "intersection"
           ),
           selected = "overlay",
@@ -336,7 +323,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         ),
         shiny::tags$div(
           style = "background-color: #e7f3ff; padding: 8px; border-radius: 4px; margin-top: 8px;",
-          shiny::tags$small(shiny::icon("info-circle"), " Use controls above to choose display mode. Swipe mode adds a draggable slider.")
+          shiny::tags$small(shiny::icon("info-circle"), " Use controls above to choose display mode.")
         )
       )
     })
@@ -790,8 +777,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         leaflet::clearGroup("raster") |>
         leaflet::clearGroup("raster1") |>
         leaflet::clearGroup("raster2") |>
-        leaflet::clearGroup("raster_left") |>
-        leaflet::clearGroup("raster_right") |>
         leaflet::clearGroup("raster_intersection") |>
         leaflet::clearGroup("raster_query") |>
         leaflet::removeControl("leg_raster") |>
@@ -877,182 +862,6 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
               opacity = input$raster_opacity, 
               layerId = "leg_raster"
             )
-        } else if (display_mode == "swipe") {
-          # Split screen slider mode - add both rasters and create a divider
-          # Harmonize if needed
-          if (!terra::compareGeom(r_band1, r_band2, stopOnError = FALSE)) {
-            r_band2 <- terra::resample(r_band2, r_band1, method = "bilinear")
-          }
-          
-          # Show notification
-          shiny::showNotification(
-            "Split-screen slider activated! Look for the white line with circular handle in the center of the map.",
-            type = "message",
-            duration = 5
-          )
-          
-          # Add both rasters to different layer groups
-          proxy <- proxy |>
-            leaflet::addRasterImage(
-              raster::raster(r_band1), 
-              colors = pal1, 
-              opacity = input$raster_opacity, 
-              group = "raster_left",
-              layerId = "raster_left"
-            ) |>
-            leaflet::addRasterImage(
-              raster::raster(r_band2), 
-              colors = pal2, 
-              opacity = raster_opacity2_val, 
-              group = "raster_right",
-              layerId = "raster_right"
-            ) |>
-            leaflet::addLegend(
-              position = "topleft", 
-              pal = pal1, 
-              values = vals1, 
-              title = paste("Left:", names(r_band1)), 
-              opacity = input$raster_opacity, 
-              layerId = "leg_raster"
-            ) |>
-            leaflet::addLegend(
-              position = "topright", 
-              pal = pal2, 
-              values = vals2, 
-              title = paste("Right:", names(r_band2)), 
-              opacity = raster_opacity2_val, 
-              layerId = "leg_raster2"
-            )
-          
-          # Inject JavaScript to create split-screen slider using shinyjs::runjs()
-          # This executes immediately when swipe mode is activated
-          shinyjs::runjs("
-            (function() {
-              console.log('Split-screen slider initializing...');
-              
-              // Get the map container
-              var mapContainer = document.getElementById('vis-analysis_map');
-              if (!mapContainer) {
-                console.error('Map container not found! Looking for: vis-analysis_map');
-                return;
-              }
-              console.log('Map container found!');
-              
-              // Remove existing divider if present
-              var existingDivider = mapContainer.querySelector('.leaflet-sbs-container');
-              if (existingDivider) {
-                console.log('Removing old divider');
-                existingDivider.remove();
-              }
-              
-              // Wait a bit for layers to load
-              setTimeout(function() {
-                console.log('Creating divider...');
-                
-                // Create a divider container
-                var dividerContainer = document.createElement('div');
-                dividerContainer.className = 'leaflet-sbs-container';
-                dividerContainer.style.position = 'absolute';
-                dividerContainer.style.top = '0';
-                dividerContainer.style.left = '50%';
-                dividerContainer.style.bottom = '0';
-                dividerContainer.style.width = '40px';
-                dividerContainer.style.marginLeft = '-20px';
-                dividerContainer.style.zIndex = '1000';
-                dividerContainer.style.pointerEvents = 'auto';
-                dividerContainer.style.cursor = 'ew-resize';
-                
-                // Create the visible divider line
-                var divider = document.createElement('div');
-                divider.className = 'leaflet-sbs-divider';
-                divider.style.position = 'absolute';
-                divider.style.left = '50%';
-                divider.style.top = '0';
-                divider.style.bottom = '0';
-                divider.style.width = '4px';
-                divider.style.marginLeft = '-2px';
-                divider.style.backgroundColor = '#ffffff';
-                divider.style.boxShadow = '0 0 10px rgba(0,0,0,0.8)';
-                dividerContainer.appendChild(divider);
-                
-                // Create handle in the middle
-                var handle = document.createElement('div');
-                handle.className = 'leaflet-sbs-handle';
-                handle.style.position = 'absolute';
-                handle.style.left = '50%';
-                handle.style.top = '50%';
-                handle.style.width = '50px';
-                handle.style.height = '50px';
-                handle.style.marginLeft = '-25px';
-                handle.style.marginTop = '-25px';
-                handle.style.backgroundColor = '#ffffff';
-                handle.style.borderRadius = '50%';
-                handle.style.border = '4px solid #0078d4';
-                handle.style.boxShadow = '0 3px 12px rgba(0,0,0,0.5)';
-                handle.style.display = 'flex';
-                handle.style.alignItems = 'center';
-                handle.style.justifyContent = 'center';
-                handle.innerHTML = '<div style=\"color:#0078d4;font-size:20px;font-weight:bold;\">⇔</div>';
-                dividerContainer.appendChild(handle);
-                
-                // Add to map container
-                mapContainer.appendChild(dividerContainer);
-                console.log('Divider added to map');
-                
-                // Function to update clip
-                var updateClip = function(x) {
-                  var mapWidth = mapContainer.offsetWidth;
-                  var mapHeight = mapContainer.offsetHeight;
-                  
-                  dividerContainer.style.left = x + 'px';
-                  dividerContainer.style.marginLeft = '0px';
-                  
-                  // Get all image layers
-                  var layers = mapContainer.querySelectorAll('.leaflet-overlay-pane .leaflet-image-layer');
-                  console.log('Found ' + layers.length + ' image layers');
-                  if (layers.length >= 2) {
-                    // First layer (left raster) - show only left portion
-                    layers[0].style.clip = 'rect(0px, ' + x + 'px, ' + mapHeight + 'px, 0px)';
-                    // Second layer (right raster) - show only right portion  
-                    layers[1].style.clip = 'rect(0px, ' + mapWidth + 'px, ' + mapHeight + 'px, ' + x + 'px)';
-                    console.log('Clipping applied at x=' + x);
-                  }
-                };
-                
-                // Drag functionality
-                var dragging = false;
-                
-                dividerContainer.addEventListener('mousedown', function(e) {
-                  dragging = true;
-                  console.log('Drag started');
-                  e.preventDefault();
-                  e.stopPropagation();
-                });
-                
-                document.addEventListener('mousemove', function(e) {
-                  if (dragging) {
-                    var rect = mapContainer.getBoundingClientRect();
-                    var x = e.clientX - rect.left;
-                    x = Math.max(0, Math.min(rect.width, x));
-                    updateClip(x);
-                  }
-                });
-                
-                document.addEventListener('mouseup', function() {
-                  if (dragging) {
-                    console.log('Drag ended');
-                    dragging = false;
-                  }
-                });
-                
-                // Initial clip at 50%
-                var initialX = Math.round(mapContainer.offsetWidth / 2);
-                updateClip(initialX);
-                console.log('Initial clip applied at x=' + initialX);
-                
-              }, 500); // Wait 500ms for rasters to load
-            })();
-          ")
         } else {
           # Overlay mode - show both rasters
           proxy <- proxy |>
