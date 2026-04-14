@@ -395,14 +395,20 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     # Get the last fetched date per farm+variable to enable incremental updates
     get_last_dates <- function(con) {
-      if (is.null(con)) return(data.frame(farm_id = character(), variable = character(), last_date = as.Date(character()), stringsAsFactors = FALSE))
+      empty_df <- data.frame(
+        farm_id   = character(),
+        variable  = character(),
+        last_date = as.Date(character()),
+        stringsAsFactors = FALSE
+      )
+      if (is.null(con)) return(empty_df)
       tryCatch(
         duckdb::dbGetQuery(con, "
           SELECT farm_id, variable, MAX(end_date) AS last_date
           FROM farm_timeseries
           GROUP BY farm_id, variable
         "),
-        error = function(e) data.frame(farm_id = character(), variable = character(), last_date = as.Date(character()), stringsAsFactors = FALSE)
+        error = function(e) empty_df
       )
     }
 
@@ -534,6 +540,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
       rv$monitoring <- TRUE
       rv$log_msgs   <- character(0)
+      run_started_at <- Sys.time()
       add_log("Starting monitoring run…")
 
       # Run synchronously (could be made async with promises for large datasets)
@@ -618,11 +625,14 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             stringsAsFactors = FALSE
           )
 
-            # Delete any already-stored records in this date range (safety dedup)
-          duckdb::dbExecute(con, sprintf(
-            "DELETE FROM farm_timeseries WHERE variable = '%s' AND start_date >= '%s' AND start_date <= '%s'",
-            var, start_str, harvest_date
-          ))
+            # Delete only the specific farm+variable+date-range records being replaced
+          farm_ids_to_update <- unique(as.character(ts_df$farm_id))
+          for (fid in farm_ids_to_update) {
+            DBI::dbExecute(con,
+              "DELETE FROM farm_timeseries WHERE farm_id = ? AND variable = ? AND start_date >= ? AND start_date <= ?",
+              params = list(fid, var, as.Date(start_str), as.Date(harvest_date))
+            )
+          }
           # Insert fresh data for this period
           duckdb::dbWriteTable(con, "farm_timeseries", insert_df,
                                append = TRUE, overwrite = FALSE)
@@ -642,7 +652,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           "INSERT INTO monitoring_log (run_id, started_at, finished_at, n_records, status, message) VALUES (?, ?, ?, ?, ?, ?)",
           params = list(
             run_id,
-            format(Sys.time() - as.difftime(5, units = "secs"), "%Y-%m-%d %H:%M:%S"),
+            format(run_started_at, "%Y-%m-%d %H:%M:%S"),
             format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
             as.integer(total_new),
             "success",
@@ -715,7 +725,9 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       )
       merged$eta_etp <- ifelse(merged$mean_val_ret > 0,
                                merged$mean_val_aeti / merged$mean_val_ret, NA_real_)
-      merged$eta_etp <- pmin(pmax(merged$eta_etp, 0), 1.5)  # cap at 1.5
+      # Cap at 1.5: values slightly above 1.0 occur when crop ET exceeds reference ET
+      # (e.g. tall crops, advection).  Values > 1.5 are likely data artefacts.
+      merged$eta_etp <- pmin(pmax(merged$eta_etp, 0), 1.5)
       merged
     }
 
@@ -1076,10 +1088,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       tryCatch({
         con <- open_db(db_path)
         if (is.null(con)) return(m)
-        blob_row <- duckdb::dbGetQuery(con, sprintf(
-          "SELECT raster_blob FROM farm_rasters WHERE variable = '%s' AND date_key = '%s' LIMIT 1",
-          rast_var, rast_date
-        ))
+        blob_row <- DBI::dbGetQuery(con,
+          "SELECT raster_blob FROM farm_rasters WHERE variable = ? AND date_key = ? LIMIT 1",
+          params = list(rast_var, rast_date)
+        )
         duckdb::dbDisconnect(con, shutdown = TRUE)
 
         if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) return(m)
@@ -1329,11 +1341,11 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           date_key <- format(Sys.Date() - (length(urls_vs) - i) * 10, "%Y-%m-%d")
         }
         farm_union_id <- "all_farms"
-        # Delete existing record if any (DuckDB does not support INSERT OR REPLACE)
-        duckdb::dbExecute(con, sprintf(
-          "DELETE FROM farm_rasters WHERE farm_id = '%s' AND variable = '%s' AND date_key = '%s'",
-          farm_union_id, variable, date_key
-        ))
+        # Delete existing record if any (parameterized to prevent SQL injection)
+        DBI::dbExecute(con,
+          "DELETE FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key = ?",
+          params = list(farm_union_id, variable, date_key)
+        )
         DBI::dbExecute(con,
           "INSERT INTO farm_rasters (farm_id, variable, date_key, raster_blob) VALUES (?, ?, ?, ?)",
           params = list(farm_union_id, variable, date_key, blob_raw)
