@@ -140,7 +140,7 @@ ui <- bslib::page_navbar(
     mod_timeseries_ui("ts")
   ),
   bslib::nav_panel("Monitoring", icon = shiny::icon("satellite-dish"),
-    mod_monitoring_ui("mon")
+    mod_monitoring_ui("mon", l3_region_choices)
   ),
 
   bslib::nav_spacer(),
@@ -197,7 +197,8 @@ server <- function(input, output, session) {
   # Farm-level seasonal monitoring with DuckDB persistence
   mod_monitoring_server("mon",
                         global_folder = dl_out$folder,
-                        aoi_region    = dl_out$region)
+                        aoi_region    = dl_out$region,
+                        l3_regions_meta = l3_regions_meta)
 }
 
 shiny::shinyApp(ui, server)

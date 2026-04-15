@@ -3,18 +3,66 @@
 # Fetches WaPOR data per farm polygon, stores to DuckDB, and provides
 # agronomic stress visualisations.
 
+# ── Load helper functions ──────────────────────────────────────────────────────
+source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local = TRUE)
+
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-# Default WaPOR variables recommended for crop monitoring
-.MON_DEFAULT_VARS <- c("L1-AETI-D", "L1-T-D", "L1-E-D", "L1-NPP-D")
+# Default WaPOR variables recommended for crop monitoring.
+# RET is included so the default stress dashboard can compute ETa/ETp.
+.MON_DEFAULT_VARS <- c("L1-AETI-D", "L1-RET-D", "L1-T-D", "L1-E-D", "L1-NPP-D")
 
-# All API vars that are useful for field monitoring
+# L3 products are offered when the farm layer or shared AOI overlaps an L3 area.
+.MON_L3_DEFAULT_VARS <- c("L3-AETI-D", "L3-T-D", "L3-E-D", "L3-NPP-D")
+
+# API vars that are useful for field monitoring.
 .MON_ALL_VARS <- c(
-  "L1-AETI-D", "L1-T-D",    "L1-E-D",    "L1-NPP-D",
-  "L1-RET-D",  "L1-PCP-D",
-  "L2-AETI-D", "L2-T-D",    "L2-E-D",    "L2-NPP-D",
-  "L2-RET-D",  "L2-PCP-D"
+  "L1-AETI-D", "L1-RET-D",  "L1-T-D",    "L1-E-D",    "L1-NPP-D",
+  "L1-PCP-D",
+  "L2-AETI-D", "L2-RET-D",  "L2-T-D",    "L2-E-D",    "L2-NPP-D",
+  "L2-PCP-D",
+  "L3-AETI-D", "L3-T-D",    "L3-E-D",    "L3-NPP-D",  "L3-RSM-D"
 )
+
+.MON_AETI_D_VARS <- c("L3-AETI-D", "L2-AETI-D", "L1-AETI-D")
+.MON_RET_D_VARS  <- c("L3-RET-D",  "L2-RET-D",  "L1-RET-D")
+.MON_T_D_VARS    <- c("L3-T-D",    "L2-T-D",    "L1-T-D")
+.MON_E_D_VARS    <- c("L3-E-D",    "L2-E-D",    "L1-E-D")
+.MON_NPP_D_VARS  <- c("L3-NPP-D",  "L2-NPP-D",  "L1-NPP-D")
+
+.mon_variable_choices <- function(vars = .MON_ALL_VARS) {
+  labels <- vapply(vars, function(v) {
+    meta <- tryCatch(Rwapor::wapor_variable_metadata(v), error = function(e) NULL)
+    if (!is.null(meta) && !is.null(meta$long_name)) {
+      sprintf("%s - %s", v, meta$long_name)
+    } else {
+      v
+    }
+  }, character(1), USE.NAMES = FALSE)
+  stats::setNames(vars, labels)
+}
+
+.mon_l3_region_choices <- function(codes, l3_regions_meta) {
+  stats::setNames(
+    codes,
+    vapply(codes, function(code) {
+      r <- l3_regions_meta[[code]]
+      if (!is.null(r)) sprintf("%s - %s (%s)", r$country, r$name, code) else code
+    }, character(1), USE.NAMES = FALSE)
+  )
+}
+
+.mon_first_available_var <- function(ts_df, candidates) {
+  vars <- unique(ts_df$variable)
+  match <- candidates[candidates %in% vars]
+  if (length(match) == 0) NULL else match[1]
+}
+
+.mon_records_for_family <- function(ts_df, candidates) {
+  var <- .mon_first_available_var(ts_df, candidates)
+  if (is.null(var)) return(ts_df[0, , drop = FALSE])
+  ts_df[ts_df$variable == var, , drop = FALSE]
+}
 
 # Stress thresholds (ETa/ETp based)
 .MON_STRESS_HIGH   <- 0.8   # below this: moderate stress
@@ -22,8 +70,12 @@
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
 
-mod_monitoring_ui <- function(id) {
+mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
   ns <- shiny::NS(id)
+  if (is.null(l3_region_choices)) {
+    l3_regions_meta <- Rwapor::L3_REGIONS
+    l3_region_choices <- .mon_l3_region_choices(names(l3_regions_meta), l3_regions_meta)
+  }
 
   bslib::page_fillable(
     padding = 0,
@@ -92,10 +144,26 @@ mod_monitoring_ui <- function(id) {
           bslib::accordion_panel(
             "WaPOR Variables", icon = shiny::icon("layer-group"),
 
-            shiny::checkboxGroupInput(
+            shiny::selectizeInput(
               ns("mon_vars"), NULL,
-              choices  = .MON_ALL_VARS,
-              selected = .MON_DEFAULT_VARS
+              choices  = .mon_variable_choices(),
+              selected = .MON_DEFAULT_VARS,
+              multiple = TRUE,
+              options  = list(
+                placeholder = "Select monitoring variables",
+                plugins = list("remove_button")
+              )
+            ),
+            shiny::uiOutput(ns("mon_l3_availability_ui")),
+            shiny::conditionalPanel(
+              condition = "input.mon_vars && input.mon_vars.some(v => v.startsWith('L3-'))",
+              ns = ns,
+              shiny::selectInput(
+                ns("mon_l3_region"), "L3 Region",
+                choices = l3_region_choices
+              ),
+              shiny::uiOutput(ns("mon_l3_region_message")),
+              shiny::helpText("Required when monitoring with L3 variables.")
             ),
             shiny::helpText(
               "AETI + RET → ETa/ETp stress index.  T + E → transpiration fraction.",
@@ -140,7 +208,56 @@ mod_monitoring_ui <- function(id) {
             )
           ),
 
-          # 5 · Run ───────────────────────────────────────────────────────────
+          # 5 · Enhanced Analysis ─────────────────────────────────────────────
+          bslib::accordion_panel(
+            "Enhanced Analysis", icon = shiny::icon("chart-area"),
+
+            shiny::tags$span("Threshold percentile (removes low values)", class = "ctrl-group-label"),
+            shiny::sliderInput(
+              ns("threshold_pct"),
+              NULL,
+              min = 0, max = 50, value = 5, step = 1,
+              post = "%"
+            ),
+            shiny::helpText(
+              "Removes pixels below this percentile (e.g., 5% removes bare soil).",
+              style = "font-size:0.77rem; color:#6c757d;"
+            ),
+            
+            shiny::tags$hr(class = "ctrl-divider"),
+            
+            shiny::actionButton(
+              ns("btn_recalculate"), "Recalculate Stats with Threshold",
+              icon  = shiny::icon("calculator"),
+              class = "btn-outline-primary w-100 btn-sm"
+            ),
+            shiny::helpText(
+              "Recalculates zonal stats from saved rasters using new threshold.",
+              style = "font-size:0.77rem; color:#6c757d;"
+            ),
+            
+            shiny::tags$hr(class = "ctrl-divider"),
+            
+            shiny::actionButton(
+              ns("btn_plot_rasters"), "Plot Raster Time Series",
+              icon  = shiny::icon("chart-line"),
+              class = "btn-outline-info w-100 btn-sm"
+            ),
+            shiny::helpText(
+              "View time series with mean ± std ribbons for selected farm.",
+              style = "font-size:0.77rem; color:#6c757d;"
+            ),
+            
+            shiny::tags$hr(class = "ctrl-divider"),
+            
+            shiny::actionButton(
+              ns("btn_zoom_farms"), "Zoom Map to Farm Extent",
+              icon  = shiny::icon("expand"),
+              class = "btn-outline-secondary w-100 btn-sm"
+            )
+          ),
+
+          # 6 · Run ───────────────────────────────────────────────────────────
           bslib::accordion_panel(
             "Monitor", icon = shiny::icon("satellite-dish"),
 
@@ -186,7 +303,7 @@ mod_monitoring_ui <- function(id) {
                     "Latest ETa/ETp (stress index)"     = "eta_etp",
                     "Cumulative AETI (mm)"               = "cum_aeti",
                     "Mean Transpiration Fraction (T/ET)" = "t_frac",
-                    "Latest NPP anomaly (%)"             = "npp_anomaly"
+                    "Latest NPP"                         = "npp_latest"
                   ),
                   selected = "eta_etp"
                 )
@@ -316,7 +433,8 @@ mod_monitoring_ui <- function(id) {
 # ── SERVER ─────────────────────────────────────────────────────────────────────
 
 mod_monitoring_server <- function(id, global_folder = reactive(NULL),
-                                   aoi_region = reactive(NULL)) {
+                                   aoi_region = reactive(NULL),
+                                   l3_regions_meta = Rwapor::L3_REGIONS) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -343,33 +461,63 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         stop("Package 'duckdb' is required for the Monitoring tab. Install with: install.packages('duckdb')", call. = FALSE)
       tryCatch({
         con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = path)
-        # Ensure tables exist
-        duckdb::dbExecute(con, "
+        
+        # Enhanced schema with std, percentiles, threshold tracking, and extents
+        DBI::dbExecute(con, "
           CREATE TABLE IF NOT EXISTS farm_timeseries (
-            farm_id      TEXT,
-            crop_type    TEXT,
-            sowing_date  DATE,
-            variable     TEXT,
-            start_date   DATE,
-            end_date     DATE,
-            mean_val     DOUBLE,
-            min_val      DOUBLE,
-            max_val      DOUBLE,
-            updated_at   TIMESTAMP DEFAULT current_timestamp,
+            farm_id       TEXT,
+            crop_type     TEXT,
+            sowing_date   DATE,
+            variable      TEXT,
+            start_date    DATE,
+            end_date      DATE,
+            mean_val      DOUBLE,
+            min_val       DOUBLE,
+            max_val       DOUBLE,
+            std_val       DOUBLE,
+            p05_val       DOUBLE,
+            p95_val       DOUBLE,
+            threshold_pct DOUBLE DEFAULT 0,
+            pixels_used   INTEGER,
+            pixels_total  INTEGER,
+            updated_at    TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (farm_id, variable, start_date)
           )
         ")
-        duckdb::dbExecute(con, "
+        
+        # Enhanced farm_rasters with extent metadata
+        DBI::dbExecute(con, "
           CREATE TABLE IF NOT EXISTS farm_rasters (
-            farm_id    TEXT,
-            variable   TEXT,
-            date_key   DATE,
+            farm_id     TEXT,
+            variable    TEXT,
+            date_key    DATE,
             raster_blob BLOB,
-            updated_at TIMESTAMP DEFAULT current_timestamp,
+            xmin        DOUBLE,
+            xmax        DOUBLE,
+            ymin        DOUBLE,
+            ymax        DOUBLE,
+            nrow        INTEGER,
+            ncol        INTEGER,
+            updated_at  TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (farm_id, variable, date_key)
           )
         ")
-        duckdb::dbExecute(con, "
+        
+        # Farm metadata for quick lookups
+        DBI::dbExecute(con, "
+          CREATE TABLE IF NOT EXISTS farm_metadata (
+            farm_id     TEXT PRIMARY KEY,
+            crop_type   TEXT,
+            sowing_date DATE,
+            area_ha     DOUBLE,
+            xmin        DOUBLE,
+            xmax        DOUBLE,
+            ymin        DOUBLE,
+            ymax        DOUBLE
+          )
+        ")
+        
+        DBI::dbExecute(con, "
           CREATE TABLE IF NOT EXISTS monitoring_log (
             run_id      TEXT,
             started_at  TIMESTAMP,
@@ -379,6 +527,21 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             message     TEXT
           )
         ")
+        
+        # Create indices for performance
+        DBI::dbExecute(con, "
+          CREATE INDEX IF NOT EXISTS idx_timeseries_farm_var 
+          ON farm_timeseries(farm_id, variable)
+        ")
+        DBI::dbExecute(con, "
+          CREATE INDEX IF NOT EXISTS idx_timeseries_date 
+          ON farm_timeseries(start_date)
+        ")
+        DBI::dbExecute(con, "
+          CREATE INDEX IF NOT EXISTS idx_rasters_farm_var 
+          ON farm_rasters(farm_id, variable)
+        ")
+        
         con
       }, error = function(e) {
         shiny::showNotification(paste("DB error:", e$message), type = "error")
@@ -388,7 +551,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     close_db <- function() {
       if (!is.null(rv$db_con)) {
-        tryCatch(duckdb::dbDisconnect(rv$db_con, shutdown = TRUE), error = function(e) NULL)
+        tryCatch(DBI::dbDisconnect(rv$db_con, shutdown = TRUE), error = function(e) NULL)
         rv$db_con <- NULL
       }
     }
@@ -403,7 +566,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       )
       if (is.null(con)) return(empty_df)
       tryCatch(
-        duckdb::dbGetQuery(con, "
+        DBI::dbGetQuery(con, "
           SELECT farm_id, variable, MAX(end_date) AS last_date
           FROM farm_timeseries
           GROUP BY farm_id, variable
@@ -523,6 +686,151 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     })
 
     # ── 2. MONITOR BUTTON ─────────────────────────────────────────────────────
+    monitoring_l3_aoi <- shiny::reactive({
+      farms_sf <- rv$farms_sf
+      if (!is.null(farms_sf) && nrow(farms_sf) > 0) return(farms_sf)
+      aoi_region()
+    })
+
+    monitoring_period <- shiny::reactive({
+      start <- input$sowing_date %||% (Sys.Date() - 180)
+      end   <- input$harvest_date %||% Sys.Date()
+      as.character(c(start, end))
+    })
+
+    detected_l3_regions <- shiny::reactive({
+      reg <- monitoring_l3_aoi()
+      if (is.null(reg)) {
+        return(list(codes = NULL, status = "no_aoi", message = "No farm layer or shared AOI defined"))
+      }
+
+      if (is_l3_code(reg)) {
+        return(list(codes = reg, status = "success", message = NULL))
+      }
+
+      reg_info <- tryCatch(
+        Rwapor::wapor_parse_region(reg),
+        error = function(e) list(error = e$message)
+      )
+
+      if (is.null(reg_info)) {
+        return(list(codes = NULL, status = "parse_error", message = "Could not parse monitoring AOI"))
+      }
+      if (!is.null(reg_info$error)) {
+        return(list(codes = NULL, status = "parse_error", message = reg_info$error))
+      }
+
+      codes <- tryCatch(
+        Rwapor::wapor_guess_region("L3-AETI-D", reg_info, monitoring_period()),
+        error = function(e) paste0("Detection error: ", e$message)
+      )
+
+      if (is.character(codes) && length(codes) == 1 && !grepl("^[A-Z]{3}$", codes)) {
+        return(list(codes = NULL, status = "detection_error", message = codes))
+      }
+      if (is.null(codes) || length(codes) == 0) {
+        return(list(codes = NULL, status = "no_overlap", message = "No L3 regions detected"))
+      }
+
+      list(codes = codes, status = "success", message = NULL)
+    })
+
+    shiny::observe({
+      result <- detected_l3_regions()
+      codes <- result$codes
+      if (is.null(codes) || length(codes) == 0) return()
+
+      choices <- .mon_l3_region_choices(codes, l3_regions_meta)
+      current <- input$mon_l3_region %||% ""
+      selected <- if (current %in% codes) current else codes[1]
+
+      shiny::updateSelectInput(
+        session,
+        "mon_l3_region",
+        choices = choices,
+        selected = selected
+      )
+    })
+
+    output$mon_l3_availability_ui <- shiny::renderUI({
+      result <- detected_l3_regions()
+      codes <- result$codes
+      has_l3_selected <- any(grepl("^L3-", input$mon_vars %||% character(0)))
+
+      if (has_l3_selected) return(NULL)
+      if (is.null(codes) || length(codes) == 0 || result$status != "success") return(NULL)
+
+      shiny::div(
+        class = "alert alert-info mt-2",
+        style = "font-size:0.82rem; padding:0.5rem;",
+        shiny::icon("circle-info"),
+        sprintf(
+          " L3 data overlap this monitoring AOI (%s). Select L3 variables above to use them.",
+          paste(codes, collapse = ", ")
+        )
+      )
+    })
+
+    output$mon_l3_region_message <- shiny::renderUI({
+      result <- detected_l3_regions()
+      codes <- result$codes
+      status <- result$status
+      msg <- result$message
+
+      if (!any(grepl("^L3-", input$mon_vars %||% character(0)))) return(NULL)
+
+      if (status == "no_aoi") {
+        return(shiny::div(
+          class = "alert alert-info mt-2",
+          style = "font-size:0.82rem; padding:0.5rem;",
+          shiny::icon("info-circle"),
+          " Load a farm layer or define an AOI in the Download tab to auto-detect L3 regions."
+        ))
+      }
+
+      if (status == "no_overlap") {
+        return(shiny::div(
+          class = "alert alert-warning mt-2",
+          style = "font-size:0.82rem; padding:0.5rem;",
+          shiny::icon("triangle-exclamation"),
+          " No L3 regions overlap this monitoring AOI. Use L1/L2 variables or adjust the AOI."
+        ))
+      }
+
+      if (status %in% c("detection_error", "parse_error")) {
+        return(shiny::div(
+          class = "alert alert-danger mt-2",
+          style = "font-size:0.82rem; padding:0.5rem;",
+          shiny::icon("exclamation-circle"),
+          " L3 detection failed. Select an L3 region manually.",
+          shiny::br(),
+          shiny::span(style = "font-size:0.75rem;", msg)
+        ))
+      }
+
+      if (!is.null(codes) && length(codes) == 1) {
+        r_meta <- l3_regions_meta[[codes[1]]]
+        region_name <- if (!is.null(r_meta)) sprintf("%s - %s", r_meta$country, r_meta$name) else codes[1]
+        return(shiny::div(
+          class = "alert alert-success mt-2",
+          style = "font-size:0.82rem; padding:0.5rem;",
+          shiny::icon("circle-check"),
+          sprintf(" Auto-selected: %s", region_name)
+        ))
+      }
+
+      if (!is.null(codes) && length(codes) > 1) {
+        return(shiny::div(
+          class = "alert alert-warning mt-2",
+          style = "font-size:0.82rem; padding:0.5rem;",
+          shiny::icon("triangle-exclamation"),
+          sprintf(" Multiple L3 regions overlap (%s). Select the source region for monitoring.", paste(codes, collapse = ", "))
+        ))
+      }
+
+      NULL
+    })
+
     shiny::observeEvent(input$btn_monitor, {
       shiny::req(rv$farms_sf)
       shiny::req(length(input$mon_vars) > 0)
@@ -531,12 +839,19 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
       farms_sf     <- rv$farms_sf
       sel_vars     <- input$mon_vars
+      has_l3_vars  <- any(grepl("^L3-", sel_vars))
+      l3_region    <- if (has_l3_vars) input$mon_l3_region else NULL
       sowing_date  <- as.character(input$sowing_date)
       harvest_date <- as.character(input$harvest_date)
       db_path      <- input$db_path
       crop_col     <- if (!is.null(input$crop_col) && nzchar(input$crop_col)) input$crop_col else NULL
       label_col    <- if (!is.null(input$label_col) && nzchar(input$label_col)) input$label_col else NULL
       save_rasters <- isTRUE(input$also_save_rasters)
+
+      if (has_l3_vars && !is_l3_code(l3_region)) {
+        shiny::showNotification("Select an L3 region before monitoring with L3 variables.", type = "error")
+        return()
+      }
 
       rv$monitoring <- TRUE
       rv$log_msgs   <- character(0)
@@ -555,6 +870,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
         total_new <- 0L
         run_id <- format(Sys.time(), "%Y%m%d_%H%M%S")
+        if (has_l3_vars) add_log(sprintf("Using L3 region: %s", l3_region))
 
         for (var in sel_vars) {
           add_log(sprintf("Variable: %s", var))
@@ -583,7 +899,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
               identifier      = "farm_id",
               unit_conversion = if (grepl("-D$", var)) "dekad" else "none",
               batching        = TRUE,
-              batch_size      = 6L
+              batch_size      = 6L,
+              l3_region       = if (grepl("^L3-", var)) l3_region else NULL
             )
           }, error = function(e) {
             add_log(sprintf("  ERROR fetching %s: %s", var, e$message))
@@ -643,7 +960,14 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
           # Optionally clip and save raster blobs
           if (save_rasters) {
-            .save_raster_blobs(con, farms_sf, var, c(start_str, harvest_date), add_log)
+            .save_raster_blobs(
+              con,
+              farms_sf,
+              var,
+              c(start_str, harvest_date),
+              add_log,
+              l3_region = if (grepl("^L3-", var)) l3_region else NULL
+            )
           }
         } # end for var
 
@@ -667,9 +991,9 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         )
 
         # Read back full dataset and store in rv
-        rv$ts_data <- duckdb::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
+        rv$ts_data <- DBI::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
 
-        duckdb::dbDisconnect(con, shutdown = TRUE)
+        DBI::dbDisconnect(con, shutdown = TRUE)
 
       }, error = function(e) {
         add_log(sprintf("FATAL: %s", e$message))
@@ -685,8 +1009,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       tryCatch({
         con <- open_db(input$db_path)
         if (is.null(con)) return()
-        rv$ts_data <- duckdb::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
-        duckdb::dbDisconnect(con, shutdown = TRUE)
+        rv$ts_data <- DBI::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
+        DBI::dbDisconnect(con, shutdown = TRUE)
         shiny::showNotification(
           sprintf("\u2714 Loaded %d records from DB.", nrow(rv$ts_data)),
           type = "message", duration = 4
@@ -710,13 +1034,168 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       })
     })
 
+    # ── 5. Recalculate Stats with Threshold ───────────────────────────────────
+    shiny::observeEvent(input$btn_recalculate, {
+      shiny::req(rv$farms_sf, input$db_path, input$threshold_pct)
+      
+      if (!file.exists(input$db_path)) {
+        shiny::showNotification("Database not found.", type = "error")
+        return()
+      }
+      
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB error:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+      
+      # Check if rasters exist
+      n_rasters <- DBI::dbGetQuery(con, "SELECT COUNT(*) as n FROM farm_rasters")$n
+      if (n_rasters == 0) {
+        DBI::dbDisconnect(con, shutdown = TRUE)
+        shiny::showNotification(
+          "No saved rasters found. Run monitoring with 'Save rasters' enabled first.",
+          type = "warning", duration = 8
+        )
+        return()
+      }
+      
+      shiny::withProgress(message = "Recalculating stats...", {
+        total_updated <- 0
+        for (i in seq_len(nrow(rv$farms_sf))) {
+          farm_id <- as.character(rv$farms_sf$farm_id[i])
+          farm_geom <- rv$farms_sf[i, ]
+          
+          n_updated <- tryCatch(
+            wapor_recalculate_stats_from_rasters(
+              con, farm_id, farm_geom, input$threshold_pct
+            ),
+            error = function(e) {
+              message(sprintf("Error for farm %s: %s", farm_id, e$message))
+              0
+            }
+          )
+          total_updated <- total_updated + n_updated
+          shiny::incProgress(1 / nrow(rv$farms_sf), 
+                            detail = sprintf("Farm %d/%d", i, nrow(rv$farms_sf)))
+        }
+        
+        # Reload data
+        rv$ts_data <- DBI::dbGetQuery(con, 
+          "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date"
+        )
+        
+        shiny::showNotification(
+          sprintf("\u2714 Recalculated %d records with %d%% threshold", 
+                  total_updated, input$threshold_pct),
+          type = "message", duration = 5
+        )
+      })
+      
+      DBI::dbDisconnect(con, shutdown = TRUE)
+    })
+
+    # ── 6. Plot Raster Time Series ────────────────────────────────────────────
+    shiny::observeEvent(input$btn_plot_rasters, {
+      shiny::req(input$db_path)
+      
+      if (!file.exists(input$db_path)) {
+        shiny::showNotification("Database not found.", type = "error")
+        return()
+      }
+      
+      # Get selected farm and variable (use ts_farm_select and ts_variable inputs)
+      farm_id <- input$ts_farm_select
+      variable <- input$ts_variable
+      
+      if (is.null(farm_id) || is.null(variable)) {
+        shiny::showNotification("Please select a farm and variable in the Time Series tab first.",
+                               type = "warning")
+        return()
+      }
+      
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB error:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+      
+      p <- tryCatch(
+        wapor_plot_raster_timeseries(con, farm_id, variable),
+        error = function(e) {
+          shiny::showNotification(paste("Plot error:", e$message), type = "error")
+          NULL
+        }
+      )
+      
+      DBI::dbDisconnect(con, shutdown = TRUE)
+      
+      if (!is.null(p)) {
+        shiny::showModal(shiny::modalDialog(
+          title = sprintf("Raster Time Series: %s - %s", farm_id, variable),
+          shiny::renderPlot(p, height = 500),
+          size = "l",
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        ))
+      }
+    })
+
+    # ── 7. Zoom Map to Farm Extent ────────────────────────────────────────────
+    shiny::observeEvent(input$btn_zoom_farms, {
+      shiny::req(input$db_path)
+      
+      if (!file.exists(input$db_path)) {
+        shiny::showNotification("Database not found.", type = "error")
+        return()
+      }
+      
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB error:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+      
+      extent <- tryCatch(
+        wapor_get_farms_extent(con),
+        error = function(e) {
+          shiny::showNotification(paste("Extent error:", e$message), type = "warning")
+          NULL
+        }
+      )
+      
+      DBI::dbDisconnect(con, shutdown = TRUE)
+      
+      if (!is.null(extent) && length(extent) == 4) {
+        leaflet::leafletProxy("farm_map", session) %>%
+          leaflet::fitBounds(extent[1], extent[3], extent[2], extent[4])
+        
+        shiny::showNotification("\u2714 Map zoomed to farms extent",
+                               type = "message", duration = 2)
+      } else {
+        shiny::showNotification(
+          "No farm extents available. Run monitoring with 'Save rasters' enabled.",
+          type = "warning", duration = 5
+        )
+      }
+    })
+
     # ── DERIVED DATA ──────────────────────────────────────────────────────────
 
     # Helper: compute ETa/ETp ratio per farm per dekad
     derive_eta_etp <- function(ts_df) {
       if (is.null(ts_df) || nrow(ts_df) == 0) return(NULL)
-      aeti <- ts_df[ts_df$variable %in% c("L1-AETI-D", "L2-AETI-D"), ]
-      ret  <- ts_df[ts_df$variable %in% c("L1-RET-D",  "L2-RET-D"),  ]
+      aeti <- .mon_records_for_family(ts_df, .MON_AETI_D_VARS)
+      ret  <- .mon_records_for_family(ts_df, .MON_RET_D_VARS)
       if (nrow(aeti) == 0 || nrow(ret) == 0) return(NULL)
       merged <- merge(
         aeti[, c("farm_id", "start_date", "mean_val")],
@@ -734,8 +1213,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     # Helper: compute T/(T+E) per farm per dekad
     derive_t_frac <- function(ts_df) {
       if (is.null(ts_df) || nrow(ts_df) == 0) return(NULL)
-      t_df  <- ts_df[ts_df$variable %in% c("L1-T-D", "L2-T-D"), ]
-      e_df  <- ts_df[ts_df$variable %in% c("L1-E-D", "L2-E-D"), ]
+      t_df  <- .mon_records_for_family(ts_df, .MON_T_D_VARS)
+      e_df  <- .mon_records_for_family(ts_df, .MON_E_D_VARS)
       if (nrow(t_df) == 0 || nrow(e_df) == 0) return(NULL)
       merged <- merge(
         t_df[, c("farm_id", "start_date", "mean_val")],
@@ -798,7 +1277,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             agg
           }
         } else if (ind == "cum_aeti") {
-          aeti <- ts_data[ts_data$variable %in% c("L1-AETI-D", "L2-AETI-D"), ]
+          aeti <- .mon_records_for_family(ts_data, .MON_AETI_D_VARS)
           if (period == "season" && !is.null(sowing))
             aeti <- aeti[as.Date(aeti$start_date) >= as.Date(sowing), ]
           if (nrow(aeti) == 0) NULL
@@ -812,6 +1291,15 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           if (is.null(d) || nrow(d) == 0) NULL
           else {
             agg <- stats::aggregate(t_frac ~ farm_id, data = d, FUN = mean, na.rm = TRUE)
+            names(agg)[2] <- "value"
+            agg
+          }
+        } else if (ind == "npp_latest") {
+          npp <- .mon_records_for_family(ts_data, .MON_NPP_D_VARS)
+          if (nrow(npp) == 0) NULL
+          else {
+            npp <- npp[npp$start_date == max(npp$start_date), ]
+            agg <- stats::aggregate(mean_val ~ farm_id, data = npp, FUN = mean, na.rm = TRUE)
             names(agg)[2] <- "value"
             agg
           }
@@ -974,8 +1462,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           ggplot2::theme_minimal(base_size = 12)
 
       } else if (deriv == "cum_aeti") {
-        aeti <- ts[ts$variable %in% c("L1-AETI-D", "L2-AETI-D") &
-                     ts$farm_id %in% farms, ]
+        aeti <- .mon_records_for_family(ts, .MON_AETI_D_VARS)
+        aeti <- aeti[aeti$farm_id %in% farms, ]
         if (nrow(aeti) == 0) {
           graphics::plot.new()
           graphics::title("No AETI data available")
@@ -1092,7 +1580,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           "SELECT raster_blob FROM farm_rasters WHERE variable = ? AND date_key = ? LIMIT 1",
           params = list(rast_var, rast_date)
         )
-        duckdb::dbDisconnect(con, shutdown = TRUE)
+        DBI::dbDisconnect(con, shutdown = TRUE)
 
         if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) return(m)
 
@@ -1146,7 +1634,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
       # Cumulative AETI
       cum_aeti_df <- tryCatch({
-        aeti <- ts[ts$variable %in% c("L1-AETI-D", "L2-AETI-D"), ]
+        aeti <- .mon_records_for_family(ts, .MON_AETI_D_VARS)
         sowing_dt <- tryCatch(as.Date(input$sowing_date), error = function(e) NULL)
         if (!is.null(sowing_dt)) aeti <- aeti[as.Date(aeti$start_date) >= sowing_dt, ]
         if (nrow(aeti) == 0) NULL
@@ -1162,7 +1650,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
       # Latest NPP
       npp_df <- tryCatch({
-        npp <- ts[ts$variable %in% c("L1-NPP-D", "L2-NPP-D"), ]
+        npp <- .mon_records_for_family(ts, .MON_NPP_D_VARS)
         if (nrow(npp) == 0) NULL
         else {
           last_date <- max(npp$start_date)
@@ -1309,7 +1797,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 # dekadal layer as a compressed BLOB in the farm_rasters table.
 # This is optional and only runs when the user ticks "Also save rasters".
 #
-.save_raster_blobs <- function(con, farms_sf, variable, period, add_log_fn) {
+.save_raster_blobs <- function(con, farms_sf, variable, period, add_log_fn, l3_region = NULL) {
   if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
 
   tryCatch({
@@ -1318,43 +1806,72 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     reg <- as.numeric(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]))
 
     urls <- tryCatch(
-      Rwapor::wapor_generate_urls(variable, period = period),
+      Rwapor::wapor_generate_urls(
+        variable,
+        l3_region = if (grepl("^L3-", variable)) l3_region else NULL,
+        period = period
+      ),
       error = function(e) { add_log_fn(sprintf("  Raster URLs error: %s", e$message)); NULL }
     )
     if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
 
     urls_vs <- paste0("/vsicurl/", urls)
 
-    add_log_fn(sprintf("  Saving %d raster layers for %s …", length(urls_vs), variable))
+    add_log_fn(sprintf("  Saving %d raster layers for %s (per farm)…", length(urls_vs), variable))
 
+    # Process each raster time step
     for (i in seq_along(urls_vs)) {
       tryCatch({
-        r <- suppressWarnings(terra::rast(urls_vs[i]))
-        r <- terra::crop(r, terra::ext(reg[1], reg[3], reg[2], reg[4]))
-        tmp_tif <- tempfile(fileext = ".tif")
-        terra::writeRaster(r, tmp_tif, overwrite = TRUE,
-                           gdal = c("COMPRESS=DEFLATE", "PREDICTOR=2"))
-        blob_raw  <- readBin(tmp_tif, "raw", n = file.size(tmp_tif))
-        date_key  <- gsub(".*\\.([0-9]{4}-[0-9]{2}-[0-9]{2})\\.tif.*", "\\1",
-                          basename(urls[i]))
+        # Load and crop full extent raster
+        r_full <- suppressWarnings(terra::rast(urls_vs[i]))
+        r_full <- terra::crop(r_full, terra::ext(reg[1], reg[3], reg[2], reg[4]))
+        
+        # Extract date from URL
+        date_key <- gsub(".*\\.([0-9]{4}-[0-9]{2}-[0-9]{2})\\.tif.*", "\\1",
+                         basename(urls[i]))
         if (!nzchar(date_key) || date_key == basename(urls[i])) {
           date_key <- format(Sys.Date() - (length(urls_vs) - i) * 10, "%Y-%m-%d")
         }
-        farm_union_id <- "all_farms"
-        # Delete existing record if any (parameterized to prevent SQL injection)
-        DBI::dbExecute(con,
-          "DELETE FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key = ?",
-          params = list(farm_union_id, variable, date_key)
-        )
-        DBI::dbExecute(con,
-          "INSERT INTO farm_rasters (farm_id, variable, date_key, raster_blob) VALUES (?, ?, ?, ?)",
-          params = list(farm_union_id, variable, date_key, blob_raw)
-        )
-        file.remove(tmp_tif)
+        
+        # Clip and save raster for each farm
+        for (j in seq_len(nrow(farms_sf))) {
+          farm_id <- as.character(farms_sf$farm_id[j])
+          farm_geom <- farms_sf[j, ]
+          
+          # Clip to farm extent
+          farm_bb <- sf::st_bbox(farm_geom)
+          r_farm <- terra::crop(r_full, terra::ext(farm_bb["xmin"], farm_bb["xmax"], 
+                                                     farm_bb["ymin"], farm_bb["ymax"]))
+          
+          # Save using helper function (with extent metadata)
+          n_saved <- wapor_save_raster_to_db(con, farm_id, variable, date_key, r_farm)
+          
+          # Update farm metadata if not already set
+          if (j == 1) {  # Only check once per monitoring run
+            existing <- DBI::dbGetQuery(con, 
+              "SELECT farm_id FROM farm_metadata WHERE farm_id = ?", 
+              params = list(farm_id)
+            )
+            if (nrow(existing) == 0) {
+              # Insert placeholder
+              DBI::dbExecute(con, 
+                "INSERT INTO farm_metadata (farm_id) VALUES (?)",
+                params = list(farm_id)
+              )
+            }
+            wapor_update_farm_metadata(con, farm_id, farm_geom)
+          }
+        }
+        
+        add_log_fn(sprintf("    Saved layer %d/%d (%s)", i, length(urls_vs), date_key))
+        
       }, error = function(e) {
         add_log_fn(sprintf("  Raster blob error layer %d: %s", i, e$message))
       })
     }
+    
+    add_log_fn(sprintf("  ✓ Saved %d rasters for %d farms", length(urls_vs), nrow(farms_sf)))
+    
   }, error = function(e) {
     add_log_fn(sprintf("  .save_raster_blobs error: %s", e$message))
   })
