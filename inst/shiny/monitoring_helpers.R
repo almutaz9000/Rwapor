@@ -1,0 +1,465 @@
+# monitoring_helpers.R
+# Helper functions for enhanced farm monitoring module
+
+#' Calculate enhanced zonal statistics from raster
+#' 
+#' @param raster terra SpatRaster object
+#' @param polygon sf object with farm boundaries
+#' @param threshold_percentile Percentile threshold (0-50) to filter low values
+#' @return data.frame with mean, min, max, std, p05, p95, pixels_used, pixels_total
+wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0) {
+  
+  if (!requireNamespace("exactextractr", quietly = TRUE)) {
+    stop("Package 'exactextractr' required for zonal statistics")
+  }
+  
+  # Extract all pixel values within polygon
+  pixel_values <- exactextractr::exact_extract(raster, polygon, progress = FALSE)
+  
+  # Calculate stats for each polygon
+  results <- lapply(seq_along(pixel_values), function(i) {
+    vals <- pixel_values[[i]]
+    
+    if (is.null(vals) || nrow(vals) == 0) {
+      return(data.frame(
+        mean_val = NA_real_,
+        min_val = NA_real_,
+        max_val = NA_real_,
+        std_val = NA_real_,
+        p05_val = NA_real_,
+        p95_val = NA_real_,
+        threshold_pct = threshold_percentile,
+        pixels_used = 0L,
+        pixels_total = 0L
+      ))
+    }
+    
+    # Get raster values (first column is the value, 'coverage_fraction' is weights)
+    rast_vals <- vals[[1]]  # First column contains raster values
+    weights <- if ("coverage_fraction" %in% names(vals)) vals$coverage_fraction else rep(1, length(rast_vals))
+    
+    # Remove NA values
+    valid_idx <- !is.na(rast_vals) & !is.na(weights)
+    rast_vals <- rast_vals[valid_idx]
+    weights <- weights[valid_idx]
+    
+    pixels_total <- length(rast_vals)
+    
+    if (pixels_total == 0) {
+      return(data.frame(
+        mean_val = NA_real_,
+        min_val = NA_real_,
+        max_val = NA_real_,
+        std_val = NA_real_,
+        p05_val = NA_real_,
+        p95_val = NA_real_,
+        threshold_pct = threshold_percentile,
+        pixels_used = 0L,
+        pixels_total = 0L
+      ))
+    }
+    
+    # Apply threshold filtering if specified
+    if (threshold_percentile > 0 && threshold_percentile <= 50) {
+      threshold_val <- stats::quantile(rast_vals, probs = threshold_percentile / 100, na.rm = TRUE)
+      keep_idx <- rast_vals >= threshold_val
+      rast_vals <- rast_vals[keep_idx]
+      weights <- weights[keep_idx]
+    }
+    
+    pixels_used <- length(rast_vals)
+    
+    if (pixels_used == 0) {
+      return(data.frame(
+        mean_val = NA_real_,
+        min_val = NA_real_,
+        max_val = NA_real_,
+        std_val = NA_real_,
+        p05_val = NA_real_,
+        p95_val = NA_real_,
+        threshold_pct = threshold_percentile,
+        pixels_used = 0L,
+        pixels_total = pixels_total
+      ))
+    }
+    
+    # Calculate weighted statistics
+    mean_val <- stats::weighted.mean(rast_vals, weights, na.rm = TRUE)
+    min_val <- min(rast_vals, na.rm = TRUE)
+    max_val <- max(rast_vals, na.rm = TRUE)
+    
+    # Weighted standard deviation
+    if (pixels_used > 1) {
+      variance <- stats::weighted.mean((rast_vals - mean_val)^2, weights, na.rm = TRUE)
+      std_val <- sqrt(variance)
+    } else {
+      std_val <- 0
+    }
+    
+    # Percentiles
+    p05_val <- stats::quantile(rast_vals, probs = 0.05, na.rm = TRUE)
+    p95_val <- stats::quantile(rast_vals, probs = 0.95, na.rm = TRUE)
+    
+    data.frame(
+      mean_val = mean_val,
+      min_val = min_val,
+      max_val = max_val,
+      std_val = std_val,
+      p05_val = as.numeric(p05_val),
+      p95_val = as.numeric(p95_val),
+      threshold_pct = threshold_percentile,
+      pixels_used = pixels_used,
+      pixels_total = pixels_total
+    )
+  })
+  
+  do.call(rbind, results)
+}
+
+#' Extract raster from DuckDB BLOB
+#' 
+#' @param blob_data Raw vector containing raster BLOB
+#' @return terra SpatRaster object
+wapor_raster_from_blob <- function(blob_data) {
+  if (is.null(blob_data) || length(blob_data) == 0) {
+    return(NULL)
+  }
+  
+  temp_file <- tempfile(fileext = ".tif")
+  writeBin(blob_data, temp_file)
+  r <- terra::rast(temp_file)
+  # Keep file until R session ends (terra reads lazily)
+  return(r)
+}
+
+#' Save raster to DuckDB with metadata
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param variable WaPOR variable name
+#' @param date_key Date of the raster
+#' @param raster terra SpatRaster object
+#' @return Number of rows inserted (should be 1)
+wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster) {
+  if (is.null(raster) || is.null(con)) {
+    return(0L)
+  }
+  
+  # Save raster to temporary file
+  temp_file <- tempfile(fileext = ".tif")
+  on.exit(unlink(temp_file), add = TRUE)
+  
+  terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
+  
+  # Read as BLOB
+  raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+  
+  # Get extent and dimensions
+  ext <- terra::ext(raster)
+  dims <- dim(raster)
+  
+  # Insert into database
+  insert_sql <- "
+    INSERT INTO farm_rasters (farm_id, variable, date_key, raster_blob, xmin, xmax, ymin, ymax, nrow, ncol)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (farm_id, variable, date_key) 
+    DO UPDATE SET 
+      raster_blob = EXCLUDED.raster_blob,
+      xmin = EXCLUDED.xmin,
+      xmax = EXCLUDED.xmax,
+      ymin = EXCLUDED.ymin,
+      ymax = EXCLUDED.ymax,
+      nrow = EXCLUDED.nrow,
+      ncol = EXCLUDED.ncol
+  "
+  
+  DBI::dbExecute(con, insert_sql, params = list(
+    farm_id,
+    variable,
+    as.character(date_key),
+    list(raster_blob),
+    ext$xmin,
+    ext$xmax,
+    ext$ymin,
+    ext$ymax,
+    dims[1],  # nrow
+    dims[2]   # ncol
+  ))
+}
+
+#' Get combined extent of all farms from database
+#' 
+#' @param con DuckDB connection
+#' @return Numeric vector c(xmin, xmax, ymin, ymax) or NULL
+wapor_get_farms_extent <- function(con) {
+  if (is.null(con)) return(NULL)
+  
+  # Try to get extent from farm_rasters first (most accurate)
+  extent_query <- "
+    SELECT 
+      MIN(xmin) as xmin,
+      MAX(xmax) as xmax,
+      MIN(ymin) as ymin,
+      MAX(ymax) as ymax
+    FROM farm_rasters
+    WHERE xmin IS NOT NULL
+  "
+  
+  extent_df <- tryCatch(
+    DBI::dbGetQuery(con, extent_query),
+    error = function(e) NULL
+  )
+  
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(
+      xmin = extent_df$xmin[1],
+      xmax = extent_df$xmax[1],
+      ymin = extent_df$ymin[1],
+      ymax = extent_df$ymax[1]
+    ))
+  }
+  
+  # Fallback to farm_metadata if available
+  meta_query <- "
+    SELECT 
+      MIN(xmin) as xmin,
+      MAX(xmax) as xmax,
+      MIN(ymin) as ymin,
+      MAX(ymax) as ymax
+    FROM farm_metadata
+    WHERE xmin IS NOT NULL
+  "
+  
+  extent_df <- tryCatch(
+    DBI::dbGetQuery(con, meta_query),
+    error = function(e) NULL
+  )
+  
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(
+      xmin = extent_df$xmin[1],
+      xmax = extent_df$xmax[1],
+      ymin = extent_df$ymin[1],
+      ymax = extent_df$ymax[1]
+    ))
+  }
+  
+  NULL
+}
+
+#' Update farm metadata extent and area from polygon
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param polygon sf object (single feature)
+#' @return Number of rows updated
+wapor_update_farm_metadata <- function(con, farm_id, polygon) {
+  if (is.null(con) || is.null(polygon)) {
+    return(0L)
+  }
+  
+  # Get extent
+  bbox <- sf::st_bbox(polygon)
+  
+  # Calculate area in hectares
+  # Transform to equal-area projection for accurate area calculation
+  polygon_aea <- sf::st_transform(polygon, crs = "+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=0")
+  area_m2 <- as.numeric(sf::st_area(polygon_aea))
+  area_ha <- area_m2 / 10000
+  
+  update_sql <- "
+    UPDATE farm_metadata
+    SET 
+      xmin = ?,
+      xmax = ?,
+      ymin = ?,
+      ymax = ?,
+      area_ha = ?
+    WHERE farm_id = ?
+  "
+  
+  DBI::dbExecute(con, update_sql, params = list(
+    bbox$xmin,
+    bbox$xmax,
+    bbox$ymin,
+    bbox$ymax,
+    area_ha,
+    farm_id
+  ))
+}
+
+#' Plot raster time series for a farm
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param variable WaPOR variable
+#' @param date_range Optional date range c(start, end)
+#' @return ggplot2 object or NULL
+wapor_plot_raster_timeseries <- function(con, farm_id, variable, date_range = NULL) {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    message("ggplot2 package required for plotting")
+    return(NULL)
+  }
+  
+  # Query timeseries data
+  query <- "
+    SELECT 
+      start_date as date,
+      mean_val as mean,
+      min_val as min,
+      max_val as max,
+      std_val as std,
+      p05_val as p05,
+      p95_val as p95,
+      threshold_pct,
+      pixels_used,
+      pixels_total
+    FROM farm_timeseries
+    WHERE farm_id = ? AND variable = ?
+    ORDER BY start_date
+  "
+  
+  df <- DBI::dbGetQuery(con, query, params = list(farm_id, variable))
+  
+  if (nrow(df) == 0) {
+    message("No data found for farm_id=", farm_id, ", variable=", variable)
+    return(NULL)
+  }
+  
+  # Convert to Date
+  df$date <- as.Date(df$date)
+  
+  # Filter by date range if provided
+  if (!is.null(date_range) && length(date_range) == 2) {
+    df <- df[df$date >= date_range[1] & df$date <= date_range[2], ]
+  }
+  
+  if (nrow(df) == 0) {
+    message("No data in specified date range")
+    return(NULL)
+  }
+  
+  # Create plot
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = date)) +
+    # Ribbon for min-max range
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = min, ymax = max), alpha = 0.2, fill = "lightblue") +
+    # Ribbon for std deviation
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = mean - std, ymax = mean + std), 
+                         alpha = 0.3, fill = "blue", na.rm = TRUE) +
+    # Mean line
+    ggplot2::geom_line(ggplot2::aes(y = mean), color = "darkblue", size = 1) +
+    # Points
+    ggplot2::geom_point(ggplot2::aes(y = mean), color = "darkblue", size = 2) +
+    # Labels
+    ggplot2::labs(
+      title = paste("Time Series:", farm_id, "-", variable),
+      x = "Date",
+      y = "Value",
+      subtitle = sprintf("Blue line = mean, shaded = ±1 std, light = min-max range")
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold"),
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+    )
+  
+  p
+}
+
+#' Recalculate zonal statistics from saved rasters with new threshold
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param polygon sf object with farm boundary
+#' @param threshold_pct New threshold percentile (0-50)
+#' @return data.frame with updated statistics
+wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshold_pct = 5) {
+  if (is.null(con) || is.null(polygon)) {
+    return(NULL)
+  }
+  
+  # Get all rasters for this farm
+  query <- "
+    SELECT variable, date_key, raster_blob
+    FROM farm_rasters
+    WHERE farm_id = ?
+    ORDER BY variable, date_key
+  "
+  
+  rasters <- DBI::dbGetQuery(con, query, params = list(farm_id))
+  
+  if (nrow(rasters) == 0) {
+    message("No rasters found for farm_id=", farm_id)
+    return(NULL)
+  }
+  
+  # Process each raster
+  updated_stats <- lapply(seq_len(nrow(rasters)), function(i) {
+    row <- rasters[i, ]
+    
+    # Extract raster from BLOB
+    raster <- wapor_raster_from_blob(row$raster_blob[[1]])
+    if (is.null(raster)) {
+      return(NULL)
+    }
+    
+    # Calculate enhanced stats with new threshold
+    stats <- wapor_enhanced_zonal_stats(raster, polygon, threshold_pct)
+    
+    # Add metadata
+    data.frame(
+      farm_id = farm_id,
+      variable = row$variable,
+      date_key = as.Date(row$date_key),
+      stats,
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  # Combine results
+  all_stats <- do.call(rbind, updated_stats[!sapply(updated_stats, is.null)])
+  
+  if (is.null(all_stats) || nrow(all_stats) == 0) {
+    return(NULL)
+  }
+  
+  # Update database
+  update_sql <- "
+    UPDATE farm_timeseries
+    SET 
+      mean_val = ?,
+      min_val = ?,
+      max_val = ?,
+      std_val = ?,
+      p05_val = ?,
+      p95_val = ?,
+      threshold_pct = ?,
+      pixels_used = ?,
+      pixels_total = ?,
+      updated_at = current_timestamp
+    WHERE farm_id = ? AND variable = ? AND start_date = ?
+  "
+  
+  for (i in seq_len(nrow(all_stats))) {
+    row <- all_stats[i, ]
+    DBI::dbExecute(con, update_sql, params = list(
+      row$mean_val,
+      row$min_val,
+      row$max_val,
+      row$std_val,
+      row$p05_val,
+      row$p95_val,
+      row$threshold_pct,
+      row$pixels_used,
+      row$pixels_total,
+      row$farm_id,
+      row$variable,
+      as.character(row$date_key)
+    ))
+  }
+  
+  message(sprintf("Recalculated %d records for %s with %s%% threshold", 
+                  nrow(all_stats), farm_id, threshold_pct))
+  
+  all_stats
+}

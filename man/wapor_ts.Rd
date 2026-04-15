@@ -14,7 +14,8 @@ wapor_ts(
   download_locally = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L
+  batch_size = 12L,
+  l3_region = NULL
 )
 }
 \arguments{
@@ -57,6 +58,11 @@ If \code{FALSE}, loads all layers at once.}
 \item{batch_size}{Integer. Number of remote raster layers loaded and processed
 per batch. Lower values reduce peak memory usage for long time series.
 Default is \code{12L} (~4 months of dekadal data).}
+
+\item{l3_region}{Character. Optional L3 region code to use when \code{variable}
+is an L3 product and \code{region} is a spatial AOI. This keeps polygon/bbox
+extraction against the supplied AOI while constraining source rasters to
+the selected L3 mosaic.}
 }
 \value{
 A data.frame with columns:

@@ -29,6 +29,10 @@
 #' @param batch_size Integer. Number of remote raster layers loaded and processed
 #'   per batch. Lower values reduce peak memory usage for long time series.
 #'   Default is `12L` (~4 months of dekadal data).
+#' @param l3_region Character. Optional L3 region code to use when `variable`
+#'   is an L3 product and `region` is a spatial AOI. This keeps polygon/bbox
+#'   extraction against the supplied AOI while constraining source rasters to
+#'   the selected L3 mosaic.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -91,7 +95,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL) {
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -112,6 +116,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     stop("'batch_size' must be a positive integer", call. = FALSE)
   }
   batch_size <- as.integer(batch_size)
+  if (!is.null(l3_region)) {
+    if (!is.character(l3_region) || length(l3_region) != 1 ||
+        !nzchar(l3_region) || !grepl("^[A-Z]{3}$", l3_region)) {
+      stop("'l3_region' must be a single 3-letter L3 region code.", call. = FALSE)
+    }
+  }
   
   # Determine default unit_conversion if NULL
   if (is.null(unit_conversion)) {
@@ -140,14 +150,18 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
-  if (is.null(l3_code) && grepl("^L3-", variable)) {
-    guessed_codes <- wapor_guess_region(variable, reg_info, period)
-    if (is.null(guessed_codes)) {
-        stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
-    }
-    l3_code <- guessed_codes[1]
-    if (length(guessed_codes) > 1) {
-        warning(sprintf("Region intersects multiple L3 areas (%s). Only extracting data from %s. To extract from others, supply their codes directly.", paste(guessed_codes, collapse=", "), l3_code), call. = FALSE)
+  if (grepl("^L3-", variable)) {
+    if (!is.null(l3_region)) {
+      l3_code <- l3_region
+    } else if (is.null(l3_code)) {
+      guessed_codes <- wapor_guess_region(variable, reg_info, period)
+      if (is.null(guessed_codes)) {
+          stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
+      }
+      l3_code <- guessed_codes[1]
+      if (length(guessed_codes) > 1) {
+          warning(sprintf("Region intersects multiple L3 areas (%s). Only extracting data from %s. To extract from others, supply their codes directly.", paste(guessed_codes, collapse=", "), l3_code), call. = FALSE)
+      }
     }
   }
 
