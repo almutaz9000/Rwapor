@@ -1107,16 +1107,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         return()
       }
       
-      # Get selected farm and variable (use ts_farm_select and ts_variable inputs)
-      farm_id <- input$ts_farm_select
-      variable <- input$ts_variable
-      
-      if (is.null(farm_id) || is.null(variable)) {
-        shiny::showNotification("Please select a farm and variable in the Time Series tab first.",
-                               type = "warning")
-        return()
-      }
-      
+      # Open database to get available data
       con <- tryCatch(
         duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
         error = function(e) {
@@ -1126,8 +1117,146 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       )
       if (is.null(con)) return()
       
+      # Get available data
+      available <- wapor_get_available_raster_data(con)
+      DBI::dbDisconnect(con, shutdown = TRUE)
+      
+      # Check if any data available
+      if (length(available$farms) == 0 || length(available$variables) == 0) {
+        shiny::showNotification(
+          "No saved rasters found. Run monitoring with 'Save rasters' enabled first.",
+          type = "warning", duration = 8
+        )
+        return()
+      }
+      
+      # Show modal with selection controls
+      shiny::showModal(shiny::modalDialog(
+        title = "📊 Plot Raster Time Series",
+        size = "l",
+        easyClose = FALSE,
+        
+        shiny::fluidRow(
+          shiny::column(
+            width = 6,
+            shiny::h4("Select Farms"),
+            shiny::checkboxInput(
+              ns("plot_select_all_farms"),
+              "Select All Farms",
+              value = TRUE
+            ),
+            shiny::checkboxGroupInput(
+              ns("plot_farms"),
+              NULL,
+              choices = available$farms,
+              selected = if (length(available$farms) <= 5) available$farms else available$farms[1]
+            )
+          ),
+          shiny::column(
+            width = 6,
+            shiny::h4("Select Variables"),
+            shiny::checkboxGroupInput(
+              ns("plot_variables"),
+              NULL,
+              choices = available$variables,
+              selected = available$variables[1]
+            )
+          )
+        ),
+        
+        shiny::hr(),
+        
+        shiny::fluidRow(
+          shiny::column(
+            width = 12,
+            shiny::h4("Date Range (Optional)"),
+            shiny::dateRangeInput(
+              ns("plot_date_range"),
+              NULL,
+              start = if (!is.null(available$date_range)) available$date_range[1] else NULL,
+              end = if (!is.null(available$date_range)) available$date_range[2] else NULL,
+              min = if (!is.null(available$date_range)) available$date_range[1] else NULL,
+              max = if (!is.null(available$date_range)) available$date_range[2] else NULL
+            ),
+            shiny::helpText("Leave as is to plot all available dates")
+          )
+        ),
+        
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("plot_generate"), "Generate Plot", 
+                             class = "btn-primary")
+        )
+      ))
+    })
+    
+    # Handle "Select All Farms" checkbox
+    shiny::observeEvent(input$plot_select_all_farms, {
+      if (!is.null(input$plot_select_all_farms) && input$plot_select_all_farms) {
+        # Get current choices
+        con <- tryCatch(
+          duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+          error = function(e) NULL
+        )
+        if (!is.null(con)) {
+          available <- wapor_get_available_raster_data(con)
+          DBI::dbDisconnect(con, shutdown = TRUE)
+          shiny::updateCheckboxGroupInput(session, "plot_farms", selected = available$farms)
+        }
+      } else {
+        shiny::updateCheckboxGroupInput(session, "plot_farms", selected = character(0))
+      }
+    })
+    
+    # Generate plot when button clicked
+    shiny::observeEvent(input$plot_generate, {
+      shiny::req(input$db_path, input$plot_farms, input$plot_variables)
+      
+      # Validation
+      if (length(input$plot_farms) == 0) {
+        shiny::showNotification("Please select at least one farm.", type = "warning")
+        return()
+      }
+      
+      if (length(input$plot_variables) == 0) {
+        shiny::showNotification("Please select at least one variable.", type = "warning")
+        return()
+      }
+      
+      # Check for too many combinations
+      n_combinations <- length(input$plot_farms) * length(input$plot_variables)
+      if (n_combinations > 100) {
+        shiny::showNotification(
+          sprintf("Too many combinations (%d). Please select fewer farms or variables.", n_combinations),
+          type = "warning", duration = 5
+        )
+        return()
+      }
+      
+      # Open database
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB error:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+      
+      # Get date range (NULL if not specified)
+      date_range <- NULL
+      if (!is.null(input$plot_date_range)) {
+        date_range <- c(input$plot_date_range[1], input$plot_date_range[2])
+      }
+      
+      # Generate plot
       p <- tryCatch(
-        wapor_plot_raster_timeseries(con, farm_id, variable),
+        wapor_plot_raster_timeseries_multi(
+          con, 
+          input$plot_farms, 
+          input$plot_variables,
+          date_range
+        ),
         error = function(e) {
           shiny::showNotification(paste("Plot error:", e$message), type = "error")
           NULL
@@ -1136,14 +1265,38 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       
       DBI::dbDisconnect(con, shutdown = TRUE)
       
+      # Remove selection modal and show plot modal
+      shiny::removeModal()
+      
       if (!is.null(p)) {
+        # Calculate appropriate height based on number of variables
+        plot_height <- max(400, min(800, 300 * length(input$plot_variables)))
+        
         shiny::showModal(shiny::modalDialog(
-          title = sprintf("Raster Time Series: %s - %s", farm_id, variable),
-          shiny::renderPlot(p, height = 500),
-          size = "l",
+          title = "Raster Time Series Plot",
+          size = "xl",
           easyClose = TRUE,
-          footer = shiny::modalButton("Close")
+          shiny::plotOutput(ns("raster_plot_output"), height = plot_height),
+          footer = shiny::tagList(
+            shiny::downloadButton(ns("download_plot"), "Download Plot"),
+            shiny::modalButton("Close")
+          )
         ))
+        
+        # Render plot
+        output$raster_plot_output <- shiny::renderPlot({
+          p
+        })
+        
+        # Download handler
+        output$download_plot <- shiny::downloadHandler(
+          filename = function() {
+            sprintf("raster_timeseries_%s.png", format(Sys.Date(), "%Y%m%d"))
+          },
+          content = function(file) {
+            ggplot2::ggsave(file, plot = p, width = 12, height = plot_height/100, dpi = 300)
+          }
+        )
       }
     })
 
