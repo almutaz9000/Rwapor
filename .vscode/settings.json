@@ -46,6 +46,10 @@
             "matchCommandLine": true
         },
         "Push-Location": true,
-        "Pop-Location": true
+        "Pop-Location": true,
+        "/^Push-Location; cd \\$env:USERPROFILE; cd 'OneDrive - Food and Agriculture Organization\\\\Documents\\\\GitHub\\\\Rwapor'; & 'C:\\\\Users\\\\Mohammedal\\\\AppData\\\\Local\\\\Programs\\\\R\\\\R-4\\.5\\.3\\\\bin\\\\Rscript\\.exe' --vanilla test_enhanced_plot\\.R; Pop-Location$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
