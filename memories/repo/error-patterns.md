@@ -46,7 +46,14 @@
 - Resolution: Convert with `as.character(period_dates)` before call.
 - Prevention: Normalize all period arguments at module boundary.
 
-## raster-path-not-found-onedrive
+## report-export-missing-packages
+- Signature: `Error in loadNamespace(name): there is no package called 'tidyterra'`
+- Trigger: Running report export code that uses `tidyterra::geom_spatraster()` or `patchwork::wrap_plots()`.
+- Root cause: `tidyterra` and `patchwork` were not listed in DESCRIPTION Suggests.
+- Resolution: Added `tidyterra`, `patchwork`, and `ggspatial` to DESCRIPTION Suggests.
+- Prevention: Always check DESCRIPTION Suggests before referencing a package in skills/documentation examples.
+
+
 - Signature: `[rast] file does not exist`
 - Trigger: Uploading raster AOI from OneDrive path with Files On-Demand or unavailable local file.
 - Root cause: File not present on disk at runtime.
