@@ -1,5 +1,63 @@
 # Rwapor Repository Memory
 
+## 2026-04-16 — Package Structure Review & Developer Skills Catalog
+
+### Summary
+Conducted a full review of the Rwapor package structure and goals. Created a comprehensive
+developer skill catalog at `memories/repo/developer-skills.md` (SKILL-001 through SKILL-010).
+
+### Package Architecture (Confirmed)
+
+**Two-layer design:**
+1. `R/` — Core library: download, time-series extraction, analysis, anomaly detection, comparison
+2. `inst/shiny/` — Interactive dashboard: 5 modules (Download, Visualisation, Analysis, Timeseries, Monitoring)
+
+**Key module communication pattern:** reactive return values (NOT global state)
+```
+dl_out → an_out → vis_out (via reactive() return lists)
+```
+
+**Dashboard layout:** `bslib::page_navbar` + Bootstrap 5 + bootswatch "flatly"
+
+### Skills Catalog Created
+
+Full catalog at `memories/repo/developer-skills.md`:
+- **SKILL-001**: Package architecture and file map
+- **SKILL-002**: WaPOR/AgERA5 data download patterns
+- **SKILL-003**: Analysis/indicator calculation patterns
+- **SKILL-004**: Raster visualization and map export
+- **SKILL-005**: Professional Shiny dashboard patterns (10 sub-patterns)
+- **SKILL-006**: Monitoring module (DuckDB persistence)
+- **SKILL-007**: Export and reporting (PNG, PDF, GeoTIFF, R Markdown)
+- **SKILL-008**: Adding a new Shiny module (checklist + skeleton)
+- **SKILL-009**: Testing conventions
+- **SKILL-010**: Package-wide coding conventions
+
+### Key Patterns for Shiny Dashboard Development
+
+| Pattern | Rule |
+|---|---|
+| Conditional UI | Always `renderUI` + `uiOutput`, NEVER `conditionalPanel` with module inputs |
+| Dynamic input safety | NULL-check ALL inputs from `renderUI` before conditional logic |
+| Layer clearing | Clear ALL 7 layer groups on mode switch |
+| JavaScript injection | Use `shinyjs::runjs()`, NOT `htmlwidgets::onRender()` with proxy |
+| Async operations | Use `future::future() %...>%` pipeline for long-running tasks |
+| Cross-module state | Reactive return values only (never `session$userData` or globals) |
+
+### Map/Figure Export for Reports (New)
+
+```r
+# Publication-quality static map
+ggplot() +
+  tidyterra::geom_spatraster(data = r) +
+  scale_fill_gradientn(colours = rev(viridisLite::viridis(20))) +
+  geom_sf(data = aoi_sf, fill = NA, colour = "black") +
+  theme_minimal()
+ggsave("output.png", width = 10, height = 8, dpi = 300)
+```
+
+---
+
 ## 2026-04-01 - Visualization Module Dual-Raster Enhancement
 
 ### Context
