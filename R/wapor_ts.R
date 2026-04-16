@@ -137,7 +137,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
     message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
   }
-
+140: 
   valid_conversions <- c("none", "day", "dekad", "month", "year")
   if (!unit_conversion %in% valid_conversions) {
     stop(
@@ -145,11 +145,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       call. = FALSE
     )
   }
-
+148: 
   # Parse region
   reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
-
+152: 
   if (grepl("^L3-", variable)) {
     if (!is.null(l3_region)) {
       l3_code <- l3_region
@@ -164,14 +164,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       }
     }
   }
-
+167: 
   # --- Seasonal mode ---
   if (seasonal) {
     if (!is.null(unit_conversion) && unit_conversion != "none") {
       message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
     aggregation_rule <- get_seasonal_aggregation_rule(variable)
-
+174: 
     # Prepare region geometry for zonal stats
     vect_data <- NULL
     if (reg_info$type == "vector") {
@@ -181,7 +181,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         vect_data <- sf::st_transform(vect_data, 4326)
       }
     }
-
+184: 
     # Determine number of zones
     if (!is.null(vect_data)) {
       n_zones <- nrow(vect_data)
@@ -194,7 +194,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       n_zones <- 1L
       zone_ids <- 1L
     }
-
+197: 
     # Call helper. Use tempdir for intermediate raster download.
     temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
     if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
@@ -263,7 +263,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         }
       }
     }
-
+266: 
     seasonal_values <- if (is.null(total_weights)) {
       sum_values
     } else {
@@ -285,7 +285,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.null(identifier) && !is.null(vect_data) && identifier %in% names(vect_data)) {
       result_df[[identifier]] <- zone_ids
     }
-
+288: 
     # Determine final units from seasonal aggregation semantics.
     source_var_meta <- wapor_variable_metadata(variable)
     if (!is.null(source_var_meta)) {
@@ -296,36 +296,36 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
     attr(result_df, "plan") <- plan
     attr(result_df, "aggregation_rule") <- aggregation_rule
-
+299: 
     return(result_df)
   }
-
+302: 
   # Get URLs
   urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)
   if (length(urls) == 0) {
     stop("No data found for the specified variable and period.", call. = FALSE)
   }
-
+308: 
   # Use GDAL virtual file system for efficient streaming
   urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
-  message("Streaming data using GDAL virtual file system (/vsicurl/)...")
+  message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
 
-  message(sprintf("Found %d files. Processing...", length(urls)))
+  message(sprintf("Found %d files for %s. Processing...", length(urls), variable))
   t0_ts <- proc.time()
-
+315: 
   # Extract temporal resolution from variable name
   parts <- strsplit(variable, "-")[[1]]
   tres <- tail(parts, 1)
-
+319: 
   # Gather metadata for all layers
   meta_list <- lapply(urls, function(u) wapor_date_info(u, tres))
   meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
   meta_df$layer_index <- seq_len(nrow(meta_df))
-
+324: 
   # Determine region type
-
+326: 
   vect <- if (reg_info$type == "vector") reg_info$value else NULL
-
+328: 
   # Extract polygon identifiers once
   ids <- NULL
   if (!is.null(vect)) {
@@ -335,27 +335,27 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       seq_len(nrow(vect))
     }
   }
-
+338: 
   # Split URLs into batches for memory-efficient processing
   n_urls <- length(urls)
   url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
   n_chunks <- length(url_idx_chunks)
-
+343: 
   if (n_chunks > 1) {
     message(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
                     n_urls, n_chunks, batch_size))
   }
-
+348: 
   # Helper function to process a single batch
   process_batch <- function(ci) {
     idx <- url_idx_chunks[[ci]]
     chunk_urls <- urls[idx]
     chunk_meta <- meta_df[idx, , drop = FALSE]
-
+354: 
     if (n_chunks > 1 && !parallel) {
       message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
     }
-
+358: 
     # Load raster batch with retry logic
     r <- NULL
     max_retries <- 3
@@ -376,27 +376,27 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       })
       if (!is.null(r)) break
     }
-
+379: 
     # Crop to region
     r <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
-
+382: 
     # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
     r <- wapor_convert_temperature(r, variable)
-
+385: 
     if (!is.null(vect)) {
       # Zonal statistics for polygons using exactextractr
       names(r) <- paste0("L", seq_len(terra::nlyr(r)))
       n_lyr <- terra::nlyr(r)
-
+390: 
       ex <- suppressWarnings(exactextractr::exact_extract(
         r,
         vect,
         c("mean", "min", "max"),
         progress = FALSE
       ))
-
+397: 
       ex$ID <- seq_len(nrow(ex))
-
+399: 
       # Reshape extracted stats into long format
       # If processing batches in parallel, we don't further parallelize within a batch
       # to avoid nested parallelism overhead.
@@ -404,11 +404,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       
       out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
         lyr_name <- paste0("L", i)
-
+407: 
         col_mean <- paste0("mean.", lyr_name)
         col_min <- paste0("min.", lyr_name)
         col_max <- paste0("max.", lyr_name)
-
+411: 
         if (!col_mean %in% names(ex)) {
           if (paste0(lyr_name, ".mean") %in% names(ex)) {
             col_mean <- paste0(lyr_name, ".mean")
@@ -423,23 +423,23 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
                          i, paste(names(ex), collapse = ", ")), call. = FALSE)
           }
         }
-
+426: 
         cols <- c(col_mean, col_min, col_max)
         sub_df <- ex[, cols, drop = FALSE]
         colnames(sub_df) <- c("mean", "min", "max")
-
+430: 
         sub_df$ID <- ids[ex$ID]
         
         # Add custom identifier column if specified
         if (!is.null(identifier) && identifier %in% names(vect)) {
           sub_df[[identifier]] <- ids[ex$ID]
         }
-
+437: 
         m <- chunk_meta[i, ]
         m_rep <- m[rep(1, nrow(sub_df)), ]
         cbind(sub_df, m_rep)
       })
-
+442: 
       return(do.call(rbind, out_list))
     } else {
       # Global statistics for bbox or L3 code regions
@@ -450,7 +450,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       return(df_res)
     }
   }
-
+453: 
   # Process all batches: load, crop, extract stats, release memory
   if (parallel && n_chunks > 1) {
     message(sprintf("  Processing %d batches in parallel...", n_chunks))
@@ -458,24 +458,24 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   } else {
     all_batch_results <- lapply(seq_len(n_chunks), process_batch)
   }
-
+461: 
   message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
-
+463: 
   final_df <- do.call(rbind, all_batch_results)
-
+465: 
   # Get variable metadata for units
   source_var_meta <- wapor_variable_metadata(variable)
-
+468: 
   if (!is.null(source_var_meta)) {
     attr(final_df, "units") <- source_var_meta$units
     attr(final_df, "long_name") <- source_var_meta$long_name
   } else {
     attr(final_df, "units") <- "unknown"
   }
-
+475: 
   # Apply unit conversion
   final_df <- wapor_convert_units(final_df, unit_conversion)
-
+478: 
   message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

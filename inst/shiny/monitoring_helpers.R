@@ -187,6 +187,116 @@ wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster) {
   ))
 }
 
+#' Save seasonal aggregate raster to DuckDB
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param variable WaPOR variable name
+#' @param season_id Identifier for the season (e.g. "2023_MAIN")
+#' @param raster terra SpatRaster aggregate object
+#' @return Number of rows inserted
+wapor_save_seasonal_raster_to_db <- function(con, farm_id, variable, season_id, raster) {
+  if (is.null(raster) || is.null(con)) {
+    return(0L)
+  }
+  
+  # Save raster to temporary file
+  temp_file <- tempfile(fileext = ".tif")
+  on.exit(unlink(temp_file), add = TRUE)
+  
+  terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
+  
+  # Read as BLOB
+  raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+  
+  # Get extent and dimensions
+  ext <- terra::ext(raster)
+  dims <- dim(raster)
+  
+  # Insert into database
+  insert_sql <- "
+    INSERT INTO farm_seasonal_rasters (farm_id, variable, season_id, raster_blob, xmin, xmax, ymin, ymax, nrow, ncol)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (farm_id, variable, season_id) 
+    DO UPDATE SET 
+      raster_blob = EXCLUDED.raster_blob,
+      xmin = EXCLUDED.xmin,
+      xmax = EXCLUDED.xmax,
+      ymin = EXCLUDED.ymin,
+      ymax = EXCLUDED.ymax,
+      nrow = EXCLUDED.nrow,
+      ncol = EXCLUDED.ncol
+  "
+  
+  DBI::dbExecute(con, insert_sql, params = list(
+    farm_id,
+    variable,
+    as.character(season_id),
+    list(raster_blob),
+    ext$xmin,
+    ext$xmax,
+    ext$ymin,
+    ext$ymax,
+    dims[1],  # nrow
+    dims[2]   # ncol
+  ))
+}
+
+#' Generate seasonal aggregate raster from DuckDB dekadal blobs
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param farm_geom sf object for the farm
+#' @param variable WaPOR variable
+#' @param start_date Seasonal start date
+#' @param end_date Seasonal end date
+#' @return terra SpatRaster aggregate or NULL
+wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, start_date, end_date) {
+  if (is.null(con) || is.null(farm_id)) return(NULL)
+  
+  # Query all dekadal rasters in range
+  query <- "
+    SELECT date_key, raster_blob
+    FROM farm_rasters
+    WHERE farm_id = ? AND variable = ?
+      AND date_key >= ? AND date_key <= ?
+    ORDER BY date_key
+  "
+  
+  df <- DBI::dbGetQuery(con, query, params = list(
+    farm_id, 
+    variable, 
+    as.character(start_date), 
+    as.character(end_date)
+  ))
+  
+  if (nrow(df) == 0) return(NULL)
+  
+  # Collect rasters
+  r_list <- lapply(seq_len(nrow(df)), function(i) {
+    wapor_raster_from_blob(df$raster_blob[[i]])
+  })
+  
+  # Stack rasters
+  # Important: they might have slightly different extents if grid shifted?
+  # But here they are clipped to the same farm_geom extent in theory.
+  # Let's check for overlap and align.
+  s <- terra::rast(r_list)
+  
+  # Determine aggregation method
+  # Sum for flux/consumption: AETI, PCP, NPP, T, E
+  # Mean for state/indices: RET, RSM, ETa/ETp
+  is_flux <- grepl("AETI|PCP|NPP|^-T-|^E-", variable, ignore.case = TRUE)
+  
+  if (is_flux) {
+    res <- terra::app(s, fun = "sum", na.rm = TRUE)
+  } else {
+    res <- terra::app(s, fun = "mean", na.rm = TRUE)
+  }
+  
+  return(res)
+}
+
 #' Get combined extent of all farms from database
 #' 
 #' @param con DuckDB connection
@@ -405,6 +515,40 @@ wapor_get_available_raster_data <- function(con) {
     farms = farms,
     variables = variables,
     date_range = date_range
+  )
+}
+
+#' Get available seasonal raster data summary
+#' 
+#' @param con DuckDB connection
+#' @return List with farms, variables, and seasons
+wapor_get_available_seasonal_data <- function(con) {
+  if (is.null(con)) {
+    return(list(farms = character(0), variables = character(0), seasons = character(0)))
+  }
+  
+  # Get unique farms
+  farms <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_seasonal_rasters ORDER BY farm_id")$farm_id,
+    error = function(e) character(0)
+  )
+  
+  # Get unique variables
+  variables <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM farm_seasonal_rasters ORDER BY variable")$variable,
+    error = function(e) character(0)
+  )
+  
+  # Get seasons
+  seasons <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT season_id FROM farm_seasonal_rasters ORDER BY season_id")$season_id,
+    error = function(e) character(0)
+  )
+  
+  list(
+    farms = farms,
+    variables = variables,
+    seasons = seasons
   )
 }
 

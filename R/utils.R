@@ -793,10 +793,6 @@ wapor_crop_to_region <- function(r, reg_info, do_mask = FALSE) {
       bb_poly <- wapor_safe_project(bb_poly, r_crs)
     }
     
-    if (needs_proj) {
-      bb_poly <- wapor_safe_project(bb_poly, r_crs)
-    }
-    
     r <- suppressWarnings(terra::crop(r, bb_poly, snap = "out"))
   }
   r

@@ -271,6 +271,70 @@ L3_REGIONS <- list(
   "SAN" = list(name = "Sanaa basin", country = "Yemen")
 )
 
+#' Fetch WaPOR Level 3 Regions
+#'
+#' Dynamically retrieves the list of available WaPOR Level 3 (L3) regions
+#' from the FAO GISMGR API. This ensures that newly added irrigation
+#' schemes or study areas are available without updating the package.
+#'
+#' @return A data.frame with columns:
+#' \describe{
+#'   \item{code}{3-letter region code (e.g., "AWA")}
+#'   \item{name}{Full name of the region (e.g., "Awash")}
+#'   \item{country}{Country name extracted from the API caption}
+#'   \item{caption}{Original full caption from the API}
+#' }
+#'
+#' @details
+#' Queries the \code{L3-GRID/tiles} endpoint. If the API request fails,
+#' it falls back to the static \code{L3_REGIONS} list. Results are memoized.
+#'
+#' @export
+#' @importFrom httr2 request req_perform resp_body_json req_timeout
+wapor_fetch_l3_regions <- function() {
+  url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/grids/L3-GRID/tiles"
+  
+  tryCatch({
+    # Use the internal collector to handle pagination if many regions are added
+    items <- collect_responses(url, info = NULL)
+    
+    if (length(items) == 0) return(wapor_l3_regions_to_df(L3_REGIONS))
+    
+    df <- do.call(rbind, lapply(items, function(x) {
+      caption_parts <- strsplit(x$caption, ",")[[1]]
+      data.frame(
+        code    = x$code,
+        name    = trimws(caption_parts[1]),
+        country = if (length(caption_parts) > 1) trimws(caption_parts[2]) else "Unknown",
+        caption = x$caption,
+        stringsAsFactors = FALSE
+      )
+    }))
+    
+    return(df[order(df$country, df$name), ])
+    
+  }, error = function(e) {
+    warning("Failed to fetch L3 regions from API, falling back to static list: ", e$message)
+    return(wapor_l3_regions_to_df(L3_REGIONS))
+  })
+}
+
+#' Convert L3_REGIONS list to data.frame
+#' @keywords internal
+#' @export
+wapor_l3_regions_to_df <- function(reg_list) {
+  df <- do.call(rbind, lapply(names(reg_list), function(n) {
+    data.frame(
+      code    = n,
+      name    = reg_list[[n]]$name,
+      country = reg_list[[n]]$country,
+      caption = paste0(reg_list[[n]]$name, ", ", reg_list[[n]]$country),
+      stringsAsFactors = FALSE
+    )
+  }))
+  df[order(df$country, df$name), ]
+}
+
 #' Get Variable Metadata (Internal)
 #'
 #' Internal function that retrieves variable metadata from static lists
@@ -301,17 +365,26 @@ get_variable_metadata_internal <- function(variable) {
     return(AGERA5_VARS[[variable]])
   }
 
-  # 2. Dynamic fetch from API
-  message("Variable '", variable, "' not in static list. Fetching metadata from API...")
-
+  # 2. Level-based Fallback (ETa/RET and PCP are only L1 at dekadal scale)
+  # Check for L2/L3 variables that we know must use L1 sources
   parts <- strsplit(variable, "-")[[1]]
-  if (length(parts) < 2) {
-    warning("Invalid variable format: ", variable, call. = FALSE)
-    return(NULL)
+  if (length(parts) >= 2) {
+    level <- parts[1]
+    if (level %in% c("L2", "L3") && grepl("-(RET|PCP)-", variable)) {
+      fallback_var <- sub("^L[23]-", "L1-", variable)
+      # Check if fallback is already in static list
+      if (fallback_var %in% names(WAPOR3_VARS)) {
+         return(WAPOR3_VARS[[fallback_var]])
+      }
+      # If not in static list, continue to fetch from API - BUT for the L1 version
+      variable <- fallback_var
+    }
   }
 
-  level <- parts[1]
+  # 3. Dynamic fetch from API
+  message("Variable '", variable, "' not in static list. Fetching metadata from API...")
 
+  level <- parts[1]
   base_url <- if (level %in% c("L1", "L2")) {
     "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
   } else if (level == "L3") {
