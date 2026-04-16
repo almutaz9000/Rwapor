@@ -200,7 +200,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
             shiny::checkboxInput(
               ns("also_save_rasters"),
               "Also clip & save raster layers to database",
-              value = FALSE
+              value = TRUE
             ),
             shiny::helpText(
               "Rasters are stored as compressed blobs (~5-20 MB each). Disable if disk space is limited.",
@@ -378,6 +378,10 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
               class = "inline-row mb-2",
               shiny::div(
                 class = "flex-1",
+                shiny::uiOutput(ns("rast_farm_ui"))
+              ),
+              shiny::div(
+                class = "flex-1",
                 shiny::uiOutput(ns("rast_var_ui"))
               ),
               shiny::div(
@@ -393,7 +397,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
                 )
               )
             ),
-            leaflet::leafletOutput(ns("raster_map"), height = "calc(100vh - 280px)") |>
+            leaflet::leafletOutput(ns("raster_map"), height = "calc(100vh - 300px)") |>
               shinycssloaders::withSpinner(type = 6, color = "#2c3e50")
           )
         ),
@@ -516,6 +520,19 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             ymax        DOUBLE
           )
         ")
+
+        # Farm polygons – stores the actual vector geometry (WKT) for each farm
+        DBI::dbExecute(con, "
+          CREATE TABLE IF NOT EXISTS farm_polygons (
+            farm_id      TEXT PRIMARY KEY,
+            crop_type    TEXT,
+            label        TEXT,
+            area_ha      DOUBLE,
+            geometry_wkt TEXT,
+            crs_epsg     INTEGER DEFAULT 4326,
+            created_at   TIMESTAMP DEFAULT current_timestamp
+          )
+        ")
         
         DBI::dbExecute(con, "
           CREATE TABLE IF NOT EXISTS monitoring_log (
@@ -554,6 +571,58 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         tryCatch(DBI::dbDisconnect(rv$db_con, shutdown = TRUE), error = function(e) NULL)
         rv$db_con <- NULL
       }
+    }
+
+    # ── Save farm polygon geometries to DB ────────────────────────────────────
+    save_farms_to_db <- function(con, farms_sf, crop_col = NULL, label_col = NULL) {
+      if (is.null(con) || is.null(farms_sf) || nrow(farms_sf) == 0) return(invisible(0L))
+      n_saved <- 0L
+      for (i in seq_len(nrow(farms_sf))) {
+        farm      <- farms_sf[i, ]
+        farm_drop <- sf::st_drop_geometry(farm)
+        farm_id   <- as.character(farm_drop$farm_id)
+
+        geom_wkt  <- tryCatch(
+          sf::st_as_text(sf::st_geometry(farm)[[1]]),
+          error = function(e) NA_character_
+        )
+        crop_type <- if (!is.null(crop_col) && nzchar(crop_col %||% "") &&
+                          crop_col %in% names(farm_drop)) {
+          as.character(farm_drop[[crop_col]])
+        } else NA_character_
+
+        label <- if (!is.null(label_col) && nzchar(label_col %||% "") &&
+                      label_col %in% names(farm_drop)) {
+          as.character(farm_drop[[label_col]])
+        } else farm_id
+
+        farm_aea <- tryCatch(
+          sf::st_transform(farm, crs = "+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=0"),
+          error = function(e) farm
+        )
+        area_ha <- tryCatch(
+          as.numeric(sf::st_area(farm_aea)) / 10000,
+          error = function(e) NA_real_
+        )
+
+        tryCatch({
+          DBI::dbExecute(con, "
+            INSERT INTO farm_polygons (farm_id, crop_type, label, area_ha, geometry_wkt, crs_epsg)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (farm_id) DO UPDATE SET
+              crop_type    = EXCLUDED.crop_type,
+              label        = EXCLUDED.label,
+              area_ha      = EXCLUDED.area_ha,
+              geometry_wkt = EXCLUDED.geometry_wkt,
+              crs_epsg     = EXCLUDED.crs_epsg
+          ", params = list(farm_id, crop_type, label, area_ha, geom_wkt, 4326L))
+          n_saved <- n_saved + 1L
+        }, error = function(e) {
+          add_log(sprintf("  Warning: could not save polygon for %s: %s", farm_id, e$message))
+        })
+      }
+      add_log(sprintf("  Saved %d farm polygon(s) to farm_polygons table.", n_saved))
+      invisible(n_saved)
     }
 
     # Get the last fetched date per farm+variable to enable incremental updates
@@ -864,6 +933,9 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         con <- open_db(db_path)
         if (is.null(con)) { rv$monitoring <- FALSE; return() }
 
+        # Save farm polygon geometries to DB (upsert – safe to run each time)
+        save_farms_to_db(con, farms_sf, crop_col, label_col)
+
         # Determine per-variable start dates (incremental)
         last_dates <- get_last_dates(con)
         add_log(sprintf("Opened DB. %d existing records.", nrow(last_dates)))
@@ -1009,7 +1081,41 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       tryCatch({
         con <- open_db(input$db_path)
         if (is.null(con)) return()
-        rv$ts_data <- DBI::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
+
+        # Load timeseries
+        rv$ts_data <- DBI::dbGetQuery(con,
+          "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
+
+        # Restore farm polygons from DB if not already loaded
+        if (is.null(rv$farms_sf)) {
+          poly_df <- tryCatch(
+            DBI::dbGetQuery(con,
+              "SELECT farm_id, crop_type, label, area_ha, geometry_wkt, crs_epsg
+               FROM farm_polygons"),
+            error = function(e) NULL
+          )
+          if (!is.null(poly_df) && nrow(poly_df) > 0 &&
+              !is.null(poly_df$geometry_wkt) && any(!is.na(poly_df$geometry_wkt))) {
+            tryCatch({
+              geoms <- sf::st_as_sfc(poly_df$geometry_wkt,
+                                     crs = as.integer(poly_df$crs_epsg[1] %||% 4326L))
+              rv$farms_sf <- sf::st_sf(
+                farm_id   = poly_df$farm_id,
+                crop_type = poly_df$crop_type,
+                label     = poly_df$label,
+                area_ha   = poly_df$area_ha,
+                geometry  = geoms
+              )
+              shiny::showNotification(
+                sprintf("\u2714 Restored %d farm polygon(s) from DB.", nrow(poly_df)),
+                type = "message", duration = 4
+              )
+            }, error = function(e) {
+              message("Could not restore farm polygons from DB: ", e$message)
+            })
+          }
+        }
+
         DBI::dbDisconnect(con, shutdown = TRUE)
         shiny::showNotification(
           sprintf("\u2714 Loaded %d records from DB.", nrow(rv$ts_data)),
@@ -1069,16 +1175,16 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           farm_id <- as.character(rv$farms_sf$farm_id[i])
           farm_geom <- rv$farms_sf[i, ]
           
-          n_updated <- tryCatch(
+          updated_df <- tryCatch(
             wapor_recalculate_stats_from_rasters(
               con, farm_id, farm_geom, input$threshold_pct
             ),
             error = function(e) {
               message(sprintf("Error for farm %s: %s", farm_id, e$message))
-              0
+              NULL
             }
           )
-          total_updated <- total_updated + n_updated
+          total_updated <- total_updated + if (!is.null(updated_df)) nrow(updated_df) else 0L
           shiny::incProgress(1 / nrow(rv$farms_sf), 
                             detail = sprintf("Farm %d/%d", i, nrow(rv$farms_sf)))
         }
@@ -1677,21 +1783,77 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     # ── RASTER VIEW TAB ───────────────────────────────────────────────────────
 
-    output$rast_var_ui <- shiny::renderUI({
-      vars <- names(rv$rast_layers)
-      if (length(vars) == 0) {
-        ts <- rv$ts_data
-        vars <- if (!is.null(ts)) sort(unique(ts$variable)) else .MON_ALL_VARS
+    # Farm selector – populated from saved rasters in DB (or fallback to farms_sf)
+    output$rast_farm_ui <- shiny::renderUI({
+      db_path <- input$db_path
+      farms <- NULL
+      if (!is.null(db_path) && file.exists(db_path)) {
+        farms <- tryCatch({
+          con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+          on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
+          DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_rasters ORDER BY farm_id")$farm_id
+        }, error = function(e) NULL)
       }
-      shiny::selectInput(ns("rast_var"), "Variable", choices = vars)
+      if (is.null(farms) || length(farms) == 0) {
+        farms <- if (!is.null(rv$farms_sf)) rv$farms_sf$farm_id else character(0)
+      }
+      if (length(farms) == 0) return(shiny::helpText("No rasters in DB yet."))
+      shiny::selectInput(ns("rast_farm"), "Farm", choices = farms, selected = farms[1])
+    })
+
+    output$rast_var_ui <- shiny::renderUI({
+      # Prefer variables from saved rasters (not just timeseries)
+      db_path <- input$db_path
+      rast_farm <- input$rast_farm
+      vars <- NULL
+      if (!is.null(db_path) && file.exists(db_path) && !is.null(rast_farm) && nzchar(rast_farm)) {
+        vars <- tryCatch({
+          con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+          on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
+          DBI::dbGetQuery(con,
+            "SELECT DISTINCT variable FROM farm_rasters WHERE farm_id = ? ORDER BY variable",
+            params = list(rast_farm)
+          )$variable
+        }, error = function(e) NULL)
+      }
+      if (is.null(vars) || length(vars) == 0) {
+        ts <- rv$ts_data
+        vars <- if (!is.null(ts)) sort(unique(ts$variable)) else character(0)
+      }
+      if (length(vars) == 0) return(shiny::helpText("No rasters saved yet."))
+      shiny::selectInput(ns("rast_var"), "Variable", choices = vars, selected = vars[1])
     })
 
     output$rast_date_ui <- shiny::renderUI({
-      ts <- rv$ts_data
-      var <- input$rast_var
-      if (is.null(ts) || is.null(var)) return(shiny::selectInput(ns("rast_date"), "Date", choices = NULL))
-      dates <- sort(unique(ts$start_date[ts$variable == var]))
-      shiny::selectInput(ns("rast_date"), "Dekad / Date", choices = as.character(dates))
+      db_path   <- input$db_path
+      rast_farm <- input$rast_farm
+      rast_var  <- input$rast_var
+      if (is.null(rast_farm) || !nzchar(rast_farm %||% "") ||
+          is.null(rast_var)  || !nzchar(rast_var  %||% "")) {
+        return(shiny::selectInput(ns("rast_date"), "Date", choices = NULL))
+      }
+      dates <- NULL
+      if (!is.null(db_path) && file.exists(db_path)) {
+        dates <- tryCatch({
+          con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+          on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
+          DBI::dbGetQuery(con,
+            "SELECT DISTINCT CAST(date_key AS VARCHAR) as dk FROM farm_rasters
+             WHERE farm_id = ? AND variable = ? ORDER BY dk",
+            params = list(rast_farm, rast_var)
+          )$dk
+        }, error = function(e) NULL)
+      }
+      if (is.null(dates) || length(dates) == 0) {
+        ts <- rv$ts_data
+        if (!is.null(ts)) {
+          dates <- as.character(sort(unique(ts$start_date[ts$variable == (rast_var %||% "")])))
+        }
+      }
+      if (is.null(dates) || length(dates) == 0)
+        return(shiny::selectInput(ns("rast_date"), "Date", choices = NULL))
+      shiny::selectInput(ns("rast_date"), "Dekad / Date",
+                         choices = dates, selected = tail(dates, 1))
     })
 
     output$raster_map <- leaflet::renderLeaflet({
@@ -1717,42 +1879,58 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           )
       }
 
-      # Try to load raster from DB blobs if available and duckdb is open
+      rast_farm <- input$rast_farm
       rast_var  <- input$rast_var
       rast_date <- input$rast_date
-      if (is.null(rast_var) || is.null(rast_date) ||
+
+      if (is.null(rast_farm) || !nzchar(rast_farm %||% "") ||
+          is.null(rast_var)  || !nzchar(rast_var  %||% "") ||
+          is.null(rast_date) || !nzchar(rast_date %||% "") ||
           !requireNamespace("duckdb", quietly = TRUE)) return(m)
 
       db_path <- input$db_path
       if (is.null(db_path) || !file.exists(db_path)) return(m)
 
       tryCatch({
-        con <- open_db(db_path)
-        if (is.null(con)) return(m)
-        blob_row <- DBI::dbGetQuery(con,
-          "SELECT raster_blob FROM farm_rasters WHERE variable = ? AND date_key = ? LIMIT 1",
-          params = list(rast_var, rast_date)
-        )
-        DBI::dbDisconnect(con, shutdown = TRUE)
+        con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+        on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
 
-        if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) return(m)
+        blob_row <- DBI::dbGetQuery(con,
+          "SELECT raster_blob FROM farm_rasters
+           WHERE farm_id = ? AND variable = ? AND CAST(date_key AS VARCHAR) = ?
+           LIMIT 1",
+          params = list(rast_farm, rast_var, rast_date)
+        )
+
+        if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) {
+          shiny::showNotification(
+            sprintf("No raster found for farm=%s, var=%s, date=%s",
+                    rast_farm, rast_var, rast_date),
+            type = "warning", duration = 5
+          )
+          return(m)
+        }
 
         tmp_tif <- tempfile(fileext = ".tif")
-        writeBin(as.raw(blob_row$raster_blob[[1]]), tmp_tif)
+        writeBin(blob_row$raster_blob[[1]], tmp_tif)
         r <- terra::rast(tmp_tif)
 
         pal_name <- input$rast_palette %||% "viridis"
         pal_colors <- grDevices::colorRampPalette(
           switch(pal_name,
-            "magma"   = viridisLite::magma(11),
-            "RdYlGn"  = RColorBrewer::brewer.pal(11, "RdYlGn"),
-            "RdYlBu"  = RColorBrewer::brewer.pal(11, "RdYlBu"),
-            "Spectral"= RColorBrewer::brewer.pal(11, "Spectral"),
+            "magma"    = viridisLite::magma(11),
+            "RdYlGn"   = RColorBrewer::brewer.pal(11, "RdYlGn"),
+            "RdYlBu"   = RColorBrewer::brewer.pal(11, "RdYlBu"),
+            "Spectral"  = RColorBrewer::brewer.pal(11, "Spectral"),
             viridisLite::viridis(11)
           )
         )(255)
 
         vals <- terra::values(r, na.rm = TRUE)
+        if (length(vals) == 0 || all(is.na(vals))) {
+          shiny::showNotification("Raster has no valid values.", type = "warning", duration = 4)
+          return(m)
+        }
         pal_fn <- leaflet::colorNumeric(pal_colors,
                                         domain = range(vals, na.rm = TRUE),
                                         na.color = "transparent")
@@ -1760,7 +1938,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         m |>
           leaflet::addRasterImage(r, colors = pal_fn, opacity = 0.75, group = "Raster") |>
           leaflet::addLegend(pal = pal_fn, values = vals,
-                             title = paste0(rast_var, "\n", rast_date),
+                             title  = paste0(rast_var, "\n", rast_date),
                              position = "bottomright")
       }, error = function(e) {
         shiny::showNotification(paste("Raster load error:", e$message), type = "warning", duration = 5)
@@ -1955,76 +2133,129 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
   tryCatch({
     # Build bounding box from union of all farms
-    bb <- sf::st_bbox(sf::st_union(farms_sf))
+    bb  <- sf::st_bbox(sf::st_union(farms_sf))
     reg <- as.numeric(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]))
+    # terra::ext expects (xmin, xmax, ymin, ymax)
+    aoi_ext <- terra::ext(reg[1], reg[3], reg[2], reg[4])
 
     urls <- tryCatch(
       Rwapor::wapor_generate_urls(
         variable,
         l3_region = if (grepl("^L3-", variable)) l3_region else NULL,
-        period = period
+        period    = period
       ),
       error = function(e) { add_log_fn(sprintf("  Raster URLs error: %s", e$message)); NULL }
     )
     if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
 
     urls_vs <- paste0("/vsicurl/", urls)
-
     add_log_fn(sprintf("  Saving %d raster layers for %s (per farm)…", length(urls_vs), variable))
 
-    # Process each raster time step
-    for (i in seq_along(urls_vs)) {
+    # ── Upsert farm_metadata once per farm (outside the heavy raster loop) ────
+    for (j in seq_len(nrow(farms_sf))) {
+      farm_id   <- as.character(farms_sf$farm_id[j])
+      farm_geom <- farms_sf[j, ]
       tryCatch({
-        # Load and crop full extent raster
-        r_full <- suppressWarnings(terra::rast(urls_vs[i]))
-        r_full <- terra::crop(r_full, terra::ext(reg[1], reg[3], reg[2], reg[4]))
-        
-        # Extract date from URL
-        date_key <- gsub(".*\\.([0-9]{4}-[0-9]{2}-[0-9]{2})\\.tif.*", "\\1",
-                         basename(urls[i]))
-        if (!nzchar(date_key) || date_key == basename(urls[i])) {
-          date_key <- format(Sys.Date() - (length(urls_vs) - i) * 10, "%Y-%m-%d")
+        existing <- DBI::dbGetQuery(con,
+          "SELECT farm_id FROM farm_metadata WHERE farm_id = ?",
+          params = list(farm_id)
+        )
+        if (nrow(existing) == 0) {
+          DBI::dbExecute(con, "INSERT INTO farm_metadata (farm_id) VALUES (?)",
+                         params = list(farm_id))
         }
-        
-        # Clip and save raster for each farm
-        for (j in seq_len(nrow(farms_sf))) {
-          farm_id <- as.character(farms_sf$farm_id[j])
-          farm_geom <- farms_sf[j, ]
-          
-          # Clip to farm extent
-          farm_bb <- sf::st_bbox(farm_geom)
-          r_farm <- terra::crop(r_full, terra::ext(farm_bb["xmin"], farm_bb["xmax"], 
-                                                     farm_bb["ymin"], farm_bb["ymax"]))
-          
-          # Save using helper function (with extent metadata)
-          n_saved <- wapor_save_raster_to_db(con, farm_id, variable, date_key, r_farm)
-          
-          # Update farm metadata if not already set
-          if (j == 1) {  # Only check once per monitoring run
-            existing <- DBI::dbGetQuery(con, 
-              "SELECT farm_id FROM farm_metadata WHERE farm_id = ?", 
-              params = list(farm_id)
-            )
-            if (nrow(existing) == 0) {
-              # Insert placeholder
-              DBI::dbExecute(con, 
-                "INSERT INTO farm_metadata (farm_id) VALUES (?)",
-                params = list(farm_id)
-              )
-            }
-            wapor_update_farm_metadata(con, farm_id, farm_geom)
-          }
-        }
-        
-        add_log_fn(sprintf("    Saved layer %d/%d (%s)", i, length(urls_vs), date_key))
-        
+        wapor_update_farm_metadata(con, farm_id, farm_geom)
       }, error = function(e) {
-        add_log_fn(sprintf("  Raster blob error layer %d: %s", i, e$message))
+        add_log_fn(sprintf("  Warning: metadata update failed for %s: %s", farm_id, e$message))
       })
     }
-    
-    add_log_fn(sprintf("  ✓ Saved %d rasters for %d farms", length(urls_vs), nrow(farms_sf)))
-    
+
+    n_ok <- 0L
+    n_skip <- 0L
+
+    # ── Process each raster time step ─────────────────────────────────────────
+    for (i in seq_along(urls_vs)) {
+      tryCatch({
+        # Load full-resolution layer
+        r_full <- suppressWarnings(terra::rast(urls_vs[i]))
+
+        # Ensure CRS is set (vsicurl sources sometimes lose CRS metadata)
+        if (is.na(terra::crs(r_full)) || !nzchar(terra::crs(r_full))) {
+          terra::crs(r_full) <- "EPSG:4326"
+        }
+
+        # Check that the AOI overlaps this raster before cropping
+        r_ext <- terra::ext(r_full)
+        if (aoi_ext$xmin >= r_ext$xmax || aoi_ext$xmax <= r_ext$xmin ||
+            aoi_ext$ymin >= r_ext$ymax || aoi_ext$ymax <= r_ext$ymin) {
+          add_log_fn(sprintf("  Skipped layer %d: AOI outside raster extent", i))
+          n_skip <- n_skip + 1L
+          return(invisible(NULL))  # exits this tryCatch, continues outer loop
+        }
+
+        r_full <- terra::crop(r_full, aoi_ext)
+
+        # Extract date from URL filename.
+        # WaPOR uses YYYY-MM-Dn format (D1=1st, D2=11th, D3=21st of month).
+        # Fall back to YYYY-MM-DD if that pattern is present.
+        fname <- basename(urls[i])
+        date_key <- {
+          # Try standard YYYY-MM-DD pattern first
+          m1 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", fname))
+          if (length(m1) > 0 && nzchar(m1)) {
+            m1
+          } else {
+            # Try WaPOR dekad pattern: YYYY-MM-D1 / D2 / D3
+            m2 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-D[123]", fname))
+            if (length(m2) > 0 && nzchar(m2)) {
+              parts  <- strsplit(m2, "-")[[1]]
+              dkday  <- c("01", "11", "21")[as.integer(sub("D", "", parts[3]))]
+              paste(parts[1], parts[2], dkday, sep = "-")
+            } else {
+              # Ultimate fallback: evenly-spaced dates from harvest date backward
+              format(Sys.Date() - (length(urls_vs) - i) * 10, "%Y-%m-%d")
+            }
+          }
+        }
+
+        # ── Clip and save per farm ────────────────────────────────────────────
+        for (j in seq_len(nrow(farms_sf))) {
+          farm_id   <- as.character(farms_sf$farm_id[j])
+          farm_geom <- farms_sf[j, ]
+
+          tryCatch({
+            farm_bb <- sf::st_bbox(farm_geom)
+            farm_ext <- terra::ext(
+              as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
+              as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"])
+            )
+
+            # Skip farm if it does not overlap this layer
+            r_ext2 <- terra::ext(r_full)
+            if (farm_ext$xmin >= r_ext2$xmax || farm_ext$xmax <= r_ext2$xmin ||
+                farm_ext$ymin >= r_ext2$ymax || farm_ext$ymax <= r_ext2$ymin) {
+              return(invisible(NULL))  # silently skip this farm
+            }
+
+            r_farm <- terra::crop(r_full, farm_ext)
+            wapor_save_raster_to_db(con, farm_id, variable, date_key, r_farm)
+
+          }, error = function(e) {
+            add_log_fn(sprintf("    Skipped farm %s layer %d: %s", farm_id, i, e$message))
+          })
+        }
+
+        n_ok <- n_ok + 1L
+
+      }, error = function(e) {
+        add_log_fn(sprintf("  Raster blob error layer %d: %s", i, e$message))
+        n_skip <<- n_skip + 1L
+      })
+    }
+
+    add_log_fn(sprintf("  ✓ %d/%d rasters saved for %d farm(s) (%d skipped)",
+                       n_ok, length(urls_vs), nrow(farms_sf), n_skip))
+
   }, error = function(e) {
     add_log_fn(sprintf("  .save_raster_blobs error: %s", e$message))
   })
