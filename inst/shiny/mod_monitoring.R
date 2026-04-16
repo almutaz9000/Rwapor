@@ -39,17 +39,17 @@ source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local =
       v
     }
   }, character(1), USE.NAMES = FALSE)
-  stats::setNames(vars, labels)
+  as.list(stats::setNames(vars, labels))
 }
 
 .mon_l3_region_choices <- function(codes, l3_regions_meta) {
-  stats::setNames(
+  as.list(stats::setNames(
     codes,
     vapply(codes, function(code) {
       r <- l3_regions_meta[[code]]
       if (!is.null(r)) sprintf("%s - %s (%s)", r$country, r$name, code) else code
     }, character(1), USE.NAMES = FALSE)
-  )
+  ))
 }
 
 .mon_first_available_var <- function(ts_df, candidates) {
@@ -137,6 +137,21 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
               shiny::icon("info-circle"),
               " Only missing dekads are fetched on subsequent Monitor runs.",
               style = "font-size:0.78rem;"
+            ),
+
+            shiny::hr(class = "ctrl-divider"),
+            shiny::tags$div(
+              style = "margin-top:0.5rem; background: rgba(52, 152, 219, 0.05); padding: 0.5rem; border-radius: 4px; border: 1px solid rgba(52, 152, 219, 0.1);",
+              shiny::tags$strong("Per-Farm Seasonal Override", style = "font-size: 0.82rem; color: #2c3e50; display: block; margin-bottom: 0.3rem;"),
+              shiny::tags$span("Farm Start Date Column", class = "ctrl-group-label"),
+              shiny::uiOutput(ns("start_date_col_ui")),
+              shiny::tags$span("Farm End Date Column", class = "ctrl-group-label"),
+              shiny::uiOutput(ns("end_date_col_ui")),
+              shiny::helpText(
+                shiny::icon("circle-info"),
+                " Use these if each farm has its own sowing/harvest dates. The main 'Monitor' run will still fetch the full bulk range to ensure data availability.",
+                style = "font-size: 0.72rem; margin-top: 5px; line-height: 1.1;"
+              )
             )
           ),
 
@@ -254,6 +269,18 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
               ns("btn_zoom_farms"), "Zoom Map to Farm Extent",
               icon  = shiny::icon("expand"),
               class = "btn-outline-secondary w-100 btn-sm"
+            ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+            
+            shiny::actionButton(
+              ns("btn_seasonal_raster"), "Produce Seasonal Rasters",
+              icon  = shiny::icon("mountain-sun"),
+              class = "btn-outline-success w-100 btn-sm"
+            ),
+            shiny::helpText(
+              "Aggregates dekadal rasters based on per-farm start/end columns.",
+              style = "font-size:0.77rem; color:#6c757d;"
             )
           ),
 
@@ -506,6 +533,24 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             PRIMARY KEY (farm_id, variable, date_key)
           )
         ")
+
+        # Seasonal aggregated rasters
+        DBI::dbExecute(con, "
+          CREATE TABLE IF NOT EXISTS farm_seasonal_rasters (
+            farm_id     TEXT,
+            variable    TEXT,
+            season_id   TEXT,
+            raster_blob BLOB,
+            xmin        DOUBLE,
+            xmax        DOUBLE,
+            ymin        DOUBLE,
+            ymax        DOUBLE,
+            nrow        INTEGER,
+            ncol        INTEGER,
+            updated_at  TIMESTAMP DEFAULT current_timestamp,
+            PRIMARY KEY (farm_id, variable, season_id)
+          )
+        ")
         
         # Farm metadata for quick lookups
         DBI::dbExecute(con, "
@@ -652,7 +697,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     shiny::observeEvent(input$browse_db, {
       p <- shinyFiles::parseFilePaths(roots, input$browse_db)
-      if (nrow(p) > 0) shiny::updateTextInput(session, "db_path", value = p$datapath[1])
+      if (nrow(p) > 0) {
+        path <- normalizePath(p$datapath[1], winslash = "/", mustWork = FALSE)
+        shiny::updateTextInput(session, "db_path", value = path)
+      }
     })
 
     # ── 1. Load farm vector file ───────────────────────────────────────────────
@@ -717,6 +765,22 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       if (is.null(sf_obj)) return(NULL)
       cols <- setdiff(names(sf_obj), attr(sf_obj, "sf_column"))
       shiny::selectInput(ns("label_col"), NULL, choices = c("(none)" = "", cols))
+    })
+
+    # ── per-farm start date column selector ──────────────────────────────────
+    output$start_date_col_ui <- shiny::renderUI({
+      sf_obj <- rv$farms_sf
+      if (is.null(sf_obj)) return(NULL)
+      cols <- setdiff(names(sf_obj), attr(sf_obj, "sf_column"))
+      shiny::selectInput(ns("start_date_col"), NULL, choices = c("(none)" = "", cols))
+    })
+
+    # ── per-farm end date column selector ────────────────────────────────────
+    output$end_date_col_ui <- shiny::renderUI({
+      sf_obj <- rv$farms_sf
+      if (is.null(sf_obj)) return(NULL)
+      cols <- setdiff(names(sf_obj), attr(sf_obj, "sf_column"))
+      shiny::selectInput(ns("end_date_col"), NULL, choices = c("(none)" = "", cols))
     })
 
     # ── DB status UI ──────────────────────────────────────────────────────────
@@ -1448,6 +1512,87 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       }
     })
 
+    # ── 8. Produce Seasonal Rasters ───────────────────────────────────────────
+    shiny::observeEvent(input$btn_seasonal_raster, {
+      shiny::req(input$db_path)
+      farms_sf <- rv$farms_sf
+      
+      if (is.null(farms_sf) || nrow(farms_sf) == 0) {
+        shiny::showNotification("No farm layer loaded.", type = "error")
+        return()
+      }
+      
+      start_col <- input$start_date_col
+      end_col   <- input$end_date_col
+      
+      if (start_col == "" || end_col == "") {
+        shiny::showNotification("Please select Season Start and End columns first.", type = "warning")
+        return()
+      }
+      
+      # Open DB
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB connection failed:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+      on.exit(duckdb::dbDisconnect(con, shutdown = TRUE))
+      
+      # Determine variables to aggregate
+      # We aggregate everything currently in the database for these farms
+      avail <- wapor_get_available_raster_data(con)
+      vars_to_agg <- avail$variables
+      
+      if (length(vars_to_agg) == 0) {
+        shiny::showNotification("No dekadal rasters found in database to aggregate.", type = "warning")
+        return()
+      }
+      
+      shiny::withProgress(message = 'Generating seasonal rasters...', value = 0, {
+        n_farms <- nrow(farms_sf)
+        success_count <- 0
+        
+        for (i in seq_len(n_farms)) {
+          farm <- farms_sf[i, ]
+          farm_id <- as.character(sf::st_drop_geometry(farm)$farm_id)
+          
+          # Get dates
+          start_date <- tryCatch(as.Date(farm[[start_col]]), error = function(e) NA)
+          end_date   <- tryCatch(as.Date(farm[[end_col]]), error = function(e) NA)
+          
+          if (is.na(start_date) || is.na(end_date)) {
+            add_log("Skipping farm", farm_id, "- invalid dates in columns.")
+            next
+          }
+          
+          season_id <- sprintf("SEASON_%s_%s", format(start_date, "%Y%m%d"), format(end_date, "%Y%m%d"))
+          
+          for (var in vars_to_agg) {
+            # Generate aggregate
+            agg_rast <- wapor_generate_seasonal_raster(con, farm_id, farm, var, start_date, end_date)
+            
+            if (!is.null(agg_rast)) {
+              # Save to DB
+              wapor_save_seasonal_raster_to_db(con, farm_id, var, season_id, agg_rast)
+              success_count <- success_count + 1
+            }
+          }
+          
+          shiny::incProgress(1/n_farms, detail = paste("Farm:", farm_id))
+        }
+        
+        if (success_count > 0) {
+          add_log("\u2714 Generated", success_count, "seasonal aggregate rasters.")
+          shiny::showNotification(sprintf("\u2714 Successfully generated %d seasonal rasters.", success_count), type = "message")
+        } else {
+          shiny::showNotification("No seasonal rasters could be generated. Check your date ranges and database contents.", type = "warning")
+        }
+      })
+    })
+
     # ── DERIVED DATA ──────────────────────────────────────────────────────────
 
     # Helper: compute ETa/ETp ratio per farm per dekad
@@ -1802,7 +1947,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     })
 
     output$rast_var_ui <- shiny::renderUI({
-      # Prefer variables from saved rasters (not just timeseries)
+      # Prefer variables from saved rasters (including seasonal)
       db_path <- input$db_path
       rast_farm <- input$rast_farm
       vars <- NULL
@@ -1810,10 +1955,22 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         vars <- tryCatch({
           con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
           on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
-          DBI::dbGetQuery(con,
-            "SELECT DISTINCT variable FROM farm_rasters WHERE farm_id = ? ORDER BY variable",
+          
+          # Get vars from both dekad and seasonal tables
+          v_dekad <- DBI::dbGetQuery(con,
+            "SELECT DISTINCT variable FROM farm_rasters WHERE farm_id = ?",
             params = list(rast_farm)
           )$variable
+          
+          v_season <- tryCatch(
+            DBI::dbGetQuery(con, 
+              "SELECT DISTINCT variable FROM farm_seasonal_rasters WHERE farm_id = ?",
+              params = list(rast_farm)
+            )$variable,
+            error = function(e) character(0)
+          )
+          
+          sort(unique(c(v_dekad, v_season)))
         }, error = function(e) NULL)
       }
       if (is.null(vars) || length(vars) == 0) {
@@ -1832,28 +1989,58 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           is.null(rast_var)  || !nzchar(rast_var  %||% "")) {
         return(shiny::selectInput(ns("rast_date"), "Date", choices = NULL))
       }
-      dates <- NULL
+      choices <- list()
       if (!is.null(db_path) && file.exists(db_path)) {
-        dates <- tryCatch({
+        res <- tryCatch({
           con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
           on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
-          DBI::dbGetQuery(con,
+          
+          # Dekadal dates
+          dk_dates <- DBI::dbGetQuery(con,
             "SELECT DISTINCT CAST(date_key AS VARCHAR) as dk FROM farm_rasters
              WHERE farm_id = ? AND variable = ? ORDER BY dk",
             params = list(rast_farm, rast_var)
           )$dk
+          
+          # Seasonal IDs
+          sn_ids <- tryCatch(
+            DBI::dbGetQuery(con,
+              "SELECT DISTINCT season_id FROM farm_seasonal_rasters
+               WHERE farm_id = ? AND variable = ? ORDER BY season_id",
+              params = list(rast_farm, rast_var)
+            )$season_id,
+            error = function(e) character(0)
+          )
+          
+          list(dekadal = dk_dates, seasonal = sn_ids)
         }, error = function(e) NULL)
+        
+        if (!is.null(res)) {
+          if (length(res$seasonal) > 0) {
+            # Map seasonal IDs to a display name with prefix
+            s_choices <- as.list(stats::setNames(paste0("SEASONAL:", res$seasonal), 
+                                               gsub("SEASON_", "Season: ", res$seasonal)))
+            choices[["Seasonal Aggregates"]] <- s_choices
+          }
+          if (length(res$dekadal) > 0) {
+            choices[["Dekadal Snapshots"]] <- as.list(res$dekadal)
+          }
+        }
       }
-      if (is.null(dates) || length(dates) == 0) {
+      
+      if (length(choices) == 0) {
         ts <- rv$ts_data
         if (!is.null(ts)) {
           dates <- as.character(sort(unique(ts$start_date[ts$variable == (rast_var %||% "")])))
+          if (length(dates) > 0) choices[["Dekadal Snapshots"]] <- dates
         }
       }
-      if (is.null(dates) || length(dates) == 0)
+      
+      if (length(choices) == 0)
         return(shiny::selectInput(ns("rast_date"), "Date", choices = NULL))
-      shiny::selectInput(ns("rast_date"), "Dekad / Date",
-                         choices = dates, selected = tail(dates, 1))
+        
+      shiny::selectInput(ns("rast_date"), "Period / Date",
+                         choices = choices)
     })
 
     output$raster_map <- leaflet::renderLeaflet({
@@ -1895,12 +2082,23 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
         on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
 
-        blob_row <- DBI::dbGetQuery(con,
-          "SELECT raster_blob FROM farm_rasters
-           WHERE farm_id = ? AND variable = ? AND CAST(date_key AS VARCHAR) = ?
-           LIMIT 1",
-          params = list(rast_farm, rast_var, rast_date)
-        )
+        # Check if seasonal or dekadal
+        if (grepl("^SEASONAL:", rast_date)) {
+          season_id <- sub("^SEASONAL:", "", rast_date)
+          blob_row <- DBI::dbGetQuery(con,
+            "SELECT raster_blob FROM farm_seasonal_rasters
+             WHERE farm_id = ? AND variable = ? AND season_id = ?
+             LIMIT 1",
+            params = list(rast_farm, rast_var, season_id)
+          )
+        } else {
+          blob_row <- DBI::dbGetQuery(con,
+            "SELECT raster_blob FROM farm_rasters
+             WHERE farm_id = ? AND variable = ? AND CAST(date_key AS VARCHAR) = ?
+             LIMIT 1",
+            params = list(rast_farm, rast_var, rast_date)
+          )
+        }
 
         if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) {
           shiny::showNotification(

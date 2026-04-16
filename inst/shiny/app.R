@@ -53,16 +53,16 @@ default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else if (length(all_va
 if (is.na(default_var)) default_var <- NULL
 
 # Build L3 region choices as label -> code
-l3_regions_meta <- Rwapor::L3_REGIONS
-l3_region_labels <- vapply(names(l3_regions_meta), function(code) {
-  r <- l3_regions_meta[[code]]
-  sprintf("%s - %s (%s)", r$country, r$name, code)
-}, character(1))
-l3_region_labels <- sort(l3_region_labels)
-l3_region_choices <- as.list(stats::setNames(
-  sub(".*\\(([A-Z]{3})\\)$", "\\1", l3_region_labels),
-  l3_region_labels
-))
+l3_regions_df <- tryCatch({
+  Rwapor::wapor_fetch_l3_regions()
+}, error = function(e) {
+  message("Could not fetch L3 regions: ", e$message)
+  Rwapor::wapor_l3_regions_to_df(Rwapor::L3_REGIONS)
+})
+
+l3_region_labels <- sprintf("%s - %s (%s)", l3_regions_df$country, l3_regions_df$name, l3_regions_df$code)
+l3_region_choices <- as.list(stats::setNames(l3_regions_df$code, l3_region_labels))
+l3_regions_meta <- Rwapor::L3_REGIONS # Maintain compatibility for downstream mapping
 
 # --- Main UI ---
 ui <- bslib::page_navbar(
@@ -77,14 +77,18 @@ ui <- bslib::page_navbar(
     "navbar-bg" = "#2c3e50"
   ),
   header = shiny::tagList(
-    shiny::tags$head(shiny::tags$style(shiny::HTML("
+    shiny::tags$head(
+      # Link to premium CSS
+      shiny::tags$link(rel = "stylesheet", type = "text/css", href = "premium_style.css"),
+      # Custom inline styles
+      shiny::tags$style(shiny::HTML("
       /* ── Layout helpers ─────────────────────────────────── */
       .main-map-output .leaflet-container { height: calc(100vh - 130px) !important; min-height: 480px; }
       .sidebar-scroll-area  { flex: 1 1 auto; overflow-y: auto; padding: 0.4rem 0.7rem; }
       .sidebar-sticky-footer{ flex-shrink: 0; position: sticky; bottom: 0; background: #f8f9fa;
-                               border-top: 1px solid #dee2e6; padding: 0.55rem 0.7rem; z-index: 20; }
+                                border-top: 1px solid #dee2e6; padding: 0.55rem 0.7rem; z-index: 20; }
       .code-preview-body    { max-height: 220px; overflow-y: auto; font-size: 0.78rem;
-                               background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
+                                background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
 
       /* ── Global sidebar typography ──────────────────────── */
       .bslib-sidebar-layout .accordion-button {

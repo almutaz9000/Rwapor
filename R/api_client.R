@@ -108,9 +108,20 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
   if (level %in% c("L1", "L2")) {
     base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
     mapset_id <- variable
+    
+    # Fallback to L1 for variables that don't exist at L2 (RET, PCP)
+    if (level == "L2" && grepl("-(RET|PCP)-", variable)) {
+      mapset_id <- sub("^L2-", "L1-", variable)
+    }
   } else if (level == "L3") {
     base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets"
     mapset_id <- variable
+    
+    # Fallback to L1 for variables that don't exist at L3 (RET, PCP)
+    if (grepl("-(RET|PCP)-", variable)) {
+      base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
+      mapset_id <- sub("^L3-", "L1-", variable)
+    }
     if (is.null(l3_region)) {
       warning("L3 variable specified without l3_region - results may include all regions", call. = FALSE)
     }

@@ -338,6 +338,7 @@ wapor_map <- function(
 
     # Use GDAL virtual file system
     urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+    log_msg(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", var))
     
     tres_code <- strsplit(var, "-")[[1]][3]
     
