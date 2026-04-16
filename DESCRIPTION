@@ -54,7 +54,10 @@ Suggests:
     viridisLite,
     RColorBrewer,
     duckdb,
-    DBI
+    DBI,
+    tidyterra,
+    patchwork,
+    ggspatial
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3
