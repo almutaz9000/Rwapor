@@ -1,8 +1,22 @@
 # Task Status Ledger
 
-## 2026-04-01
+## 2026-04-16
 
 ### Success
+- [x] Reviewed full package structure (R/, inst/shiny/, man/, vignettes/, memories/).
+- [x] Created `memories/repo/developer-skills.md` with 10 skill domains (SKILL-001 to SKILL-010).
+- [x] Updated `memories/repo/agent-skill-updates.md` with new skills entry.
+- [x] Updated `memories/repo/project-memory.md` with architecture overview section.
+- [x] Updated `memories/repo/session-brief.md` to reflect new skills session and guardrails.
+
+### Pending
+- [ ] Add `patchwork` and `tidyterra` to `Suggests` in DESCRIPTION (for report export skills).
+- [ ] Add regression tests for visualization conditional UI (renderUI pattern).
+- [ ] Add regression tests for split-screen slider functionality.
+
+### Failed/Blocked
+(None)
+
 - [x] Fixed conditionalPanel namespace issues in visualization module - replaced with renderUI pattern.
 - [x] Second raster selector now appears correctly in dual/query modes.
 - [x] Fixed "argument is of length zero" errors with NULL checks for dynamic inputs.
