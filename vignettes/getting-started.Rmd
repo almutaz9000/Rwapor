@@ -28,11 +28,9 @@ FAO GISMGR API. This vignette covers the basic workflow for:
 ## Installation
 
 ```{r installation}
-# Install from local source (development version)
-install.packages("path/to/Rwapor", repos = NULL, type = "source")
-
-# Or install from GitHub
-# remotes::install_github("almutaz9000/Rwapor")
+# Install from GitHub
+# install.packages("pak")
+pak::pak("almutaz9000/Rwapor")
 
 library(Rwapor)
 ```
