@@ -255,11 +255,11 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
             
             shiny::actionButton(
               ns("btn_plot_rasters"), "Plot Raster Time Series",
-              icon  = shiny::icon("chart-line"),
+              icon  = shiny::icon("image"),
               class = "btn-outline-info w-100 btn-sm"
             ),
             shiny::helpText(
-              "View time series with mean ± std ribbons for selected farm.",
+              "Shows a spatial grid of raster maps – one panel per time step (requires tidyterra).",
               style = "font-size:0.77rem; color:#6c757d;"
             ),
             
@@ -1292,15 +1292,24 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       DBI::dbDisconnect(con, shutdown = TRUE)
     })
 
-    # ── 6. Plot Raster Time Series ────────────────────────────────────────────
+    # ── 6. Plot Raster Time Series (spatial grid) ────────────────────────────
     shiny::observeEvent(input$btn_plot_rasters, {
       shiny::req(input$db_path)
-      
+
       if (!file.exists(input$db_path)) {
         shiny::showNotification("Database not found.", type = "error")
         return()
       }
-      
+
+      # Check that tidyterra is available (needed for geom_spatraster)
+      if (!requireNamespace("tidyterra", quietly = TRUE)) {
+        shiny::showNotification(
+          "Package 'tidyterra' is required for raster grid plots. Install with: install.packages('tidyterra')",
+          type = "error", duration = 10
+        )
+        return()
+      }
+
       # Open database to get available data
       con <- tryCatch(
         duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
@@ -1310,12 +1319,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         }
       )
       if (is.null(con)) return()
-      
-      # Get available data
+
       available <- wapor_get_available_raster_data(con)
       DBI::dbDisconnect(con, shutdown = TRUE)
-      
-      # Check if any data available
+
       if (length(available$farms) == 0 || length(available$variables) == 0) {
         shiny::showNotification(
           "No saved rasters found. Run monitoring with 'Save rasters' enabled first.",
@@ -1323,71 +1330,155 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         )
         return()
       }
-      
-      # Show modal with selection controls
+
+      # Show selection modal
       shiny::showModal(shiny::modalDialog(
-        title = "📊 Plot Raster Time Series",
-        size = "l",
+        title = shiny::tagList(shiny::icon("image"), " Plot Raster Time Series (Spatial Grid)"),
+        size  = "l",
         easyClose = FALSE,
-        
+
         shiny::fluidRow(
           shiny::column(
-            width = 6,
-            shiny::h4("Select Farms"),
-            shiny::checkboxInput(
-              ns("plot_select_all_farms"),
-              "Select All Farms",
-              value = TRUE
-            ),
-            shiny::checkboxGroupInput(
-              ns("plot_farms"),
-              NULL,
-              choices = available$farms,
-              selected = if (length(available$farms) <= 5) available$farms else available$farms[1]
+            width = 4,
+            shiny::tags$strong("Farm"),
+            shiny::selectInput(
+              ns("raster_plot_farm"), NULL,
+              choices  = available$farms,
+              selected = available$farms[1]
             )
           ),
           shiny::column(
-            width = 6,
-            shiny::h4("Select Variables"),
-            shiny::checkboxGroupInput(
-              ns("plot_variables"),
-              NULL,
-              choices = available$variables,
+            width = 4,
+            shiny::tags$strong("Variable"),
+            shiny::selectInput(
+              ns("raster_plot_var"), NULL,
+              choices  = available$variables,
               selected = available$variables[1]
+            )
+          ),
+          shiny::column(
+            width = 4,
+            shiny::tags$strong("Colour Palette"),
+            shiny::selectInput(
+              ns("raster_plot_palette"), NULL,
+              choices  = c("viridis", "magma", "RdYlGn", "RdYlBu", "Spectral"),
+              selected = "viridis"
             )
           )
         ),
-        
-        shiny::hr(),
-        
+
         shiny::fluidRow(
           shiny::column(
-            width = 12,
-            shiny::h4("Date Range (Optional)"),
+            width = 6,
+            shiny::tags$strong("Date Range (optional)"),
             shiny::dateRangeInput(
-              ns("plot_date_range"),
-              NULL,
+              ns("raster_plot_dates"), NULL,
               start = if (!is.null(available$date_range)) available$date_range[1] else NULL,
-              end = if (!is.null(available$date_range)) available$date_range[2] else NULL,
-              min = if (!is.null(available$date_range)) available$date_range[1] else NULL,
-              max = if (!is.null(available$date_range)) available$date_range[2] else NULL
+              end   = if (!is.null(available$date_range)) available$date_range[2] else NULL
             ),
-            shiny::helpText("Leave as is to plot all available dates")
+            shiny::helpText("Leave as-is to include all stored dates.")
+          ),
+          shiny::column(
+            width = 6,
+            shiny::tags$strong("Max panels (time steps)"),
+            shiny::sliderInput(
+              ns("raster_plot_max"), NULL,
+              min = 4, max = 36, value = 16, step = 4
+            ),
+            shiny::helpText("Panels are evenly sampled when more layers exist.")
           )
         ),
-        
+
         footer = shiny::tagList(
           shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("plot_generate"), "Generate Plot", 
+          shiny::actionButton(ns("raster_plot_generate"), "Generate Spatial Grid",
+                             icon  = shiny::icon("image"),
                              class = "btn-primary")
         )
       ))
     })
-    
-    # Handle "Select All Farms" checkbox
+
+    # Generate spatial raster grid when button clicked
+    shiny::observeEvent(input$raster_plot_generate, {
+      shiny::req(input$db_path, input$raster_plot_farm, input$raster_plot_var)
+
+      con <- tryCatch(
+        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
+        error = function(e) {
+          shiny::showNotification(paste("DB error:", e$message), type = "error")
+          NULL
+        }
+      )
+      if (is.null(con)) return()
+
+      date_range <- NULL
+      if (!is.null(input$raster_plot_dates)) {
+        date_range <- c(input$raster_plot_dates[1], input$raster_plot_dates[2])
+      }
+
+      p <- tryCatch(
+        wapor_plot_raster_grid(
+          con,
+          farm_id    = input$raster_plot_farm,
+          variable   = input$raster_plot_var,
+          max_panels = as.integer(input$raster_plot_max %||% 16L),
+          date_range = date_range,
+          palette    = input$raster_plot_palette %||% "viridis"
+        ),
+        error = function(e) {
+          shiny::showNotification(paste("Raster grid error:", e$message), type = "error")
+          NULL
+        }
+      )
+
+      DBI::dbDisconnect(con, shutdown = TRUE)
+      shiny::removeModal()
+
+      if (!is.null(p)) {
+        n_panels    <- as.integer(input$raster_plot_max %||% 16L)
+        ncols       <- min(4L, ceiling(sqrt(n_panels)))
+        plot_height <- 300 * ceiling(n_panels / ncols)
+        plot_height <- max(400L, min(1200L, plot_height))
+
+        shiny::showModal(shiny::modalDialog(
+          title     = shiny::tagList(shiny::icon("image"), " Raster Time Series – Spatial Grid"),
+          size      = "xl",
+          easyClose = TRUE,
+          shiny::plotOutput(ns("raster_grid_output"), height = paste0(plot_height, "px")),
+          footer = shiny::tagList(
+            shiny::downloadButton(ns("download_raster_grid"), "Download PNG"),
+            shiny::modalButton("Close")
+          )
+        ))
+
+        output$raster_grid_output <- shiny::renderPlot({ p })
+
+        output$download_raster_grid <- shiny::downloadHandler(
+          filename = function() {
+            sprintf("raster_grid_%s_%s_%s.png",
+                    input$raster_plot_farm %||% "farm",
+                    input$raster_plot_var  %||% "var",
+                    format(Sys.Date(), "%Y%m%d"))
+          },
+          content = function(file) {
+            ggplot2::ggsave(file, plot = p,
+                            width  = 14,
+                            height = plot_height / 100,
+                            dpi    = 200,
+                            units  = "in")
+          }
+        )
+      } else {
+        shiny::showNotification(
+          "Could not generate raster grid. Check that rasters are saved in the database.",
+          type = "warning", duration = 8
+        )
+      }
+    })
+
+    # Handle "Select All Farms" checkbox (kept for backward compatibility)
     shiny::observeEvent(input$plot_select_all_farms, {
       if (!is.null(input$plot_select_all_farms) && input$plot_select_all_farms) {
-        # Get current choices
         con <- tryCatch(
           duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
           error = function(e) NULL
@@ -1399,98 +1490,6 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         }
       } else {
         shiny::updateCheckboxGroupInput(session, "plot_farms", selected = character(0))
-      }
-    })
-    
-    # Generate plot when button clicked
-    shiny::observeEvent(input$plot_generate, {
-      shiny::req(input$db_path, input$plot_farms, input$plot_variables)
-      
-      # Validation
-      if (length(input$plot_farms) == 0) {
-        shiny::showNotification("Please select at least one farm.", type = "warning")
-        return()
-      }
-      
-      if (length(input$plot_variables) == 0) {
-        shiny::showNotification("Please select at least one variable.", type = "warning")
-        return()
-      }
-      
-      # Check for too many combinations
-      n_combinations <- length(input$plot_farms) * length(input$plot_variables)
-      if (n_combinations > 100) {
-        shiny::showNotification(
-          sprintf("Too many combinations (%d). Please select fewer farms or variables.", n_combinations),
-          type = "warning", duration = 5
-        )
-        return()
-      }
-      
-      # Open database
-      con <- tryCatch(
-        duckdb::dbConnect(duckdb::duckdb(), dbdir = input$db_path),
-        error = function(e) {
-          shiny::showNotification(paste("DB error:", e$message), type = "error")
-          NULL
-        }
-      )
-      if (is.null(con)) return()
-      
-      # Get date range (NULL if not specified)
-      date_range <- NULL
-      if (!is.null(input$plot_date_range)) {
-        date_range <- c(input$plot_date_range[1], input$plot_date_range[2])
-      }
-      
-      # Generate plot
-      p <- tryCatch(
-        wapor_plot_raster_timeseries_multi(
-          con, 
-          input$plot_farms, 
-          input$plot_variables,
-          date_range
-        ),
-        error = function(e) {
-          shiny::showNotification(paste("Plot error:", e$message), type = "error")
-          NULL
-        }
-      )
-      
-      DBI::dbDisconnect(con, shutdown = TRUE)
-      
-      # Remove selection modal and show plot modal
-      shiny::removeModal()
-      
-      if (!is.null(p)) {
-        # Calculate appropriate height based on number of variables
-        plot_height <- max(400, min(800, 300 * length(input$plot_variables)))
-        
-        shiny::showModal(shiny::modalDialog(
-          title = "Raster Time Series Plot",
-          size = "xl",
-          easyClose = TRUE,
-          shiny::plotOutput(ns("raster_plot_output"), height = plot_height),
-          footer = shiny::tagList(
-            shiny::downloadButton(ns("download_plot"), "Download Plot"),
-            shiny::modalButton("Close")
-          )
-        ))
-        
-        # Render plot
-        output$raster_plot_output <- shiny::renderPlot({
-          p
-        })
-        
-        # Download handler
-        output$download_plot <- shiny::downloadHandler(
-          filename = function() {
-            sprintf("raster_timeseries_%s.png", format(Sys.Date(), "%Y%m%d"))
-          },
-          content = function(file) {
-            ggplot2::ggsave(file, plot = p, width = 12, height = plot_height/100, dpi = 300)
-          }
-        )
       }
     })
 
