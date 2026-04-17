@@ -1144,10 +1144,14 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
 
   # Align all rasters to a common extent/resolution using the first layer
   # as template (required for terra::rast(list)).
-  template <- r_list[[1]]
+  template      <- r_list[[1]]
+  template_ext  <- terra::ext(template)
+  template_res  <- terra::res(template)
   r_aligned <- lapply(r_list, function(r) {
-    if (!isTRUE(all.equal(terra::ext(r), terra::ext(template))) ||
-        !isTRUE(all.equal(terra::res(r), terra::res(template)))) {
+    r_ext <- terra::ext(r)
+    r_res <- terra::res(r)
+    if (!isTRUE(all.equal(r_ext, template_ext)) ||
+        !isTRUE(all.equal(r_res, template_res))) {
       tryCatch(terra::resample(r, template, method = "bilinear"),
                error = function(e) r)
     } else {
@@ -1191,10 +1195,13 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
 
   # Determine global value range for a consistent colour scale
   all_vals <- terra::values(r_stack, na.rm = TRUE)
+  # Use the actual data range; fall back to the 2nd/98th percentile to avoid
+  # extreme outliers distorting the colour scale.  If no valid values remain
+  # (all NA), use NA limits so ggplot2 auto-scales per panel.
   val_range <- if (length(all_vals) > 0 && !all(is.na(all_vals))) {
-    range(all_vals, na.rm = TRUE)
+    stats::quantile(all_vals, probs = c(0.02, 0.98), na.rm = TRUE)
   } else {
-    c(0, 1)
+    NULL  # Let ggplot2 auto-scale
   }
 
   p <- ggplot2::ggplot() +
@@ -1202,7 +1209,7 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
     ggplot2::facet_wrap(~lyr, ncol = ncol_grid) +
     ggplot2::scale_fill_gradientn(
       colours  = pal_colors,
-      limits   = val_range,
+      limits   = if (!is.null(val_range)) as.numeric(val_range) else NULL,
       na.value = "transparent",
       name     = variable
     ) +
