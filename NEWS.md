@@ -1,3 +1,49 @@
+# Rwapor 1.0.0
+
+## Production Release
+
+This is the first production release of Rwapor. The package API is now stable
+and follows tidyverse naming conventions throughout.
+
+### Breaking Changes
+
+* All public functions now use the `wapor_*` prefix consistently. The old
+  `rwapor_*` aliases (e.g. `rwapor_harmonize_crop_mask`, `rwapor_build_daily_kc`)
+  have been removed. See the migration guide below.
+
+### Function Renames (from pre-1.0 development versions)
+
+| Old name | New name |
+|---|---|
+| `rwapor_harmonize_crop_mask()` | `wapor_harmonize_raster()` |
+| `rwapor_harmonize_to_template()` | `wapor_harmonize_raster()` |
+| `rwapor_build_season_weights_dekad()` | `wapor_build_season_weights()` |
+| `rwapor_calc_seasonal_aeti_masked()` | `wapor_calc_seasonal_aeti()` |
+| `rwapor_calc_seasonal_ret_masked()` | `wapor_calc_seasonal_ret()` |
+| `rwapor_get_crop_defaults()` | `wapor_crop_defaults()` |
+| `rwapor_build_daily_kc()` | `wapor_build_kc()` |
+| `rwapor_calc_seasonal_etc_incremental()` | `wapor_calc_seasonal_etc()` |
+| `rwapor_apply_masked_sum()` | `wapor_masked_sum()` |
+
+### Repository Cleanup
+
+* Removed development-only test scripts from `tests/` root (ad hoc benchmarks,
+  integration probes, fix verifications). Formal test suite lives in
+  `tests/testthat/`.
+* Removed `archived_reports/` development notes.
+* Removed `memories/` agent session files.
+* Removed root-level debug scripts (`check_db_summary.R`) and stray data files
+  (`Pivots_savola2.geojson`).
+
+### Documentation
+
+* Updated README with correct function names and a complete step-by-step
+  seasonal analysis tutorial.
+* Updated installation instructions (removed duplicate section).
+* Added tidyverse lifecycle badge update from `experimental` to `stable`.
+
+---
+
 # Rwapor 0.9.5
 
 ## Changes
