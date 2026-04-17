@@ -25,7 +25,7 @@ source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local =
 )
 
 .MON_AETI_D_VARS <- c("L3-AETI-D", "L2-AETI-D", "L1-AETI-D")
-.MON_RET_D_VARS  <- c("L3-RET-D",  "L2-RET-D",  "L1-RET-D")
+.MON_RET_D_VARS  <- c("L1-RET-D")
 .MON_T_D_VARS    <- c("L3-T-D",    "L2-T-D",    "L1-T-D")
 .MON_E_D_VARS    <- c("L3-E-D",    "L2-E-D",    "L1-E-D")
 .MON_NPP_D_VARS  <- c("L3-NPP-D",  "L2-NPP-D",  "L1-NPP-D")
@@ -511,28 +511,40 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             threshold_pct DOUBLE DEFAULT 0,
             pixels_used   INTEGER,
             pixels_total  INTEGER,
+            units         TEXT,
             updated_at    TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (farm_id, variable, start_date)
           )
         ")
-        
-        # Enhanced farm_rasters with extent metadata
+        # Schema migration: add units column if missing (for existing databases)
+        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_timeseries ADD COLUMN IF NOT EXISTS units TEXT"), error = function(e) NULL)
+
+        # Enhanced farm_rasters with extent metadata + resolution + units
         DBI::dbExecute(con, "
           CREATE TABLE IF NOT EXISTS farm_rasters (
-            farm_id     TEXT,
-            variable    TEXT,
-            date_key    DATE,
-            raster_blob BLOB,
-            xmin        DOUBLE,
-            xmax        DOUBLE,
-            ymin        DOUBLE,
-            ymax        DOUBLE,
-            nrow        INTEGER,
-            ncol        INTEGER,
-            updated_at  TIMESTAMP DEFAULT current_timestamp,
+            farm_id      TEXT,
+            variable     TEXT,
+            date_key     DATE,
+            raster_blob  BLOB,
+            xmin         DOUBLE,
+            xmax         DOUBLE,
+            ymin         DOUBLE,
+            ymax         DOUBLE,
+            nrow         INTEGER,
+            ncol         INTEGER,
+            resolution_x DOUBLE,
+            resolution_y DOUBLE,
+            units        TEXT,
+            crs_epsg     INTEGER DEFAULT 4326,
+            updated_at   TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (farm_id, variable, date_key)
           )
         ")
+        # Schema migrations for existing databases
+        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_x DOUBLE"), error = function(e) NULL)
+        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_y DOUBLE"), error = function(e) NULL)
+        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS units TEXT"), error = function(e) NULL)
+        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS crs_epsg INTEGER DEFAULT 4326"), error = function(e) NULL)
 
         # Seasonal aggregated rasters
         DBI::dbExecute(con, "
@@ -1011,6 +1023,17 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         for (var in sel_vars) {
           add_log(sprintf("Variable: %s", var))
 
+          # Determine effective units for this variable (after dekadal conversion)
+          var_meta_units <- tryCatch({
+            m <- Rwapor::wapor_variable_metadata(var)
+            raw_u <- m$units %||% ""
+            if (grepl("-D$", var) && grepl("/day$", raw_u)) {
+              sub("/day$", "/dekad", raw_u)
+            } else {
+              raw_u
+            }
+          }, error = function(e) NA_character_)
+
           # Determine start date for this variable
           last_row <- last_dates[last_dates$variable == var, ]
           start_str <- if (nrow(last_row) > 0 && !is.na(last_row$last_date[1])) {
@@ -1075,6 +1098,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             mean_val    = as.numeric(ts_df[["mean"]]),
             min_val     = as.numeric(ts_df[["min"]]),
             max_val     = as.numeric(ts_df[["max"]]),
+            units       = var_meta_units,
             stringsAsFactors = FALSE
           )
 
@@ -2320,142 +2344,4 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 } # /mod_monitoring_server
 
 
-# ── Internal: save raster blobs to DuckDB ─────────────────────────────────────
-#
-# Clips the full AOI raster for a given variable/period and stores each
-# dekadal layer as a compressed BLOB in the farm_rasters table.
-# This is optional and only runs when the user ticks "Also save rasters".
-#
-.save_raster_blobs <- function(con, farms_sf, variable, period, add_log_fn, l3_region = NULL) {
-  if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
-
-  tryCatch({
-    # Build bounding box from union of all farms
-    bb  <- sf::st_bbox(sf::st_union(farms_sf))
-    reg <- as.numeric(c(bb["xmin"], bb["ymin"], bb["xmax"], bb["ymax"]))
-    # terra::ext expects (xmin, xmax, ymin, ymax)
-    aoi_ext <- terra::ext(reg[1], reg[3], reg[2], reg[4])
-
-    urls <- tryCatch(
-      Rwapor::wapor_generate_urls(
-        variable,
-        l3_region = if (grepl("^L3-", variable)) l3_region else NULL,
-        period    = period
-      ),
-      error = function(e) { add_log_fn(sprintf("  Raster URLs error: %s", e$message)); NULL }
-    )
-    if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
-
-    urls_vs <- paste0("/vsicurl/", urls)
-    add_log_fn(sprintf("  Saving %d raster layers for %s (per farm)…", length(urls_vs), variable))
-
-    # ── Upsert farm_metadata once per farm (outside the heavy raster loop) ────
-    for (j in seq_len(nrow(farms_sf))) {
-      farm_id   <- as.character(farms_sf$farm_id[j])
-      farm_geom <- farms_sf[j, ]
-      tryCatch({
-        existing <- DBI::dbGetQuery(con,
-          "SELECT farm_id FROM farm_metadata WHERE farm_id = ?",
-          params = list(farm_id)
-        )
-        if (nrow(existing) == 0) {
-          DBI::dbExecute(con, "INSERT INTO farm_metadata (farm_id) VALUES (?)",
-                         params = list(farm_id))
-        }
-        wapor_update_farm_metadata(con, farm_id, farm_geom)
-      }, error = function(e) {
-        add_log_fn(sprintf("  Warning: metadata update failed for %s: %s", farm_id, e$message))
-      })
-    }
-
-    n_ok <- 0L
-    n_skip <- 0L
-
-    # ── Process each raster time step ─────────────────────────────────────────
-    for (i in seq_along(urls_vs)) {
-      tryCatch({
-        # Load full-resolution layer
-        r_full <- suppressWarnings(terra::rast(urls_vs[i]))
-
-        # Ensure CRS is set (vsicurl sources sometimes lose CRS metadata)
-        if (is.na(terra::crs(r_full)) || !nzchar(terra::crs(r_full))) {
-          terra::crs(r_full) <- "EPSG:4326"
-        }
-
-        # Check that the AOI overlaps this raster before cropping
-        r_ext <- terra::ext(r_full)
-        if (aoi_ext$xmin >= r_ext$xmax || aoi_ext$xmax <= r_ext$xmin ||
-            aoi_ext$ymin >= r_ext$ymax || aoi_ext$ymax <= r_ext$ymin) {
-          add_log_fn(sprintf("  Skipped layer %d: AOI outside raster extent", i))
-          n_skip <- n_skip + 1L
-          return(invisible(NULL))  # exits this tryCatch, continues outer loop
-        }
-
-        r_full <- terra::crop(r_full, aoi_ext)
-
-        # Extract date from URL filename.
-        # WaPOR uses YYYY-MM-Dn format (D1=1st, D2=11th, D3=21st of month).
-        # Fall back to YYYY-MM-DD if that pattern is present.
-        fname <- basename(urls[i])
-        date_key <- {
-          # Try standard YYYY-MM-DD pattern first
-          m1 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", fname))
-          if (length(m1) > 0 && nzchar(m1)) {
-            m1
-          } else {
-            # Try WaPOR dekad pattern: YYYY-MM-D1 / D2 / D3
-            m2 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-D[123]", fname))
-            if (length(m2) > 0 && nzchar(m2)) {
-              parts  <- strsplit(m2, "-")[[1]]
-              dkday  <- c("01", "11", "21")[as.integer(sub("D", "", parts[3]))]
-              paste(parts[1], parts[2], dkday, sep = "-")
-            } else {
-              # Ultimate fallback: evenly-spaced dates from harvest date backward
-              format(Sys.Date() - (length(urls_vs) - i) * 10, "%Y-%m-%d")
-            }
-          }
-        }
-
-        # ── Clip and save per farm ────────────────────────────────────────────
-        for (j in seq_len(nrow(farms_sf))) {
-          farm_id   <- as.character(farms_sf$farm_id[j])
-          farm_geom <- farms_sf[j, ]
-
-          tryCatch({
-            farm_bb <- sf::st_bbox(farm_geom)
-            farm_ext <- terra::ext(
-              as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
-              as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"])
-            )
-
-            # Skip farm if it does not overlap this layer
-            r_ext2 <- terra::ext(r_full)
-            if (farm_ext$xmin >= r_ext2$xmax || farm_ext$xmax <= r_ext2$xmin ||
-                farm_ext$ymin >= r_ext2$ymax || farm_ext$ymax <= r_ext2$ymin) {
-              return(invisible(NULL))  # silently skip this farm
-            }
-
-            r_farm <- terra::crop(r_full, farm_ext)
-            wapor_save_raster_to_db(con, farm_id, variable, date_key, r_farm)
-
-          }, error = function(e) {
-            add_log_fn(sprintf("    Skipped farm %s layer %d: %s", farm_id, i, e$message))
-          })
-        }
-
-        n_ok <- n_ok + 1L
-
-      }, error = function(e) {
-        add_log_fn(sprintf("  Raster blob error layer %d: %s", i, e$message))
-        n_skip <<- n_skip + 1L
-      })
-    }
-
-    add_log_fn(sprintf("  ✓ %d/%d rasters saved for %d farm(s) (%d skipped)",
-                       n_ok, length(urls_vs), nrow(farms_sf), n_skip))
-
-  }, error = function(e) {
-    add_log_fn(sprintf("  .save_raster_blobs error: %s", e$message))
-  })
-  invisible(NULL)
-}
+# .save_raster_blobs() is defined in monitoring_helpers.R (sourced at the top of this file).
