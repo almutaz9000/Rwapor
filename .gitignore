@@ -36,6 +36,24 @@ nul
 .agents/
 .agent/
 CLAUDE.md
+memories/
+
+# Development artifacts
+archived_reports/
+check_db_summary.R
+Pivots_savola2.geojson
+
+# Manual / ad hoc test scripts
+tests/manual/
+tests/benchmark*.R
+tests/test_agera5*.R
+tests/test_analysis*.R
+tests/test_fix*.R
+tests/test_implementation*.R
+tests/test_tiny.R
+tests/load_source.R
+tests/run_bench.bat
+tests/l3_urls.txt
 
 # Database Files
 *.duckdb

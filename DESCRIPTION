@@ -1,6 +1,6 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
-Version: 0.9.5
+Version: 1.0.0
 Authors@R: c(
     person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
     person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
