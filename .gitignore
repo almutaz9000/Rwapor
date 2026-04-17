@@ -36,3 +36,7 @@ nul
 .agents/
 .agent/
 CLAUDE.md
+
+# Database Files
+*.duckdb
+*.duckdb.wal
