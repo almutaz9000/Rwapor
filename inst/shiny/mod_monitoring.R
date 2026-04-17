@@ -1463,9 +1463,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
                     format(Sys.Date(), "%Y%m%d"))
           },
           content = function(file) {
+            screen_dpi <- 96L  # Standard screen DPI for px → inches conversion
             ggplot2::ggsave(file, plot = p,
                             width  = 14,
-                            height = plot_height / 96,  # px → inches (96 DPI screen resolution)
+                            height = plot_height / screen_dpi,
                             dpi    = 200,
                             units  = "in")
           }

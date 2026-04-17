@@ -1204,8 +1204,8 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
   val_range <- tryCatch({
     q_vals <- terra::global(r_stack, fun = quantile,
                             probs = c(0.02, 0.98), na.rm = TRUE)
-    lo <- min(q_vals[, 1], na.rm = TRUE)
-    hi <- max(q_vals[, 2], na.rm = TRUE)
+    lo <- min(q_vals[, 1L], na.rm = TRUE)  # col 1 = 2nd-percentile values
+    hi <- max(q_vals[, 2L], na.rm = TRUE)  # col 2 = 98th-percentile values
     if (is.finite(lo) && is.finite(hi) && lo < hi) c(lo, hi) else NULL
   }, error = function(e) NULL)
   # NULL → let ggplot2 auto-scale per panel
