@@ -941,7 +941,9 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
             as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax)
           )
           wgs84_template <- terra::rast(ext = wgs84_ext, res = approx_deg)
-          terra::crs(wgs84_template) <- "EPSG:4326"
+          # Use WKT to set CRS — avoids PROJ database lookup failures that can
+          # occur when a conflicting proj.db is found on the system PATH.
+          terra::crs(wgs84_template) <- sf::st_crs(4326L)$wkt
 
           terra::project(r_full, wgs84_template)
         }, error = function(e) {
