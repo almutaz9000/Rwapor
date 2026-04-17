@@ -1421,10 +1421,9 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           con,
           farm_id    = input$raster_plot_farm,
           variable   = input$raster_plot_var,
-          max_panels = {
-            mp <- suppressWarnings(as.integer(input$raster_plot_max))
-            if (is.na(mp) || mp < 1L) 16L else mp
-          },
+          # Slider (min=4, max=36) ensures a valid value; validation also
+          # occurs inside wapor_plot_raster_grid as a second safety net.
+          max_panels = as.integer(input$raster_plot_max %||% 16L),
           date_range = date_range,
           palette    = input$raster_plot_palette %||% "viridis"
         ),
@@ -1466,7 +1465,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           content = function(file) {
             ggplot2::ggsave(file, plot = p,
                             width  = 14,
-                            height = plot_height / 100,  # px → approximate inches (96 dpi → ~100 for round numbers)
+                            height = plot_height / 96,  # px → inches (96 DPI screen resolution)
                             dpi    = 200,
                             units  = "in")
           }

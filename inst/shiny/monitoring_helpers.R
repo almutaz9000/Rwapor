@@ -956,10 +956,11 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
       res_xy <- terra::res(r_full)
 
       # Detect coarse-resolution variables (e.g. L1-RET-D ~30km, L1-PCP-D ~5km).
-      # When a single pixel is larger than ~1km (0.009°), one pixel can cover the
-      # entire farm polygon, so there is no benefit in cropping per farm.
+      # When a single pixel is larger than ~0.009° (≈1 km at the equator; less
+      # at higher latitudes), one pixel can cover the entire farm polygon, so
+      # there is no benefit in cropping per farm.
       # We save the same AOI-wide raster blob for every farm instead.
-      is_coarse     <- max(res_xy) > 0.009  # ~1 km threshold in degrees
+      is_coarse     <- max(res_xy) > 0.009  # degrees; ≈1 km at equator
       var_is_coarse <- var_is_coarse || is_coarse
 
       # Extract date key from the URL filename.
@@ -1068,6 +1069,10 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
                                    date_range = NULL,
                                    palette    = "viridis") {
   if (is.null(con) || is.null(farm_id) || is.null(variable)) return(NULL)
+
+  # Validate max_panels: must be a positive integer
+  max_panels <- suppressWarnings(as.integer(max_panels))
+  if (is.na(max_panels) || max_panels < 1L) max_panels <- 16L
 
   if (!requireNamespace("ggplot2",   quietly = TRUE)) {
     message("ggplot2 package required for wapor_plot_raster_grid")
@@ -1193,16 +1198,17 @@ wapor_plot_raster_grid <- function(con, farm_id, variable,
   # ── 5. Build ggplot with faceted spatial rasters ─────────────────────────
   ncol_grid <- min(4L, ceiling(sqrt(terra::nlyr(r_stack))))
 
-  # Determine global value range for a consistent colour scale
-  all_vals <- terra::values(r_stack, na.rm = TRUE)
-  # Use the actual data range; fall back to the 2nd/98th percentile to avoid
-  # extreme outliers distorting the colour scale.  If no valid values remain
-  # (all NA), use NA limits so ggplot2 auto-scales per panel.
-  val_range <- if (length(all_vals) > 0 && !all(is.na(all_vals))) {
-    stats::quantile(all_vals, probs = c(0.02, 0.98), na.rm = TRUE)
-  } else {
-    NULL  # Let ggplot2 auto-scale
-  }
+  # Determine global value range for a consistent colour scale.
+  # Use terra::global() to compute quantiles without loading all pixels into R.
+  # 2nd–98th percentile avoids extreme outliers distorting the colour scale.
+  val_range <- tryCatch({
+    q_vals <- terra::global(r_stack, fun = quantile,
+                            probs = c(0.02, 0.98), na.rm = TRUE)
+    lo <- min(q_vals[, 1], na.rm = TRUE)
+    hi <- max(q_vals[, 2], na.rm = TRUE)
+    if (is.finite(lo) && is.finite(hi) && lo < hi) c(lo, hi) else NULL
+  }, error = function(e) NULL)
+  # NULL → let ggplot2 auto-scale per panel
 
   p <- ggplot2::ggplot() +
     tidyterra::geom_spatraster(data = r_stack, na.rm = TRUE) +
