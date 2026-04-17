@@ -19,7 +19,7 @@ source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local =
 .MON_ALL_VARS <- c(
   "L1-AETI-D", "L1-RET-D",  "L1-T-D",    "L1-E-D",    "L1-NPP-D",
   "L1-PCP-D",
-  "L2-AETI-D", "L2-RET-D",  "L2-T-D",    "L2-E-D",    "L2-NPP-D",
+  "L2-AETI-D",             "L2-T-D",    "L2-E-D",    "L2-NPP-D",
   "L2-PCP-D",
   "L3-AETI-D", "L3-T-D",    "L3-E-D",    "L3-NPP-D",  "L3-RSM-D"
 )
