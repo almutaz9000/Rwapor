@@ -7,7 +7,7 @@
 
 **Rwapor** is an R package for downloading and analyzing [**FAO WaPOR**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) satellite data and [**AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) climate data for water productivity analysis.
 
-> **Quick Start**: Jump to [Installation](#installation) → [Shiny Dashboard](#️-option-1-interactive-shiny-dashboard-recommended) to get started in minutes!
+> **Quick Start**: Jump to [Installation](#installation) → [Shiny Dashboard](#-option-1-interactive-shiny-dashboard-recommended) to get started in minutes!
 
 ---
 
@@ -198,21 +198,17 @@ season_end   <- rast("path/to/harvest_date.tif")     # DOY when harvest occurred
 # Get bounding box from your crop mask
 bbox <- as.vector(ext(crop_mask))
 
-# Download AETI (Actual ET), RET (Reference ET), NPP (Productivity)
-for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D")) {
+# Download AETI (Actual ET), RET (Reference ET), NPP (Productivity), Precipitation
+for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D", "L2-PCP-D")) {
   wapor_map(region = bbox, variable = var,
             period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
 }
 
-# Download AgERA5 precipitation
-wapor_map(region = bbox, variable = "NB-PCP-D",
-          period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
-
 # ===== STEP 3: Load Data as Raster Stacks =====
-
-aeti_stack <- rast("wapor_data/L2-AETI-D/L2-AETI-D.tif")   # 36 layers (dekads)
-ret_stack  <- rast("wapor_data/L2-RET-D/L2-RET-D.tif")
-npp_stack  <- rast("wapor_data/L2-NPP-D/L2-NPP-D.tif")
+# wapor_map() saves each variable's files into a subfolder: wapor_data/<variable>/
+aeti_stack <- rast(list.files("wapor_data/L2-AETI-D", pattern = "\\.tif$", full.names = TRUE))
+ret_stack  <- rast(list.files("wapor_data/L2-RET-D",  pattern = "\\.tif$", full.names = TRUE))
+npp_stack  <- rast(list.files("wapor_data/L2-NPP-D",  pattern = "\\.tif$", full.names = TRUE))
 
 # ===== STEP 4: Harmonize Inputs to Same Resolution/Extent =====
 
@@ -248,7 +244,8 @@ seasonal_ret <- seasonal_ret_out$raster         # SpatRaster of seasonal RET
 crop_params <- wapor_crop_defaults("Winter Wheat")
 
 # Derive development stage length from typical season duration
-# In practice, use: terra::global(wapor_season_days(season_start_h, season_end_h), "mean")
+# Use terra::global(wapor_season_days(season_start_h, season_end_h), "mean")[[1]]
+# to compute mean_season_days from the actual rasters
 mean_season_days <- 160L
 l_dev <- mean_season_days - (crop_params$l_ini_days + crop_params$l_mid_days +
                                crop_params$l_late_days)
