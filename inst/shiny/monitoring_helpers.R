@@ -862,8 +862,9 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
       })
     }
 
-    n_ok   <- 0L
-    n_skip <- 0L
+    n_ok      <- 0L
+    n_skip    <- 0L
+    var_is_coarse <- FALSE  # updated on first successful layer load
 
     for (i in seq_along(urls_vs)) {
 
@@ -954,6 +955,13 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
       # Capture resolution after cropping
       res_xy <- terra::res(r_full)
 
+      # Detect coarse-resolution variables (e.g. L1-RET-D ~30km, L1-PCP-D ~5km).
+      # When a single pixel is larger than ~1km (0.009°), one pixel can cover the
+      # entire farm polygon, so there is no benefit in cropping per farm.
+      # We save the same AOI-wide raster blob for every farm instead.
+      is_coarse     <- max(res_xy) > 0.009  # ~1 km threshold in degrees
+      var_is_coarse <- var_is_coarse || is_coarse
+
       # Extract date key from the URL filename.
       # WaPOR uses YYYY-MM-Dn (D1=1st, D2=11th, D3=21st) or plain YYYY-MM-DD.
       fname    <- basename(urls[i])
@@ -973,46 +981,244 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
         }
       }
 
-      # Clip and save per farm
-      for (j in seq_len(nrow(farms_sf))) {
-        fid   <- farm_ids[j]
-        fgeom <- farms_sf[j, ]
+      if (is_coarse) {
+        # ── Coarse-resolution path ───────────────────────────────────────────
+        # Save the same AOI-cropped raster for every farm (no per-farm crop).
+        # This prevents N redundant downloads/crops for RET, PCP, etc.
+        for (j in seq_len(nrow(farms_sf))) {
+          fid <- farm_ids[j]
+          if (date_key %in% existing_by_farm[[fid]]) next
+          tryCatch({
+            wapor_save_raster_to_db(
+              con, fid, variable, date_key, r_full,
+              resolution_x = res_xy[1],
+              resolution_y = res_xy[2],
+              units        = var_units
+            )
+          }, error = function(e) {
+            add_log_fn(sprintf("    Skipped farm %s layer %d (%s): %s", fid, i, date_key, e$message))
+          })
+        }
+      } else {
+        # ── Fine-resolution path (default) ───────────────────────────────────
+        # Clip and save per farm
+        for (j in seq_len(nrow(farms_sf))) {
+          fid   <- farm_ids[j]
+          fgeom <- farms_sf[j, ]
 
-        # Skip if already saved
-        if (date_key %in% existing_by_farm[[fid]]) next
+          # Skip if already saved
+          if (date_key %in% existing_by_farm[[fid]]) next
 
-        farm_bb  <- sf::st_bbox(fgeom)
-        farm_ext <- terra::ext(
-          as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
-          as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"])
-        )
-
-        # Skip farm if its bbox does not overlap the (AOI-cropped) layer
-        r_ext2 <- terra::ext(r_full)
-        if (farm_ext$xmin >= r_ext2$xmax || farm_ext$xmax <= r_ext2$xmin ||
-            farm_ext$ymin >= r_ext2$ymax || farm_ext$ymax <= r_ext2$ymin) next
-
-        tryCatch({
-          r_farm <- terra::crop(r_full, farm_ext)
-          wapor_save_raster_to_db(
-            con, fid, variable, date_key, r_farm,
-            resolution_x = res_xy[1],
-            resolution_y = res_xy[2],
-            units        = var_units
+          farm_bb  <- sf::st_bbox(fgeom)
+          farm_ext <- terra::ext(
+            as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
+            as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"])
           )
-        }, error = function(e) {
-          add_log_fn(sprintf("    Skipped farm %s layer %d (%s): %s", fid, i, date_key, e$message))
-        })
+
+          # Skip farm if its bbox does not overlap the (AOI-cropped) layer
+          r_ext2 <- terra::ext(r_full)
+          if (farm_ext$xmin >= r_ext2$xmax || farm_ext$xmax <= r_ext2$xmin ||
+              farm_ext$ymin >= r_ext2$ymax || farm_ext$ymax <= r_ext2$ymin) next
+
+          tryCatch({
+            r_farm <- terra::crop(r_full, farm_ext)
+            wapor_save_raster_to_db(
+              con, fid, variable, date_key, r_farm,
+              resolution_x = res_xy[1],
+              resolution_y = res_xy[2],
+              units        = var_units
+            )
+          }, error = function(e) {
+            add_log_fn(sprintf("    Skipped farm %s layer %d (%s): %s", fid, i, date_key, e$message))
+          })
+        }
       }
 
       n_ok <- n_ok + 1L
     }
 
-    add_log_fn(sprintf("  \u2713 %d/%d layers processed for %d farm(s) (%d skipped)",
-                       n_ok, length(urls_vs), nrow(farms_sf), n_skip))
+    coarse_note <- if (var_is_coarse) " [coarse res \u2013 AOI raster shared across farms]" else ""
+    add_log_fn(sprintf("  \u2713 %d/%d layers processed for %d farm(s) (%d skipped)%s",
+                       n_ok, length(urls_vs), nrow(farms_sf), n_skip, coarse_note))
 
   }, error = function(e) {
     add_log_fn(sprintf("  .save_raster_blobs error: %s", e$message))
   })
   invisible(NULL)
+}
+
+# ── Raster grid (spatial) time-series plot ────────────────────────────────────
+#
+# Loads saved raster BLOBs from the farm_rasters table and produces a
+# faceted grid of spatial maps – one panel per time step.  This shows the
+# actual pixel distribution across the farm extent rather than a scalar
+# line chart.
+#
+# @param con       DuckDB connection (read-only is fine)
+# @param farm_id   Farm identifier string
+# @param variable  WaPOR variable name
+# @param max_panels Maximum number of time steps to show (default 16).
+#                   Earlier panels are sampled when more layers are stored.
+# @param date_range Optional c(start_date, end_date) to filter layers.
+# @param palette    Name of the colour palette: "viridis", "magma",
+#                   "RdYlGn", "RdYlBu", or "Spectral". Default "viridis".
+# @return A ggplot object (requires ggplot2 + tidyterra), or NULL on error.
+wapor_plot_raster_grid <- function(con, farm_id, variable,
+                                   max_panels = 16L,
+                                   date_range = NULL,
+                                   palette    = "viridis") {
+  if (is.null(con) || is.null(farm_id) || is.null(variable)) return(NULL)
+
+  if (!requireNamespace("ggplot2",   quietly = TRUE)) {
+    message("ggplot2 package required for wapor_plot_raster_grid")
+    return(NULL)
+  }
+  if (!requireNamespace("tidyterra", quietly = TRUE)) {
+    message("tidyterra package required for wapor_plot_raster_grid; install with install.packages('tidyterra')")
+    return(NULL)
+  }
+
+  # ── 1. Fetch raster BLOBs ────────────────────────────────────────────────
+  query <- "
+    SELECT CAST(date_key AS VARCHAR) AS date_key, raster_blob
+    FROM farm_rasters
+    WHERE farm_id = ? AND variable = ?
+    ORDER BY date_key
+  "
+  params <- list(farm_id, variable)
+
+  if (!is.null(date_range) && length(date_range) == 2) {
+    query <- "
+      SELECT CAST(date_key AS VARCHAR) AS date_key, raster_blob
+      FROM farm_rasters
+      WHERE farm_id = ? AND variable = ?
+        AND date_key >= ? AND date_key <= ?
+      ORDER BY date_key
+    "
+    params <- list(farm_id, variable,
+                   as.character(date_range[1]),
+                   as.character(date_range[2]))
+  }
+
+  df <- tryCatch(
+    DBI::dbGetQuery(con, query, params = params),
+    error = function(e) {
+      message("wapor_plot_raster_grid DB error: ", e$message)
+      NULL
+    }
+  )
+
+  if (is.null(df) || nrow(df) == 0) {
+    message("No raster data found for farm=", farm_id, " variable=", variable)
+    return(NULL)
+  }
+
+  # ── 2. Sub-sample if too many panels ────────────────────────────────────
+  n_layers <- nrow(df)
+  if (n_layers > max_panels) {
+    idx <- round(seq(1, n_layers, length.out = max_panels))
+    df  <- df[idx, , drop = FALSE]
+  }
+
+  # ── 3. Read rasters and build a named SpatRaster stack ──────────────────
+  r_list <- vector("list", nrow(df))
+  valid  <- logical(nrow(df))
+  for (k in seq_len(nrow(df))) {
+    r_k <- tryCatch(
+      wapor_raster_from_blob(df$raster_blob[[k]]),
+      error = function(e) NULL
+    )
+    if (!is.null(r_k) && terra::nlyr(r_k) > 0) {
+      r_list[[k]] <- r_k
+      valid[k]    <- TRUE
+    }
+  }
+
+  r_list  <- r_list[valid]
+  df_valid <- df[valid, , drop = FALSE]
+
+  if (length(r_list) == 0) {
+    message("All raster BLOBs failed to decode for farm=", farm_id)
+    return(NULL)
+  }
+
+  # Align all rasters to a common extent/resolution using the first layer
+  # as template (required for terra::rast(list)).
+  template <- r_list[[1]]
+  r_aligned <- lapply(r_list, function(r) {
+    if (!isTRUE(all.equal(terra::ext(r), terra::ext(template))) ||
+        !isTRUE(all.equal(terra::res(r), terra::res(template)))) {
+      tryCatch(terra::resample(r, template, method = "bilinear"),
+               error = function(e) r)
+    } else {
+      r
+    }
+  })
+
+  # Stack and assign meaningful layer names (the date strings)
+  r_stack <- tryCatch(
+    terra::rast(r_aligned),
+    error = function(e) {
+      message("Could not stack rasters: ", e$message)
+      NULL
+    }
+  )
+  if (is.null(r_stack)) return(NULL)
+
+  # Name each layer by its date for facet labels
+  date_labels <- df_valid$date_key
+  names(r_stack) <- date_labels
+
+  # ── 4. Build colour scale ────────────────────────────────────────────────
+  pal_colors <- switch(palette,
+    "magma"    = c("#000004", "#3b0f70", "#8c2981", "#de4968", "#fe9f6d", "#fcfdbf"),
+    "RdYlGn"   = grDevices::colorRampPalette(c("#d73027","#f46d43","#fdae61",
+                                                "#fee08b","#d9ef8b","#a6d96a",
+                                                "#66bd63","#1a9850"))(50),
+    "RdYlBu"   = grDevices::colorRampPalette(c("#d73027","#f46d43","#fdae61",
+                                                "#fee090","#e0f3f8","#abd9e9",
+                                                "#74add1","#4575b4"))(50),
+    "Spectral"  = grDevices::colorRampPalette(c("#9e0142","#d53e4f","#f46d43",
+                                                 "#fdae61","#fee08b","#ffffbf",
+                                                 "#e6f598","#abdda4","#66c2a5",
+                                                 "#3288bd","#5e4fa2"))(50),
+    # default: viridis
+    c("#440154","#31688e","#35b779","#fde725")
+  )
+
+  # ── 5. Build ggplot with faceted spatial rasters ─────────────────────────
+  ncol_grid <- min(4L, ceiling(sqrt(terra::nlyr(r_stack))))
+
+  # Determine global value range for a consistent colour scale
+  all_vals <- terra::values(r_stack, na.rm = TRUE)
+  val_range <- if (length(all_vals) > 0 && !all(is.na(all_vals))) {
+    range(all_vals, na.rm = TRUE)
+  } else {
+    c(0, 1)
+  }
+
+  p <- ggplot2::ggplot() +
+    tidyterra::geom_spatraster(data = r_stack, na.rm = TRUE) +
+    ggplot2::facet_wrap(~lyr, ncol = ncol_grid) +
+    ggplot2::scale_fill_gradientn(
+      colours  = pal_colors,
+      limits   = val_range,
+      na.value = "transparent",
+      name     = variable
+    ) +
+    ggplot2::labs(
+      title    = sprintf("Raster Time Series  —  Farm: %s  |  Variable: %s", farm_id, variable),
+      subtitle = sprintf("%d time steps shown (earliest → latest)", terra::nlyr(r_stack)),
+      x = "Longitude", y = "Latitude"
+    ) +
+    ggplot2::theme_minimal(base_size = 10) +
+    ggplot2::theme(
+      plot.title      = ggplot2::element_text(face = "bold", size = 12),
+      strip.text      = ggplot2::element_text(face = "bold", size = 8),
+      axis.text       = ggplot2::element_text(size = 6),
+      legend.key.height = ggplot2::unit(1.5, "cm"),
+      panel.border    = ggplot2::element_rect(colour = "grey70", fill = NA, linewidth = 0.3)
+    )
+
+  p
 }
