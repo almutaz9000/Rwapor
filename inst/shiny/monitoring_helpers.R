@@ -1,6 +1,11 @@
 # monitoring_helpers.R
 # Helper functions for enhanced farm monitoring module
 
+# Null-coalescing operator (if not already defined by the Shiny runtime)
+if (!exists("%||%", mode = "function", inherits = TRUE)) {
+  `%||%` <- function(a, b) if (!is.null(a) && length(a) > 0) a else b
+}
+
 #' Calculate enhanced zonal statistics from raster
 #' 
 #' @param raster terra SpatRaster object
@@ -133,46 +138,72 @@ wapor_raster_from_blob <- function(blob_data) {
 }
 
 #' Save raster to DuckDB with metadata
-#' 
+#'
 #' @param con DuckDB connection
 #' @param farm_id Farm identifier
 #' @param variable WaPOR variable name
 #' @param date_key Date of the raster
 #' @param raster terra SpatRaster object
-#' @return Number of rows inserted (should be 1)
-wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster) {
+#' @param resolution_x Pixel width in degrees (optional, derived from raster if NULL)
+#' @param resolution_y Pixel height in degrees (optional, derived from raster if NULL)
+#' @param units Variable units string (optional)
+#' @return Number of rows inserted/updated (should be 1)
+wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster,
+                                    resolution_x = NULL, resolution_y = NULL,
+                                    units = NA_character_) {
   if (is.null(raster) || is.null(con)) {
     return(0L)
   }
-  
+
   # Save raster to temporary file
   temp_file <- tempfile(fileext = ".tif")
   on.exit(unlink(temp_file), add = TRUE)
-  
+
   terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
-  
+
   # Read as BLOB
   raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
-  
+
   # Get extent and dimensions
-  ext <- terra::ext(raster)
+  ext  <- terra::ext(raster)
   dims <- dim(raster)
-  
-  # Insert into database
+
+  # Resolution: derive from raster if not supplied
+  if (is.null(resolution_x) || is.null(resolution_y)) {
+    res_xy       <- terra::res(raster)
+    resolution_x <- res_xy[1]
+    resolution_y <- res_xy[2]
+  }
+
+  # CRS EPSG code (best-effort)
+  crs_epsg <- tryCatch({
+    epsg <- terra::crs(raster, describe = TRUE)$code
+    if (!is.null(epsg) && !is.na(epsg) && nzchar(epsg)) as.integer(epsg) else 4326L
+  }, error = function(e) 4326L)
+
+  # Insert into database (upsert)
   insert_sql <- "
-    INSERT INTO farm_rasters (farm_id, variable, date_key, raster_blob, xmin, xmax, ymin, ymax, nrow, ncol)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (farm_id, variable, date_key) 
-    DO UPDATE SET 
-      raster_blob = EXCLUDED.raster_blob,
-      xmin = EXCLUDED.xmin,
-      xmax = EXCLUDED.xmax,
-      ymin = EXCLUDED.ymin,
-      ymax = EXCLUDED.ymax,
-      nrow = EXCLUDED.nrow,
-      ncol = EXCLUDED.ncol
+    INSERT INTO farm_rasters (
+      farm_id, variable, date_key, raster_blob,
+      xmin, xmax, ymin, ymax, nrow, ncol,
+      resolution_x, resolution_y, units, crs_epsg
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (farm_id, variable, date_key)
+    DO UPDATE SET
+      raster_blob  = EXCLUDED.raster_blob,
+      xmin         = EXCLUDED.xmin,
+      xmax         = EXCLUDED.xmax,
+      ymin         = EXCLUDED.ymin,
+      ymax         = EXCLUDED.ymax,
+      nrow         = EXCLUDED.nrow,
+      ncol         = EXCLUDED.ncol,
+      resolution_x = EXCLUDED.resolution_x,
+      resolution_y = EXCLUDED.resolution_y,
+      units        = EXCLUDED.units,
+      crs_epsg     = EXCLUDED.crs_epsg
   "
-  
+
   DBI::dbExecute(con, insert_sql, params = list(
     farm_id,
     variable,
@@ -182,8 +213,12 @@ wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster) {
     ext$xmax,
     ext$ymin,
     ext$ymax,
-    dims[1],  # nrow
-    dims[2]   # ncol
+    dims[1],       # nrow
+    dims[2],       # ncol
+    resolution_x,
+    resolution_y,
+    as.character(units %||% NA_character_),
+    crs_epsg
   ))
 }
 
@@ -757,8 +792,227 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
     ))
   }
   
-  message(sprintf("Recalculated %d records for %s with %s%% threshold", 
+  message(sprintf("Recalculated %d records for %s with %s%% threshold",
                   nrow(all_stats), farm_id, threshold_pct))
-  
+
   all_stats
+}
+
+# ── Internal: clip and save raster blobs to DuckDB ────────────────────────────
+#
+# Downloads WaPOR rasters for a variable/period, clips each dekadal layer per
+# farm polygon, and stores them as compressed BLOBs in farm_rasters.
+# Also records resolution (degrees/pixel), variable units, and CRS.
+# Incremental: (farm, variable, date) triples already in the DB are skipped.
+#
+.save_raster_blobs <- function(con, farms_sf, variable, period, add_log_fn, l3_region = NULL) {
+  if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
+
+  tryCatch({
+    # Look up variable units from package metadata (raw, as stored in the GeoTIFF)
+    var_units <- tryCatch({
+      m <- Rwapor::wapor_variable_metadata(variable)
+      m$units %||% NA_character_
+    }, error = function(e) NA_character_)
+
+    # Build bounding-box AOI from the union of all farm polygons
+    bb      <- sf::st_bbox(sf::st_union(farms_sf))
+    aoi_ext <- terra::ext(bb["xmin"], bb["xmax"], bb["ymin"], bb["ymax"])
+
+    urls <- tryCatch(
+      Rwapor::wapor_generate_urls(
+        variable,
+        l3_region = if (grepl("^L3-", variable)) l3_region else NULL,
+        period    = period
+      ),
+      error = function(e) { add_log_fn(sprintf("  Raster URLs error: %s", e$message)); NULL }
+    )
+    if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
+
+    urls_vs <- paste0("/vsicurl/", urls)
+    add_log_fn(sprintf("  Clipping & saving %d raster layers for %s...", length(urls_vs), variable))
+
+    # Query already-saved dates per farm (enables incremental updates)
+    farm_ids <- as.character(farms_sf$farm_id)
+    existing_by_farm <- stats::setNames(
+      lapply(farm_ids, function(fid) {
+        tryCatch(
+          DBI::dbGetQuery(con,
+            "SELECT CAST(date_key AS VARCHAR) AS dk FROM farm_rasters WHERE farm_id = ? AND variable = ?",
+            params = list(fid, variable)
+          )$dk,
+          error = function(e) character(0)
+        )
+      }),
+      farm_ids
+    )
+
+    # Upsert farm_metadata once per farm (outside the heavy raster loop)
+    for (j in seq_len(nrow(farms_sf))) {
+      fid   <- farm_ids[j]
+      fgeom <- farms_sf[j, ]
+      tryCatch({
+        if (nrow(DBI::dbGetQuery(con, "SELECT farm_id FROM farm_metadata WHERE farm_id = ?",
+                                 params = list(fid))) == 0L) {
+          DBI::dbExecute(con, "INSERT INTO farm_metadata (farm_id) VALUES (?)", params = list(fid))
+        }
+        wapor_update_farm_metadata(con, fid, fgeom)
+      }, error = function(e) {
+        add_log_fn(sprintf("  Warning: metadata update failed for %s: %s", fid, e$message))
+      })
+    }
+
+    n_ok   <- 0L
+    n_skip <- 0L
+
+    for (i in seq_along(urls_vs)) {
+
+      # Load the full-resolution layer; on failure log and continue to next URL
+      r_full <- tryCatch(
+        suppressWarnings(terra::rast(urls_vs[i])),
+        error = function(e) {
+          add_log_fn(sprintf("  Error loading layer %d: %s", i, e$message))
+          NULL
+        }
+      )
+      if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
+
+      # Ensure CRS (vsicurl sources sometimes drop it)
+      if (is.na(terra::crs(r_full)) || !nzchar(terra::crs(r_full))) {
+        terra::crs(r_full) <- "EPSG:4326"
+      }
+
+      # Handle projected CRS (e.g. L3 rasters in UTM).
+      # Convert the geographic AOI extent to the raster's CRS for the overlap
+      # check and crop, then reproject the clipped tile back to WGS84 so all
+      # stored blobs are in a consistent geographic coordinate system.
+      is_projected <- !isTRUE(terra::is.lonlat(r_full))
+      if (is_projected) {
+        aoi_vect_proj <- tryCatch({
+          aoi_sf_tmp <- sf::st_as_sfc(sf::st_bbox(
+            c(xmin = as.numeric(aoi_ext$xmin), ymin = as.numeric(aoi_ext$ymin),
+              xmax = as.numeric(aoi_ext$xmax), ymax = as.numeric(aoi_ext$ymax)),
+            crs = sf::st_crs(4326L)))
+          terra::project(suppressWarnings(terra::vect(aoi_sf_tmp)),
+                         terra::crs(r_full))
+        }, error = function(e) {
+          add_log_fn(sprintf("  Warning: AOI reprojection failed for layer %d: %s", i, e$message))
+          NULL
+        })
+        if (is.null(aoi_vect_proj)) { n_skip <- n_skip + 1L; next }
+        check_ext <- terra::ext(aoi_vect_proj)
+      } else {
+        check_ext <- aoi_ext
+      }
+
+      # Skip layer if it does not overlap the combined farm AOI
+      r_ext <- terra::ext(r_full)
+      if (check_ext$xmin >= r_ext$xmax || check_ext$xmax <= r_ext$xmin ||
+          check_ext$ymin >= r_ext$ymax || check_ext$ymax <= r_ext$ymin) {
+        add_log_fn(sprintf("  Skipped layer %d: AOI outside raster extent", i))
+        n_skip <- n_skip + 1L
+        next
+      }
+
+      # Crop to AOI to reduce memory before per-farm loops
+      r_full <- tryCatch(
+        terra::crop(r_full, check_ext),
+        error = function(e) {
+          add_log_fn(sprintf("  Error cropping layer %d to AOI: %s", i, e$message))
+          NULL
+        }
+      )
+      if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
+
+      # Re-project to WGS84 if the raster was in a projected CRS.
+      # Supply an explicit template so terra can determine the output extent
+      # even for small cropped tiles.
+      if (is_projected) {
+        r_full <- tryCatch({
+          # Estimate output resolution: UTM metres → approximate degrees
+          utm_res_m  <- mean(terra::res(r_full))
+          farm_lat   <- mean(c(as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax)))
+          deg_per_m  <- 1 / (111320 * cos(farm_lat * pi / 180))
+          approx_deg <- max(utm_res_m * deg_per_m, 1e-5)
+
+          # Build template in two steps (terra::rast crs= arg unreliable in 1.9)
+          wgs84_ext <- terra::ext(
+            as.numeric(aoi_ext$xmin), as.numeric(aoi_ext$xmax),
+            as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax)
+          )
+          wgs84_template <- terra::rast(ext = wgs84_ext, res = approx_deg)
+          terra::crs(wgs84_template) <- "EPSG:4326"
+
+          terra::project(r_full, wgs84_template)
+        }, error = function(e) {
+          add_log_fn(sprintf("  Error projecting layer %d to WGS84: %s", i, e$message))
+          NULL
+        })
+        if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
+      }
+
+      # Capture resolution after cropping
+      res_xy <- terra::res(r_full)
+
+      # Extract date key from the URL filename.
+      # WaPOR uses YYYY-MM-Dn (D1=1st, D2=11th, D3=21st) or plain YYYY-MM-DD.
+      fname    <- basename(urls[i])
+      date_key <- {
+        m1 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", fname))
+        if (length(m1) > 0 && nzchar(m1)) {
+          m1
+        } else {
+          m2 <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-D[123]", fname))
+          if (length(m2) > 0 && nzchar(m2)) {
+            parts <- strsplit(m2, "-")[[1]]
+            dkday <- c("01", "11", "21")[as.integer(sub("D", "", parts[3]))]
+            paste(parts[1], parts[2], dkday, sep = "-")
+          } else {
+            format(Sys.Date() - (length(urls_vs) - i) * 10L, "%Y-%m-%d")
+          }
+        }
+      }
+
+      # Clip and save per farm
+      for (j in seq_len(nrow(farms_sf))) {
+        fid   <- farm_ids[j]
+        fgeom <- farms_sf[j, ]
+
+        # Skip if already saved
+        if (date_key %in% existing_by_farm[[fid]]) next
+
+        farm_bb  <- sf::st_bbox(fgeom)
+        farm_ext <- terra::ext(
+          as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
+          as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"])
+        )
+
+        # Skip farm if its bbox does not overlap the (AOI-cropped) layer
+        r_ext2 <- terra::ext(r_full)
+        if (farm_ext$xmin >= r_ext2$xmax || farm_ext$xmax <= r_ext2$xmin ||
+            farm_ext$ymin >= r_ext2$ymax || farm_ext$ymax <= r_ext2$ymin) next
+
+        tryCatch({
+          r_farm <- terra::crop(r_full, farm_ext)
+          wapor_save_raster_to_db(
+            con, fid, variable, date_key, r_farm,
+            resolution_x = res_xy[1],
+            resolution_y = res_xy[2],
+            units        = var_units
+          )
+        }, error = function(e) {
+          add_log_fn(sprintf("    Skipped farm %s layer %d (%s): %s", fid, i, date_key, e$message))
+        })
+      }
+
+      n_ok <- n_ok + 1L
+    }
+
+    add_log_fn(sprintf("  \u2713 %d/%d layers processed for %d farm(s) (%d skipped)",
+                       n_ok, length(urls_vs), nrow(farms_sf), n_skip))
+
+  }, error = function(e) {
+    add_log_fn(sprintf("  .save_raster_blobs error: %s", e$message))
+  })
+  invisible(NULL)
 }
