@@ -1,13 +1,13 @@
 # Rwapor
 
 <!-- badges: start -->
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 [![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 **Rwapor** is an R package for downloading and analyzing [**FAO WaPOR**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) satellite data and [**AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) climate data for water productivity analysis.
 
-> **Quick Start**: Jump to [Installation](#installation) → [Shiny Dashboard](#-option-1-interactive-shiny-dashboard-recommended) to get started in minutes!
+> **Quick Start**: Jump to [Installation](#installation) → [Shiny Dashboard](#️-option-1-interactive-shiny-dashboard-recommended) to get started in minutes!
 
 ---
 
@@ -32,38 +32,13 @@
 
 ## Installation
 
-Install the development version from [GitHub](https://github.com/almutaz9000/Rwapor):
-
-```r
-# install.packages("devtools")
-devtools::install_github("almutaz9000/Rwapor")
-```
-
-### Dependencies
-
-If you encounter issues, ensure the required R packages are installed:
-
-```r
-install.packages(c(
-  "httr2", "jsonlite", "terra", "sf", "dplyr", "purrr",
-  "lubridate", "stringr", "exactextractr", "memoise",
-  "furrr", "progressr", "future"
-))
-```
-
-> **Note**: `sf` and `terra` require system-level geospatial libraries (GDAL, PROJ, GEOS). See the [`sf` installation guide](https://r-spatial.github.io/sf/#installing) for platform-specific instructions.
-
----
-
-## Installation
-
 ### Step 1: Install Required Dependencies
 
 Rwapor requires geospatial libraries. Install them first:
 
 ```r
 install.packages(c(
-  "terra", "sf", "httr2", "jsonlite", "dplyr", 
+  "terra", "sf", "httr2", "jsonlite", "dplyr",
   "lubridate", "exactextractr", "shiny", "future"
 ))
 ```
@@ -73,7 +48,6 @@ install.packages(c(
 ### Step 2: Install Rwapor
 
 ```r
-# Install from GitHub
 # install.packages("devtools")
 devtools::install_github("almutaz9000/Rwapor")
 ```
@@ -225,89 +199,110 @@ season_end   <- rast("path/to/harvest_date.tif")     # DOY when harvest occurred
 bbox <- as.vector(ext(crop_mask))
 
 # Download AETI (Actual ET), RET (Reference ET), NPP (Productivity)
-vars <- c("L2-AETI-D", "L2-RET-D", "L2-NPP-D")
-wapor_map(bbox, vars, c("2023-01-01", "2023-12-31"), folder = "wapor_data")
+for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D")) {
+  wapor_map(region = bbox, variable = var,
+            period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
+}
 
 # Download AgERA5 precipitation
-wapor_map(bbox, "AgERA5-PCP-D", c("2023-01-01", "2023-12-31"), folder = "wapor_data")
+wapor_map(region = bbox, variable = "NB-PCP-D",
+          period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
 
 # ===== STEP 3: Load Data as Raster Stacks =====
 
-aeti_stack <- rast("wapor_data/L2-AETI-D.tif")   # 36 layers (dekads)
-ret_stack  <- rast("wapor_data/L2-RET-D.tif")
-npp_stack  <- rast("wapor_data/L2-NPP-D.tif")
-pcp_stack  <- rast("wapor_data/AgERA5-PCP-D.tif")
+aeti_stack <- rast("wapor_data/L2-AETI-D/L2-AETI-D.tif")   # 36 layers (dekads)
+ret_stack  <- rast("wapor_data/L2-RET-D/L2-RET-D.tif")
+npp_stack  <- rast("wapor_data/L2-NPP-D/L2-NPP-D.tif")
 
 # ===== STEP 4: Harmonize Inputs to Same Resolution/Extent =====
 
-# Use AETI as the template
-crop_mask_h    <- rwapor_harmonize_crop_mask(crop_mask, aeti_stack[[1]])
-season_start_h <- rwapor_harmonize_to_template(season_start, aeti_stack[[1]])
-season_end_h   <- rwapor_harmonize_to_template(season_end, aeti_stack[[1]])
+# Use first AETI layer as the template grid
+crop_mask_h    <- wapor_harmonize_raster(crop_mask,    aeti_stack[[1]], method = "near")
+season_start_h <- wapor_harmonize_raster(season_start, aeti_stack[[1]], method = "near")
+season_end_h   <- wapor_harmonize_raster(season_end,   aeti_stack[[1]], method = "near")
 
 # ===== STEP 5: Build Season Weights =====
 
-# Create weights that account for pixel-specific growing seasons
-weights <- rwapor_build_season_weights_dekad(
+# Create per-pixel dekadal weights that account for pixel-specific growing seasons
+weights <- wapor_build_season_weights(
   start_date     = "2023-01-01",
   end_date       = "2023-12-31",
-  season_start_r = season_start_h,
-  season_end_r   = season_end_h,
+  start_raster   = season_start_h,
+  end_raster     = season_end_h,
   reference_year = 2023
 )
+# weights$weights     — SpatRaster with one layer per dekad (fraction 0-1)
+# weights$dekad_table — data.frame of dekad periods (used for Kc aggregation)
 
 # ===== STEP 6: Calculate Seasonal AETI and RET =====
 
-seasonal_aeti <- rwapor_calc_seasonal_aeti_masked(
-  aeti_stack, weights$weights, crop_mask_h
-)
+seasonal_aeti_out <- wapor_calc_seasonal_aeti(aeti_stack, weights$weights, crop_mask_h)
+seasonal_aeti <- seasonal_aeti_out$raster       # SpatRaster of seasonal ET
 
-seasonal_ret <- rwapor_calc_seasonal_ret_masked(
-  ret_stack, weights$weights, crop_mask_h
-)
+seasonal_ret_out <- wapor_calc_seasonal_ret(ret_stack, weights$weights, crop_mask_h)
+seasonal_ret <- seasonal_ret_out$raster         # SpatRaster of seasonal RET
 
 # ===== STEP 7: Calculate Crop Water Requirement (ETc) =====
 
 # Get FAO-56 default parameters for your crop
-crop_params <- rwapor_get_crop_defaults("Winter Wheat")
+crop_params <- wapor_crop_defaults("Winter Wheat")
 
-# Build daily Kc curve
-kc_curve <- rwapor_build_daily_kc(
-  Lini = crop_params$Lini,
-  Ldev = crop_params$Ldev,
-  Lmid = crop_params$Lmid,
-  Llate = crop_params$Llate,
-  Kcini = crop_params$Kcini,
-  Kcmid = crop_params$Kcmid,
-  Kcend = crop_params$Kcend
+# Derive development stage length from typical season duration
+# In practice, use: terra::global(wapor_season_days(season_start_h, season_end_h), "mean")
+mean_season_days <- 160L
+l_dev <- mean_season_days - (crop_params$l_ini_days + crop_params$l_mid_days +
+                               crop_params$l_late_days)
+
+# Build daily Kc curve (FAO-56 four-stage model)
+kc_daily <- wapor_build_kc(
+  kc_ini = crop_params$kc_ini,
+  kc_mid = crop_params$kc_mid,
+  kc_end = crop_params$kc_end,
+  l_ini  = crop_params$l_ini_days,
+  l_dev  = l_dev,
+  l_mid  = crop_params$l_mid_days,
+  l_late = crop_params$l_late_days
 )
 
+# Aggregate daily Kc to mean value per dekad
+season_start_date <- as.Date("2023-01-01")
+kc_dekad <- wapor_aggregate_kc(kc_daily, weights$dekad_table,
+                                season_start = season_start_date)
+
 # Calculate seasonal ETc
-seasonal_etc <- rwapor_calc_seasonal_etc_incremental(
-  ret_stack, kc_curve, weights$weights, crop_mask_h, "2023-01-01"
+seasonal_etc <- wapor_calc_seasonal_etc(
+  ret_dekad      = ret_stack,
+  season_weights = weights$weights,
+  kc_dekad       = kc_dekad
 )
 
 # ===== STEP 8: Calculate Water Productivity =====
 
-# Aggregate NPP to seasonal total
-seasonal_npp <- rwapor_apply_masked_sum(npp_stack, weights$weights, crop_mask_h)
+# Aggregate NPP to seasonal total (gC/m2)
+seasonal_npp <- wapor_masked_sum(npp_stack, weights$weights)
+
+# Estimate crop yield from NPP (t/ha)
+seasonal_yield <- wapor_calc_yield_npp(
+  npp_gc_m2 = seasonal_npp,
+  mc        = crop_params$MC,
+  fc        = crop_params$fc,
+  aot       = crop_params$AOT,
+  hi        = crop_params$HI
+)
 
 # Biomass Water Productivity (kg/m³)
-bwp <- rwapor_calc_bwp(seasonal_npp, seasonal_aeti)
+bwp <- wapor_calc_bwp(seasonal_npp, seasonal_aeti)
 
-# Crop Water Productivity with yield estimation (kg/m³)
-cwp <- rwapor_calc_cwp(
-  seasonal_npp, seasonal_aeti,
-  harvest_index = crop_params$HI,
-  dry_matter    = crop_params$dm
-)
+# Crop Water Productivity (kg/m³)
+cwp <- wapor_calc_cwp(seasonal_yield, seasonal_aeti, yield_unit = "t/ha")
 
 # ===== STEP 9: Calculate Adequacy =====
 
-adequacy <- rwapor_calc_adequacy_etc(seasonal_aeti, seasonal_etc)
+adequacy <- wapor_calc_adequacy_etc(seasonal_aeti, seasonal_etc)
 
 # ===== STEP 10: Export Results =====
 
+dir.create("output", showWarnings = FALSE)
 writeRaster(seasonal_aeti, "output/seasonal_aeti_2023.tif", overwrite = TRUE)
 writeRaster(seasonal_etc,  "output/seasonal_etc_2023.tif",  overwrite = TRUE)
 writeRaster(bwp,           "output/bwp_2023.tif",           overwrite = TRUE)
@@ -316,7 +311,7 @@ writeRaster(adequacy,      "output/adequacy_2023.tif",      overwrite = TRUE)
 
 # Extract statistics for each crop field
 fields <- vect("path/to/crop_fields.geojson")
-stats <- extract(c(seasonal_aeti, seasonal_etc, bwp, cwp, adequacy), 
+stats <- extract(c(seasonal_aeti, seasonal_etc, bwp, cwp, adequacy),
                  fields, fun = "mean", na.rm = TRUE)
 write.csv(stats, "output/field_statistics.csv", row.names = FALSE)
 
@@ -347,6 +342,7 @@ For advanced features, see:
 
 - **[Getting Started Vignette](vignettes/getting-started.Rmd)**: Comprehensive tutorial
 - **[Data Catalog](vignettes/data-catalog.Rmd)**: All available variables and resolutions
+- **[Shiny Dashboard Guide](vignettes/shiny-dashboard.Rmd)**: Dashboard usage and features
 - **Function References**: Type `?function_name` in R (e.g., `?wapor_ts`)
 
 ### Key Functions
@@ -356,11 +352,13 @@ For advanced features, see:
 | `run_wapor()` | Launch interactive Shiny dashboard |
 | `wapor_ts()` | Download time-series for polygons |
 | `wapor_map()` | Download raster maps for a region |
-| `rwapor_calc_seasonal_aeti_masked()` | Calculate seasonal ET |
-| `rwapor_calc_etc_dekad()` | Calculate crop water requirement |
-| `rwapor_calc_bwp()` | Calculate biomass water productivity |
-| `rwapor_calc_cwp()` | Calculate crop water productivity |
-| `rwapor_get_crop_defaults()` | Get FAO-56 crop parameters |
+| `wapor_build_season_weights()` | Build pixel-wise dekadal season weights |
+| `wapor_calc_seasonal_aeti()` | Calculate seasonal actual ET |
+| `wapor_calc_seasonal_etc()` | Calculate seasonal crop water requirement |
+| `wapor_calc_bwp()` | Calculate biomass water productivity |
+| `wapor_calc_cwp()` | Calculate crop water productivity |
+| `wapor_crop_defaults()` | Get FAO-56 crop parameters |
+| `wapor_harmonize_raster()` | Reproject/resample raster to a target grid |
 
 ---
 
@@ -369,7 +367,6 @@ For advanced features, see:
 Contributions are welcome! Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
-- Follow the [CLAUDE.md](CLAUDE.md) development guidelines
 
 ---
 
