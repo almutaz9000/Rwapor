@@ -809,10 +809,19 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
   if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
 
   tryCatch({
-    # Look up variable units from package metadata (raw, as stored in the GeoTIFF)
+    # Determine target unit conversion (defaulting to dekad for -D variables)
+    unit_conv <- if (grepl("-D$", variable)) "dekad" else "none"
+
+    # Look up variable units from package metadata
     var_units <- tryCatch({
       m <- Rwapor::wapor_variable_metadata(variable)
-      m$units %||% NA_character_
+      raw_u <- m$units %||% NA_character_
+      # If we are converting dekadal daily rates to dekadal totals, update units string
+      if (unit_conv == "dekad" && grepl("/day$", raw_u)) {
+        sub("/day$", "/dekad", raw_u)
+      } else {
+        raw_u
+      }
     }, error = function(e) NA_character_)
 
     # Build bounding-box AOI from the union of all farm polygons
@@ -923,6 +932,12 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
         }
       )
       if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
+
+      # Apply Unit Conversion (e.g. mm/day -> mm/dekad)
+      r_full <- Rwapor::wapor_convert_raster(r_full, variable, urls[i], unit_conv)
+
+      # Apply Temperature Conversion (Kelvin -> Celsius)
+      r_full <- Rwapor::wapor_convert_temperature(r_full, variable)
 
       # Re-project to WGS84 if the raster was in a projected CRS.
       # Supply an explicit template so terra can determine the output extent
