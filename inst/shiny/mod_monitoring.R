@@ -16,19 +16,13 @@ source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local =
 .MON_L3_DEFAULT_VARS <- c("L3-AETI-D", "L3-T-D", "L3-E-D", "L3-NPP-D")
 
 # API vars that are useful for field monitoring.
-.MON_ALL_VARS <- c(
-  "L1-AETI-D", "L1-RET-D",  "L1-T-D",    "L1-E-D",    "L1-NPP-D",
-  "L1-PCP-D",
-  "L2-AETI-D",             "L2-T-D",    "L2-E-D",    "L2-NPP-D",
-  "L2-PCP-D",
-  "L3-AETI-D", "L3-T-D",    "L3-E-D",    "L3-NPP-D",  "L3-RSM-D"
-)
+.MON_ALL_VARS <- unname(sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))))
 
-.MON_AETI_D_VARS <- c("L3-AETI-D", "L2-AETI-D", "L1-AETI-D")
-.MON_RET_D_VARS  <- c("L1-RET-D")
-.MON_T_D_VARS    <- c("L3-T-D",    "L2-T-D",    "L1-T-D")
-.MON_E_D_VARS    <- c("L3-E-D",    "L2-E-D",    "L1-E-D")
-.MON_NPP_D_VARS  <- c("L3-NPP-D",  "L2-NPP-D",  "L1-NPP-D")
+.MON_AETI_D_VARS <- grep("-AETI-D$", .MON_ALL_VARS, value = TRUE)
+.MON_RET_D_VARS  <- grep("-RET-D$",  .MON_ALL_VARS, value = TRUE)
+.MON_T_D_VARS    <- grep("-T-D$",    .MON_ALL_VARS, value = TRUE)
+.MON_E_D_VARS    <- grep("-E-D$",    .MON_ALL_VARS, value = TRUE)
+.MON_NPP_D_VARS  <- grep("-NPP-D$",  .MON_ALL_VARS, value = TRUE)
 
 .mon_variable_choices <- function(vars = .MON_ALL_VARS) {
   labels <- vapply(vars, function(v) {
