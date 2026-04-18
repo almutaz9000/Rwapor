@@ -18,6 +18,47 @@ wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0
     stop("Package 'exactextractr' required for zonal statistics")
   }
   
+  # Fast path: if no threshold is specified, use exact_extract's built-in
+  # C++ summary functions which are significantly faster than extracting
+  # and processing all pixels in R.
+  if (threshold_percentile == 0) {
+    stats_df <- suppressWarnings(exactextractr::exact_extract(
+      raster,
+      polygon,
+      fun = c("mean", "min", "max", "stdev", "count", "quantile"),
+      quantiles = c(0.05, 0.95),
+      progress = FALSE,
+      force_df = TRUE
+    ))
+
+    # exactextractr names columns as 'operation' or 'operation.layername'.
+    # Quantiles are usually q5, q95 etc.
+    # We use a helper to robustly find the correct columns.
+    find_col <- function(df, patterns) {
+      for (p in patterns) {
+        if (p %in% names(df)) return(df[[p]])
+        # Handle cases with layer name prefixes/suffixes
+        matches <- grep(paste0("^", p, "$|\\.", p, "$|^", p, "\\."), names(df), value = TRUE)
+        if (length(matches) > 0) return(df[[matches[1]]])
+      }
+      return(rep(NA_real_, nrow(df)))
+    }
+
+    return(data.frame(
+      mean_val      = find_col(stats_df, "mean"),
+      min_val       = find_col(stats_df, "min"),
+      max_val       = find_col(stats_df, "max"),
+      std_val       = find_col(stats_df, "stdev"),
+      p05_val       = find_col(stats_df, c("q05", "q5", "quantile.0.05")),
+      p95_val       = find_col(stats_df, c("q95", "quantile.0.95")),
+      threshold_pct = 0,
+      pixels_used   = as.integer(find_col(stats_df, "count") %||% 0),
+      pixels_total  = as.integer(find_col(stats_df, "count") %||% 0),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Fallback for threshold-based filtering (rarely used in main paths)
   # Extract all pixel values within polygon
   pixel_values <- exactextractr::exact_extract(raster, polygon, progress = FALSE)
   
@@ -670,7 +711,7 @@ wapor_plot_raster_timeseries_multi <- function(con, farm_ids, variables, date_ra
     ggplot2::geom_point(ggplot2::aes(y = mean), size = 1.5, alpha = 0.7) +
     # Labels
     ggplot2::labs(
-      title = sprintf("Raster Time Series: %d Farm(s) × %d Variable(s)", n_farms, n_vars),
+      title = sprintf("Raster Time Series: %d Farm(s) \u00d7 %d Variable(s)", n_farms, n_vars),
       x = "Date",
       y = "Value",
       subtitle = paste("Mean values from clipped rasters", threshold_info),
@@ -798,7 +839,7 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
   all_stats
 }
 
-# ── Internal: clip and save raster blobs to DuckDB ────────────────────────────
+# \u2500\u2500 Internal: clip and save raster blobs to DuckDB \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 #
 # Downloads WaPOR rasters for a variable/period, clips each dekadal layer per
 # farm polygon, and stores them as compressed BLOBs in farm_rasters.
@@ -944,7 +985,7 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
       # even for small cropped tiles.
       if (is_projected) {
         r_full <- tryCatch({
-          # Estimate output resolution: UTM metres → approximate degrees
+          # Estimate output resolution: UTM metres \u2192 approximate degrees
           utm_res_m  <- mean(terra::res(r_full))
           farm_lat   <- mean(c(as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax)))
           deg_per_m  <- 1 / (111320 * cos(farm_lat * pi / 180))
@@ -956,7 +997,7 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
             as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax)
           )
           wgs84_template <- terra::rast(ext = wgs84_ext, res = approx_deg)
-          # Use WKT to set CRS — avoids PROJ database lookup failures that can
+          # Use WKT to set CRS \u2014 avoids PROJ database lookup failures that can
           # occur when a conflicting proj.db is found on the system PATH.
           terra::crs(wgs84_template) <- sf::st_crs(4326L)$wkt
 
