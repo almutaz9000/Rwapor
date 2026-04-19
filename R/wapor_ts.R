@@ -213,53 +213,46 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       g <- groups[[g_name]]
       r_group <- g$raster
       multipliers <- g$multipliers
+      n_lyr_group <- terra::nlyr(r_group)
       
-      # Process each raster layer in this group
-      if (parallel) {
-        w_r_group <- terra::wrap(r_group)
-        layer_sums <- future.apply::future_lapply(seq_len(terra::nlyr(r_group)), function(i) {
-          r_group_worker <- terra::unwrap(w_r_group)
-          multiplier <- multipliers[i]
-          
-          if (!is.null(vect_data)) {
-            layer_means <- suppressWarnings(exactextractr::exact_extract(
-              r_group_worker[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-            ))
-            return(layer_means * multiplier)
-          } else {
-            global_mean <- terra::global(r_group_worker[[i]], fun = "mean", na.rm = TRUE)$mean
-            return(global_mean * multiplier)
-          }
-        }, future.seed = TRUE)
-      } else {
-        layer_sums <- lapply(seq_len(terra::nlyr(r_group)), function(i) {
-          multiplier <- multipliers[i]
-          
-          if (!is.null(vect_data)) {
-            layer_means <- suppressWarnings(exactextractr::exact_extract(
-              r_group[[i]], sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-            ))
-            return(layer_means * multiplier)
-          } else {
-            global_mean <- terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean
-            return(global_mean * multiplier)
-          }
-        })
-      }
-      
-      # Sum the parallel results into the main aggregator
-      for (i in seq_along(layer_sums)) {
-        sum_values <- sum_values + layer_sums[[i]]
+      # Process entire group stack at once for better performance
+      # This avoids redundant polygon-raster intersection overhead in exact_extract
+      if (!is.null(vect_data)) {
+        # exact_extract returns a data.frame with one column per layer
+        group_means_df <- suppressWarnings(exactextractr::exact_extract(
+          r_group, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+        ))
+        # Convert to matrix for fast weighted sum
+        group_means_mat <- as.matrix(group_means_df)
+        group_means_mat[is.na(group_means_mat)] <- 0
+
+        sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
+
         if (!is.null(total_weights)) {
-          if (!is.null(vect_data)) {
-            coverage <- suppressWarnings(exactextractr::exact_extract(
-              !is.na(r_group[[i]]), sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-            ))
-            total_weights <- total_weights + (coverage * multipliers[i])
-          } else {
-            has_data <- !is.na(terra::global(r_group[[i]], fun = "mean", na.rm = TRUE)$mean)
-            total_weights <- total_weights + if (isTRUE(has_data)) multipliers[i] else 0
-          }
+          # For weighted_mean, we need the sum of weights where data exists
+          # We check which layers are NOT NA.
+          # Note: exact_extract doesn't directly support weighted coverage sum for multiple layers
+          # so we process !is.na(stack)
+          not_na_stack <- !is.na(r_group)
+          coverage_df <- suppressWarnings(exactextractr::exact_extract(
+            not_na_stack, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+          ))
+          coverage_mat <- as.matrix(coverage_df)
+          coverage_mat[is.na(coverage_mat)] <- 0
+          total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
+        }
+      } else {
+        # Global stats for bbox/L3
+        group_stats <- terra::global(r_group, fun = "mean", na.rm = TRUE)
+        group_means <- group_stats$mean
+        group_means[is.na(group_means)] <- 0
+
+        sum_values <- sum_values + sum(group_means * multipliers)
+
+        if (!is.null(total_weights)) {
+          # For global, if mean is not NA, the whole layer is considered valid for the bbox
+          has_data <- !is.na(group_stats$mean)
+          total_weights <- total_weights + sum(ifelse(has_data, multipliers, 0))
         }
       }
     }
