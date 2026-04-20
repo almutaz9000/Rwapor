@@ -132,6 +132,11 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
     stop("farms_sf must contain a 'farm_id' column.")
   }
 
+  # Ensure DuckDB connection is valid
+  if (is.null(con)) {
+    stop("DuckDB connection 'con' cannot be NULL.")
+  }
+
   run_id <- format(Sys.time(), "%Y%m%d_%H%M%S")
   run_start <- Sys.time()
   total_new_ts <- 0L
@@ -142,6 +147,12 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
   # Loop through variables
   for (var in variables) {
     log_fn(sprintf("Monitoring variable: %s", var))
+    
+    # Determine target unit conversion (matches download module logic)
+    unit_conv <- resolve_output_unit_conversion(var, NULL)
+    if (identical(unit_conv, "dekad")) {
+      log_fn("  Variable is Dekadal. Scaling to unit/dekad.")
+    }
 
     # 1. Fetch Time Series (Incremental)
     # Check last date in DB for this variable
@@ -166,7 +177,7 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
           variable        = var,
           period          = c(effective_start, period[2]),
           identifier      = "farm_id",
-          unit_conversion = if (grepl("-D$", var)) "dekad" else "none",
+          unit_conversion = unit_conv,
           l3_region       = if (grepl("^L3-", var)) l3_region else NULL,
           batching        = TRUE
         )
@@ -176,12 +187,8 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
       })
 
       if (!is.null(ts_df) && nrow(ts_df) > 0) {
-        # Determine units
-        var_units <- tryCatch({
-          m <- Rwapor::wapor_variable_metadata(var)
-          raw_u <- m$units %||% ""
-          if (grepl("-D$", var) && grepl("/day$", raw_u)) sub("/day$", "/dekad", raw_u) else raw_u
-        }, error = function(e) NA_character_)
+        # Get harmonized units from the resulting data frame attribute
+        var_units <- attr(ts_df, "units") %||% NA_character_
 
         # Prepare for insertion
         insert_df <- data.frame(
@@ -237,18 +244,27 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
   if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
 
   tryCatch({
-    # Determine target unit conversion (defaulting to dekad for -D variables)
-    unit_conv <- if (grepl("-D$", variable)) "dekad" else "none"
+    # Determine target unit conversion (matches download module logic)
+    unit_conv <- resolve_output_unit_conversion(variable, NULL)
 
-    # Look up variable units from package metadata
+    # Look up final harmonized units using package helper
     var_units <- tryCatch({
       m <- Rwapor::wapor_variable_metadata(variable)
-      raw_u <- m$units %||% NA_character_
-      if (unit_conv == "dekad" && grepl("/day$", raw_u)) {
-        sub("/day$", "/dekad", raw_u)
-      } else {
-        raw_u
+      if (is.null(m)) return(NA_character_)
+      
+      # Determine units after conversion
+      res_u <- m$units %||% NA_character_
+      if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
+        res_u <- sub("^K$", "degC", res_u)
       }
+      
+      if (unit_conv != "none") {
+        parts <- strsplit(res_u, "/")[[1]]
+        if (length(parts) > 1) {
+          res_u <- paste0(paste(parts[-length(parts)], collapse = "/"), "/", unit_conv)
+        }
+      }
+      res_u
     }, error = function(e) NA_character_)
 
     # Build bounding-box AOI
@@ -329,13 +345,22 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       r_full <- terra::crop(r_full, check_ext)
       r_full <- Rwapor::wapor_convert_raster(r_full, variable, urls[i], unit_conv)
       r_full <- Rwapor::wapor_convert_temperature(r_full, variable)
+      
+      # Assign metadata (units, long names) to the raster itself
+      r_full <- assign_raster_metadata(r_full, variable, unit_conv, var_units)
 
       if (is_projected) {
         r_full <- tryCatch({
           wgs84_ext <- terra::ext(as.numeric(aoi_ext$xmin), as.numeric(aoi_ext$xmax),
                                   as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax))
-          # Build template for projection
-          wgs84_template <- terra::rast(ext = wgs84_ext, res = 0.0001) # Approx resolution
+          # Build template for projection with adaptive resolution
+          # Calculate approximate WGS84 resolution from source to avoid oversampling
+          src_res <- terra::res(r_full)
+          center_lat <- (as.numeric(aoi_ext$ymin) + as.numeric(aoi_ext$ymax)) / 2
+          res_y_deg <- src_res[2] / 111320
+          res_x_deg <- src_res[1] / (111320 * cos(center_lat * pi / 180))
+          
+          wgs84_template <- terra::rast(ext = wgs84_ext, res = c(res_x_deg, res_y_deg))
           terra::crs(wgs84_template) <- "EPSG:4326"
           terra::project(r_full, wgs84_template)
         }, error = function(e) NULL)
@@ -418,4 +443,311 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     ext$xmin, ext$xmax, ext$ymin, ext$ymax, dims[1], dims[2],
     res_x, res_y, units, 4326L
   ))
+}
+
+#' Extract Raster from DuckDB BLOB
+#'
+#' @param blob_data Raw vector containing raster BLOB
+#' @return terra SpatRaster object
+#' @export
+wapor_raster_from_blob <- function(blob_data) {
+  if (is.null(blob_data) || length(blob_data) == 0) {
+    return(NULL)
+  }
+
+  temp_file <- tempfile(fileext = ".tif")
+  writeBin(blob_data, temp_file)
+  r <- terra::rast(temp_file)
+  return(r)
+}
+
+#' Calculate Enhanced Zonal Statistics
+#'
+#' Extracts pixel values within a polygon and applies a percentile-based
+#' threshold filter to remove noise or edge pixels.
+#'
+#' @param raster terra SpatRaster object
+#' @param polygon sf object with farm boundaries
+#' @param threshold_percentile Numeric (0-50). Percentile threshold to filter low values.
+#' @return data.frame with mean, min, max, std, and pixel counts.
+#' @export
+wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0) {
+  if (!requireNamespace("exactextractr", quietly = TRUE)) {
+    stop("Package 'exactextractr' required for zonal statistics")
+  }
+
+  # Extract all pixel values within polygon
+  pixel_values <- exactextractr::exact_extract(raster, polygon, progress = FALSE)
+
+  # Calculate stats for each polygon
+  results <- lapply(seq_along(pixel_values), function(i) {
+    vals <- pixel_values[[i]]
+
+    if (is.null(vals) || nrow(vals) == 0) {
+      return(data.frame(
+        mean_val = NA_real_, min_val = NA_real_, max_val = NA_real_,
+        std_val = NA_real_, threshold_pct = threshold_percentile,
+        pixels_used = 0L, pixels_total = 0L
+      ))
+    }
+
+    # Get raster values
+    rast_vals <- vals[[1]]
+    weights <- if ("coverage_fraction" %in% names(vals)) vals$coverage_fraction else rep(1, length(rast_vals))
+
+    # Remove NA values
+    valid_idx <- !is.na(rast_vals) & !is.na(weights)
+    rast_vals <- rast_vals[valid_idx]
+    weights <- weights[valid_idx]
+    pixels_total <- length(rast_vals)
+
+    if (pixels_total == 0) {
+      return(data.frame(
+        mean_val = NA_real_, min_val = NA_real_, max_val = NA_real_,
+        std_val = NA_real_, threshold_pct = threshold_percentile,
+        pixels_used = 0L, pixels_total = 0L
+      ))
+    }
+
+    # Apply threshold filtering
+    if (threshold_percentile > 0 && threshold_percentile <= 50) {
+      threshold_val <- stats::quantile(rast_vals, probs = threshold_percentile / 100, na.rm = TRUE)
+      keep_idx <- rast_vals >= threshold_val
+      rast_vals <- rast_vals[keep_idx]
+      weights <- weights[keep_idx]
+    }
+
+    pixels_used <- length(rast_vals)
+
+    if (pixels_used == 0) {
+      return(data.frame(
+        mean_val = NA_real_, min_val = NA_real_, max_val = NA_real_,
+        std_val = NA_real_, threshold_pct = threshold_percentile,
+        pixels_used = 0L, pixels_total = pixels_total
+      ))
+    }
+
+    # Calculate weighted statistics
+    mean_val <- stats::weighted.mean(rast_vals, weights, na.rm = TRUE)
+    min_val <- min(rast_vals, na.rm = TRUE)
+    max_val <- max(rast_vals, na.rm = TRUE)
+    std_val <- if (pixels_used > 1) {
+      sqrt(stats::weighted.mean((rast_vals - mean_val)^2, weights, na.rm = TRUE))
+    } else 0
+
+    data.frame(
+      mean_val = mean_val, min_val = min_val, max_val = max_val,
+      std_val = std_val, threshold_pct = threshold_percentile,
+      pixels_used = pixels_used, pixels_total = pixels_total
+    )
+  })
+
+  do.call(rbind, results)
+}
+
+#' Recalculate Statistics from Saved Rasters
+#'
+#' Queries all saved raster blobs for a farm from DuckDB and recalculates
+#' zonal statistics using a new percentile threshold. Updates the
+#' farm_timeseries table.
+#'
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param polygon sf object with farm boundary
+#' @param threshold_pct New threshold percentile (0-50)
+#' @return data.frame with updated statistics
+#' @export
+wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshold_pct = 5) {
+  if (is.null(con) || is.null(polygon)) return(NULL)
+
+  # Get all rasters for this farm
+  query <- "
+    SELECT variable, date_key, raster_blob
+    FROM farm_rasters
+    WHERE farm_id = ?
+    ORDER BY variable, date_key
+  "
+
+  rasters <- DBI::dbGetQuery(con, query, params = list(farm_id))
+  if (nrow(rasters) == 0) {
+    message("No rasters found for farm_id=", farm_id)
+    return(NULL)
+  }
+
+  # Process each raster
+  updated_stats <- lapply(seq_len(nrow(rasters)), function(i) {
+    row <- rasters[i, ]
+    raster <- wapor_raster_from_blob(row$raster_blob[[1]])
+    if (is.null(raster)) return(NULL)
+
+    stats <- wapor_enhanced_zonal_stats(raster, polygon, threshold_pct)
+    data.frame(
+      farm_id = farm_id, variable = row$variable,
+      date_key = as.Date(row$date_key), stats,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  all_stats <- do.call(rbind, updated_stats[!sapply(updated_stats, is.null)])
+  if (is.null(all_stats) || nrow(all_stats) == 0) return(NULL)
+
+  # Update database
+  update_sql <- "
+    UPDATE farm_timeseries
+    SET mean_val = ?, min_val = ?, max_val = ?, std_val = ?,
+        threshold_pct = ?, pixels_used = ?, pixels_total = ?,
+        updated_at = current_timestamp
+    WHERE farm_id = ? AND variable = ? AND start_date = ?
+  "
+
+  for (i in seq_len(nrow(all_stats))) {
+    row <- all_stats[i, ]
+    DBI::dbExecute(con, update_sql, params = list(
+      row$mean_val, row$min_val, row$max_val, row$std_val,
+      row$threshold_pct, row$pixels_used, row$pixels_total,
+      row$farm_id, row$variable, as.character(row$date_key)
+    ))
+  }
+
+  message(sprintf("Recalculated %d records for %s with %s%% threshold",
+                  nrow(all_stats), farm_id, threshold_pct))
+
+  return(all_stats)
+}
+
+#' Apply Seasonal Adaptive Mask and Recalculate Stats
+#'
+#' Creates a spatial mask based on the total seasonal sum of a reference variable
+#' (e.g., L3-AETI-D or L3-NPP-D). Pixels that fall below a certain percentile
+#' of the total seasonal sum are considered "bare" or "non-cultivated" for that
+#' specific season and are excluded from the statistics of all variables.
+#'
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param polygon sf object with farm boundary
+#' @param start_date Start of the season
+#' @param end_date End of the season
+#' @param mask_variable Variable to use for creating the mask (default "L3-AETI-D")
+#' @param percentile_threshold Percentile of the seasonal sum to use as the cutoff (default 50)
+#' @return data.frame with updated statistics
+#' @export
+wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon, 
+                                            start_date, end_date, 
+                                            mask_variable = "L3-AETI-D", 
+                                            percentile_threshold = 50) {
+  if (is.null(con) || is.null(polygon)) return(NULL)
+
+  # 1. Generate the Seasonal Sum Raster for the mask_variable
+  query_mask <- "
+    SELECT date_key, raster_blob
+    FROM farm_rasters
+    WHERE farm_id = ? AND variable = ?
+      AND date_key >= ? AND date_key <= ?
+  "
+  mask_df <- DBI::dbGetQuery(con, query_mask, params = list(
+    farm_id, mask_variable, as.character(start_date), as.character(end_date)
+  ))
+
+  if (nrow(mask_df) == 0) {
+    message(sprintf("  [SKIP] No rasters found for mask_variable %s in season %s to %s", 
+                    mask_variable, start_date, end_date))
+    return(NULL)
+  }
+
+  # Accumulate the seasonal sum
+  r_list <- lapply(mask_df$raster_blob, wapor_raster_from_blob)
+  seasonal_sum <- terra::app(terra::rast(r_list), "sum", na.rm = TRUE)
+  
+  # 2. Create the Binary Mask
+  # Get all pixel values within the polygon from the seasonal sum
+  sum_vals <- exactextractr::exact_extract(seasonal_sum, polygon)[[1]]
+  sum_vals_clean <- sum_vals[[1]][!is.na(sum_vals[[1]])]
+  
+  if (length(sum_vals_clean) == 0) return(NULL)
+  
+  # Determine threshold from seasonal sum distribution
+  cutoff <- stats::quantile(sum_vals_clean, probs = percentile_threshold / 100, na.rm = TRUE)
+  
+  # Create a binary mask (1 = keep, 0 = mask out)
+  # We use terra::app to create a mask raster
+  seasonal_mask <- seasonal_sum >= cutoff
+  
+  message(sprintf("  Created seasonal mask for %s using %s: Cutoff = %.1f (kept %d%% pixels)", 
+                  farm_id, mask_variable, cutoff, 100 - percentile_threshold))
+
+  # 3. Apply mask to ALL variables in this season
+  # Get all variables available for this farm in this range
+  query_vars <- "
+    SELECT DISTINCT variable
+    FROM farm_rasters
+    WHERE farm_id = ? AND date_key >= ? AND date_key <= ?
+  "
+  vars_in_season <- DBI::dbGetQuery(con, query_vars, params = list(
+    farm_id, as.character(start_date), as.character(end_date)
+  ))$variable
+
+  updated_results <- list()
+
+  for (var in vars_in_season) {
+    # Get all dates for this variable
+    query_data <- "
+      SELECT date_key, raster_blob
+      FROM farm_rasters
+      WHERE farm_id = ? AND variable = ?
+        AND date_key >= ? AND date_key <= ?
+    "
+    data_df <- DBI::dbGetQuery(con, query_data, params = list(
+      farm_id, var, as.character(start_date), as.character(end_date)
+    ))
+
+    for (i in seq_len(nrow(data_df))) {
+      r_dekad <- wapor_raster_from_blob(data_df$raster_blob[[i]])
+      if (is.null(r_dekad)) next
+      
+      # Harmonize mask to dekad resolution if different (e.g. L1 vs L3)
+      mask_h <- terra::resample(seasonal_mask, r_dekad, method = "near")
+      
+      # Apply mask: multiply raster by binary mask (or mask function)
+      r_masked <- terra::mask(r_dekad, mask_h, maskvalues = 0)
+      
+      # Calculate stats on masked raster
+      # threshold_pct is set to a negative value to indicate it's a seasonal adaptive mask
+      stats <- wapor_enhanced_zonal_stats(r_masked, polygon, threshold_percentile = 0)
+      
+      res <- data.frame(
+        farm_id = farm_id, variable = var,
+        date_key = as.Date(data_df$date_key[i]), 
+        stats,
+        stringsAsFactors = FALSE
+      )
+      res$threshold_pct <- -percentile_threshold # Signal that this is a seasonal mask
+      updated_results[[length(updated_results) + 1]] <- res
+    }
+  }
+
+  all_updated <- do.call(rbind, updated_results)
+  if (is.null(all_updated)) return(NULL)
+
+  # 4. Update Database
+  update_sql <- "
+    UPDATE farm_timeseries
+    SET mean_val = ?, min_val = ?, max_val = ?, std_val = ?,
+        threshold_pct = ?, pixels_used = ?, pixels_total = ?,
+        updated_at = current_timestamp
+    WHERE farm_id = ? AND variable = ? AND start_date = ?
+  "
+
+  for (i in seq_len(nrow(all_updated))) {
+    row <- all_updated[i, ]
+    DBI::dbExecute(con, update_sql, params = list(
+      row$mean_val, row$min_val, row$max_val, row$std_val,
+      row$threshold_pct, row$pixels_used, row$pixels_total,
+      row$farm_id, row$variable, as.character(row$date_key)
+    ))
+  }
+
+  message(sprintf("  Successfully updated %d dekads for %s using seasonal mask.", 
+                  nrow(all_updated), farm_id))
+  
+  return(all_updated)
 }

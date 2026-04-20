@@ -1,0 +1,137 @@
+---
+title: "Advanced Analysis and Monitoring"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Advanced Analysis and Monitoring}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This guide covers advanced programmatic workflows for the `Rwapor` package, including seasonal analysis, multi-year monitoring with DuckDB, and handling mixed-resolution datasets.
+
+## 1. Seasonal Crop Water Productivity Analysis
+
+This workflow demonstrates how to calculate seasonal indicators (AETI, RET, ETc, Yield, CWP) using user-provided crop masks and planting/harvest dates.
+
+```r
+library(Rwapor)
+library(terra)
+
+# ===== STEP 1: Prepare Input Data =====
+
+# Load your crop mask (1 = crop, 0 or NA = non-crop)
+crop_mask <- rast("path/to/wheat_mask_2023.tif")
+
+# Load season start/end rasters (Julian day of year)
+season_start <- rast("path/to/planting_date.tif") 
+season_end   <- rast("path/to/harvest_date.tif")
+
+# ===== STEP 2: Download Required WaPOR Data =====
+bbox <- as.vector(ext(crop_mask))
+
+for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D", "L2-PCP-D")) {
+  wapor_map(region = bbox, variable = var,
+            period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
+}
+
+# ===== STEP 3: Load and Harmonize =====
+aeti_stack <- rast(list.files("wapor_data/L2-AETI-D", pattern = "\\.tif$", full.names = TRUE))
+ret_stack  <- rast(list.files("wapor_data/L2-RET-D",  pattern = "\\.tif$", full.names = TRUE))
+npp_stack  <- rast(list.files("wapor_data/L2-NPP-D",  pattern = "\\.tif$", full.names = TRUE))
+
+crop_mask_h    <- wapor_harmonize_raster(crop_mask,    aeti_stack[[1]], method = "near")
+season_start_h <- wapor_harmonize_raster(season_start, aeti_stack[[1]], method = "near")
+season_end_h   <- wapor_harmonize_raster(season_end,   aeti_stack[[1]], method = "near")
+
+# ===== STEP 4: Build Season Weights =====
+weights <- wapor_build_season_weights(
+  start_date     = "2023-01-01",
+  end_date       = "2023-12-31",
+  start_raster   = season_start_h,
+  end_raster     = season_end_h,
+  reference_year = 2023
+)
+
+# ===== STEP 5: Calculate Indicators =====
+# Seasonal Actual ET
+seasonal_aeti <- wapor_calc_seasonal_aeti(aeti_stack, weights$weights, crop_mask_h)$raster
+
+# Crop Water Requirement (ETc)
+crop_params <- wapor_crop_defaults("Winter Wheat")
+kc_daily <- wapor_build_kc(
+  kc_ini = crop_params$kc_ini, kc_mid = crop_params$kc_mid, kc_end = crop_params$kc_end,
+  l_ini = 30, l_dev = 40, l_mid = 60, l_late = 30
+)
+kc_dekad <- wapor_aggregate_kc(kc_daily, weights$dekad_table, season_start = as.Date("2023-01-01"))
+seasonal_etc <- wapor_calc_seasonal_etc(ret_stack, weights$weights, kc_dekad)
+
+# Yield and Productivity
+seasonal_npp <- wapor_masked_sum(npp_stack, weights$weights)
+seasonal_yield <- wapor_calc_yield_npp(seasonal_npp, mc=crop_params$MC, hi=crop_params$HI)
+cwp <- wapor_calc_cwp(seasonal_yield, seasonal_aeti, yield_unit = "t/ha")
+adequacy <- wapor_calc_adequacy_etc(seasonal_aeti, seasonal_etc)
+```
+
+## 2. Continuous Monitoring with DuckDB
+
+The monitoring module allows you to maintain a local "Data Cube" that stays synchronized with the WaPOR API.
+
+```r
+library(Rwapor)
+library(DBI)
+library(duckdb)
+
+con <- dbConnect(duckdb::duckdb(), dbdir = "monitoring.duckdb")
+pivots <- sf::st_read("pivots.geojson")
+
+# Sync only new data
+wapor_run_monitoring(
+  con          = con,
+  farms_sf     = pivots,
+  variables    = c("L3-AETI-D", "L1-RET-D"),
+  period       = c("2020-01-01", "2024-04-20"),
+  save_rasters = TRUE
+)
+
+# Extract a specific blob for custom analysis
+blob_data <- dbGetQuery(con, "SELECT raster_blob FROM farm_rasters LIMIT 1")$raster_blob[[1]]
+r <- wapor_raster_from_blob(blob_data)
+```
+
+## 3. Handling Mixed Resolutions (L1 vs L3)
+
+When comparing Level 1 (250m) and Level 3 (30m) data, use `terra::resample` to align them.
+
+```r
+# Retrieve native blobs
+r_aeti_l3 <- wapor_raster_from_blob(blob_aeti) # 30m
+r_ret_l1  <- wapor_raster_from_blob(blob_ret)  # 250m
+
+# Resample RET to match AETI grid
+r_ret_aligned <- terra::resample(r_ret_l1, r_aeti_l3, method = "bilinear")
+
+# Calculate indicator
+r_ratio <- r_aeti_l3 / r_ret_aligned
+```
+
+## 4. Enhanced Analysis (Percentile Filtering)
+
+Remove noisy edge pixels by recalculating statistics from saved blobs.
+
+```r
+# Recalculate Pivot A1 stats using only the top 95% of pixels
+# (Discards the bottom 5% which are often contaminated by dry desert edges)
+new_stats <- wapor_recalculate_stats_from_rasters(
+  con = con,
+  farm_id = "Pivot_A1",
+  polygon = pivots[pivots$Name == "Pivot_A1", ],
+  threshold_pct = 5
+)
+```
