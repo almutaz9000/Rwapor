@@ -195,9 +195,10 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       zone_ids <- 1L
     }
 
-    # Call helper. Use tempdir for intermediate raster download.
-    temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
-    if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
+    # Call helper. Use a unique subfolder in tempdir for concurrent safety.
+    temp_download_folder <- file.path(tempdir(), paste0("wapor_seasonal_ts_", sample.int(1e9, 1)))
+    if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder, recursive = TRUE)
+    on.exit(unlink(temp_download_folder, recursive = TRUE), add = TRUE)
     
     seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder)
     
@@ -209,6 +210,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     sum_values <- rep(0, n_zones)
     total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
     
+    # Pre-calculate polygon area in pixels if using weighted_mean for vectors
+    poly_pixel_area <- NULL
+    if (!is.null(vect_data) && !is.null(total_weights) && length(groups) > 0) {
+      # Use the first raster of the first group to define the grid
+      r_ref <- groups[[1]]$raster[[1]]
+      # Total sum of coverage fractions = area of polygon in pixels
+      poly_pixel_area <- suppressWarnings(exactextractr::exact_extract(
+        r_ref * 0 + 1, vect_data, "sum", progress = FALSE
+      ))
+    }
+
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
       r_group <- g$raster
@@ -216,30 +228,49 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       n_lyr_group <- terra::nlyr(r_group)
       
       # Process entire group stack at once for better performance
-      # This avoids redundant polygon-raster intersection overhead in exact_extract
       if (!is.null(vect_data)) {
-        # exact_extract returns a data.frame with one column per layer
-        group_means_df <- suppressWarnings(exactextractr::exact_extract(
-          r_group, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+        # Get mean and (if needed) count of non-NA pixels in one pass
+        stats_to_get <- if (is.null(total_weights)) "mean" else c("mean", "count")
+        group_stats <- suppressWarnings(exactextractr::exact_extract(
+          r_group, vect_data, stats_to_get, progress = FALSE
         ))
-        # Convert to matrix for fast weighted sum
-        group_means_mat <- as.matrix(group_means_df)
+
+        # Handle exact_extract naming for mean columns:
+        # 1. 'mean' if single layer
+        # 2. 'mean.L1', 'mean.L2'... if multiple layers (default)
+        # 3. Original layer names if only 'mean' was requested
+        mean_cols <- grep("^mean", names(group_stats), value = TRUE)
+        if (length(mean_cols) == 0 && "mean" %in% names(group_stats)) {
+          mean_cols <- "mean"
+        }
+
+        # If still no mean_cols and we only requested "mean", it means exact_extract
+        # used the layer names directly.
+        if (length(mean_cols) == 0 && length(stats_to_get) == 1) {
+            # All columns in group_stats except 'ID' (if present) are results
+            mean_cols <- setdiff(names(group_stats), "ID")
+        }
+
+        if (length(mean_cols) != n_lyr_group) {
+           stop(sprintf("Failed to identify results for all %d layers in group %s", n_lyr_group, g_name), call. = FALSE)
+        }
+
+        group_means_mat <- as.matrix(group_stats[, mean_cols, drop = FALSE])
         group_means_mat[is.na(group_means_mat)] <- 0
 
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
 
         if (!is.null(total_weights)) {
-          # For weighted_mean, we need the sum of weights where data exists
-          # We check which layers are NOT NA.
-          # Note: exact_extract doesn't directly support weighted coverage sum for multiple layers
-          # so we process !is.na(stack)
-          not_na_stack <- !is.na(r_group)
-          coverage_df <- suppressWarnings(exactextractr::exact_extract(
-            not_na_stack, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-          ))
-          coverage_mat <- as.matrix(coverage_df)
-          coverage_mat[is.na(coverage_mat)] <- 0
-          total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
+          # Identify count columns
+          count_cols <- grep("^count", names(group_stats), value = TRUE)
+          if (length(count_cols) == 0 && "count" %in% names(group_stats)) count_cols <- "count"
+
+          group_counts_mat <- as.matrix(group_stats[, count_cols, drop = FALSE])
+          group_counts_mat[is.na(group_counts_mat)] <- 0
+
+          # fraction_valid = (sum of coverage fractions of non-NA cells) / (sum of coverage fractions of all cells)
+          group_coverage_mat <- group_counts_mat / poly_pixel_area
+          total_weights <- total_weights + as.vector(group_coverage_mat %*% multipliers)
         }
       } else {
         # Global stats for bbox/L3
@@ -390,50 +421,53 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
       ex$ID <- seq_len(nrow(ex))
 
-      # Reshape extracted stats into long format
-      # If processing batches in parallel, we don't further parallelize within a batch
-      # to avoid nested parallelism overhead.
-      inner_apply_fn <- if (parallel) lapply else (if (isTRUE(getOption("wapor.parallel_inner", FALSE))) future.apply::future_lapply else lapply)
+      # Reshape extracted stats into long format using vectorized matrix operations
+      # for significantly better performance with many polygons/layers.
+      n_zones_batch <- nrow(ex)
       
-      out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
-        lyr_name <- paste0("L", i)
+      # Identify result columns for mean, min, max
+      mean_cols <- grep("^mean", names(ex), value = TRUE)
+      if (length(mean_cols) == 0 && "mean" %in% names(ex)) mean_cols <- "mean"
+      min_cols <- grep("^min", names(ex), value = TRUE)
+      if (length(min_cols) == 0 && "min" %in% names(ex)) min_cols <- "min"
+      max_cols <- grep("^max", names(ex), value = TRUE)
+      if (length(max_cols) == 0 && "max" %in% names(ex)) max_cols <- "max"
 
-        col_mean <- paste0("mean.", lyr_name)
-        col_min <- paste0("min.", lyr_name)
-        col_max <- paste0("max.", lyr_name)
+      # Handle exact_extract naming variations (mean.L1 vs L1.mean)
+      if (length(mean_cols) != n_lyr) {
+          mean_cols <- paste0("L", seq_len(n_lyr), ".mean")
+          min_cols <- paste0("L", seq_len(n_lyr), ".min")
+          max_cols <- paste0("L", seq_len(n_lyr), ".max")
 
-        if (!col_mean %in% names(ex)) {
-          if (paste0(lyr_name, ".mean") %in% names(ex)) {
-            col_mean <- paste0(lyr_name, ".mean")
-            col_min <- paste0(lyr_name, ".min")
-            col_max <- paste0(lyr_name, ".max")
-          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
-            col_mean <- "mean"
-            col_min <- "min"
-            col_max <- "max"
-          } else {
-            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
-                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
+          # If still not found (single layer case), fallback to exact names
+          if (!all(mean_cols %in% names(ex))) {
+              mean_cols <- grep("mean", names(ex), value = TRUE)
+              min_cols <- grep("min", names(ex), value = TRUE)
+              max_cols <- grep("max", names(ex), value = TRUE)
           }
-        }
+      }
 
-        cols <- c(col_mean, col_min, col_max)
-        sub_df <- ex[, cols, drop = FALSE]
-        colnames(sub_df) <- c("mean", "min", "max")
+      # Extract values into matrices and flatten to long format
+      # as.vector() on a matrix flattens it column-wise (layer by layer)
+      res_long <- data.frame(
+        mean = as.vector(as.matrix(ex[, mean_cols, drop = FALSE])),
+        min  = as.vector(as.matrix(ex[, min_cols, drop = FALSE])),
+        max  = as.vector(as.matrix(ex[, max_cols, drop = FALSE])),
+        stringsAsFactors = FALSE
+      )
 
-        sub_df$ID <- ids[ex$ID]
-        
-        # Add custom identifier column if specified
-        if (!is.null(identifier) && identifier %in% names(vect)) {
-          sub_df[[identifier]] <- ids[ex$ID]
-        }
+      # Replicate polygon IDs and metadata
+      # rep(ids, n_lyr) matches the column-wise flattening of the matrices
+      res_long$ID <- rep(ids[ex$ID], n_lyr)
+      if (!is.null(identifier) && identifier %in% names(vect)) {
+          res_long[[identifier]] <- rep(ids[ex$ID], n_lyr)
+      }
 
-        m <- chunk_meta[i, ]
-        m_rep <- m[rep(1, nrow(sub_df)), ]
-        cbind(sub_df, m_rep)
-      })
+      # Replicate chunk metadata (each row of chunk_meta matches one layer)
+      # Each row of chunk_meta needs to be repeated n_zones_batch times
+      meta_long <- chunk_meta[rep(seq_len(n_lyr), each = n_zones_batch), , drop = FALSE]
 
-      return(do.call(rbind, out_list))
+      return(cbind(res_long, meta_long))
     } else {
       # Global statistics for bbox or L3 code regions
       ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
