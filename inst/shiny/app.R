@@ -134,11 +134,11 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Download", icon = shiny::icon("cloud-arrow-down"),
     mod_download_ui("dl", all_vars, default_var, l3_region_choices)
   ),
-  bslib::nav_panel("Visualisation", icon = shiny::icon("chart-area"),
-    mod_visualisation_ui("vis")
-  ),
   bslib::nav_panel("Analysis", icon = shiny::icon("flask"),
     mod_analysis_ui("an", all_vars, l3_region_choices)
+  ),
+  bslib::nav_panel("Visualisation", icon = shiny::icon("chart-area"),
+    mod_visualisation_ui("vis")
   ),
   bslib::nav_panel("Timeseries", icon = shiny::icon("chart-line"),
     mod_timeseries_ui("ts")

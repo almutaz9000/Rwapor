@@ -34,20 +34,38 @@
 
 ### Step 1: Install Required Dependencies
 
-Rwapor requires geospatial libraries. Install them first:
+Rwapor requires several geospatial and web-interface libraries. To ensure all dashboard features work correctly, install the following:
 
 ```r
+# Install all core and dashboard dependencies
 install.packages(c(
-  "terra", "sf", "httr2", "jsonlite", "dplyr",
-  "lubridate", "exactextractr", "shiny", "future"
+  # Core Geospatial & API
+  "terra", "sf", "httr2", "jsonlite", "dplyr", "purrr", "remotes",
+  "lubridate", "exactextractr", "memoise", "future", "future.apply",
+  
+  # Dashboard UI & Logic
+  "shiny", "bslib", "leaflet", "leaflet.extras", "leaflet.extras2",
+  "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce", "DT", 
+  "shinycssloaders", "promises", "duckdb", "DBI",
+  
+  # Visualization & Data
+  "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite", 
+  "RColorBrewer", "arrow"
 ))
 ```
 
-> **Note**: `sf` and `terra` require system libraries (GDAL, PROJ, GEOS). See the [sf installation guide](https://r-spatial.github.io/sf/#installing) if you encounter issues.
+> **Note**: `sf` and `terra` require system libraries (GDAL, PROJ, GEOS). See the [sf installation guide](https://r-spatial.github.io/sf/#installing) if you encounter issues on Linux or Mac. Windows users usually get bundled binaries.
 
 ### Step 2: Install Rwapor
 
+You can use either `remotes` (lightweight) or `devtools` to install from GitHub:
+
 ```r
+# Option A: using remotes (recommended)
+# install.packages("remotes")
+remotes::install_github("almutaz9000/Rwapor")
+
+# Option B: using devtools
 # install.packages("devtools")
 devtools::install_github("almutaz9000/Rwapor")
 ```
