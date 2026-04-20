@@ -971,6 +971,20 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
       # Capture resolution after cropping
       res_xy <- terra::res(r_full)
 
+      # Apply dekadal unit conversion for -D variables.
+      # Raw WaPOR GeoTIFFs store flux rates in mm/day (or gC/m²/day).
+      # Multiply each layer by the number of days in its dekad so stored
+      # blobs match the same mm/dekad scaling used by wapor_map() / wapor_ts().
+      if (grepl("-D$", variable)) {
+        r_full <- tryCatch(
+          Rwapor::wapor_convert_raster(r_full, variable, urls[i], "dekad"),
+          error = function(e) {
+            add_log_fn(sprintf("  Warning: dekadal conversion failed for layer %d: %s", i, e$message))
+            r_full
+          }
+        )
+      }
+
       # Extract date key from the URL filename.
       # WaPOR uses YYYY-MM-Dn (D1=1st, D2=11th, D3=21st) or plain YYYY-MM-DD.
       fname    <- basename(urls[i])
