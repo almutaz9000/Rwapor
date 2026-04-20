@@ -1450,7 +1450,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           }
 
           shiny::showNotification("Analysis complete!", type = "message", duration = 8)
-          shinyAce::updateAceEditor(session, "an_code_preview", value = wapor_generate_shiny_script(input))
+          shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
 
         }, error = function(e) {
           shiny::showNotification(paste("Analysis failed:", e$message), type = "error", duration = 15)
