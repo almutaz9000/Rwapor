@@ -54,7 +54,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   h_mask <- if (isTRUE(config$use_crop_mask)) {
     Rwapor::wapor_harmonize_crop_mask(rasters$crop_mask, template_r)
   } else {
-    terra::classify(template_r * 0 + 1, cbind(NA, NA))
+    # If no mask used, treat entire area as class 1
+    template_r[[1]] * 0 + 1L
   }
   
   # Harmonize season rasters
@@ -147,12 +148,29 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # 5. Calculations
   progress_callback(0.40, "Performing aggregations...")
   
+  # Calculate mask stats (area-weighted means in dashboard depend on this)
+  progress_callback(0.45, "Calculating class statistics...")
+  mask_stats <- terra::freq(h_mask)
+  # terra::freq returns [layer, value, count]
+  names(mask_stats) <- c("layer", "class_value", "pixel_count")
+  
+  # Calculate approximate area in ha (assuming lonlat WGS84 for now)
+  res_xy <- terra::res(template_r)
+  pixel_area_ha <- if (terra::is.lonlat(template_r)) {
+    (res_xy[1] * 111320) * (res_xy[2] * 111320 * cos(terra::ext(template_r)$ymin * pi / 180)) / 10000
+  } else {
+    (res_xy[1] * res_xy[2]) / 10000
+  }
+  mask_stats$area_ha <- mask_stats$pixel_count * pixel_area_ha
+
   results <- list(
     h_mask = h_mask,
     h_start = h_start,
     h_end = h_end,
     template_r = template_r,
-    dekad_table = dekad_table
+    dekad_table = dekad_table,
+    mask_class_stats = mask_stats,
+    valid_crop_mask = h_mask # Exported for visualization/stats in mod_analysis
   )
   
   # Multipliers
