@@ -88,9 +88,35 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
           open     = TRUE,
           multiple = TRUE,
 
+          # 0 · Project Management ───────────────────────────────────────────
+          bslib::accordion_panel(
+            "Project Management", icon = shiny::icon("folder-tree"),
+            shiny::tags$span("Project Name", class = "ctrl-group-label"),
+            shiny::textInput(
+              ns("project_name"), NULL,
+              placeholder = "e.g. Sudan_Savola_2024"
+            ),
+            shiny::div(
+              class = "btn-group w-100",
+              shiny::actionButton(
+                ns("btn_save_project"), "Save",
+                icon = shiny::icon("floppy-disk"),
+                class = "btn-outline-primary btn-sm"
+              ),
+              shiny::actionButton(
+                ns("btn_load_project"), "Load",
+                icon = shiny::icon("folder-open"),
+                class = "btn-outline-secondary btn-sm"
+              )
+            ),
+            shiny::uiOutput(ns("project_list_ui")),
+            shiny::helpText("Manage project-specific settings and database paths.")
+          ),
+
           # 1 · Farm Layer ────────────────────────────────────────────────────
           bslib::accordion_panel(
             "Farm Layer", icon = shiny::icon("draw-polygon"),
+
 
             shiny::tags$span("Upload vector file", class = "ctrl-group-label"),
             shiny::div(
@@ -499,139 +525,19 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     open_db <- function(path) {
       if (!requireNamespace("duckdb", quietly = TRUE))
-        stop("Package 'duckdb' is required for the Monitoring tab. Install with: install.packages('duckdb')", call. = FALSE)
+        stop("Package 'duckdb' is required for the Monitoring tab.", call. = FALSE)
+      
       tryCatch({
         con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = path)
-        
-        # Enhanced schema with std, percentiles, threshold tracking, and extents
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS farm_timeseries (
-            farm_id       TEXT,
-            crop_type     TEXT,
-            sowing_date   DATE,
-            variable      TEXT,
-            start_date    DATE,
-            end_date      DATE,
-            mean_val      DOUBLE,
-            min_val       DOUBLE,
-            max_val       DOUBLE,
-            std_val       DOUBLE,
-            p05_val       DOUBLE,
-            p95_val       DOUBLE,
-            threshold_pct DOUBLE DEFAULT 0,
-            pixels_used   INTEGER,
-            pixels_total  INTEGER,
-            units         TEXT,
-            updated_at    TIMESTAMP DEFAULT current_timestamp,
-            PRIMARY KEY (farm_id, variable, start_date)
-          )
-        ")
-        # Schema migration: add units column if missing (for existing databases)
-        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_timeseries ADD COLUMN IF NOT EXISTS units TEXT"), error = function(e) NULL)
-
-        # Enhanced farm_rasters with extent metadata + resolution + units
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS farm_rasters (
-            farm_id      TEXT,
-            variable     TEXT,
-            date_key     DATE,
-            raster_blob  BLOB,
-            xmin         DOUBLE,
-            xmax         DOUBLE,
-            ymin         DOUBLE,
-            ymax         DOUBLE,
-            nrow         INTEGER,
-            ncol         INTEGER,
-            resolution_x DOUBLE,
-            resolution_y DOUBLE,
-            units        TEXT,
-            crs_epsg     INTEGER DEFAULT 4326,
-            updated_at   TIMESTAMP DEFAULT current_timestamp,
-            PRIMARY KEY (farm_id, variable, date_key)
-          )
-        ")
-        # Schema migrations for existing databases
-        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_x DOUBLE"), error = function(e) NULL)
-        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_y DOUBLE"), error = function(e) NULL)
-        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS units TEXT"), error = function(e) NULL)
-        tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS crs_epsg INTEGER DEFAULT 4326"), error = function(e) NULL)
-
-        # Seasonal aggregated rasters
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS farm_seasonal_rasters (
-            farm_id     TEXT,
-            variable    TEXT,
-            season_id   TEXT,
-            raster_blob BLOB,
-            xmin        DOUBLE,
-            xmax        DOUBLE,
-            ymin        DOUBLE,
-            ymax        DOUBLE,
-            nrow        INTEGER,
-            ncol        INTEGER,
-            updated_at  TIMESTAMP DEFAULT current_timestamp,
-            PRIMARY KEY (farm_id, variable, season_id)
-          )
-        ")
-        
-        # Farm metadata for quick lookups
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS farm_metadata (
-            farm_id     TEXT PRIMARY KEY,
-            crop_type   TEXT,
-            sowing_date DATE,
-            area_ha     DOUBLE,
-            xmin        DOUBLE,
-            xmax        DOUBLE,
-            ymin        DOUBLE,
-            ymax        DOUBLE
-          )
-        ")
-
-        # Farm polygons – stores the actual vector geometry (WKT) for each farm
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS farm_polygons (
-            farm_id      TEXT PRIMARY KEY,
-            crop_type    TEXT,
-            label        TEXT,
-            area_ha      DOUBLE,
-            geometry_wkt TEXT,
-            crs_epsg     INTEGER DEFAULT 4326,
-            created_at   TIMESTAMP DEFAULT current_timestamp
-          )
-        ")
-        
-        DBI::dbExecute(con, "
-          CREATE TABLE IF NOT EXISTS monitoring_log (
-            run_id      TEXT,
-            started_at  TIMESTAMP,
-            finished_at TIMESTAMP,
-            n_records   INTEGER,
-            status      TEXT,
-            message     TEXT
-          )
-        ")
-        
-        # Create indices for performance
-        DBI::dbExecute(con, "
-          CREATE INDEX IF NOT EXISTS idx_timeseries_farm_var 
-          ON farm_timeseries(farm_id, variable)
-        ")
-        DBI::dbExecute(con, "
-          CREATE INDEX IF NOT EXISTS idx_timeseries_date 
-          ON farm_timeseries(start_date)
-        ")
-        DBI::dbExecute(con, "
-          CREATE INDEX IF NOT EXISTS idx_rasters_farm_var 
-          ON farm_rasters(farm_id, variable)
-        ")
-        
+        # Use the core package function to initialize/migrate schema
+        Rwapor::wapor_init_monitoring_db(con)
         con
       }, error = function(e) {
         shiny::showNotification(paste("DB error:", e$message), type = "error")
         NULL
       })
     }
+
 
     close_db <- function() {
       if (!is.null(rv$db_con)) {
@@ -711,121 +617,110 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       )
     }
 
-    # ── File roots for shinyFiles ──────────────────────────────────────────────
-    roots <- get_shinyfiles_roots()
+    # ── 0. Project Management Logic ───────────────────────────────────────────
+    
+    project_dir <- "projects"
+    if (!dir.exists(project_dir)) dir.create(project_dir, showWarnings = FALSE)
 
-    shinyFiles::shinyFileChoose(input, "browse_db", roots = roots, session = session,
-                                filetypes = c("duckdb", "db"))
-
-    shinyFiles::shinyFileChoose(input, "browse_farm", roots = roots, session = session,
-                                filetypes = c("geojson", "gpkg", "shp", "kml", "zip"))
-
-    shiny::observeEvent(input$browse_db, {
-      p <- shinyFiles::parseFilePaths(roots, input$browse_db)
-      if (nrow(p) > 0) {
-        path <- normalizePath(p$datapath[1], winslash = "/", mustWork = FALSE)
-        shiny::updateTextInput(session, "db_path", value = path)
-      }
+    # List available projects
+    output$project_list_ui <- shiny::renderUI({
+      files <- list.files(project_dir, pattern = "\\.json$", full.names = FALSE)
+      if (length(files) == 0) return(NULL)
+      projects <- sub("\\.json$", "", files)
+      shiny::selectInput(ns("sel_project"), "Existing Projects", 
+                         choices = c("Select project to load..." = "", projects))
     })
 
-    shiny::observeEvent(input$browse_farm, {
-      p <- shinyFiles::parseFilePaths(roots, input$browse_farm)
-      if (nrow(p) > 0) {
-        path <- normalizePath(p$datapath[1], winslash = "/", mustWork = FALSE)
-        shiny::updateTextInput(session, "farm_path", value = path)
+    # Save Project
+    shiny::observeEvent(input$btn_save_project, {
+      name <- input$project_name
+      if (!nzchar(name)) {
+        shiny::showNotification("Enter a project name first.", type = "error")
+        return()
       }
-    })
-
-    # ── Favorites Logic ───────────────────────────────────────────────────────
-    favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
-
-    # Farm Path Favorites
-    output$fav_farm_btn_ui <- shiny::renderUI({
-      path <- input$farm_path %||% ""
-      if (!nzchar(path)) return(NULL)
-      is_fav <- Rwapor::wapor_is_favorite(path)
-      shiny::actionLink(
-        ns("favorite_farm_btn"),
-        NULL,
-        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
-        style = "margin-bottom: 11px; font-size: 1.1rem;"
+      
+      # Sanitize name
+      safe_name <- gsub("[^a-zA-Z0-9_]", "_", name)
+      config <- list(
+        project_name      = name,
+        farm_path         = input$farm_path,
+        db_path           = input$db_path,
+        mon_vars          = input$mon_vars,
+        mon_l3_region     = input$mon_l3_region,
+        sowing_date       = as.character(input$sowing_date),
+        harvest_date      = as.character(input$harvest_date),
+        crop_col          = input$crop_col,
+        label_col         = input$label_col,
+        start_date_col    = input$start_date_col,
+        end_date_col      = input$end_date_col,
+        also_save_rasters = input$also_save_rasters,
+        threshold_pct     = input$threshold_pct
       )
+      
+      jsonlite::write_json(config, file.path(project_dir, paste0(safe_name, ".json")), pretty = TRUE)
+      shiny::showNotification(sprintf("Project '%s' saved.", name), type = "message")
     })
 
-    shiny::observeEvent(input$favorite_farm_btn, {
-      path <- input$farm_path %||% ""
-      if (!nzchar(path)) return()
-      if (Rwapor::wapor_is_favorite(path)) {
-        Rwapor::wapor_remove_favorite(path)
-      } else {
-        Rwapor::wapor_add_favorite(path, type = "file")
+    # Load Project
+    shiny::observeEvent(input$btn_load_project, {
+      name <- input$sel_project
+      if (!nzchar(name)) {
+        name <- input$project_name
       }
-      favs(Rwapor::wapor_get_favorites())
-    })
-
-    output$fav_farm_list_ui <- shiny::renderUI({
-      f <- favs()
-      # Filter for files that look like farm vectors
-      f_files <- f[f$type == "file" & grepl("\\.(geojson|gpkg|shp|kml|zip)$", f$path, ignore.case = TRUE), "path"]
-      if (length(f_files) == 0) return(NULL)
-      shiny::selectizeInput(
-        ns("quick_fav_farm"),
-        NULL,
-        choices = c("Quick Access Favorites..." = "", f_files),
-        options = list(placeholder = "Select a favorite farm file")
-      )
-    })
-
-    shiny::observeEvent(input$quick_fav_farm, {
-      if (nzchar(input$quick_fav_farm)) {
-        shiny::updateTextInput(session, "farm_path", value = input$quick_fav_farm)
+      if (!nzchar(name)) {
+        shiny::showNotification("Select or enter a project name.", type = "error")
+        return()
       }
-    })
-
-    # DB Path Favorites
-    output$fav_db_btn_ui <- shiny::renderUI({
-      path <- input$db_path %||% ""
-      if (!nzchar(path)) return(NULL)
-      is_fav <- Rwapor::wapor_is_favorite(path)
-      shiny::actionLink(
-        ns("favorite_db_btn"),
-        NULL,
-        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
-        style = "margin-bottom: 11px; font-size: 1.1rem;"
-      )
-    })
-
-    shiny::observeEvent(input$favorite_db_btn, {
-      path <- input$db_path %||% ""
-      if (!nzchar(path)) return()
-      if (Rwapor::wapor_is_favorite(path)) {
-        Rwapor::wapor_remove_favorite(path)
-      } else {
-        Rwapor::wapor_add_favorite(path, type = "file")
+      
+      safe_name <- gsub("[^a-zA-Z0-9_]", "_", name)
+      path <- file.path(project_dir, paste0(safe_name, ".json"))
+      
+      if (!file.exists(path)) {
+        shiny::showNotification("Project file not found.", type = "error")
+        return()
       }
-      favs(Rwapor::wapor_get_favorites())
+      
+      config <- jsonlite::read_json(path, simplifyVector = TRUE)
+      
+      # Update UI
+      shiny::updateTextInput(session, "project_name", value = config$project_name %||% name)
+      shiny::updateTextInput(session, "farm_path",    value = config$farm_path %||% "")
+      shiny::updateTextInput(session, "db_path",      value = config$db_path %||% "")
+      shiny::updateSelectizeInput(session, "mon_vars", selected = config$mon_vars)
+      shiny::updateSelectInput(session, "mon_l3_region", selected = config$mon_l3_region)
+      shiny::updateDateInput(session, "sowing_date",  value = as.Date(config$sowing_date %||% (Sys.Date() - 180)))
+      shiny::updateDateInput(session, "harvest_date", value = as.Date(config$harvest_date %||% Sys.Date()))
+      shiny::updateCheckboxInput(session, "also_save_rasters", value = config$also_save_rasters %||% TRUE)
+      shiny::updateSliderInput(session, "threshold_pct", value = config$threshold_pct %||% 5)
+      
+      # We delay updating column selectors since they depend on farm_path being loaded
+      shiny::observe({
+        shiny::req(rv$farms_sf)
+        shiny::updateSelectInput(session, "crop_col",       selected = config$crop_col %||% "")
+        shiny::updateSelectInput(session, "label_col",      selected = config$label_col %||% "")
+        shiny::updateSelectInput(session, "start_date_col", selected = config$start_date_col %||% "")
+        shiny::updateSelectInput(session, "end_date_col",   selected = config$end_date_col %||% "")
+      }) |> shiny::bindEvent(rv$farms_sf, once = TRUE)
+      
+      shiny::showNotification(sprintf("Project '%s' loaded.", name), type = "message")
     })
 
-    output$fav_db_list_ui <- shiny::renderUI({
-      f <- favs()
-      # Filter for files that look like DuckDB
-      f_files <- f[f$type == "file" & grepl("\\.(duckdb|db)$", f$path, ignore.case = TRUE), "path"]
-      if (length(f_files) == 0) return(NULL)
-      shiny::selectizeInput(
-        ns("quick_fav_db"),
-        NULL,
-        choices = c("Quick Access Favorites..." = "", f_files),
-        options = list(placeholder = "Select a favorite DuckDB file")
-      )
-    })
-
-    shiny::observeEvent(input$quick_fav_db, {
-      if (nzchar(input$quick_fav_db)) {
-        shiny::updateTextInput(session, "db_path", value = input$quick_fav_db)
+    # Update DB Path automatically when project name changes
+    shiny::observeEvent(input$project_name, {
+      name <- input$project_name
+      if (nzchar(name)) {
+        safe_name <- gsub("[^a-zA-Z0-9_]", "_", name)
+        # Check if user has a custom path or if we should default it
+        # Default to a file in the projects directory or root
+        current_db <- input$db_path
+        if (!nzchar(current_db) || grepl("monitoring\\.duckdb$", current_db)) {
+           shiny::updateTextInput(session, "db_path", value = file.path(getwd(), paste0(safe_name, ".duckdb")))
+        }
       }
     })
 
     # ── 1. Load farm vector file ───────────────────────────────────────────────
+
     shiny::observeEvent(input$farm_path, {
       shiny::req(input$farm_path)
       tryCatch({
@@ -1098,12 +993,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       sel_vars     <- input$mon_vars
       has_l3_vars  <- any(grepl("^L3-", sel_vars))
       l3_region    <- if (has_l3_vars) input$mon_l3_region else NULL
-      sowing_date  <- as.character(input$sowing_date)
-      harvest_date <- as.character(input$harvest_date)
       db_path      <- input$db_path
-      crop_col     <- if (!is.null(input$crop_col) && nzchar(input$crop_col)) input$crop_col else NULL
-      label_col    <- if (!is.null(input$label_col) && nzchar(input$label_col)) input$label_col else NULL
       save_rasters <- isTRUE(input$also_save_rasters)
+      
+      period <- as.character(c(input$sowing_date, input$harvest_date))
 
       if (has_l3_vars && !is_l3_code(l3_region)) {
         shiny::showNotification("Select an L3 region before monitoring with L3 variables.", type = "error")
@@ -1112,159 +1005,35 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
       rv$monitoring <- TRUE
       rv$log_msgs   <- character(0)
-      run_started_at <- Sys.time()
-      add_log("Starting monitoring run…")
+      add_log("Starting monitoring run (Generalized)...")
 
-      # Run synchronously (could be made async with promises for large datasets)
       tryCatch({
-        # Open / create DB
+        # Open DB
         con <- open_db(db_path)
         if (is.null(con)) { rv$monitoring <- FALSE; return() }
+        
+        # 1. Save geometries/metadata to DB
+        save_farms_to_db(con, farms_sf, input$crop_col, input$label_col)
 
-        # Save farm polygon geometries to DB (upsert – safe to run each time)
-        save_farms_to_db(con, farms_sf, crop_col, label_col)
-
-        # Determine per-variable start dates (incremental)
-        last_dates <- get_last_dates(con)
-        add_log(sprintf("Opened DB. %d existing records.", nrow(last_dates)))
-
-        total_new <- 0L
-        run_id <- format(Sys.time(), "%Y%m%d_%H%M%S")
-        if (has_l3_vars) add_log(sprintf("Using L3 region: %s", l3_region))
-
-        for (var in sel_vars) {
-          add_log(sprintf("Variable: %s", var))
-
-          # Determine effective units for this variable (after dekadal conversion)
-          var_meta_units <- tryCatch({
-            m <- Rwapor::wapor_variable_metadata(var)
-            raw_u <- m$units %||% ""
-            if (grepl("-D$", var) && grepl("/day$", raw_u)) {
-              sub("/day$", "/dekad", raw_u)
-            } else {
-              raw_u
-            }
-          }, error = function(e) NA_character_)
-
-          # Determine start date for this variable
-          last_row <- last_dates[last_dates$variable == var, ]
-          start_str <- if (nrow(last_row) > 0 && !is.na(last_row$last_date[1])) {
-            as.character(as.Date(last_row$last_date[1]) + 1)
-          } else {
-            sowing_date
-          }
-
-          if (as.Date(start_str) > as.Date(harvest_date)) {
-            add_log(sprintf("  %s: already up to date.", var))
-            next
-          }
-
-          add_log(sprintf("  Fetching %s → %s", start_str, harvest_date))
-
-          # Fetch time series for each farm
-          ts_df <- tryCatch({
-            Rwapor::wapor_ts(
-              region          = farms_sf,
-              variable        = var,
-              period          = c(start_str, harvest_date),
-              identifier      = "farm_id",
-              unit_conversion = if (grepl("-D$", var)) "dekad" else "none",
-              batching        = TRUE,
-              batch_size      = 6L,
-              l3_region       = if (grepl("^L3-", var)) l3_region else NULL
-            )
-          }, error = function(e) {
-            add_log(sprintf("  ERROR fetching %s: %s", var, e$message))
-            NULL
-          })
-
-          if (is.null(ts_df) || nrow(ts_df) == 0) next
-
-          # Add metadata columns
-          ts_df$variable <- var
-          if (!is.null(crop_col) && crop_col %in% names(farms_sf)) {
-            farm_meta <- sf::st_drop_geometry(farms_sf[, c("farm_id", crop_col)])
-            ts_df <- merge(ts_df, farm_meta, by = "farm_id", all.x = TRUE)
-            names(ts_df)[names(ts_df) == crop_col] <- "crop_type"
-          } else {
-            ts_df$crop_type <- NA_character_
-          }
-          ts_df$sowing_date <- sowing_date
-
-          # Normalise column names
-          if (!"mean" %in% names(ts_df) && "mean_val" %in% names(ts_df))
-            names(ts_df)[names(ts_df) == "mean_val"] <- "mean"
-          if (!"min" %in% names(ts_df) && "min_val" %in% names(ts_df))
-            names(ts_df)[names(ts_df) == "min_val"] <- "min"
-          if (!"max" %in% names(ts_df) && "max_val" %in% names(ts_df))
-            names(ts_df)[names(ts_df) == "max_val"] <- "max"
-
-          # Select columns for DB insert
-          insert_df <- data.frame(
-            farm_id     = as.character(ts_df$farm_id),
-            crop_type   = as.character(if ("crop_type" %in% names(ts_df)) ts_df$crop_type else NA_character_),
-            sowing_date = as.Date(sowing_date),
-            variable    = as.character(ts_df$variable),
-            start_date  = as.Date(ts_df$start_date),
-            end_date    = as.Date(ts_df$end_date),
-            mean_val    = as.numeric(ts_df[["mean"]]),
-            min_val     = as.numeric(ts_df[["min"]]),
-            max_val     = as.numeric(ts_df[["max"]]),
-            units       = var_meta_units,
-            stringsAsFactors = FALSE
-          )
-
-            # Delete only the specific farm+variable+date-range records being replaced
-          farm_ids_to_update <- unique(as.character(ts_df$farm_id))
-          for (fid in farm_ids_to_update) {
-            DBI::dbExecute(con,
-              "DELETE FROM farm_timeseries WHERE farm_id = ? AND variable = ? AND start_date >= ? AND start_date <= ?",
-              params = list(fid, var, as.Date(start_str), as.Date(harvest_date))
-            )
-          }
-          # Insert fresh data for this period
-          duckdb::dbWriteTable(con, "farm_timeseries", insert_df,
-                               append = TRUE, overwrite = FALSE)
-
-          n_new <- nrow(insert_df)
-          total_new <- total_new + n_new
-          add_log(sprintf("  Saved %d rows for %s.", n_new, var))
-
-          # Optionally clip and save raster blobs
-          if (save_rasters) {
-            .save_raster_blobs(
-              con,
-              farms_sf,
-              var,
-              c(start_str, harvest_date),
-              add_log,
-              l3_region = if (grepl("^L3-", var)) l3_region else NULL
-            )
-          }
-        } # end for var
-
-        # Log run summary using parameterized query
-        DBI::dbExecute(con,
-          "INSERT INTO monitoring_log (run_id, started_at, finished_at, n_records, status, message) VALUES (?, ?, ?, ?, ?, ?)",
-          params = list(
-            run_id,
-            format(run_started_at, "%Y-%m-%d %H:%M:%S"),
-            format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-            as.integer(total_new),
-            "success",
-            "OK"
-          )
+        # 2. Run core monitoring logic from package
+        res <- Rwapor::wapor_run_monitoring(
+          con          = con,
+          farms_sf     = farms_sf,
+          variables    = sel_vars,
+          period       = period,
+          save_rasters = save_rasters,
+          l3_region    = l3_region,
+          log_fn       = add_log
         )
 
-        add_log(sprintf("Done. %d new records inserted.", total_new))
+        add_log(sprintf("Done. %d new records inserted.", res$total_ts))
         shiny::showNotification(
-          sprintf("\u2714 Monitoring updated: %d new records", total_new),
+          sprintf("\u2714 Monitoring updated: %d new records", res$total_ts),
           type = "message", duration = 5
         )
 
-        # Read back full dataset and store in rv
+        # Read back full dataset
         rv$ts_data <- DBI::dbGetQuery(con, "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date")
-
         DBI::dbDisconnect(con, shutdown = TRUE)
 
       }, error = function(e) {
@@ -1274,6 +1043,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         rv$monitoring <- FALSE
       })
     })
+
 
     # ── 3. Load from DB button ────────────────────────────────────────────────
     shiny::observeEvent(input$btn_load_db, {
