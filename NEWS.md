@@ -1,9 +1,10 @@
-# Rwapor 1.0.0
+# Rwapor 0.9.7
 
-## Production Release
+## Major Synchronization and Optimization
 
-This is the first production release of Rwapor. The package API is now stable
-and follows tidyverse naming conventions throughout.
+This release synchronizes the local development features with the latest remote
+optimizations. It includes optimized zonal statistics, enhanced monitoring
+module, and improved unit conversion logic.
 
 ### Breaking Changes
 

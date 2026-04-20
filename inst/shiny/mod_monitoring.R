@@ -93,12 +93,26 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
             "Farm Layer", icon = shiny::icon("draw-polygon"),
 
             shiny::tags$span("Upload vector file", class = "ctrl-group-label"),
-            shiny::fileInput(
-              ns("farm_file"), NULL,
-              accept      = c(".geojson", ".gpkg", ".shp", ".kml", ".zip"),
-              buttonLabel = shiny::icon("folder-open"),
-              placeholder = "GeoJSON / GPKG / SHP"
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::textInput(
+                  ns("farm_path"), NULL,
+                  placeholder = "GeoJSON / GPKG / SHP"
+                )
+              ),
+              shiny::uiOutput(ns("fav_farm_btn_ui")),
+              shinyFiles::shinyFilesButton(
+                ns("browse_farm"), label = "",
+                title  = "Select farm vector file",
+                icon   = shiny::icon("folder-open"),
+                class  = "btn-outline-secondary btn-sm",
+                style  = "padding:0.37rem 0.6rem;",
+                multiple = FALSE
+              )
             ),
+            shiny::uiOutput(ns("fav_farm_list_ui")),
             shiny::uiOutput(ns("farm_info_ui")),
 
             shiny::tags$hr(class = "ctrl-divider"),
@@ -195,6 +209,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
                   placeholder = "Path to .duckdb file"
                 )
               ),
+              shiny::uiOutput(ns("fav_db_btn_ui")),
               shinyFiles::shinyFilesButton(
                 ns("browse_db"), label = "",
                 title  = "Select or create DuckDB file",
@@ -204,6 +219,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
                 multiple = FALSE
               )
             ),
+            shiny::uiOutput(ns("fav_db_list_ui")),
             shiny::uiOutput(ns("db_status_ui")),
 
             shiny::checkboxInput(
@@ -701,6 +717,9 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     shinyFiles::shinyFileChoose(input, "browse_db", roots = roots, session = session,
                                 filetypes = c("duckdb", "db"))
 
+    shinyFiles::shinyFileChoose(input, "browse_farm", roots = roots, session = session,
+                                filetypes = c("geojson", "gpkg", "shp", "kml", "zip"))
+
     shiny::observeEvent(input$browse_db, {
       p <- shinyFiles::parseFilePaths(roots, input$browse_db)
       if (nrow(p) > 0) {
@@ -709,12 +728,111 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       }
     })
 
+    shiny::observeEvent(input$browse_farm, {
+      p <- shinyFiles::parseFilePaths(roots, input$browse_farm)
+      if (nrow(p) > 0) {
+        path <- normalizePath(p$datapath[1], winslash = "/", mustWork = FALSE)
+        shiny::updateTextInput(session, "farm_path", value = path)
+      }
+    })
+
+    # ── Favorites Logic ───────────────────────────────────────────────────────
+    favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
+
+    # Farm Path Favorites
+    output$fav_farm_btn_ui <- shiny::renderUI({
+      path <- input$farm_path %||% ""
+      if (!nzchar(path)) return(NULL)
+      is_fav <- Rwapor::wapor_is_favorite(path)
+      shiny::actionLink(
+        ns("favorite_farm_btn"),
+        NULL,
+        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
+        style = "margin-bottom: 11px; font-size: 1.1rem;"
+      )
+    })
+
+    shiny::observeEvent(input$favorite_farm_btn, {
+      path <- input$farm_path %||% ""
+      if (!nzchar(path)) return()
+      if (Rwapor::wapor_is_favorite(path)) {
+        Rwapor::wapor_remove_favorite(path)
+      } else {
+        Rwapor::wapor_add_favorite(path, type = "file")
+      }
+      favs(Rwapor::wapor_get_favorites())
+    })
+
+    output$fav_farm_list_ui <- shiny::renderUI({
+      f <- favs()
+      # Filter for files that look like farm vectors
+      f_files <- f[f$type == "file" & grepl("\\.(geojson|gpkg|shp|kml|zip)$", f$path, ignore.case = TRUE), "path"]
+      if (length(f_files) == 0) return(NULL)
+      shiny::selectizeInput(
+        ns("quick_fav_farm"),
+        NULL,
+        choices = c("Quick Access Favorites..." = "", f_files),
+        options = list(placeholder = "Select a favorite farm file")
+      )
+    })
+
+    shiny::observeEvent(input$quick_fav_farm, {
+      if (nzchar(input$quick_fav_farm)) {
+        shiny::updateTextInput(session, "farm_path", value = input$quick_fav_farm)
+      }
+    })
+
+    # DB Path Favorites
+    output$fav_db_btn_ui <- shiny::renderUI({
+      path <- input$db_path %||% ""
+      if (!nzchar(path)) return(NULL)
+      is_fav <- Rwapor::wapor_is_favorite(path)
+      shiny::actionLink(
+        ns("favorite_db_btn"),
+        NULL,
+        icon = if (is_fav) shiny::icon("star", style = "color: #ffc107;") else shiny::icon("star"),
+        style = "margin-bottom: 11px; font-size: 1.1rem;"
+      )
+    })
+
+    shiny::observeEvent(input$favorite_db_btn, {
+      path <- input$db_path %||% ""
+      if (!nzchar(path)) return()
+      if (Rwapor::wapor_is_favorite(path)) {
+        Rwapor::wapor_remove_favorite(path)
+      } else {
+        Rwapor::wapor_add_favorite(path, type = "file")
+      }
+      favs(Rwapor::wapor_get_favorites())
+    })
+
+    output$fav_db_list_ui <- shiny::renderUI({
+      f <- favs()
+      # Filter for files that look like DuckDB
+      f_files <- f[f$type == "file" & grepl("\\.(duckdb|db)$", f$path, ignore.case = TRUE), "path"]
+      if (length(f_files) == 0) return(NULL)
+      shiny::selectizeInput(
+        ns("quick_fav_db"),
+        NULL,
+        choices = c("Quick Access Favorites..." = "", f_files),
+        options = list(placeholder = "Select a favorite DuckDB file")
+      )
+    })
+
+    shiny::observeEvent(input$quick_fav_db, {
+      if (nzchar(input$quick_fav_db)) {
+        shiny::updateTextInput(session, "db_path", value = input$quick_fav_db)
+      }
+    })
+
     # ── 1. Load farm vector file ───────────────────────────────────────────────
-    shiny::observeEvent(input$farm_file, {
-      shiny::req(input$farm_file)
+    shiny::observeEvent(input$farm_path, {
+      shiny::req(input$farm_path)
       tryCatch({
-        path <- input$farm_file$datapath
-        ext  <- tolower(tools::file_ext(input$farm_file$name))
+        path <- input$farm_path
+        if (!file.exists(path)) return()
+        
+        ext  <- tolower(tools::file_ext(path))
         if (ext == "zip") {
           tmp <- tempfile(); dir.create(tmp)
           utils::unzip(path, exdir = tmp)
@@ -1663,7 +1781,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         leaflet::addLayersControl(
           baseGroups    = c("Satellite", "OSM"),
           options       = leaflet::layersControlOptions(collapsed = FALSE)
-        )
+        ) |>
+        leaflet::setView(lng = 18, lat = 2, zoom = 3)
 
       if (is.null(sf_obj) || nrow(sf_obj) == 0) return(m)
 
@@ -2068,7 +2187,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         leaflet::addLayersControl(
           baseGroups = c("Satellite", "OSM"),
           options    = leaflet::layersControlOptions(collapsed = FALSE)
-        )
+        ) |>
+        leaflet::setView(lng = 18, lat = 2, zoom = 3)
 
       farms_sf <- rv$farms_sf
       if (!is.null(farms_sf) && nrow(farms_sf) > 0) {
