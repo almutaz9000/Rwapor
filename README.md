@@ -156,16 +156,15 @@ df <- wapor_ts(
   variable        = "L2-AETI-D",           # Dekadal AETI (Level 2, ~100m)
   period          = c("2023-04-01", "2023-11-30"),
   identifier      = "field_id",            # Column in your data with unique IDs
-  unit_conversion = "dekad",               # Keep as mm/dekad
-  fun             = c("mean", "sum")       # Calculate mean and sum per polygon
+  unit_conversion = "dekad"                # Keep as mm/dekad
 )
 
 # View results
 head(df)
-#   field_id       date    mean  sum
-#   <chr>          <date>  <dbl> <dbl>
-# 1 Field_001  2023-04-01  2.5   250
-# 2 Field_001  2023-04-11  3.1   310
+#   field_id   start_date  end_date    mean  min   max
+#   <chr>      <date>      <date>      <dbl> <dbl> <dbl>
+# 1 Field_001  2023-04-01  2023-04-10  2.5   1.1   4.2
+# 2 Field_001  2023-04-11  2023-04-20  3.1   1.5   5.0
 # ...
 
 # Save to CSV
@@ -194,144 +193,15 @@ r <- rast(map_path)
 plot(r[[1]], main = "AETI - 2023-06-01")
 ```
 
-### Example 3: Seasonal Crop Water Productivity Analysis
+---
 
-Run a complete seasonal analysis for a specific crop:
+## 🚀 Advanced Workflows
 
-```r
-library(Rwapor)
-library(terra)
+For complex analysis, multi-year monitoring, and seasonal productivity modeling, please refer to the dedicated guides:
 
-# ===== STEP 1: Prepare Input Data =====
-
-# Load your crop mask (1 = crop, 0 or NA = non-crop)
-crop_mask <- rast("path/to/wheat_mask_2023.tif")
-
-# Load season start/end rasters (Julian day of year, e.g., 91 = April 1)
-season_start <- rast("path/to/planting_date.tif")    # DOY when planting occurred
-season_end   <- rast("path/to/harvest_date.tif")     # DOY when harvest occurred
-
-# ===== STEP 2: Download Required WaPOR Data =====
-
-# Get bounding box from your crop mask
-bbox <- as.vector(ext(crop_mask))
-
-# Download AETI (Actual ET), RET (Reference ET), NPP (Productivity), Precipitation
-for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D", "L2-PCP-D")) {
-  wapor_map(region = bbox, variable = var,
-            period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
-}
-
-# ===== STEP 3: Load Data as Raster Stacks =====
-# wapor_map() saves each variable's files into a subfolder: wapor_data/<variable>/
-aeti_stack <- rast(list.files("wapor_data/L2-AETI-D", pattern = "\\.tif$", full.names = TRUE))
-ret_stack  <- rast(list.files("wapor_data/L2-RET-D",  pattern = "\\.tif$", full.names = TRUE))
-npp_stack  <- rast(list.files("wapor_data/L2-NPP-D",  pattern = "\\.tif$", full.names = TRUE))
-
-# ===== STEP 4: Harmonize Inputs to Same Resolution/Extent =====
-
-# Use first AETI layer as the template grid
-crop_mask_h    <- wapor_harmonize_raster(crop_mask,    aeti_stack[[1]], method = "near")
-season_start_h <- wapor_harmonize_raster(season_start, aeti_stack[[1]], method = "near")
-season_end_h   <- wapor_harmonize_raster(season_end,   aeti_stack[[1]], method = "near")
-
-# ===== STEP 5: Build Season Weights =====
-
-# Create per-pixel dekadal weights that account for pixel-specific growing seasons
-weights <- wapor_build_season_weights(
-  start_date     = "2023-01-01",
-  end_date       = "2023-12-31",
-  start_raster   = season_start_h,
-  end_raster     = season_end_h,
-  reference_year = 2023
-)
-# weights$weights     — SpatRaster with one layer per dekad (fraction 0-1)
-# weights$dekad_table — data.frame of dekad periods (used for Kc aggregation)
-
-# ===== STEP 6: Calculate Seasonal AETI and RET =====
-
-seasonal_aeti_out <- wapor_calc_seasonal_aeti(aeti_stack, weights$weights, crop_mask_h)
-seasonal_aeti <- seasonal_aeti_out$raster       # SpatRaster of seasonal ET
-
-seasonal_ret_out <- wapor_calc_seasonal_ret(ret_stack, weights$weights, crop_mask_h)
-seasonal_ret <- seasonal_ret_out$raster         # SpatRaster of seasonal RET
-
-# ===== STEP 7: Calculate Crop Water Requirement (ETc) =====
-
-# Get FAO-56 default parameters for your crop
-crop_params <- wapor_crop_defaults("Winter Wheat")
-
-# Derive development stage length from typical season duration
-# Use terra::global(wapor_season_days(season_start_h, season_end_h), "mean")[[1]]
-# to compute mean_season_days from the actual rasters
-mean_season_days <- 160L
-l_dev <- mean_season_days - (crop_params$l_ini_days + crop_params$l_mid_days +
-                               crop_params$l_late_days)
-
-# Build daily Kc curve (FAO-56 four-stage model)
-kc_daily <- wapor_build_kc(
-  kc_ini = crop_params$kc_ini,
-  kc_mid = crop_params$kc_mid,
-  kc_end = crop_params$kc_end,
-  l_ini  = crop_params$l_ini_days,
-  l_dev  = l_dev,
-  l_mid  = crop_params$l_mid_days,
-  l_late = crop_params$l_late_days
-)
-
-# Aggregate daily Kc to mean value per dekad
-season_start_date <- as.Date("2023-01-01")
-kc_dekad <- wapor_aggregate_kc(kc_daily, weights$dekad_table,
-                                season_start = season_start_date)
-
-# Calculate seasonal ETc
-seasonal_etc <- wapor_calc_seasonal_etc(
-  ret_dekad      = ret_stack,
-  season_weights = weights$weights,
-  kc_dekad       = kc_dekad
-)
-
-# ===== STEP 8: Calculate Water Productivity =====
-
-# Aggregate NPP to seasonal total (gC/m2)
-seasonal_npp <- wapor_masked_sum(npp_stack, weights$weights)
-
-# Estimate crop yield from NPP (t/ha)
-seasonal_yield <- wapor_calc_yield_npp(
-  npp_gc_m2 = seasonal_npp,
-  mc        = crop_params$MC,
-  fc        = crop_params$fc,
-  aot       = crop_params$AOT,
-  hi        = crop_params$HI
-)
-
-# Biomass Water Productivity (kg/m³)
-bwp <- wapor_calc_bwp(seasonal_npp, seasonal_aeti)
-
-# Crop Water Productivity (kg/m³)
-cwp <- wapor_calc_cwp(seasonal_yield, seasonal_aeti, yield_unit = "t/ha")
-
-# ===== STEP 9: Calculate Adequacy =====
-
-adequacy <- wapor_calc_adequacy_etc(seasonal_aeti, seasonal_etc)
-
-# ===== STEP 10: Export Results =====
-
-dir.create("output", showWarnings = FALSE)
-writeRaster(seasonal_aeti, "output/seasonal_aeti_2023.tif", overwrite = TRUE)
-writeRaster(seasonal_etc,  "output/seasonal_etc_2023.tif",  overwrite = TRUE)
-writeRaster(bwp,           "output/bwp_2023.tif",           overwrite = TRUE)
-writeRaster(cwp,           "output/cwp_2023.tif",           overwrite = TRUE)
-writeRaster(adequacy,      "output/adequacy_2023.tif",      overwrite = TRUE)
-
-# Extract statistics for each crop field
-fields <- vect("path/to/crop_fields.geojson")
-stats <- extract(c(seasonal_aeti, seasonal_etc, bwp, cwp, adequacy),
-                 fields, fun = "mean", na.rm = TRUE)
-write.csv(stats, "output/field_statistics.csv", row.names = FALSE)
-
-print("✅ Seasonal analysis complete!")
-```
+*   📖 **[Advanced Analysis & Monitoring](vignettes/advanced-analysis.Rmd)**: DuckDB integration, resampling mixed resolutions, and percentile filtering.
+*   📖 **[Seasonal Analysis Guide](vignettes/advanced-analysis.Rmd#1-seasonal-crop-water-productivity-analysis)**: Full step-by-step for CWP, BWP, and Yield.
+*   📖 **[Data Catalog](vignettes/data-catalog.Rmd)**: Detailed list of all 100+ available variables.
 
 ---
 

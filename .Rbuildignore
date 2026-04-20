@@ -23,3 +23,6 @@
 ^fao_growth_stages\.csv$
 ^memories$
 ^archived_reports$
+^.*\.duckdb$
+^.*\.duckdb\.wal$
+

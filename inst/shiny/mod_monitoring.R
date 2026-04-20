@@ -317,6 +317,33 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
             shiny::helpText(
               "Aggregates dekadal rasters based on per-farm start/end columns.",
               style = "font-size:0.77rem; color:#6c757d;"
+            ),
+            
+            shiny::tags$hr(class = "ctrl-divider"),
+            
+            # --- New Seasonal Adaptive Masking Section ---
+            shiny::tags$div(
+              style = "background: rgba(46, 204, 113, 0.05); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(46, 204, 113, 0.2); margin-top: 5px;",
+              shiny::tags$strong("Seasonal Adaptive Masking", style = "font-size: 0.82rem; color: #27ae60; display: block; margin-bottom: 0.4rem;"),
+              shiny::selectInput(
+                ns("mask_ref_var"), "Reference Variable",
+                choices = c("Actual ET (L3)" = "L3-AETI-D", "Net Primary Prod (L3)" = "L3-NPP-D"),
+                selected = "L3-AETI-D"
+              ),
+              shiny::sliderInput(
+                ns("mask_threshold"), "Discard bare soil (bottom %)",
+                min = 0, max = 80, value = 40, step = 5, post = "%"
+              ),
+              shiny::actionButton(
+                ns("btn_recalculate_seasonal"), "Apply Seasonal Mask",
+                icon  = shiny::icon("wand-magic-sparkles"),
+                class = "btn-success w-100 btn-sm mt-2",
+                style = "color: white; font-weight: 500;"
+              ),
+              shiny::helpText(
+                "Creates a mask from total seasonal sum to isolate cultivated areas.",
+                style = "font-size:0.72rem; margin-top: 5px; color:#2c3e50;"
+              )
             )
           ),
 
@@ -2221,11 +2248,62 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       }
     )
 
+    # ── 15. Seasonal Adaptive Recalculation ────────────────────────────────────
+    
+    shiny::observeEvent(input$btn_recalculate_seasonal, {
+      shiny::req(rv$db_con, rv$farms_sf)
+      
+      # Determine farm to process
+      sel_farm <- input$ts_farm_select
+      if (!nzchar(sel_farm %||% "")) {
+        shiny::showNotification("Please select a farm in the Time Series tab first.", type = "warning")
+        return()
+      }
+      
+      poly <- rv$farms_sf[rv$farms_sf$farm_id == sel_farm, ]
+      if (nrow(poly) == 0) return()
+      
+      shiny::withProgress(message = "Applying Seasonal Adaptive Mask", value = 0, {
+        
+        # Determine dates (use the main UI dates as the season window)
+        start_d <- input$sowing_date
+        end_d   <- input$harvest_date
+        
+        add_log(sprintf("Starting Seasonal Adaptive Recalculation for %s (%s to %s)", 
+                        sel_farm, start_d, end_d))
+        
+        tryCatch({
+          res <- Rwapor::wapor_apply_seasonal_mask_recalc(
+            con = rv$db_con,
+            farm_id = sel_farm,
+            polygon = poly,
+            start_date = start_d,
+            end_date = end_d,
+            mask_variable = input$mask_ref_var,
+            percentile_threshold = input$mask_threshold
+          )
+          
+          if (!is.null(res)) {
+            add_log(sprintf("Successfully updated %d records for %s with seasonal mask.", 
+                            nrow(res), sel_farm))
+            shiny::showNotification(sprintf("Recalculation complete for %s", sel_farm), type = "message")
+            
+            # Refresh data
+            refresh_ts_data()
+          } else {
+            shiny::showNotification("Recalculation failed. Check if rasters are available for the reference variable.", type = "error")
+          }
+          
+        }, error = function(e) {
+          add_log("Error in seasonal recalculation: ", e$message)
+          shiny::showNotification(paste("Error:", e$message), type = "error")
+        })
+      })
+    })
+
     # ── Cleanup on session end ─────────────────────────────────────────────────
     session$onSessionEnded(function() close_db())
 
   }) # /moduleServer
-} # /mod_monitoring_server
-
 
 # .save_raster_blobs() is defined in monitoring_helpers.R (sourced at the top of this file).

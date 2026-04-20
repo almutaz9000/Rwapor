@@ -193,6 +193,13 @@ wapor_generate_shiny_script <- function(config, crop_params) {
   data_source <- config$data_source %||% "api"
   l3_region   <- if (any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var)))) config$l3_region else NULL
 
+  # Fetch scale factors dynamically
+  aeti_scale   <- Rwapor::wapor_variable_metadata(aeti_var)$scale   %||% 1.0
+  ret_scale    <- Rwapor::wapor_variable_metadata(ret_var)$scale    %||% 1.0
+  precip_scale <- Rwapor::wapor_variable_metadata(precip_var)$scale %||% 1.0
+  npp_scale    <- Rwapor::wapor_variable_metadata(npp_var)$scale    %||% 1.0
+
+
   indicators <- unique(c(config$agg_vars, config$derived_vars)) %||% character(0)
 
   # 2. Format Crop Parameters
@@ -284,22 +291,24 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     if (any(indicators %in% c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp"))) {
       paste0("aeti_stack <- if (data_source == \"api\") {\n",
              "  urls <- wapor_generate_urls(aeti_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
-             "  terra::rast(paste0(\"/vsicurl/\", urls)) * 0.1 # scale by 0.1\n",
+             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", aeti_scale, " # scale by metadata\n",
              "} else {\n",
              "  paths <- wapor_local_rasters(output_folder, aeti_var, period[1], period[2])\n",
-             "  terra::rast(paths) * 0.1\n",
+             "  terra::rast(paths) * ", aeti_scale, "\n",
              "}")
     } else NULL,
+
     "",
     if (any(indicators %in% c("agg_ret", "etc", "adequacy_etc"))) {
       paste0("ret_stack <- if (data_source == \"api\") {\n",
              "  urls <- wapor_generate_urls(ret_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
-             "  terra::rast(paste0(\"/vsicurl/\", urls)) * 0.1\n",
+             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", ret_scale, "\n",
              "} else {\n",
              "  paths <- wapor_local_rasters(output_folder, ret_var, period[1], period[2])\n",
-             "  terra::rast(paths) * 0.1\n",
+             "  terra::rast(paths) * ", ret_scale, "\n",
              "}")
     } else NULL,
+
     "",
     "# [7] Calculate Indicators",
     "results <- list()",
