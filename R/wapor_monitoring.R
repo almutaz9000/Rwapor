@@ -1,7 +1,7 @@
 #' Initialize a DuckDB database for farm monitoring
 #'
 #' @param con DuckDB connection object.
-#' @return The connection object (invisibly).
+#' @return The connection object invisibly.
 #' @export
 wapor_init_monitoring_db <- function(con) {
   if (!requireNamespace("duckdb", quietly = TRUE)) {
@@ -380,21 +380,54 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
          if (length(m) > 0) m[1] else format(Sys.Date(), "%Y-%m-%d")
       })
 
-      # Clip per farm
-      for (j in seq_len(nrow(farms_sf))) {
+      # --- Optimized Parallel Clipping ---
+      # We clip each farm in parallel and generate the compressed TIF blob in memory.
+      # This is much faster for a large number of farms (e.g. 75 pivots).
+      
+      # To pass r_full to workers safely, we use terra::wrap
+      r_full_packed <- terra::wrap(r_full)
+      
+      blobs_to_save <- future.apply::future_lapply(seq_len(nrow(farms_sf)), function(j) {
         fid   <- farm_ids[j]
-        if (date_key %in% existing_by_farm[[fid]]) next
+        if (date_key %in% existing_by_farm[[fid]]) return(NULL)
 
+        # Unpack raster in worker
+        r_worker <- terra::unwrap(r_full_packed)
+        
         farm_bb  <- sf::st_bbox(farms_sf[j, ])
         farm_ext <- terra::ext(as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
                                as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"]))
 
         tryCatch({
-          r_farm <- terra::crop(r_full, farm_ext)
+          r_farm <- terra::crop(r_worker, farm_ext)
           
-          # Internal save to DB (we should expose this or keep it in mod_monitoring helper)
-          # For the package function, we'll implement a standalone save_blob helper.
-          .package_save_raster_to_db(con, fid, variable, date_key, r_farm, res_xy[1], res_xy[2], var_units)
+          # Create compressed blob in memory
+          temp_file <- tempfile(fileext = ".tif")
+          terra::writeRaster(r_farm, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
+          blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+          unlink(temp_file)
+          
+          ext <- terra::ext(r_farm)
+          dims <- dim(r_farm)
+          
+          return(list(
+            fid = fid, blob = blob, 
+            xmin = ext$xmin, xmax = ext$xmax, ymin = ext$ymin, ymax = ext$ymax,
+            nrow = dims[1], ncol = dims[2]
+          ))
+        }, error = function(e) NULL)
+      }, future.seed = TRUE)
+
+      # Sequential Database Write (DuckDB only allows one writer)
+      for (res in blobs_to_save) {
+        if (is.null(res)) next
+        
+        tryCatch({
+          .package_save_raster_blob_to_db(
+            con, res$fid, variable, date_key, res$blob,
+            res$xmin, res$xmax, res$ymin, res$ymax,
+            res$nrow, res$ncol, res_xy[1], res_xy[2], var_units
+          )
         }, error = function(e) NULL)
       }
       n_ok <- n_ok + 1L
@@ -407,16 +440,10 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
   invisible(NULL)
 }
 
-# Internal helper for DuckDB raster blobs (mirrors monitoring_helpers.R)
-.package_save_raster_to_db <- function(con, farm_id, variable, date_key, raster,
-                                       res_x, res_y, units) {
-  temp_file <- tempfile(fileext = ".tif")
-  on.exit(unlink(temp_file))
-  terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
-  raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
-  ext <- terra::ext(raster)
-  dims <- dim(raster)
-  
+# Internal helper for DuckDB raster blobs (Direct blob insertion)
+.package_save_raster_blob_to_db <- function(con, farm_id, variable, date_key, raster_blob,
+                                            xmin, xmax, ymin, ymax, nrow, ncol,
+                                            res_x, res_y, units) {
   insert_sql <- "
     INSERT INTO farm_rasters (
       farm_id, variable, date_key, raster_blob,
@@ -440,7 +467,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
   "
   DBI::dbExecute(con, insert_sql, params = list(
     farm_id, variable, as.character(date_key), list(raster_blob),
-    ext$xmin, ext$xmax, ext$ymin, ext$ymax, dims[1], dims[2],
+    xmin, xmax, ymin, ymax, nrow, ncol,
     res_x, res_y, units, 4326L
   ))
 }
