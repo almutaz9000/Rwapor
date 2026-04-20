@@ -26,6 +26,8 @@
 #' @export
 #'
 #' @importFrom sf st_read st_bbox st_crs st_transform
+#' @importFrom stats coef lm
+#' @importFrom utils capture.output getFromNamespace
 #'
 #' @examples
 #' # Parse a bounding box (xmin, ymin, xmax, ymax)
