@@ -35,7 +35,7 @@ wapor_init_monitoring_db <- function(con) {
   # Ensure units column exists for legacy databases
   tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_timeseries ADD COLUMN IF NOT EXISTS units TEXT"), error = function(e) NULL)
 
-  # 2. Farm Rasters (Blobs)
+  # 2. Farm Rasters (Blobs) - Legacy / Per-Farm
   DBI::dbExecute(con, "
     CREATE TABLE IF NOT EXISTS farm_rasters (
       farm_id      TEXT,
@@ -57,6 +57,27 @@ wapor_init_monitoring_db <- function(con) {
     )
   ")
   
+  # 2b. Monitoring Rasters (Optimized - One per time step for the whole project)
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS monitoring_rasters (
+      variable     TEXT,
+      date_key     DATE,
+      raster_blob  BLOB,
+      xmin         DOUBLE,
+      xmax         DOUBLE,
+      ymin         DOUBLE,
+      ymax         DOUBLE,
+      nrow         INTEGER,
+      ncol         INTEGER,
+      resolution_x DOUBLE,
+      resolution_y DOUBLE,
+      units        TEXT,
+      crs_epsg     INTEGER DEFAULT 4326,
+      updated_at   TIMESTAMP DEFAULT current_timestamp,
+      PRIMARY KEY (variable, date_key)
+    )
+  ")
+
   # Ensure resolution and unit columns exist for legacy databases
   tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_x DOUBLE"), error = function(e) NULL)
   tryCatch(DBI::dbExecute(con, "ALTER TABLE farm_rasters ADD COLUMN IF NOT EXISTS resolution_y DOUBLE"), error = function(e) NULL)
@@ -73,6 +94,14 @@ wapor_init_monitoring_db <- function(con) {
       geometry_wkt TEXT,
       crs_epsg     INTEGER DEFAULT 4326,
       created_at   TIMESTAMP DEFAULT current_timestamp
+    )
+  ")
+
+  # 3b. Monitoring Metadata (Global project-level info)
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS monitoring_metadata (
+      key   TEXT PRIMARY KEY,
+      value TEXT
     )
   ")
 
@@ -144,6 +173,16 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
   # Ensure database is initialized
   wapor_init_monitoring_db(con)
 
+  # Save Global Metadata (BBOX and Geometry)
+  tryCatch({
+    bbox <- sf::st_bbox(farms_sf)
+    bbox_json <- jsonlite::toJSON(as.list(bbox), auto_unbox = TRUE)
+    geom_wkt <- sf::st_as_text(sf::st_geometry(sf::st_union(farms_sf))[[1]])
+    
+    DBI::dbExecute(con, "INSERT OR REPLACE INTO monitoring_metadata (key, value) VALUES ('global_bbox', ?)", list(bbox_json))
+    DBI::dbExecute(con, "INSERT OR REPLACE INTO monitoring_metadata (key, value) VALUES ('global_geometry_wkt', ?)", list(geom_wkt))
+  }, error = function(e) log_fn(sprintf("  Warning: could not save global metadata: %s", e$message)))
+
   # Loop through variables
   for (var in variables) {
     log_fn(sprintf("Monitoring variable: %s", var))
@@ -155,24 +194,24 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
     }
 
     # 1. Fetch Time Series (Incremental)
-    # Check last date in DB for this variable
-    last_date_query <- DBI::dbGetQuery(con, 
-      "SELECT MAX(end_date) as last_date FROM farm_timeseries WHERE variable = ?", 
-      params = list(var))
-    
-    effective_start <- if (!is.na(last_date_query$last_date)) {
-      as.character(as.Date(last_date_query$last_date) + 1)
-    } else {
-      period[1]
-    }
-
-    if (as.Date(effective_start) > as.Date(period[2])) {
-      log_fn(sprintf("  Up to date for %s", var))
-    } else {
-      log_fn(sprintf("  Fetching TS from %s to %s...", effective_start, period[2]))
+    tryCatch({
+      # Check last date in DB for this variable
+      last_date_query <- DBI::dbGetQuery(con, 
+        "SELECT MAX(end_date) as last_date FROM farm_timeseries WHERE variable = ?", 
+        params = list(var))
       
-      ts_df <- tryCatch({
-        Rwapor::wapor_ts(
+      effective_start <- if (!is.na(last_date_query$last_date)) {
+        as.character(as.Date(last_date_query$last_date) + 1)
+      } else {
+        period[1]
+      }
+
+      if (as.Date(effective_start) > as.Date(period[2])) {
+        log_fn(sprintf("  Up to date for %s", var))
+      } else {
+        log_fn(sprintf("  Fetching TS from %s to %s...", effective_start, period[2]))
+        
+        ts_df <- Rwapor::wapor_ts(
           region          = farms_sf,
           variable        = var,
           period          = c(effective_start, period[2]),
@@ -181,40 +220,49 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
           l3_region       = if (grepl("^L3-", var)) l3_region else NULL,
           batching        = TRUE
         )
-      }, error = function(e) {
-        log_fn(sprintf("  Error in wapor_ts for %s: %s", var, e$message))
-        NULL
-      })
 
-      if (!is.null(ts_df) && nrow(ts_df) > 0) {
-        # Get harmonized units from the resulting data frame attribute
-        var_units <- attr(ts_df, "units") %||% NA_character_
+        if (!is.null(ts_df) && nrow(ts_df) > 0) {
+          # Get harmonized units from the resulting data frame attribute
+          var_units <- attr(ts_df, "units") %||% NA_character_
 
-        # Prepare for insertion
-        insert_df <- data.frame(
-          farm_id     = as.character(ts_df$farm_id),
-          crop_type   = if ("crop_type" %in% names(ts_df)) as.character(ts_df$crop_type) else NA_character_,
-          sowing_date = as.Date(period[1]),
-          variable    = var,
-          start_date  = as.Date(ts_df$start_date),
-          end_date    = as.Date(ts_df$end_date),
-          mean_val    = as.numeric(ts_df$mean),
-          min_val     = if ("min" %in% names(ts_df)) as.numeric(ts_df$min) else NA_real_,
-          max_val     = if ("max" %in% names(ts_df)) as.numeric(ts_df$max) else NA_real_,
-          units       = var_units,
-          stringsAsFactors = FALSE
-        )
-        
-        duckdb::dbWriteTable(con, "farm_timeseries", insert_df, append = TRUE)
-        total_new_ts <- total_new_ts + nrow(insert_df)
-        log_fn(sprintf("  Saved %d new TS records.", nrow(insert_df)))
+          # Prepare for insertion (Match full schema to avoid append errors)
+          insert_df <- data.frame(
+            farm_id       = as.character(ts_df$farm_id),
+            crop_type     = if ("crop_type" %in% names(ts_df)) as.character(ts_df$crop_type) else NA_character_,
+            sowing_date   = as.Date(period[1]),
+            variable      = var,
+            start_date    = as.Date(ts_df$start_date),
+            end_date      = as.Date(ts_df$end_date),
+            mean_val      = as.numeric(ts_df$mean),
+            min_val       = if ("min" %in% names(ts_df)) as.numeric(ts_df$min) else NA_real_,
+            max_val       = if ("max" %in% names(ts_df)) as.numeric(ts_df$max) else NA_real_,
+            std_val       = if ("std" %in% names(ts_df)) as.numeric(ts_df$std) else NA_real_,
+            p05_val       = NA_real_,
+            p95_val       = NA_real_,
+            threshold_pct = 0,
+            pixels_used   = if ("pixels_used" %in% names(ts_df)) as.integer(ts_df$pixels_used) else NA_integer_,
+            pixels_total  = if ("pixels_total" %in% names(ts_df)) as.integer(ts_df$pixels_total) else NA_integer_,
+            units         = var_units,
+            stringsAsFactors = FALSE
+          )
+          
+          duckdb::dbWriteTable(con, "farm_timeseries", insert_df, append = TRUE)
+          total_new_ts <- total_new_ts + nrow(insert_df)
+          log_fn(sprintf("  Saved %d new TS records.", nrow(insert_df)))
+        }
       }
-    }
+    }, error = function(e) {
+      log_fn(sprintf("  Error fetching TS for %s: %s", var, e$message))
+    })
 
     # 2. Save Raster Blobs
     if (save_rasters) {
-      log_fn(sprintf("  Processing raster blobs for %s...", var))
-      wapor_save_raster_blobs(con, farms_sf, var, period, log_fn, l3_region)
+      tryCatch({
+        log_fn(sprintf("  Processing raster blobs for %s...", var))
+        wapor_save_raster_blobs(con, farms_sf, var, period, log_fn, l3_region)
+      }, error = function(e) {
+        log_fn(sprintf("  Error saving raster blobs for %s: %s", var, e$message))
+      })
     }
   }
 
@@ -244,31 +292,24 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
   if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
 
   tryCatch({
-    # Determine target unit conversion (matches download module logic)
+    # Determine target unit conversion
     unit_conv <- resolve_output_unit_conversion(variable, NULL)
 
-    # Look up final harmonized units using package helper
+    # Look up final harmonized units
     var_units <- tryCatch({
       m <- Rwapor::wapor_variable_metadata(variable)
       if (is.null(m)) return(NA_character_)
-      
-      # Determine units after conversion
       res_u <- m$units %||% NA_character_
-      if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
-        res_u <- sub("^K$", "degC", res_u)
-      }
-      
+      if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) res_u <- sub("^K$", "degC", res_u)
       if (unit_conv != "none") {
         parts <- strsplit(res_u, "/")[[1]]
-        if (length(parts) > 1) {
-          res_u <- paste0(paste(parts[-length(parts)], collapse = "/"), "/", unit_conv)
-        }
+        if (length(parts) > 1) res_u <- paste0(paste(parts[-length(parts)], collapse = "/"), "/", unit_conv)
       }
       res_u
     }, error = function(e) NA_character_)
 
-    # Build bounding-box AOI
-    bb      <- sf::st_bbox(sf::st_union(farms_sf))
+    # Build bounding-box AOI for the whole project
+    bb      <- sf::st_bbox(farms_sf)
     aoi_ext <- terra::ext(bb["xmin"], bb["xmax"], bb["ymin"], bb["ymax"])
 
     urls <- tryCatch(
@@ -282,28 +323,37 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
 
     urls_vs <- paste0("/vsicurl/", urls)
-    log_fn(sprintf("  Clipping & saving %d raster layers for %s...", length(urls_vs), variable))
+    log_fn(sprintf("  Clipping & saving %d global raster layers for %s...", length(urls_vs), variable))
 
-    # Query already-saved dates per farm
-    farm_ids <- as.character(farms_sf$farm_id)
-    existing_by_farm <- stats::setNames(
-      lapply(farm_ids, function(fid) {
-        tryCatch(
-          DBI::dbGetQuery(con,
-            "SELECT CAST(date_key AS VARCHAR) AS dk FROM farm_rasters WHERE farm_id = ? AND variable = ?",
-            params = list(fid, variable)
-          )$dk,
-          error = function(e) character(0)
-        )
-      }),
-      farm_ids
+    # Query already-saved dates in the global table
+    existing_dates <- tryCatch(
+      DBI::dbGetQuery(con,
+        "SELECT CAST(date_key AS VARCHAR) AS dk FROM monitoring_rasters WHERE variable = ?",
+        params = list(variable)
+      )$dk,
+      error = function(e) character(0)
     )
 
     n_ok   <- 0L
     n_skip <- 0L
 
+    # Loop through layers
     for (i in seq_along(urls_vs)) {
-      # Load layer
+      # Date Key extraction
+      date_key <- tryCatch({
+        di <- Rwapor::wapor_date_info(urls[i], sub(".*-([A-Z])$", "\\1", variable))
+        as.character(di$start_date)
+      }, error = function(e) {
+         m <- regmatches(basename(urls[i]), regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", basename(urls[i])))
+         if (length(m) > 0) m[1] else format(Sys.Date(), "%Y-%m-%d")
+      })
+
+      if (date_key %in% existing_dates) {
+        n_skip <- n_skip + 1L
+        next
+      }
+
+      # Load layer header (Lazy loading via vsicurl)
       r_full <- tryCatch(
         suppressWarnings(terra::rast(urls_vs[i])),
         error = function(e) {
@@ -313,145 +363,94 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       )
       if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
 
-      # CRS
-      if (is.na(terra::crs(r_full)) || !nzchar(terra::crs(r_full))) {
-        terra::crs(r_full) <- "EPSG:4326"
-      }
-
+      # 1. CRS HANDLING: Some variables are WGS84 (L1/L2), some are UTM (L3)
       is_projected <- !isTRUE(terra::is.lonlat(r_full))
+      
       if (is_projected) {
-        aoi_vect_proj <- tryCatch({
-          aoi_sf_tmp <- sf::st_as_sfc(sf::st_bbox(
-            c(xmin = as.numeric(aoi_ext$xmin), ymin = as.numeric(aoi_ext$ymin),
-              xmax = as.numeric(aoi_ext$xmax), ymax = as.numeric(aoi_ext$ymax)),
-            crs = sf::st_crs(4326L)))
-          terra::project(suppressWarnings(terra::vect(aoi_sf_tmp)),
-                         terra::crs(r_full))
-        }, error = function(e) NULL)
-        if (is.null(aoi_vect_proj)) { n_skip <- n_skip + 1L; next }
-        check_ext <- terra::ext(aoi_vect_proj)
+        # Project AOI extent to Raster CRS (e.g. UTM) for safe cropping
+        r_crs <- terra::crs(r_full)
+        aoi_poly <- sf::st_as_sfc(sf::st_bbox(aoi_ext, crs = 4326))
+        aoi_proj <- sf::st_transform(aoi_poly, r_crs)
+        check_ext <- terra::ext(as.numeric(sf::st_bbox(aoi_proj)))
       } else {
         check_ext <- aoi_ext
       }
 
-      # Extent check
+      # 2. SPATIAL CHECK: Ensure raster overlaps the AOI in its own CRS
       r_ext <- terra::ext(r_full)
       if (check_ext$xmin >= r_ext$xmax || check_ext$xmax <= r_ext$xmin ||
           check_ext$ymin >= r_ext$ymax || check_ext$ymax <= r_ext$ymin) {
-        n_skip <- n_skip + 1L; next
+        next
       }
 
-      # Crop & Process
-      r_full <- terra::crop(r_full, check_ext)
-      r_full <- Rwapor::wapor_convert_raster(r_full, variable, urls[i], unit_conv)
-      r_full <- Rwapor::wapor_convert_temperature(r_full, variable)
-      
-      # Assign metadata (units, long names) to the raster itself
-      r_full <- assign_raster_metadata(r_full, variable, unit_conv, var_units)
+      # 3. CHUNKED CLIPPING: terra::crop on vsicurl only downloads the pixels within the BBOX
+      r_crop <- tryCatch(terra::crop(r_full, check_ext), error = function(e) NULL)
+      if (is.null(r_crop)) next
 
+      # 4. UNIT CONVERSIONS & METADATA
+      r_crop <- Rwapor::wapor_convert_raster(r_crop, variable, urls[i], unit_conv)
+      r_crop <- Rwapor::wapor_convert_temperature(r_crop, variable)
+      r_crop <- assign_raster_metadata(r_crop, variable, unit_conv, var_units)
+
+      # 5. RE-PROJECT TO WGS84: Store all blobs in a standard geographic CRS for the dashboard
       if (is_projected) {
-        r_full <- tryCatch({
-          wgs84_ext <- terra::ext(as.numeric(aoi_ext$xmin), as.numeric(aoi_ext$xmax),
-                                  as.numeric(aoi_ext$ymin), as.numeric(aoi_ext$ymax))
-          # Build template for projection with adaptive resolution
-          # Calculate approximate WGS84 resolution from source to avoid oversampling
-          src_res <- terra::res(r_full)
+        r_crop <- tryCatch({
+          # Create a template in WGS84 matching our original AOI but at the same resolution
+          # Approximate resolution conversion
+          src_res <- terra::res(r_crop)
           center_lat <- (as.numeric(aoi_ext$ymin) + as.numeric(aoi_ext$ymax)) / 2
           res_y_deg <- src_res[2] / 111320
           res_x_deg <- src_res[1] / (111320 * cos(center_lat * pi / 180))
           
-          wgs84_template <- terra::rast(ext = wgs84_ext, res = c(res_x_deg, res_y_deg))
+          wgs84_template <- terra::rast(ext = aoi_ext, res = c(res_x_deg, res_y_deg))
           terra::crs(wgs84_template) <- "EPSG:4326"
-          terra::project(r_full, wgs84_template)
+          
+          terra::project(r_crop, wgs84_template, method = "bilinear")
         }, error = function(e) NULL)
-        if (is.null(r_full)) { n_skip <- n_skip + 1L; next }
+        if (is.null(r_crop)) { n_skip <- n_skip + 1L; next }
       }
 
-      res_xy <- terra::res(r_full)
+      # Final metadata for the cropped/projected result
+      dims      <- dim(r_crop)
+      res_xy    <- terra::res(r_crop)
+      ext_final <- terra::ext(r_crop)
       
-      # Date Key extraction
-      fname    <- basename(urls[i])
-      date_key <- tryCatch({
-        di <- Rwapor::wapor_date_info(urls[i], sub(".*-([A-Z])$", "\\1", variable))
-        di$start_date
-      }, error = function(e) {
-         # Fallback regex
-         m <- regmatches(fname, regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", fname))
-         if (length(m) > 0) m[1] else format(Sys.Date(), "%Y-%m-%d")
-      })
+      # Prepare compressed blob
+      temp_file <- tempfile(fileext = ".tif")
+      terra::writeRaster(r_crop, temp_file, overwrite = TRUE, gdal = c("COMPRESS=DEFLATE"))
+      raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+      if (file.exists(temp_file)) unlink(temp_file)
 
-      # --- Optimized Parallel Clipping ---
-      # We clip each farm in parallel and generate the compressed TIF blob in memory.
-      # This is much faster for a large number of farms (e.g. 75 pivots).
-      
-      # To pass r_full to workers safely, we use terra::wrap
-      r_full_packed <- terra::wrap(r_full)
-      
-      blobs_to_save <- future.apply::future_lapply(seq_len(nrow(farms_sf)), function(j) {
-        fid   <- farm_ids[j]
-        if (date_key %in% existing_by_farm[[fid]]) return(NULL)
-
-        # Unpack raster in worker
-        r_worker <- terra::unwrap(r_full_packed)
-        
-        farm_bb  <- sf::st_bbox(farms_sf[j, ])
-        farm_ext <- terra::ext(as.numeric(farm_bb["xmin"]), as.numeric(farm_bb["xmax"]),
-                               as.numeric(farm_bb["ymin"]), as.numeric(farm_bb["ymax"]))
-
-        tryCatch({
-          r_farm <- terra::crop(r_worker, farm_ext)
-          
-          # Create compressed blob in memory
-          temp_file <- tempfile(fileext = ".tif")
-          terra::writeRaster(r_farm, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
-          blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
-          unlink(temp_file)
-          
-          ext <- terra::ext(r_farm)
-          dims <- dim(r_farm)
-          
-          return(list(
-            fid = fid, blob = blob, 
-            xmin = ext$xmin, xmax = ext$xmax, ymin = ext$ymin, ymax = ext$ymax,
-            nrow = dims[1], ncol = dims[2]
-          ))
-        }, error = function(e) NULL)
-      }, future.seed = TRUE)
-
-      # Sequential Database Write (DuckDB only allows one writer)
-      for (res in blobs_to_save) {
-        if (is.null(res)) next
-        
-        tryCatch({
-          .package_save_raster_blob_to_db(
-            con, res$fid, variable, date_key, res$blob,
-            res$xmin, res$xmax, res$ymin, res$ymax,
-            res$nrow, res$ncol, res_xy[1], res_xy[2], var_units
-          )
-        }, error = function(e) NULL)
-      }
-      n_ok <- n_ok + 1L
+      # Save to optimized global table
+      tryCatch({
+        .package_save_global_raster_blob_to_db(
+          con, variable, date_key, raster_blob,
+          ext_final$xmin, ext_final$xmax, ext_final$ymin, ext_final$ymax,
+          dims[1], dims[2], res_xy[1], res_xy[2], var_units
+        )
+        n_ok <- n_ok + 1L
+      }, error = function(e) log_fn(sprintf("  Error saving global blob: %s", e$message)))
     }
-    log_fn(sprintf("  Processed %d layers for %d farms.", n_ok, nrow(farms_sf)))
+    
+    log_fn(sprintf("  Processed %d global layers for variable %s.", n_ok, variable))
 
   }, error = function(e) {
     log_fn(sprintf("  wapor_save_raster_blobs error: %s", e$message))
   })
-  invisible(NULL)
 }
 
-# Internal helper for DuckDB raster blobs (Direct blob insertion)
-.package_save_raster_blob_to_db <- function(con, farm_id, variable, date_key, raster_blob,
-                                            xmin, xmax, ymin, ymax, nrow, ncol,
-                                            res_x, res_y, units) {
+# Optimized helper for Global Raster Blobs
+.package_save_global_raster_blob_to_db <- function(con, variable, date_key, raster_blob,
+                                                   xmin, xmax, ymin, ymax, nrow, ncol,
+                                                   res_x, res_y, units) {
   insert_sql <- "
-    INSERT INTO farm_rasters (
-      farm_id, variable, date_key, raster_blob,
+    INSERT INTO monitoring_rasters (
+      variable, date_key, raster_blob,
       xmin, xmax, ymin, ymax, nrow, ncol,
       resolution_x, resolution_y, units, crs_epsg
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (farm_id, variable, date_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (variable, date_key)
     DO UPDATE SET
       raster_blob  = EXCLUDED.raster_blob,
       xmin         = EXCLUDED.xmin,
@@ -466,7 +465,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       crs_epsg     = EXCLUDED.crs_epsg
   "
   DBI::dbExecute(con, insert_sql, params = list(
-    farm_id, variable, as.character(date_key), list(raster_blob),
+    variable, as.character(date_key), list(raster_blob),
     xmin, xmax, ymin, ymax, nrow, ncol,
     res_x, res_y, units, 4326L
   ))
@@ -587,18 +586,23 @@ wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0
 wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshold_pct = 5) {
   if (is.null(con) || is.null(polygon)) return(NULL)
 
-  # Get all rasters for this farm
+  # Get all optimized global rasters
   query <- "
     SELECT variable, date_key, raster_blob
-    FROM farm_rasters
-    WHERE farm_id = ?
+    FROM monitoring_rasters
     ORDER BY variable, date_key
   "
 
-  rasters <- DBI::dbGetQuery(con, query, params = list(farm_id))
+  rasters <- DBI::dbGetQuery(con, query)
   if (nrow(rasters) == 0) {
-    message("No rasters found for farm_id=", farm_id)
-    return(NULL)
+    # Fallback to legacy table if new table is empty
+    rasters <- DBI::dbGetQuery(con, 
+      "SELECT variable, date_key, raster_blob FROM farm_rasters WHERE farm_id = ?",
+      params = list(farm_id))
+    if (nrow(rasters) == 0) {
+      message("No rasters found for farm_id=", farm_id)
+      return(NULL)
+    }
   }
 
   # Process each raster
@@ -607,12 +611,23 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
     raster <- wapor_raster_from_blob(row$raster_blob[[1]])
     if (is.null(raster)) return(NULL)
 
-    stats <- wapor_enhanced_zonal_stats(raster, polygon, threshold_pct)
-    data.frame(
-      farm_id = farm_id, variable = row$variable,
-      date_key = as.Date(row$date_key), stats,
-      stringsAsFactors = FALSE
-    )
+    # DYNAMIC CLIP: Clip global raster to individual farm polygon
+    tryCatch({
+      # Get farm extent
+      f_bb <- sf::st_bbox(polygon)
+      f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                         as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+      
+      # Crop global raster to farm extent
+      r_farm <- terra::crop(raster, f_ext)
+      
+      stats <- wapor_enhanced_zonal_stats(r_farm, polygon, threshold_pct)
+      data.frame(
+        farm_id = farm_id, variable = row$variable,
+        date_key = as.Date(row$date_key), stats,
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) NULL)
   })
 
   all_stats <- do.call(rbind, updated_stats[!sapply(updated_stats, is.null)])
@@ -642,6 +657,72 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
   return(all_stats)
 }
 
+#' Generate seasonal aggregate raster from DuckDB dekadal blobs
+#' 
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param farm_geom sf object for the farm
+#' @param variable WaPOR variable
+#' @param start_date Seasonal start date
+#' @param end_date Seasonal end date
+#' @return terra SpatRaster aggregate or NULL
+#' @export
+wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, start_date, end_date) {
+  if (is.null(con) || is.null(farm_id)) return(NULL)
+  
+  # Query all dekadal rasters in range
+  query <- "
+    SELECT date_key, raster_blob
+    FROM monitoring_rasters
+    WHERE variable = ?
+      AND date_key >= ? AND date_key <= ?
+    ORDER BY date_key
+  "
+  
+  df <- DBI::dbGetQuery(con, query, params = list(
+    variable, 
+    as.character(start_date), 
+    as.character(end_date)
+  ))
+  
+  if (nrow(df) == 0) {
+    # Fallback to legacy
+    df <- DBI::dbGetQuery(con, 
+      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ? ORDER BY date_key",
+      params = list(farm_id, variable, as.character(start_date), as.character(end_date)))
+    
+    if (nrow(df) == 0) return(NULL)
+  }
+  
+  # Collect rasters
+  # DYNAMIC CLIP: Each global raster must be clipped to the farm geom
+  f_bb <- sf::st_bbox(farm_geom)
+  f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                     as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+
+  r_list <- lapply(seq_len(nrow(df)), function(i) {
+    r_global <- wapor_raster_from_blob(df$raster_blob[[i]])
+    if (is.null(r_global)) return(NULL)
+    terra::crop(r_global, f_ext)
+  })
+  r_list <- r_list[!sapply(r_list, is.null)]
+  if (length(r_list) == 0) return(NULL)
+  
+  # Stack rasters
+  s <- terra::rast(r_list)
+  
+  # Determine aggregation method
+  is_flux <- grepl("AETI|PCP|NPP|^-T-|^E-", variable, ignore.case = TRUE)
+  
+  if (is_flux) {
+    res <- terra::app(s, fun = "sum", na.rm = TRUE)
+  } else {
+    res <- terra::app(s, fun = "mean", na.rm = TRUE)
+  }
+  
+  return(res)
+}
+
 #' Apply Seasonal Adaptive Mask and Recalculate Stats
 #'
 #' Creates a spatial mask based on the total seasonal sum of a reference variable
@@ -667,23 +748,37 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
   # 1. Generate the Seasonal Sum Raster for the mask_variable
   query_mask <- "
     SELECT date_key, raster_blob
-    FROM farm_rasters
-    WHERE farm_id = ? AND variable = ?
+    FROM monitoring_rasters
+    WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
   "
   mask_df <- DBI::dbGetQuery(con, query_mask, params = list(
-    farm_id, mask_variable, as.character(start_date), as.character(end_date)
+    mask_variable, as.character(start_date), as.character(end_date)
   ))
 
   if (nrow(mask_df) == 0) {
-    message(sprintf("  [SKIP] No rasters found for mask_variable %s in season %s to %s", 
-                    mask_variable, start_date, end_date))
-    return(NULL)
+    # Fallback to legacy
+    mask_df <- DBI::dbGetQuery(con, 
+      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
+      params = list(farm_id, mask_variable, as.character(start_date), as.character(end_date)))
+    
+    if (nrow(mask_df) == 0) {
+      message(sprintf("  [SKIP] No rasters found for mask_variable %s in season %s to %s", 
+                      mask_variable, start_date, end_date))
+      return(NULL)
+    }
   }
 
   # Accumulate the seasonal sum
   r_list <- lapply(mask_df$raster_blob, wapor_raster_from_blob)
-  seasonal_sum <- terra::app(terra::rast(r_list), "sum", na.rm = TRUE)
+  
+  # DYNAMIC CLIP for the seasonal sum base
+  f_bb <- sf::st_bbox(polygon)
+  f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                     as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+  
+  r_list_clipped <- lapply(r_list, function(r) terra::crop(r, f_ext))
+  seasonal_sum <- terra::app(terra::rast(r_list_clipped), "sum", na.rm = TRUE)
   
   # 2. Create the Binary Mask
   # Get all pixel values within the polygon from the seasonal sum
@@ -696,22 +791,28 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
   cutoff <- stats::quantile(sum_vals_clean, probs = percentile_threshold / 100, na.rm = TRUE)
   
   # Create a binary mask (1 = keep, 0 = mask out)
-  # We use terra::app to create a mask raster
   seasonal_mask <- seasonal_sum >= cutoff
   
   message(sprintf("  Created seasonal mask for %s using %s: Cutoff = %.1f (kept %d%% pixels)", 
                   farm_id, mask_variable, cutoff, 100 - percentile_threshold))
 
   # 3. Apply mask to ALL variables in this season
-  # Get all variables available for this farm in this range
+  # Get all variables available in this range
   query_vars <- "
     SELECT DISTINCT variable
-    FROM farm_rasters
-    WHERE farm_id = ? AND date_key >= ? AND date_key <= ?
+    FROM monitoring_rasters
+    WHERE date_key >= ? AND date_key <= ?
   "
   vars_in_season <- DBI::dbGetQuery(con, query_vars, params = list(
-    farm_id, as.character(start_date), as.character(end_date)
+    as.character(start_date), as.character(end_date)
   ))$variable
+  
+  if (length(vars_in_season) == 0) {
+    # Fallback
+    vars_in_season <- DBI::dbGetQuery(con, 
+      "SELECT DISTINCT variable FROM farm_rasters WHERE farm_id = ? AND date_key >= ? AND date_key <= ?",
+      params = list(farm_id, as.character(start_date), as.character(end_date)))$variable
+  }
 
   updated_results <- list()
 
@@ -719,26 +820,34 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
     # Get all dates for this variable
     query_data <- "
       SELECT date_key, raster_blob
-      FROM farm_rasters
-      WHERE farm_id = ? AND variable = ?
+      FROM monitoring_rasters
+      WHERE variable = ?
         AND date_key >= ? AND date_key <= ?
     "
     data_df <- DBI::dbGetQuery(con, query_data, params = list(
-      farm_id, var, as.character(start_date), as.character(end_date)
+      var, as.character(start_date), as.character(end_date)
     ))
+    
+    if (nrow(data_df) == 0) {
+      data_df <- DBI::dbGetQuery(con, 
+        "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
+        params = list(farm_id, var, as.character(start_date), as.character(end_date)))
+    }
 
     for (i in seq_len(nrow(data_df))) {
-      r_dekad <- wapor_raster_from_blob(data_df$raster_blob[[i]])
-      if (is.null(r_dekad)) next
+      r_global <- wapor_raster_from_blob(data_df$raster_blob[[i]])
+      if (is.null(r_global)) next
       
-      # Harmonize mask to dekad resolution if different (e.g. L1 vs L3)
+      # DYNAMIC CLIP
+      r_dekad <- terra::crop(r_global, f_ext)
+      
+      # Harmonize mask to dekad resolution if different
       mask_h <- terra::resample(seasonal_mask, r_dekad, method = "near")
       
-      # Apply mask: multiply raster by binary mask (or mask function)
+      # Apply mask
       r_masked <- terra::mask(r_dekad, mask_h, maskvalues = 0)
       
       # Calculate stats on masked raster
-      # threshold_pct is set to a negative value to indicate it's a seasonal adaptive mask
       stats <- wapor_enhanced_zonal_stats(r_masked, polygon, threshold_percentile = 0)
       
       res <- data.frame(
@@ -747,7 +856,7 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
         stats,
         stringsAsFactors = FALSE
       )
-      res$threshold_pct <- -percentile_threshold # Signal that this is a seasonal mask
+      res$threshold_pct <- -percentile_threshold 
       updated_results[[length(updated_results) + 1]] <- res
     }
   }

@@ -784,8 +784,8 @@ wapor_crop_to_region <- function(r, reg_info, do_mask = FALSE) {
     # Project if CRS differs or if one is lonlat and the other isn't
     needs_proj <- FALSE
     if (has_r_crs) {
-      r_is_ll <- isTRUE(terra::is.lonlat(r))
-      bb_is_ll <- isTRUE(terra::is.lonlat(bb_poly))
+      r_is_ll <- isTRUE(suppressWarnings(terra::is.lonlat(r)))
+      bb_is_ll <- isTRUE(suppressWarnings(terra::is.lonlat(bb_poly)))
       
       if (bb_crs != r_crs) needs_proj <- TRUE
       if (r_is_ll != bb_is_ll) needs_proj <- TRUE

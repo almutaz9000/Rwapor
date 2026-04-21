@@ -1,0 +1,15 @@
+{
+  "project_name": ["Savola"],
+  "farm_path": [""],
+  "db_path": ["C:/Users/Mohammedal/OneDrive - Food and Agriculture Organization/Documents/GitHub/Rwapor/inst/shiny/Savola.duckdb"],
+  "mon_vars": ["L1-AETI-D", "L1-E-D", "L1-NPP-D", "L1-RET-D", "L1-T-D"],
+  "mon_l3_region": ["MIT"],
+  "sowing_date": ["2025-10-23"],
+  "harvest_date": ["2026-04-21"],
+  "crop_col": {},
+  "label_col": {},
+  "start_date_col": {},
+  "end_date_col": {},
+  "also_save_rasters": [true],
+  "threshold_pct": [5]
+}

@@ -289,23 +289,49 @@ wapor_save_seasonal_raster_to_db <- function(con, farm_id, variable, season_id, 
 wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, start_date, end_date) {
   if (is.null(con) || is.null(farm_id)) return(NULL)
   
-  # Query all dekadal rasters in range
-  query <- "
+  # 1. Query all dekadal rasters in range from GLOBAL table
+  query_global <- "
     SELECT date_key, raster_blob
-    FROM farm_rasters
-    WHERE farm_id = ? AND variable = ?
+    FROM monitoring_rasters
+    WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
     ORDER BY date_key
   "
   
-  df <- DBI::dbGetQuery(con, query, params = list(
-    farm_id, 
+  df <- DBI::dbGetQuery(con, query_global, params = list(
     variable, 
     as.character(start_date), 
     as.character(end_date)
   ))
   
-  if (nrow(df) == 0) return(NULL)
+  if (nrow(df) == 0) {
+    # 2. Fallback to LEGACY table
+    query_legacy <- "
+      SELECT date_key, raster_blob
+      FROM farm_rasters
+      WHERE farm_id = ? AND variable = ?
+        AND date_key >= ? AND date_key <= ?
+      ORDER BY date_key
+    "
+    df <- DBI::dbGetQuery(con, query_legacy, params = list(
+      farm_id, variable, as.character(start_date), as.character(end_date)
+    ))
+    
+    if (nrow(df) == 0) return(NULL)
+  }
+  
+  # DYNAMIC CLIP: Each raster must be clipped to the farm geom
+  f_bb <- sf::st_bbox(farm_geom)
+  f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                     as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+
+  r_list <- lapply(seq_len(nrow(df)), function(i) {
+    r_full <- wapor_raster_from_blob(df$raster_blob[[i]])
+    if (is.null(r_full)) return(NULL)
+    terra::crop(r_full, f_ext)
+  })
+  r_list <- r_list[!sapply(r_list, is.null)]
+  if (length(r_list) == 0) return(NULL)
   
   # Collect rasters
   r_list <- lapply(seq_len(nrow(df)), function(i) {
@@ -339,7 +365,25 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
 wapor_get_farms_extent <- function(con) {
   if (is.null(con)) return(NULL)
   
-  # Try to get extent from farm_rasters first (most accurate)
+  # 1. Try to get extent from monitoring_metadata (Best)
+  meta_q <- "SELECT xmin, xmax, ymin, ymax FROM monitoring_metadata LIMIT 1"
+  extent_df <- tryCatch(DBI::dbGetQuery(con, meta_q), error = function(e) NULL)
+  
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(xmin = extent_df$xmin[1], xmax = extent_df$xmax[1], 
+             ymin = extent_df$ymin[1], ymax = extent_df$ymax[1]))
+  }
+
+  # 2. Try to get extent from monitoring_rasters
+  rast_q <- "SELECT MIN(xmin) as xmin, MAX(xmax) as xmax, MIN(ymin) as ymin, MAX(ymax) as ymax FROM monitoring_rasters"
+  extent_df <- tryCatch(DBI::dbGetQuery(con, rast_q), error = function(e) NULL)
+  
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(xmin = extent_df$xmin[1], xmax = extent_df$xmax[1], 
+             ymin = extent_df$ymin[1], ymax = extent_df$ymax[1]))
+  }
+  
+  # 3. Fallback to farm_rasters (Legacy)
   extent_query <- "
     SELECT 
       MIN(xmin) as xmin,
@@ -520,31 +564,28 @@ wapor_get_available_raster_data <- function(con) {
     return(list(farms = character(0), variables = character(0), date_range = NULL))
   }
   
-  # Get unique farms
-  farms_query <- "SELECT DISTINCT farm_id FROM farm_rasters ORDER BY farm_id"
-  farms <- tryCatch(
-    DBI::dbGetQuery(con, farms_query)$farm_id,
-    error = function(e) character(0)
-  )
+  # Variables from both global and legacy
+  variables <- tryCatch({
+    v1 <- DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM monitoring_rasters")$variable
+    v2 <- DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM farm_rasters")$variable
+    sort(unique(c(v1, v2)))
+  }, error = function(e) character(0))
+
+  # Farms (always check polygons or timeseries as global table doesn't have farm_id)
+  farms <- tryCatch({
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_polygons")$farm_id
+  }, error = function(e) {
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_timeseries")$farm_id
+  })
   
-  # Get unique variables
-  vars_query <- "SELECT DISTINCT variable FROM farm_rasters ORDER BY variable"
-  variables <- tryCatch(
-    DBI::dbGetQuery(con, vars_query)$variable,
-    error = function(e) character(0)
-  )
-  
-  # Get date range
-  date_query <- "SELECT MIN(date_key) as min_date, MAX(date_key) as max_date FROM farm_rasters"
-  date_df <- tryCatch(
-    DBI::dbGetQuery(con, date_query),
-    error = function(e) data.frame(min_date = NA, max_date = NA)
-  )
-  
-  date_range <- NULL
-  if (!is.na(date_df$min_date[1])) {
-    date_range <- c(as.Date(date_df$min_date[1]), as.Date(date_df$max_date[1]))
-  }
+  # Date range
+  date_range <- tryCatch({
+    d1 <- DBI::dbGetQuery(con, "SELECT MIN(date_key) as mn, MAX(date_key) as mx FROM monitoring_rasters")
+    d2 <- DBI::dbGetQuery(con, "SELECT MIN(date_key) as mn, MAX(date_key) as mx FROM farm_rasters")
+    mn <- min(as.Date(c(d1$mn, d2$mn)), na.rm = TRUE)
+    mx <- max(as.Date(c(d1$mx, d2$mx)), na.rm = TRUE)
+    c(mn, mx)
+  }, error = function(e) NULL)
   
   list(
     farms = farms,
@@ -712,33 +753,41 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
     return(NULL)
   }
   
-  # Get all rasters for this farm
-  query <- "
+  # 1. Get all GLOBAL rasters
+  query_global <- "
     SELECT variable, date_key, raster_blob
-    FROM farm_rasters
-    WHERE farm_id = ?
+    FROM monitoring_rasters
     ORDER BY variable, date_key
   "
-  
-  rasters <- DBI::dbGetQuery(con, query, params = list(farm_id))
+  rasters <- DBI::dbGetQuery(con, query_global)
   
   if (nrow(rasters) == 0) {
-    message("No rasters found for farm_id=", farm_id)
-    return(NULL)
+    # 2. Fallback to LEGACY
+    query_legacy <- "SELECT variable, date_key, raster_blob FROM farm_rasters WHERE farm_id = ?"
+    rasters <- DBI::dbGetQuery(con, query_legacy, params = list(farm_id))
+    
+    if (nrow(rasters) == 0) {
+      message("No rasters found for farm_id=", farm_id)
+      return(NULL)
+    }
   }
   
+  # DYNAMIC CLIP for global rasters
+  f_bb <- sf::st_bbox(polygon)
+  f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                     as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+
   # Process each raster
   updated_stats <- lapply(seq_len(nrow(rasters)), function(i) {
     row <- rasters[i, ]
+    r_full <- wapor_raster_from_blob(row$raster_blob[[1]])
+    if (is.null(r_full)) return(NULL)
     
-    # Extract raster from BLOB
-    raster <- wapor_raster_from_blob(row$raster_blob[[1]])
-    if (is.null(raster)) {
-      return(NULL)
-    }
+    # Crop if global
+    r_farm <- terra::crop(r_full, f_ext)
     
-    # Calculate enhanced stats with new threshold
-    stats <- wapor_enhanced_zonal_stats(raster, polygon, threshold_pct)
+    # Calculate enhanced stats
+    stats <- wapor_enhanced_zonal_stats(r_farm, polygon, threshold_pct)
     
     # Add metadata
     data.frame(
