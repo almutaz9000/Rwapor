@@ -91,6 +91,26 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
           # 0 · Project Management ───────────────────────────────────────────
           bslib::accordion_panel(
             "Project Management", icon = shiny::icon("folder-tree"),
+            shiny::tags$span("Base Directory", class = "ctrl-group-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::textInput(
+                  ns("project_dir_path"), NULL,
+                  value       = "projects",
+                  placeholder = "Folder to store project .json files"
+                )
+              ),
+              shinyFiles::shinyDirButton(
+                ns("browse_proj_dir"), label = "",
+                title  = "Select project base directory",
+                icon   = shiny::icon("folder-open"),
+                class  = "btn-outline-secondary btn-sm",
+                style  = "padding:0.37rem 0.6rem;"
+              )
+            ),
+
             shiny::tags$span("Project Name", class = "ctrl-group-label"),
             shiny::textInput(
               ns("project_name"), NULL,
@@ -542,6 +562,51 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       db_con         = NULL    # open DuckDB connection
     )
 
+    # Roots for shinyFiles
+    roots <- get_shinyfiles_roots()
+
+    # Directory picker for projects
+    shinyFiles::shinyDirChoose(
+      input, "browse_proj_dir", 
+      roots = roots, 
+      session = session
+    )
+
+    shiny::observe({
+      dir_info <- input$browse_proj_dir
+      if (!is.null(dir_info) && is.list(dir_info)) {
+        path <- shinyFiles::parseDirPath(roots, dir_info)
+        if (length(path) > 0 && nzchar(path)) {
+          path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+          shiny::updateTextInput(session, "project_dir_path", value = path)
+        }
+      }
+    })
+
+    # Reactive project directory
+    get_project_dir <- shiny::reactive({
+      d <- input$project_dir_path
+      if (is.null(d) || !nzchar(d)) d <- "projects"
+      if (!dir.exists(d)) tryCatch(dir.create(d, recursive = TRUE, showWarnings = FALSE), error = function(e) NULL)
+      d
+    })
+
+    # ── Helper: Refresh Time Series Data from DB ──────────────────────────────
+    refresh_ts_data <- function() {
+      db_path <- input$db_path
+      if (is.null(db_path) || !file.exists(db_path)) return()
+      
+      tryCatch({
+        con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+        on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
+        rv$ts_data <- DBI::dbGetQuery(con, 
+          "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date"
+        )
+      }, error = function(e) {
+        add_log("Error refreshing data: ", e$message)
+      })
+    }
+
     # ── Helper: append log message ─────────────────────────────────────────────
     add_log <- function(...) {
       msg <- paste0("[", format(Sys.time(), "%H:%M:%S"), "] ", paste(...))
@@ -567,9 +632,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
 
     close_db <- function() {
-      if (!is.null(rv$db_con)) {
-        tryCatch(DBI::dbDisconnect(rv$db_con, shutdown = TRUE), error = function(e) NULL)
-        rv$db_con <- NULL
+      con <- shiny::isolate(rv$db_con)
+      if (!is.null(con)) {
+        tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL)
+        shiny::isolate(rv$db_con <- NULL)
       }
     }
 
@@ -646,12 +712,10 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     # ── 0. Project Management Logic ───────────────────────────────────────────
     
-    project_dir <- "projects"
-    if (!dir.exists(project_dir)) dir.create(project_dir, showWarnings = FALSE)
-
     # List available projects
     output$project_list_ui <- shiny::renderUI({
-      files <- list.files(project_dir, pattern = "\\.json$", full.names = FALSE)
+      pdir <- get_project_dir()
+      files <- list.files(pdir, pattern = "\\.json$", full.names = FALSE)
       if (length(files) == 0) return(NULL)
       projects <- sub("\\.json$", "", files)
       shiny::selectInput(ns("sel_project"), "Existing Projects", 
@@ -661,6 +725,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     # Save Project
     shiny::observeEvent(input$btn_save_project, {
       name <- input$project_name
+      pdir <- get_project_dir()
+      
       if (!nzchar(name)) {
         shiny::showNotification("Enter a project name first.", type = "error")
         return()
@@ -670,6 +736,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       safe_name <- gsub("[^a-zA-Z0-9_]", "_", name)
       config <- list(
         project_name      = name,
+        project_dir_path  = pdir,
         farm_path         = input$farm_path,
         db_path           = input$db_path,
         mon_vars          = input$mon_vars,
@@ -684,7 +751,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         threshold_pct     = input$threshold_pct
       )
       
-      jsonlite::write_json(config, file.path(project_dir, paste0(safe_name, ".json")), pretty = TRUE)
+      jsonlite::write_json(config, file.path(pdir, paste0(safe_name, ".json")), pretty = TRUE)
       shiny::showNotification(sprintf("Project '%s' saved.", name), type = "message")
     })
 
@@ -732,6 +799,26 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       shiny::showNotification(sprintf("Project '%s' loaded.", name), type = "message")
     })
 
+    # ── 4. Database logic ─────────────────────────────────────────────────────
+
+    shinyFiles::shinyFileChoose(
+      input, "browse_db", 
+      roots = roots, 
+      session = session,
+      filetypes = c("duckdb", "db", "sqlite")
+    )
+
+    shiny::observe({
+      file_info <- input$browse_db
+      if (!is.null(file_info) && is.list(file_info)) {
+        path <- shinyFiles::parseFilePaths(roots, file_info)$datapath
+        if (length(path) > 0 && nzchar(path)) {
+          path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+          shiny::updateTextInput(session, "db_path", value = path)
+        }
+      }
+    })
+
     # Update DB Path automatically when project name changes
     shiny::observeEvent(input$project_name, {
       name <- input$project_name
@@ -747,6 +834,24 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     })
 
     # ── 1. Load farm vector file ───────────────────────────────────────────────
+
+    shinyFiles::shinyFileChoose(
+      input, "browse_farm", 
+      roots = roots, 
+      session = session,
+      filetypes = c("shp", "geojson", "gpkg", "kml", "zip")
+    )
+
+    shiny::observe({
+      file_info <- input$browse_farm
+      if (!is.null(file_info) && is.list(file_info)) {
+        path <- shinyFiles::parseFilePaths(roots, file_info)$datapath
+        if (length(path) > 0 && nzchar(path)) {
+          path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+          shiny::updateTextInput(session, "farm_path", value = path)
+        }
+      }
+    })
 
     shiny::observeEvent(input$farm_path, {
       shiny::req(input$farm_path)
@@ -1156,7 +1261,12 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       if (is.null(con)) return()
       
       # Check if rasters exist
-      n_rasters <- DBI::dbGetQuery(con, "SELECT COUNT(*) as n FROM farm_rasters")$n
+      n_rasters <- DBI::dbGetQuery(con, "SELECT COUNT(*) as n FROM monitoring_rasters")$n
+      if (n_rasters == 0) {
+        # Fallback check
+        n_rasters <- DBI::dbGetQuery(con, "SELECT COUNT(*) as n FROM farm_rasters")$n
+      }
+      
       if (n_rasters == 0) {
         DBI::dbDisconnect(con, shutdown = TRUE)
         shiny::showNotification(
@@ -1870,7 +1980,16 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         farms <- tryCatch({
           con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
           on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
-          DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_rasters ORDER BY farm_id")$farm_id
+          
+          # If we have global rasters, we can show all farms in the project
+          has_global <- DBI::dbGetQuery(con, "SELECT count(*) as n FROM monitoring_rasters")$n > 0
+          if (has_global) {
+             # Get all farms from polygons table
+             DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_polygons ORDER BY farm_id")$farm_id
+          } else {
+             # Legacy: only show farms that have blobs
+             DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_rasters ORDER BY farm_id")$farm_id
+          }
         }, error = function(e) NULL)
       }
       if (is.null(farms) || length(farms) == 0) {
@@ -1890,7 +2009,11 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
           on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
           
-          # Get vars from both dekad and seasonal tables
+          # Get vars from global, dekad and seasonal tables
+          v_global <- tryCatch(
+            DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM monitoring_rasters")$variable,
+            error = function(e) character(0)
+          )
           v_dekad <- DBI::dbGetQuery(con,
             "SELECT DISTINCT variable FROM farm_rasters WHERE farm_id = ?",
             params = list(rast_farm)
@@ -1904,7 +2027,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
             error = function(e) character(0)
           )
           
-          sort(unique(c(v_dekad, v_season)))
+          sort(unique(c(v_global, v_dekad, v_season)))
         }, error = function(e) NULL)
       }
       if (is.null(vars) || length(vars) == 0) {
@@ -1929,6 +2052,16 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
           on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
           
+          # Global dates for this variable
+          gl_dates <- tryCatch(
+            DBI::dbGetQuery(con,
+              "SELECT DISTINCT CAST(date_key AS VARCHAR) as dk FROM monitoring_rasters
+               WHERE variable = ? ORDER BY dk",
+              params = list(rast_var)
+            )$dk,
+            error = function(e) character(0)
+          )
+
           # Dekadal dates
           dk_dates <- DBI::dbGetQuery(con,
             "SELECT DISTINCT CAST(date_key AS VARCHAR) as dk FROM farm_rasters
@@ -1956,8 +2089,8 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
                                                gsub("SEASON_", "Season: ", res$seasonal)))
             choices[["Seasonal Aggregates"]] <- s_choices
           }
-          if (length(res$dekadal) > 0) {
-            choices[["Dekadal Snapshots"]] <- as.list(res$dekadal)
+          if (length(res$dekadal) > 0 || length(res$global) > 0) {
+            choices[["Dekadal Snapshots"]] <- as.list(sort(unique(c(res$dekadal, res$global))))
           }
         }
       }
@@ -2017,22 +2150,38 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
         on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
 
-        # Check if seasonal or dekadal
-        if (grepl("^SEASONAL:", rast_date)) {
-          season_id <- sub("^SEASONAL:", "", rast_date)
-          blob_row <- DBI::dbGetQuery(con,
-            "SELECT raster_blob FROM farm_seasonal_rasters
-             WHERE farm_id = ? AND variable = ? AND season_id = ?
-             LIMIT 1",
-            params = list(rast_farm, rast_var, season_id)
-          )
+        # Check GLOBAL table first
+        if (!grepl("^SEASONAL:", rast_date)) {
+           blob_row <- DBI::dbGetQuery(con,
+             "SELECT raster_blob FROM monitoring_rasters
+              WHERE variable = ? AND CAST(date_key AS VARCHAR) = ?
+              LIMIT 1",
+             params = list(rast_var, rast_date)
+           )
+           
+           is_global <- nrow(blob_row) > 0
         } else {
-          blob_row <- DBI::dbGetQuery(con,
-            "SELECT raster_blob FROM farm_rasters
-             WHERE farm_id = ? AND variable = ? AND CAST(date_key AS VARCHAR) = ?
-             LIMIT 1",
-            params = list(rast_farm, rast_var, rast_date)
-          )
+           is_global <- FALSE
+        }
+
+        # Check if seasonal or dekadal (Fallback to legacy if not found in global)
+        if (!is_global) {
+          if (grepl("^SEASONAL:", rast_date)) {
+            season_id <- sub("^SEASONAL:", "", rast_date)
+            blob_row <- DBI::dbGetQuery(con,
+              "SELECT raster_blob FROM farm_seasonal_rasters
+               WHERE farm_id = ? AND variable = ? AND season_id = ?
+               LIMIT 1",
+              params = list(rast_farm, rast_var, season_id)
+            )
+          } else {
+            blob_row <- DBI::dbGetQuery(con,
+              "SELECT raster_blob FROM farm_rasters
+               WHERE farm_id = ? AND variable = ? AND CAST(date_key AS VARCHAR) = ?
+               LIMIT 1",
+              params = list(rast_farm, rast_var, rast_date)
+            )
+          }
         }
 
         if (nrow(blob_row) == 0 || is.null(blob_row$raster_blob[[1]])) {
@@ -2044,9 +2193,25 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           return(m)
         }
 
-        tmp_tif <- tempfile(fileext = ".tif")
-        writeBin(blob_row$raster_blob[[1]], tmp_tif)
-        r <- terra::rast(tmp_tif)
+        # Load Raster
+        r_full <- wapor_raster_from_blob(blob_row$raster_blob[[1]])
+        if (is.null(r_full)) return(m)
+        
+        # DYNAMIC CLIP if it's a global raster
+        if (is_global) {
+           # Get farm polygon
+           poly <- farms_sf[farms_sf$farm_id == rast_farm, ]
+           if (nrow(poly) > 0) {
+              f_bb <- sf::st_bbox(poly)
+              f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
+                                 as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
+              r <- terra::crop(r_full, f_ext)
+           } else {
+              r <- r_full
+           }
+        } else {
+           r <- r_full
+        }
 
         pal_name <- input$rast_palette %||% "viridis"
         pal_colors <- grDevices::colorRampPalette(
@@ -2305,5 +2470,6 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     session$onSessionEnded(function() close_db())
 
   }) # /moduleServer
+} # /mod_monitoring_server
 
 # .save_raster_blobs() is defined in monitoring_helpers.R (sourced at the top of this file).
