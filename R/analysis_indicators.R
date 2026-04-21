@@ -43,7 +43,9 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
   if (!all(layer_multipliers == 1)) {
     weighted <- weighted * layer_multipliers
   }
-  terra::app(weighted, fun = "sum", na.rm = TRUE)
+  # Optimization: terra::sum() is significantly faster than terra::app(..., fun="sum")
+  # as it uses a dedicated C++ implementation for layer-wise summation.
+  terra::sum(weighted, na.rm = TRUE)
 }
 
 #' Compute Seasonal AETI with Season Mask
