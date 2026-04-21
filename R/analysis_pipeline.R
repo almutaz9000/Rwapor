@@ -554,36 +554,48 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Implementation P0: Fix OOM risk
+  # Instead of loading all values into RAM via terra::values(), 
+  # we encode unique combinations into a single ID raster and use terra::freq()
+  # which processes in blocks.
   
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure we only process the pixels in the requested classes
+  mask_valid <- terra::match(crop_mask, class_values)
   
-  if (!any(valid)) {
+  # Encode: Class * 1,000,000 + StartJD * 1,000 + EndJD
+  # This fits in a standard integer and uniquely identifies each profile.
+  id_rast <- (crop_mask * 1e6) + (terra::round(start_raster) * 1e3) + terra::round(end_raster)
+  id_rast <- terra::mask(id_rast, mask_valid)
+  
+  # Frequency count (block-wise processing)
+  freq_df <- as.data.frame(terra::freq(id_rast))
+  
+  if (nrow(freq_df) == 0) {
     return(data.frame(
       class_value = integer(0), start_jd = integer(0), 
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
   
+  # Decode the IDs
+  ids <- freq_df$value
+  class_vals <- as.integer(ids %/% 1e6)
+  start_jds  <- as.integer((ids %% 1e6) %/% 1e3)
+  end_jds    <- as.integer(ids %% 1e3)
+  
   profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
+    class_value = class_vals,
+    start_jd = start_jds,
+    end_jd = end_jds,
+    pixel_count = freq_df$count,
     stringsAsFactors = FALSE
   )
+  
+  # Filter for valid seasons
   profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
   
-  if (nrow(profile_df) == 0) return(profile_df)
-  
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
-  )
+  return(profile_df)
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {
