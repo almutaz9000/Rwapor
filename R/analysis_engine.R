@@ -15,6 +15,32 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   
   if (is.null(progress_callback)) progress_callback <- function(v, d) NULL
   
+  # Handle multi-period list
+  if (is.list(config$period) && length(config$period) > 1) {
+    periods <- config$period
+    all_results <- list()
+    n_p <- length(periods)
+    
+    for (i in seq_along(periods)) {
+      p_name <- names(periods)[i] %||% sprintf("Season_%d", i)
+      progress_callback(i / n_p, sprintf("Processing %s...", p_name))
+      
+      # Create a shallow copy of config with the single period
+      p_config <- config
+      p_config$period <- periods[[i]]
+      
+      # Recursive call for single period
+      all_results[[p_name]] <- wapor_run_seasonal_analysis(
+        config = p_config, 
+        crop_params = crop_params, 
+        rasters = rasters, 
+        aoi_region = aoi_region, 
+        progress_callback = NULL # Suppress sub-progress
+      )
+    }
+    return(all_results)
+  }
+
   # 1. Resolve basic params
   period      <- config$period
   ref_year    <- config$ref_year
