@@ -252,7 +252,18 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     # Accumulate seasonal contributions and, when needed, mean denominators.
     sum_values <- rep(0, n_zones)
     total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
-    total_poly_counts <- NULL # Cache for total area in pixels per polygon
+
+    # Pre-compute total pixel coverage per polygon once (needed for weighted_mean only).
+    # Using the first available group raster as the geometry template.
+    total_poly_counts <- if (!is.null(total_weights) && !is.null(vect_data) && length(groups) > 0) {
+      first_r <- groups[[1]]$raster
+      r_one <- terra::setValues(terra::rast(first_r[[1]]), 1)
+      suppressWarnings(exactextractr::exact_extract(
+        r_one, sf::st_as_sf(terra::vect(vect_data)), "sum", progress = FALSE
+      ))
+    } else {
+      NULL
+    }
     
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
@@ -280,21 +291,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
 
         if (!is.null(total_weights)) {
-          # For weighted_mean, we need the sum of weights (overlap_days * coverage_fraction)
-          # where coverage_fraction = count_non_na / total_pixels_in_polygon
-          if (is.null(total_poly_counts)) {
-            # Compute total possible pixel coverage for each polygon once.
-            r_one <- terra::setValues(terra::rast(r_group[[1]]), 1)
-            total_poly_counts <- suppressWarnings(exactextractr::exact_extract(
-              r_one, sf::st_as_sf(terra::vect(vect_data)), "sum", progress = FALSE
-            ))
-          }
-
+          # For weighted_mean, convert non-NA pixel counts to coverage fractions
+          # using the pre-computed total pixel count per polygon.
           count_cols <- grep("^count", all_cols, value = TRUE)
           group_counts_mat <- as.matrix(ex_df[, count_cols, drop = FALSE])
           group_counts_mat[is.na(group_counts_mat)] <- 0
 
-          # Vectorized conversion of counts to coverage fractions
           group_coverage_mat <- group_counts_mat / total_poly_counts
           total_weights <- total_weights + as.vector(group_coverage_mat %*% multipliers)
         }
