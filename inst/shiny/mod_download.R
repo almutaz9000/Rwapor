@@ -84,12 +84,36 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             ),
 
             shiny::tags$hr(class = "ctrl-divider"),
-            shiny::tags$span("Time Period", class = "ctrl-group-label"),
-            shiny::dateRangeInput(
-              ns("period"), NULL,
-              start  = Sys.Date() - 30,
-              end    = Sys.Date(),
-              format = "yyyy-mm-dd"
+            shiny::div(
+              class = "flex-row-center-between",
+              shiny::tags$span("Time Period", class = "ctrl-group-label"),
+              shiny::div(
+                style = "font-size: 0.8rem;",
+                shiny::checkboxInput(ns("multi_season"), "Multi-season", FALSE)
+              )
+            ),
+            shiny::conditionalPanel(
+              condition = "!input.multi_season",
+              ns = ns,
+              shiny::dateRangeInput(
+                ns("period"), NULL,
+                start  = Sys.Date() - 30,
+                end    = Sys.Date(),
+                format = "yyyy-mm-dd"
+              )
+            ),
+            shiny::conditionalPanel(
+              condition = "input.multi_season",
+              ns = ns,
+              shiny::uiOutput(ns("seasons_ui")),
+              shiny::div(
+                style = "margin-top: 5px;",
+                shiny::actionButton(
+                  ns("add_season_btn"), "Add Season",
+                  icon = shiny::icon("plus"),
+                  class = "btn-outline-primary btn-sm w-100"
+                )
+              )
             )
           ),
 
@@ -170,6 +194,114 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
     roots <- get_shinyfiles_roots()
+
+    # --- Multi-season logic ---
+    # Initial season
+    seasons <- shiny::reactiveVal(list(
+      list(id = 1, name = "Season 1", start = Sys.Date() - 30, end = Sys.Date())
+    ))
+    
+    shiny::observeEvent(input$add_season_btn, {
+      s <- seasons()
+      new_id <- if (length(s) == 0) 1 else max(sapply(s, function(x) x$id)) + 1
+      s[[length(s) + 1]] <- list(
+        id = new_id, 
+        name = paste("Season", new_id), 
+        start = Sys.Date() - 30, 
+        end = Sys.Date()
+      )
+      seasons(s)
+    })
+    
+    # Observe inputs from dynamic UI and update the reactiveVal
+    shiny::observe({
+      s <- seasons()
+      if (length(s) == 0) return()
+      
+      changed <- FALSE
+      for (i in seq_along(s)) {
+        id <- s[[i]]$id
+        
+        # Name input
+        name_input_id <- sprintf("season_name_%d", id)
+        if (!is.null(input[[name_input_id]]) && input[[name_input_id]] != s[[i]]$name) {
+          s[[i]]$name <- input[[name_input_id]]
+          changed <- TRUE
+        }
+        
+        # Date input
+        date_input_id <- sprintf("season_dates_%d", id)
+        if (!is.null(input[[date_input_id]])) {
+          d_val <- input[[date_input_id]]
+          if (length(d_val) == 2 && !any(is.na(d_val))) {
+            if (!identical(as.Date(d_val[1]), as.Date(s[[i]]$start)) || 
+                !identical(as.Date(d_val[2]), as.Date(s[[i]]$end))) {
+              s[[i]]$start <- d_val[1]
+              s[[i]]$end <- d_val[2]
+              changed <- TRUE
+            }
+          }
+        }
+      }
+      
+      if (changed) seasons(s)
+    })
+    
+    output$seasons_ui <- shiny::renderUI({
+      s <- seasons()
+      if (length(s) == 0) return(shiny::helpText("Add a season window..."))
+      
+      shiny::div(
+        class = "seasons-container",
+        lapply(seq_along(s), function(i) {
+          curr <- s[[i]]
+          shiny::div(
+            class = "season-row card p-2 mb-2",
+            style = "border-color: #eee; background: #fdfdfd;",
+            shiny::div(
+              class = "d-flex align-items-center justify-content-between mb-1",
+              shiny::textInput(
+                session$ns(sprintf("season_name_%d", curr$id)), 
+                NULL, 
+                value = curr$name, 
+                placeholder = "Season Name",
+                width = "85%"
+              ),
+              shiny::actionLink(
+                session$ns(sprintf("remove_season_%d", curr$id)),
+                NULL, 
+                icon = shiny::icon("times"), 
+                style = "color: #dc3545; font-size: 1.1rem; margin-top: -5px;"
+              )
+            ),
+            shiny::dateRangeInput(
+              session$ns(sprintf("season_dates_%d", curr$id)),
+              NULL,
+              start = curr$start,
+              end = curr$end,
+              format = "yyyy-mm-dd",
+              width = "100%"
+            )
+          )
+        })
+      )
+    })
+    
+    # Handle removal
+    shiny::observe({
+      s <- seasons()
+      for (i in seq_along(s)) {
+        btn_id <- sprintf("remove_season_%d", s[[i]]$id)
+        if (!is.null(input[[btn_id]]) && input[[btn_id]] > 0) {
+          # Isolated removal
+          shiny::isolate({
+            s_new <- s[-i]
+            seasons(s_new)
+          })
+          break
+        }
+      }
+    })
 
     # Favorites logic
     favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
@@ -438,8 +570,19 @@ mod_download_server <- function(id, l3_regions_meta) {
       }
     })
     iv$add_rule("period", function(value) {
+      if (isTRUE(input$multi_season)) return(NULL) # Skip for multi-season
       if (length(value) != 2 || any(is.na(value))) return("Select a valid date range.")
       if (value[2] < value[1]) return("End date must be after start date.")
+    })
+    iv$add_rule("add_season_btn", function(value) {
+      if (!isTRUE(input$multi_season)) return(NULL)
+      s <- seasons()
+      if (length(s) == 0) return("Add at least one season window.")
+      for (i in seq_along(s)) {
+        if (as.Date(s[[i]]$end) < as.Date(s[[i]]$start)) {
+          return(sprintf("Season '%s' has end date before start date.", s[[i]]$name))
+        }
+      }
     })
     iv$enable()
 
@@ -584,7 +727,18 @@ mod_download_server <- function(id, l3_regions_meta) {
         reg_str <- sprintf("c(%f, %f, %f, %f)", reg[1], reg[2], reg[3], reg[4])
       }
 
-      period_str <- sprintf("c(\"%s\", \"%s\")", input$period[1], input$period[2])
+      period_str <- if (input$multi_season) {
+        s <- seasons()
+        if (length(s) == 0) "list()" else {
+          s_lines <- sapply(s, function(x) {
+            sprintf("    \"%s\" = c(\"%s\", \"%s\")", x$name, x$start, x$end)
+          })
+          paste0("list(\n", paste(s_lines, collapse = ",\n"), "\n  )")
+        }
+      } else {
+        sprintf("c(\"%s\", \"%s\")", input$period[1], input$period[2])
+      }
+      
       unit_conv <- if (input$unit_conversion == "none") "NULL" else sprintf("\"%s\"", input$unit_conversion)
       mask_str <- if (isTRUE(aoi$mask())) "TRUE" else "FALSE"
 
@@ -698,13 +852,23 @@ mod_download_server <- function(id, l3_regions_meta) {
             )
             
             # Use the core wapor_map for each variable to provide granular progress
+            # Resolve period
+            current_period <- if (input$multi_season) {
+              s <- seasons()
+              p_list <- lapply(s, function(x) as.character(c(x$start, x$end)))
+              names(p_list) <- sapply(s, function(x) x$name)
+              p_list
+            } else {
+              as.character(input$period)
+            }
+
             # Dual-stage if both selected
             if (isTRUE(input$seasonal) && isTRUE(input$separate_files)) {
               shiny::incProgress(0, detail = sprintf("Stage 1 of 2: Individual files for %s...", v))
               out_path_ind <- Rwapor::wapor_map(
                 region = reg,
                 variable = v,
-                period = as.character(input$period),
+                period = current_period,
                 folder = input$folder,
                 unit_conversion = unit_conv,
                 seasonal = FALSE,
@@ -716,19 +880,19 @@ mod_download_server <- function(id, l3_regions_meta) {
               out_path_sea <- Rwapor::wapor_map(
                 region = reg,
                 variable = v,
-                period = as.character(input$period),
+                period = current_period,
                 folder = input$folder,
                 unit_conversion = unit_conv,
                 seasonal = TRUE,
                 separate_files = FALSE,
                 mask = aoi$mask()
               )
-              out_path <- c(out_path_ind, out_path_sea)
+              out_path <- c(unlist(out_path_ind), unlist(out_path_sea))
             } else {
               out_path <- Rwapor::wapor_map(
                 region = reg,
                 variable = v,
-                period = as.character(input$period),
+                period = current_period,
                 folder = input$folder,
                 unit_conversion = unit_conv,
                 seasonal = input$seasonal,

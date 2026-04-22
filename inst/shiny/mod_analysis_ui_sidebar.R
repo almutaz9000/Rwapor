@@ -117,6 +117,18 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
               )
             )
           ),
+          shiny::div(
+            class = "inline-row",
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(
+                ns("an_t_var"), "Transpiration (T)",
+                choices  = c("None" = "", grep("-T-D", all_vars, value = TRUE)),
+                selected = ""
+              )
+            ),
+            shiny::div(class = "flex-1") # Placeholder
+          ),
           shiny::conditionalPanel(
             condition = sprintf(
                 "input['%s'] && input['%s'].startsWith('L3-')",
@@ -188,29 +200,30 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
         bslib::accordion_panel(
           "Indicators", icon = shiny::icon("chart-bar"),
 
-          shiny::tags$span("Seasonal Aggregations", class = "ctrl-group-label"),
+          shiny::tags$span("Seasonal Aggregation of Specified Variables", class = "ctrl-group-label"),
           shiny::checkboxGroupInput(
             ns("an_agg_vars"), NULL,
             choiceNames  = list(
-              "AETI \u2013 Actual Evapotranspiration",
-              "RET \u2013 Reference ET",
               "PCP \u2013 Total Precipitation",
-              "Peff \u2013 Effective Precipitation (USDA)",
+              "RET \u2013 Reference ET",
+              "AETI \u2013 Actual Evapotranspiration",
+              "T \u2013 Transpiration",
               "Biomass (kg/ha)",
               "Biomass (t/ha)"
             ),
             choiceValues = list(
-              "agg_aeti", "agg_ret", "agg_pcp", "agg_peff",
+              "agg_pcp", "agg_ret", "agg_aeti", "agg_t",
               "agg_biomass_kg", "agg_biomass_t"
             ),
-            selected = c("agg_aeti", "agg_ret", "agg_biomass_t")
+            selected = c("agg_pcp", "agg_ret", "agg_aeti", "agg_biomass_t")
           ),
 
           shiny::tags$hr(class = "ctrl-divider"),
-          shiny::tags$span("Derived Indicators", class = "ctrl-group-label"),
+          shiny::tags$span("Dekadal or Monthly Indicators", class = "ctrl-group-label"),
           shiny::checkboxGroupInput(
             ns("an_derived_vars"), NULL,
             choiceNames  = list(
+              "Peff \u2013 Effective Precipitation (USDA)",
               "ETc \u2013 Crop ET (RET \u00d7 Kc)",
               "Water Adequacy \u2013 ETc basis",
               "Water Adequacy \u2013 P95 basis",
@@ -220,7 +233,7 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
               "Blue Water \u2013 AETI from irrigation (requires Peff)"
             ),
             choiceValues = list(
-              "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp",
+              "peff", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp",
               "green_water", "blue_water"
             ),
             selected = c("etc", "adequacy_etc", "yield_npp")

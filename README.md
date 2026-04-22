@@ -191,6 +191,27 @@ map_path <- wapor_map(
 library(terra)
 r <- rast(map_path)
 plot(r[[1]], main = "AETI - 2023-06-01")
+
+### Example 3: Selective Multi-Season Download
+
+Download data only for specific windows (e.g., non-contiguous growing seasons) to avoid redundant downloads:
+
+```r
+# Define specific windows for different years
+periods <- list(
+  "Winter_2019" = c("2018-10-12", "2019-05-31"),
+  "Winter_2021" = c("2020-11-07", "2022-04-25")
+)
+
+# Downloads only data within these windows
+wapor_map(
+  region   = "my_basin.shp",
+  variable = "L1-AETI-D",
+  period   = periods,
+  seasonal = TRUE, # Will produce two seasonal rasters: one per window
+  folder   = "multi_season_results"
+)
+```
 ```
 
 ---

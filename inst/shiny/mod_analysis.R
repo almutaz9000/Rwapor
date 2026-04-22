@@ -1045,6 +1045,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           ret_var = input$an_ret_var,
           precip_var = input$an_precip_var,
           npp_var = input$an_npp_var,
+          t_var = input$an_t_var,
           folder = global_folder(), # Use global folder reactive
           data_source = input$an_data_source,
           l3_region = input$an_l3_region,
@@ -1140,6 +1141,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         ret_var = input$an_ret_var,
         precip_var = input$an_precip_var,
         npp_var = input$an_npp_var,
+        t_var = input$an_t_var,
         crop_params = collect_crop_params(),
         indicators = unique(c(input$an_agg_vars, input$an_derived_vars)),
         l3_code = if (any(grepl("^L3-", c(input$an_aeti_var, input$an_ret_var)))) {
@@ -1261,10 +1263,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       ret_var  <- input$an_ret_var
       precip_var <- input$an_precip_var
       npp_var    <- input$an_npp_var
+      t_var      <- input$an_t_var
       folder     <- global_folder()
       
       # Resolve L3 code if needed (check all required variables)
-      any_l3 <- any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var) %||% ""))
+      any_l3 <- any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var, t_var) %||% ""))
       l3_code <- if (any_l3) input$an_l3_region else NULL
       
       if (is.null(l3_code) && any_l3) {
@@ -1317,6 +1320,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           ("cwp_bwp" %in% indicators && is.null(input$an_biomass_file))
         ) {
           required_vars <- c(required_vars, npp_var)
+        }
+        if ("agg_t" %in% indicators) {
+          required_vars <- c(required_vars, t_var)
         }
 
         missing_vars <- required_vars[!required_vars %in% local_vars$variable]
@@ -1413,7 +1419,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             aeti_var    = aeti_var,
             ret_var     = ret_var,
             precip_var  = precip_var,
-            npp_var     = input$an_npp_var,
+            npp_var     = npp_var,
+            t_var       = t_var,
             data_source = input$an_data_source,
             l3_code     = l3_code,
             indicators  = indicators,

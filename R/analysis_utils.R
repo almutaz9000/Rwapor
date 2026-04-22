@@ -189,15 +189,17 @@ wapor_generate_shiny_script <- function(config, crop_params) {
   ret_var     <- config$ret_var  %||% "L1-RET-D"
   precip_var  <- config$precip_var %||% "L1-PCP-D"
   npp_var     <- config$npp_var    %||% "L1-NPP-D"
+  t_var       <- config$t_var      %||% ""
   folder      <- config$folder %||% "analysis_output"
   data_source <- config$data_source %||% "api"
-  l3_region   <- if (any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var)))) config$l3_region else NULL
+  l3_region   <- if (any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var, t_var)))) config$l3_region else NULL
 
   # Fetch scale factors dynamically
   aeti_scale   <- Rwapor::wapor_variable_metadata(aeti_var)$scale   %||% 1.0
   ret_scale    <- Rwapor::wapor_variable_metadata(ret_var)$scale    %||% 1.0
   precip_scale <- Rwapor::wapor_variable_metadata(precip_var)$scale %||% 1.0
   npp_scale    <- Rwapor::wapor_variable_metadata(npp_var)$scale    %||% 1.0
+  t_scale      <- if (nzchar(t_var)) Rwapor::wapor_variable_metadata(t_var)$scale %||% 1.0 else 1.0
 
 
   indicators <- unique(c(config$agg_vars, config$derived_vars)) %||% character(0)
@@ -235,6 +237,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     sprintf("ret_var  <- %s", shQuote(ret_var)),
     sprintf("precip_var <- %s", shQuote(precip_var)),
     sprintf("npp_var    <- %s", shQuote(npp_var)),
+    if (nzchar(t_var)) sprintf("t_var      <- %s", shQuote(t_var)) else NULL,
     if (!is.null(l3_region)) sprintf("l3_region  <- %s", shQuote(l3_region)) else NULL,
     "",
     "# [3] Crop parameters & Kc curves",
@@ -309,11 +312,22 @@ wapor_generate_shiny_script <- function(config, crop_params) {
              "}")
     } else NULL,
 
+    if ("agg_t" %in% indicators) {
+      paste0("t_stack <- if (data_source == \"api\") {\n",
+             "  urls <- wapor_generate_urls(t_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
+             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", t_scale, "\n",
+             "} else {\n",
+             "  paths <- wapor_local_rasters(output_folder, t_var, period[1], period[2])\n",
+             "  terra::rast(paths) * ", t_scale, "\n",
+             "}")
+    } else NULL,
+
     "",
     "# [7] Calculate Indicators",
     "results <- list()",
     if ("agg_aeti" %in% indicators) "results$seasonal_aeti <- wapor_calc_seasonal_aeti(aeti_stack, season_weights, h_mask)" else NULL,
     if ("agg_ret" %in% indicators) "results$seasonal_ret  <- wapor_calc_seasonal_ret(ret_stack, season_weights, h_mask)" else NULL,
+    if ("agg_t" %in% indicators) "results$seasonal_t <- wapor_calc_seasonal_aeti(t_stack, season_weights, h_mask)" else NULL,
     if ("etc" %in% indicators) {
       c("# Generate Kc curve based on season duration",
         "total_days_r <- h_end - h_start + 1",
@@ -359,6 +373,7 @@ wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, ind
   .write(results$seasonal_aeti$raster, "seasonal_aeti")
   .write(results$seasonal_ret$raster, "seasonal_ret")
   .write(results$seasonal_pcp, "seasonal_pcp")
+  .write(results$seasonal_t$raster, "seasonal_transpiration")
   
   if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
     .write(results$seasonal_biomass_kg, "seasonal_biomass_kg_ha")
