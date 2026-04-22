@@ -84,8 +84,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   h_mask <- if (isTRUE(config$use_crop_mask)) {
     Rwapor::wapor_harmonize_crop_mask(rasters$crop_mask, template_r)
   } else {
-    # If no mask used, treat entire area as class 1
-    template_r[[1]] * 0 + 1L
+    terra::classify(template_r[[1]] * 0 + 1, cbind(NA, NA))
   }
   
   # Harmonize season rasters

@@ -174,6 +174,7 @@ wapor_map <- function(
       running_value <- NULL
       running_weight <- NULL
       valid_count <- NULL
+      ref_raster <- NULL
       
       var_folder <- file.path(folder, paste0(var, "_seasonal"))
       if (!dir.exists(var_folder)) {
@@ -189,27 +190,39 @@ wapor_map <- function(
         r_group <- terra::subst(r_group, NaN, NA)
         r_group <- wapor_convert_temperature(r_group, g$variable)
 
-        # Handle weighted sum/mean using terra::sum for performance and tree depth stability
+        if (is.null(ref_raster)) {
+          ref_raster <- r_group[[1]]
+        }
+
+        # Check if all layers match the reference geometry; resample the whole stack if not.
+        if (!terra::compareGeom(r_group, ref_raster, stopOnError = FALSE)) {
+          r_group <- terra::resample(r_group, ref_raster, method = "bilinear")
+        }
+
+        # Vectorized multiplication of multipliers across the stack
         weighted_stack <- r_group * multipliers
-        
-        group_sum <- sum(weighted_stack, na.rm = TRUE)
-        
+
+        # Accumulate sums and weights/counts using specialized terra functions (C++ backend)
+        # This is significantly faster than per-layer R loops with ifel()
         if (identical(aggregation_rule, "weighted_mean")) {
-          # Sum of weights where data is not NA
-          group_weight <- sum(terra::ifel(is.na(r_group), 0, multipliers), na.rm = TRUE)
-          
+          # Weight raster for each layer: multiplier where data is present, 0 otherwise
+          weight_stack <- terra::ifel(is.na(r_group), 0, multipliers)
+
+          group_sum <- terra::sum(weighted_stack, na.rm = TRUE)
+          group_weight <- terra::sum(weight_stack, na.rm = TRUE)
+
           if (is.null(running_value)) {
             running_value <- group_sum
             running_weight <- group_weight
           } else {
-            # Align if needed (should be same ext/res from download_seasonal_rasters)
             running_value <- running_value + group_sum
             running_weight <- running_weight + group_weight
           }
         } else {
-          # Number of valid observations (used for masking the final sum)
-          group_valid <- sum(!is.na(r_group), na.rm = TRUE)
-          
+          group_sum <- terra::sum(weighted_stack, na.rm = TRUE)
+          # count of non-NA layers for masking at the end
+          group_valid <- terra::sum(!is.na(r_group))
+
           if (is.null(running_value)) {
             running_value <- group_sum
             valid_count <- group_valid
