@@ -192,49 +192,65 @@ wapor_map <- function(
         r_group <- g$raster
         multipliers <- g$multipliers
 
-        for (i in seq_len(terra::nlyr(r_group))) {
-          layer_clean <- terra::subst(r_group[[i]], NaN, NA)
-          layer <- layer_clean
+        # Optimization: Move subst and temperature conversion out of inner loop
+        r_group <- terra::subst(r_group, NaN, NA)
+        r_group <- wapor_convert_temperature(r_group, g$variable)
 
-          # Apply temperature conversion if needed (Kelvin to Celsius)
-          layer <- wapor_convert_temperature(layer, g$variable)
+        if (is.null(ref_raster)) {
+          ref_raster <- r_group[[1]]
+        }
 
-          if (is.null(ref_raster)) {
-            ref_raster <- layer
-          } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
-            layer <- terra::resample(layer, ref_raster, method = "bilinear")
-          }
+        # Check if all layers match the reference geometry; resample the whole stack if not.
+        if (!terra::compareGeom(r_group, ref_raster, stopOnError = FALSE)) {
+          r_group <- terra::resample(r_group, ref_raster, method = "bilinear")
+        }
 
-          layer_idx <- layer_idx + 1L
-          weighted_layer <- layer * multipliers[i]
+        # Vectorized multiplication of multipliers across the stack
+        weighted_stack <- r_group * multipliers
 
-          if (identical(aggregation_rule, "weighted_mean")) {
-            weight_raster <- terra::ifel(is.na(layer), 0, multipliers[i])
-            if (is.null(running_value)) {
-              running_value <- terra::ifel(is.na(layer), 0, weighted_layer)
-              running_weight <- weight_raster
-            } else {
-              running_value <- running_value + terra::ifel(is.na(layer), 0, weighted_layer)
-              running_weight <- running_weight + weight_raster
-            }
+        # Accumulate sums and weights/counts using specialized terra functions (C++ backend)
+        # This is significantly faster than per-layer R loops with ifel()
+        if (identical(aggregation_rule, "weighted_mean")) {
+          # Weight raster for each layer: multiplier where data is present, 0 otherwise
+          # Vectorized across the stack
+          weight_stack <- terra::ifel(is.na(r_group), 0, multipliers)
+
+          group_sum <- terra::sum(weighted_stack, na.rm = TRUE)
+          group_weight <- terra::sum(weight_stack, na.rm = TRUE)
+
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            running_weight <- group_weight
           } else {
-            if (is.null(running_value)) {
-              running_value <- terra::ifel(is.na(layer), 0, weighted_layer)
-              valid_count <- terra::ifel(is.na(layer), 0L, 1L)
-            } else {
-              running_value <- running_value + terra::ifel(is.na(layer), 0, weighted_layer)
-              valid_count <- valid_count + terra::ifel(is.na(layer), 0L, 1L)
-            }
+            running_value <- running_value + group_sum
+            running_weight <- running_weight + group_weight
           }
+        } else {
+          group_sum <- terra::sum(weighted_stack, na.rm = TRUE)
+          # count of non-NA layers for masking at the end
+          group_valid <- terra::sum(!is.na(r_group))
 
-          if (separate_files) {
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            valid_count <- group_valid
+          } else {
+            running_value <- running_value + group_sum
+            valid_count <- valid_count + group_valid
+          }
+        }
+
+        # Handle separate files if requested (still requires a loop, but on a pre-processed stack)
+        if (separate_files) {
+          for (i in seq_len(terra::nlyr(r_group))) {
+            layer_idx <- layer_idx + 1L
             src_name <- gsub("[^A-Za-z0-9_-]", "_", g$layer_ids[i] %||% names(r_group)[i] %||% sprintf("%03d", i))
             source_var <- gsub("[^A-Za-z0-9_-]", "_", g$variable %||% paste0(var, "_", g$code))
             component_file <- file.path(
               component_folder,
               sprintf("%s.seasonal_component_%03d.from_%s.%s.tif", var, layer_idx, source_var, src_name)
             )
-            component_raster <- terra::classify(weighted_layer, cbind(NA, -9999))
+            # Use the already computed weighted layer
+            component_raster <- terra::classify(weighted_stack[[i]], cbind(NA, -9999))
             component_raster <- assign_raster_metadata(
               component_raster,
               var,
@@ -243,12 +259,16 @@ wapor_map <- function(
             suppressWarnings(terra::writeRaster(component_raster, component_file, overwrite = TRUE, NAflag = -9999))
             component_paths <- c(component_paths, component_file)
           }
+        } else {
+          layer_idx <- layer_idx + terra::nlyr(r_group)
         }
       }
 
       seasonal_sum <- if (identical(aggregation_rule, "weighted_mean")) {
+        # running_weight is the sum of multipliers for non-NA pixels
         terra::ifel(running_weight > 0, running_value / running_weight, NA)
       } else {
+        # If all contributing layers were NA, mask the resulting 0 back to NA
         terra::mask(running_value, valid_count, maskvalue = 0)
       }
       names(seasonal_sum) <- paste0(if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", period[1], "_", period[2])
