@@ -359,7 +359,15 @@ wapor_generate_shiny_script <- function(config, crop_params) {
 wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, indicators) {
   if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
   
-  prefix <- if (nzchar(season_label)) {
+  # Handle list of results (multi-period)
+  if (is.list(results) && !is.null(results[[1]]) && !is.null(results[[1]]$h_mask)) {
+     for (s_name in names(results)) {
+        wapor_shiny_save_analysis_rasters(results[[s_name]], folder, s_name, indicators)
+     }
+     return(invisible(TRUE))
+  }
+
+  prefix <- if (!is.null(season_label) && nzchar(season_label)) {
     gsub("[^a-zA-Z0-9_-]", "_", season_label)
   } else "analysis"
   
