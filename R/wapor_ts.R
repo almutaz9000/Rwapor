@@ -208,38 +208,52 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     # Accumulate seasonal contributions and, when needed, mean denominators.
     sum_values <- rep(0, n_zones)
     total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
+    total_poly_counts <- NULL # Cache for total area in pixels per polygon
     
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
       r_group <- g$raster
       multipliers <- g$multipliers
-      n_lyr_group <- terra::nlyr(r_group)
       
       # Process entire group stack at once for better performance
       # This avoids redundant polygon-raster intersection overhead in exact_extract
       if (!is.null(vect_data)) {
-        # exact_extract returns a data.frame with one column per layer
-        group_means_df <- suppressWarnings(exactextractr::exact_extract(
-          r_group, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+        # Optimization: Combined extraction of mean and count (coverage of non-NA)
+        # This avoids re-computing the polygon-raster intersection twice and
+        # eliminates the need to create a massive !is.na() stack.
+        stats_to_extract <- if (!is.null(total_weights)) c("mean", "count") else "mean"
+
+        ex_df <- suppressWarnings(exactextractr::exact_extract(
+          r_group, sf::st_as_sf(terra::vect(vect_data)), stats_to_extract, progress = FALSE
         ))
-        # Convert to matrix for fast weighted sum
-        group_means_mat <- as.matrix(group_means_df)
+
+        # Identify columns and convert to matrix for fast weighted sum
+        all_cols <- names(ex_df)
+        mean_cols <- grep("^mean", all_cols, value = TRUE)
+        group_means_mat <- as.matrix(ex_df[, mean_cols, drop = FALSE])
         group_means_mat[is.na(group_means_mat)] <- 0
 
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
 
         if (!is.null(total_weights)) {
-          # For weighted_mean, we need the sum of weights where data exists
-          # We check which layers are NOT NA.
-          # Note: exact_extract doesn't directly support weighted coverage sum for multiple layers
-          # so we process !is.na(stack)
-          not_na_stack <- !is.na(r_group)
-          coverage_df <- suppressWarnings(exactextractr::exact_extract(
-            not_na_stack, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-          ))
-          coverage_mat <- as.matrix(coverage_df)
-          coverage_mat[is.na(coverage_mat)] <- 0
-          total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
+          # For weighted_mean, we need the sum of weights (overlap_days * coverage_fraction)
+          # where coverage_fraction = count_non_na / total_pixels_in_polygon
+          if (is.null(total_poly_counts)) {
+            # Compute total possible pixel coverage for each polygon once.
+            # Using terra::init or setValues(rast, 1) on a template is very fast.
+            r_one <- terra::setValues(terra::rast(r_group[[1]]), 1)
+            total_poly_counts <- suppressWarnings(exactextractr::exact_extract(
+              r_one, sf::st_as_sf(terra::vect(vect_data)), "sum", progress = FALSE
+            ))
+          }
+
+          count_cols <- grep("^count", all_cols, value = TRUE)
+          group_counts_mat <- as.matrix(ex_df[, count_cols, drop = FALSE])
+          group_counts_mat[is.na(group_counts_mat)] <- 0
+
+          # Vectorized conversion of counts to coverage fractions
+          group_coverage_mat <- group_counts_mat / total_poly_counts
+          total_weights <- total_weights + as.vector(group_coverage_mat %*% multipliers)
         }
       } else {
         # Global stats for bbox/L3
