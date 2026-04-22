@@ -89,19 +89,38 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
 
   # Validate period format if provided
   if (!is.null(period)) {
-    if (!is.character(period) || length(period) != 2) {
-      stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
+    if (is.list(period)) {
+      # Validate each element of the list
+      for (p in period) {
+        if (!is.character(p) || length(p) != 2) {
+          stop("Each element in 'period' list must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
+        }
+      }
+    } else {
+      if (!is.character(period) || length(period) != 2) {
+        stop("'period' must be a character vector of length 2: c(start_date, end_date) or a list of such vectors", call. = FALSE)
+      }
+      # Validate date format for single vector
+      tryCatch({
+        as.Date(period[1])
+        as.Date(period[2])
+      }, error = function(e) {
+        stop("'period' dates must be in 'YYYY-MM-DD' format", call. = FALSE)
+      })
+      if (as.Date(period[1]) > as.Date(period[2])) {
+        stop("Start date must be before or equal to end date", call. = FALSE)
+      }
     }
-    # Validate date format
-    tryCatch({
-      as.Date(period[1])
-      as.Date(period[2])
-    }, error = function(e) {
-      stop("'period' dates must be in 'YYYY-MM-DD' format", call. = FALSE)
-    })
-    if (as.Date(period[1]) > as.Date(period[2])) {
-      stop("Start date must be before or equal to end date", call. = FALSE)
+  }
+
+  # Handle list of periods for multi-season support
+  if (is.list(period)) {
+    all_urls <- character(0)
+    for (p in period) {
+      # Recursive call for each period
+      all_urls <- c(all_urls, wapor_generate_urls_internal(variable, l3_region = l3_region, period = p))
     }
+    return(sort(unique(all_urls)))
   }
 
   # Determine base URL based on level

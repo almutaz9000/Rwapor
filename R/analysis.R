@@ -684,12 +684,12 @@ wapor_scan_local <- function(folder) {
     ))
   }
 
-  # List all subdirectories (each should be a variable like L1-AETI-D)
+  # List all subdirectories (each should be a variable or a seasonal folder)
   subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
 
-  # Filter to likely variable folders (match pattern like L1-AETI-D, L2-NPP-M, AGERA5-ET0-E)
-  # Note: E = daily (AgERA5), D = dekadal, M = monthly, Y = yearly
-  var_pattern <- "^(L[123]-[A-Z0-9]+-[DMYA]|AGERA5-[A-Z0-9]+-[DMYE])$"
+  # Filter to likely variable folders
+  # Matches: L1-AETI-D, L2-NPP-M, AGERA5-ET0-E, and also L1-AETI-D_seasonal
+  var_pattern <- "^(L[123]-[A-Z0-9]+-[DMYA]|AGERA5-[A-Z0-9]+-[DMYE])(_seasonal)?$"
   var_folders <- subdirs[grepl(var_pattern, subdirs)]
 
   if (length(var_folders) == 0) {
@@ -703,16 +703,24 @@ wapor_scan_local <- function(folder) {
     ))
   }
 
-  results <- lapply(var_folders, function(var) {
-    var_path <- file.path(folder, var)
+  results <- lapply(var_folders, function(var_dir) {
+    var_path <- file.path(folder, var_dir)
     tif_files <- list.files(var_path, pattern = "\\.tif$", full.names = FALSE)
 
     if (length(tif_files) == 0) {
       return(NULL)
     }
 
-    # Extract dates from filenames (pattern: *.YYYY-MM-DD.tif or *.YYYYMMDD.tif)
+    # Extract base variable name (strip _seasonal suffix for metadata lookup)
+    base_var <- sub("_seasonal$", "", var_dir)
+
+    # Extract dates from filenames
+    # Patterns: 
+    # 1. Standard: *.YYYY-MM-DD.tif
+    # 2. Standard: *.YYYYMMDD.tif
+    # 3. Seasonal: *.seasonal.YYYY-MM-DD_YYYY-MM-DD.tif
     date_patterns <- c(
+      "\\.seasonal\\.(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$", # Seasonal range
       "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",  # YYYY-MM-DD
       "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"      # YYYYMMDD
     )
@@ -720,11 +728,12 @@ wapor_scan_local <- function(folder) {
     dates <- character(0)
     for (pattern in date_patterns) {
       matches <- regmatches(tif_files, regexec(pattern, tif_files))
+      # For seasonal range, we take the first date as the start
       extracted <- sapply(matches, function(m) if (length(m) > 1) m[2] else NA_character_)
       extracted <- extracted[!is.na(extracted)]
       if (length(extracted) > 0) {
         # Normalize to YYYY-MM-DD
-        if (nchar(extracted[1]) == 8) {
+        if (all(nchar(extracted) == 8)) {
           extracted <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", extracted)
         }
         dates <- c(dates, extracted)
@@ -734,11 +743,12 @@ wapor_scan_local <- function(folder) {
     if (length(dates) == 0) {
       # Fallback: just count files
       return(data.frame(
-        variable = var,
+        variable = base_var,
         file_count = length(tif_files),
         min_date = NA_character_,
         max_date = NA_character_,
         folder_path = var_path,
+        is_seasonal = grepl("_seasonal$", var_dir),
         stringsAsFactors = FALSE
       ))
     }
@@ -746,11 +756,12 @@ wapor_scan_local <- function(folder) {
     dates <- sort(unique(dates))
 
     data.frame(
-      variable = var,
+      variable = base_var,
       file_count = length(tif_files),
       min_date = dates[1],
       max_date = dates[length(dates)],
       folder_path = var_path,
+      is_seasonal = grepl("_seasonal$", var_dir),
       stringsAsFactors = FALSE
     )
   })
@@ -810,17 +821,21 @@ wapor_compare_geom <- function(r1, r2) {
 #' @return Character vector of full file paths, sorted by date.
 #' @export
 wapor_local_rasters <- function(folder, variable, start_date, end_date) {
-  var_path <- file.path(folder, variable)
+  # Check both the standard folder and the seasonal folder
+  var_folders <- c(file.path(folder, variable), file.path(folder, paste0(variable, "_seasonal")))
+  var_folders <- var_folders[dir.exists(var_folders)]
 
-  if (!dir.exists(var_path)) {
-    warning(sprintf("Variable folder not found: %s", var_path), call. = FALSE)
+  if (length(var_folders) == 0) {
+    warning(sprintf("No local data folder found for %s (checked %s and %s_seasonal)", 
+                    variable, variable, variable), call. = FALSE)
     return(character(0))
   }
 
   if (is.character(start_date)) start_date <- as.Date(start_date)
   if (is.character(end_date)) end_date <- as.Date(end_date)
 
-  tif_files <- list.files(var_path, pattern = "\\.tif$", full.names = TRUE)
+  # List all tif files in all existing variable folders
+  tif_files <- list.files(var_folders, pattern = "\\.tif$", full.names = TRUE)
 
   if (length(tif_files) == 0) {
     return(character(0))
@@ -831,7 +846,9 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   tres_code <- if (length(var_parts) >= 3) var_parts[length(var_parts)] else "D"
 
   # Extract dates and filter by range
+  # Patterns: Standard date, or Seasonal range
   date_patterns <- c(
+    "\\.seasonal\\.(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$",
     "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",
     "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"
   )
@@ -855,38 +872,37 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
         file_start <- as.Date(date_str)
         file_dates$file_start[i] <- file_start
 
-        # Calculate file end date based on temporal resolution
-        if (tres_code == "D") {
-          # Dekadal: each dekad covers ~10 days
-          day_of_month <- as.integer(format(file_start, "%d"))
-          if (day_of_month == 1) {
-            # First dekad: days 1-10
-            file_dates$file_end[i] <- file_start + 9
-          } else if (day_of_month == 11) {
-            # Second dekad: days 11-20
-            file_dates$file_end[i] <- file_start + 9
-          } else if (day_of_month == 21) {
-            # Third dekad: days 21 to end of month
+        # If we have a second match group (the end date in seasonal files), use it
+        if (length(m) > 2) {
+           date_end_str <- m[3]
+           file_dates$file_end[i] <- as.Date(date_end_str)
+        } else {
+          # Calculate file end date based on temporal resolution
+          if (tres_code == "D") {
+            # Dekadal: each dekad covers ~10 days
+            day_of_month <- as.integer(format(file_start, "%d"))
+            if (day_of_month == 1) {
+              file_dates$file_end[i] <- file_start + 9
+            } else if (day_of_month == 11) {
+              file_dates$file_end[i] <- file_start + 9
+            } else if (day_of_month == 21) {
+              file_dates$file_end[i] <- as.Date(paste0(
+                format(file_start, "%Y-%m-"),
+                lubridate::days_in_month(file_start)
+              ))
+            } else {
+              file_dates$file_end[i] <- file_start + 9
+            }
+          } else if (tres_code == "M") {
             file_dates$file_end[i] <- as.Date(paste0(
               format(file_start, "%Y-%m-"),
               lubridate::days_in_month(file_start)
             ))
+          } else if (tres_code %in% c("A", "Y")) {
+            file_dates$file_end[i] <- as.Date(paste0(format(file_start, "%Y"), "-12-31"))
           } else {
-            # Fallback for non-standard dekad start
-            file_dates$file_end[i] <- file_start + 9
+            file_dates$file_end[i] <- file_start
           }
-        } else if (tres_code == "M") {
-          # Monthly: end on last day of month
-          file_dates$file_end[i] <- as.Date(paste0(
-            format(file_start, "%Y-%m-"),
-            lubridate::days_in_month(file_start)
-          ))
-        } else if (tres_code %in% c("A", "Y")) {
-          # Annual: end on Dec 31
-          file_dates$file_end[i] <- as.Date(paste0(format(file_start, "%Y"), "-12-31"))
-        } else {
-          # Daily or unknown: same day
-          file_dates$file_end[i] <- file_start
         }
         break
       }

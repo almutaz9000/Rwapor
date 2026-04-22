@@ -9,8 +9,9 @@
 #'   * Numeric bounding box: `c(xmin, ymin, xmax, ymax)` in WGS84
 #' @param variable Character. Variable name following WaPOR/AgERA5 naming
 #'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
-#' @param period Character vector of length 2. Date range as
-#'   `c(start_date, end_date)` in "YYYY-MM-DD" format.
+#' @param period Character vector or list. Date range as
+#'   `c(start_date, end_date)` in "YYYY-MM-DD" format. Can also be a
+#'   named or unnamed list of such vectors for multiple seasons.
 #' @param identifier Character. Optional column name in vector file to identify
 #'   polygons in output. If NULL, numeric IDs are used.
 #' @param unit_conversion Character. Target temporal unit for conversion.
@@ -100,8 +101,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
   }
-  if (!is.character(period) || length(period) != 2) {
-    stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
+  if (!is.list(period) && (!is.character(period) || length(period) != 2)) {
+    stop("'period' must be a character vector of length 2 or a list of such vectors", call. = FALSE)
   }
   if (!is.logical(download_locally) || length(download_locally) != 1) {
     stop("'download_locally' must be a single logical value", call. = FALSE)
@@ -170,6 +171,49 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (!is.null(unit_conversion) && unit_conversion != "none") {
       message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
+    
+    # Handle list of periods for seasonal extraction
+    if (is.list(period)) {
+      multi_ts_results <- list()
+      for (i in seq_along(period)) {
+        p <- period[[i]]
+        s_name <- names(period)[i]
+        if (is.null(s_name) || s_name == "") {
+           s_name <- paste0(p[1], "_", p[2])
+        }
+        
+        log_msg(sprintf("Extracting seasonal TS for window %d/%d: %s", i, length(period), s_name))
+        # Recursive call for each window
+        window_res <- wapor_ts(
+          region = region,
+          variable = variable,
+          period = p,
+          identifier = identifier,
+          unit_conversion = "none",
+          seasonal = TRUE,
+          parallel = parallel,
+          batching = batching,
+          batch_size = batch_size,
+          l3_region = l3_region
+        )
+        if (!is.null(window_res)) {
+          window_res$season_name <- s_name
+          multi_ts_results[[s_name]] <- window_res
+        }
+      }
+      
+      if (length(multi_ts_results) == 0) return(NULL)
+      
+      final_multi_df <- do.call(rbind, multi_ts_results)
+      # Re-apply attributes from first valid result
+      first_res <- multi_ts_results[[1]]
+      attr(final_multi_df, "units") <- attr(first_res, "units")
+      attr(final_multi_df, "long_name") <- attr(first_res, "long_name")
+      attr(final_multi_df, "aggregation_rule") <- attr(first_res, "aggregation_rule")
+      
+      return(final_multi_df)
+    }
+
     aggregation_rule <- get_seasonal_aggregation_rule(variable)
 
     # Prepare region geometry for zonal stats

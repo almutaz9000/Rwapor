@@ -9,8 +9,9 @@
 #'   * Numeric bounding box: `c(xmin, ymin, xmax, ymax)` in WGS84
 #' @param variable Character. Variable name following WaPOR/AgERA5 naming
 #'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
-#' @param period Character vector of length 2. Date range as
-#'   `c(start_date, end_date)` in "YYYY-MM-DD" format.
+#' @param period Character vector or list. Date range as
+#'   `c(start_date, end_date)` in "YYYY-MM-DD" format. Can also be a
+#'   named or unnamed list of such vectors for multiple seasons.
 #' @param folder Character. Output directory path. Will be created if needed.
 #' @param filename Character. Optional output filename. If NULL, a default
 #'   name is generated based on region and variable.
@@ -104,8 +105,8 @@ wapor_map <- function(
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
   }
-  if (!is.character(period) || length(period) != 2) {
-    stop("'period' must be a character vector of length 2: c(start_date, end_date)", call. = FALSE)
+  if (!is.list(period) && (!is.character(period) || length(period) != 2)) {
+    stop("'period' must be a character vector of length 2 or a list of such vectors", call. = FALSE)
   }
   if (!is.character(folder) || length(folder) != 1) {
     stop("'folder' must be a single character string", call. = FALSE)
@@ -118,8 +119,10 @@ wapor_map <- function(
   }
   batch_size <- as.integer(batch_size)
 
-  if (as.Date(period[1]) > as.Date(period[2])) {
-    stop("'period' start date must be <= end date", call. = FALSE)
+  if (!is.list(period)) {
+    if (as.Date(period[1]) > as.Date(period[2])) {
+      stop("'period' start date must be <= end date", call. = FALSE)
+    }
   }
 
   # Create base output directory
@@ -137,15 +140,12 @@ wapor_map <- function(
 
   # --- Seasonal mode ---
   if (seasonal) {
-    if (length(variable) > 1) {
-      stop("Seasonal mode only supports a single variable at a time.", call. = FALSE)
-    }
-    process_seasonal_var <- function(var) {
+    process_seasonal_var <- function(var, current_period, current_filename) {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
       current_l3_code <- l3_code
       if (is.null(current_l3_code) && grepl("^L3-", var)) {
-         guessed_codes <- wapor_guess_region(var, reg_info, period)
+         guessed_codes <- wapor_guess_region(var, reg_info, current_period)
          if (is.null(guessed_codes)) {
             warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
             return(NULL)
@@ -158,7 +158,7 @@ wapor_map <- function(
       seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
       
       seasonal_data <- tryCatch({
-        download_seasonal_rasters(var, period, current_l3_code, reg_info, folder, do_mask = mask)
+        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder, do_mask = mask)
       }, error = function(e) {
         warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
         return(NULL)
@@ -171,114 +171,116 @@ wapor_map <- function(
       seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
       if (length(groups) == 0) return(NULL)
 
-      ref_raster <- NULL
       running_value <- NULL
       running_weight <- NULL
       valid_count <- NULL
-      layer_idx <- 0L
-      component_paths <- character(0)
+      
       var_folder <- file.path(folder, paste0(var, "_seasonal"))
-      component_folder <- file.path(var_folder, "components")
-
       if (!dir.exists(var_folder)) {
         dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
-      }
-      if (separate_files && !dir.exists(component_folder)) {
-        dir.create(component_folder, recursive = TRUE, showWarnings = FALSE)
       }
 
       for (g_name in names(groups)) {
         g <- groups[[g_name]]
         r_group <- g$raster
         multipliers <- g$multipliers
+        
+        # Clean NaNs and apply temperature conversion
+        r_group <- terra::subst(r_group, NaN, NA)
+        r_group <- wapor_convert_temperature(r_group, g$variable)
 
-        for (i in seq_len(terra::nlyr(r_group))) {
-          layer_clean <- terra::subst(r_group[[i]], NaN, NA)
-          layer <- layer_clean
-
-          # Apply temperature conversion if needed (Kelvin to Celsius)
-          layer <- wapor_convert_temperature(layer, g$variable)
-
-          if (is.null(ref_raster)) {
-            ref_raster <- layer
-          } else if (!terra::compareGeom(layer, ref_raster, stopOnError = FALSE)) {
-            layer <- terra::resample(layer, ref_raster, method = "bilinear")
-          }
-
-          layer_idx <- layer_idx + 1L
-          weighted_layer <- layer * multipliers[i]
-
-          if (identical(aggregation_rule, "weighted_mean")) {
-            weight_raster <- terra::ifel(is.na(layer), 0, multipliers[i])
-            if (is.null(running_value)) {
-              running_value <- terra::ifel(is.na(layer), 0, weighted_layer)
-              running_weight <- weight_raster
-            } else {
-              running_value <- running_value + terra::ifel(is.na(layer), 0, weighted_layer)
-              running_weight <- running_weight + weight_raster
-            }
+        # Handle weighted sum/mean using terra::sum for performance and tree depth stability
+        weighted_stack <- r_group * multipliers
+        
+        group_sum <- sum(weighted_stack, na.rm = TRUE)
+        
+        if (identical(aggregation_rule, "weighted_mean")) {
+          # Sum of weights where data is not NA
+          group_weight <- sum(terra::ifel(is.na(r_group), 0, multipliers), na.rm = TRUE)
+          
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            running_weight <- group_weight
           } else {
-            if (is.null(running_value)) {
-              running_value <- terra::ifel(is.na(layer), 0, weighted_layer)
-              valid_count <- terra::ifel(is.na(layer), 0L, 1L)
-            } else {
-              running_value <- running_value + terra::ifel(is.na(layer), 0, weighted_layer)
-              valid_count <- valid_count + terra::ifel(is.na(layer), 0L, 1L)
-            }
+            # Align if needed (should be same ext/res from download_seasonal_rasters)
+            running_value <- running_value + group_sum
+            running_weight <- running_weight + group_weight
           }
-
-          if (separate_files) {
-            src_name <- gsub("[^A-Za-z0-9_-]", "_", g$layer_ids[i] %||% names(r_group)[i] %||% sprintf("%03d", i))
-            source_var <- gsub("[^A-Za-z0-9_-]", "_", g$variable %||% paste0(var, "_", g$code))
-            component_file <- file.path(
-              component_folder,
-              sprintf("%s.seasonal_component_%03d.from_%s.%s.tif", var, layer_idx, source_var, src_name)
-            )
-            component_raster <- terra::classify(weighted_layer, cbind(NA, -9999))
-            component_raster <- assign_raster_metadata(
-              component_raster,
-              var,
-              units_override = seasonal_output_units
-            )
-            suppressWarnings(terra::writeRaster(component_raster, component_file, overwrite = TRUE, NAflag = -9999))
-            component_paths <- c(component_paths, component_file)
+        } else {
+          # Number of valid observations (used for masking the final sum)
+          group_valid <- sum(!is.na(r_group), na.rm = TRUE)
+          
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            valid_count <- group_valid
+          } else {
+            running_value <- running_value + group_sum
+            valid_count <- valid_count + group_valid
           }
         }
       }
 
-      seasonal_sum <- if (identical(aggregation_rule, "weighted_mean")) {
+      seasonal_result <- if (identical(aggregation_rule, "weighted_mean")) {
         terra::ifel(running_weight > 0, running_value / running_weight, NA)
       } else {
         terra::mask(running_value, valid_count, maskvalue = 0)
       }
-      names(seasonal_sum) <- paste0(if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", period[1], "_", period[2])
       
-      out_fname <- if (!is.null(filename) && length(variable) == 1) filename else {
-        prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
-        sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, var, period[1], period[2])
-      }
+      names(seasonal_result) <- paste0(
+        if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", 
+        current_period[1], "_", current_period[2]
+      )
       
-      out_path <- file.path(var_folder, out_fname)
-      # Finalize raster with metadata AFTER all transformations (like classify)
-      r_out <- terra::classify(seasonal_sum, cbind(NA, -9999))
+      out_path <- file.path(var_folder, current_filename)
+      # Finalize raster with metadata and proper NA flag
+      r_out <- terra::classify(seasonal_result, cbind(NA, -9999))
       r_out <- assign_raster_metadata(r_out, var, units_override = seasonal_output_units)
       
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
       
-      log_msg(sprintf("Seasonal %s for %s saved to: %s", if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate", var, out_path))
-      if (separate_files) {
-        return(list(
-          seasonal_aggregate = out_path,
-          seasonal_components = component_paths
-        ))
-      }
+      log_msg(sprintf("Seasonal %s for %s saved to: %s", 
+                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate", 
+                      var, out_path))
       return(out_path)
     }
 
-    results <- lapply(variable, process_seasonal_var)
-    names(results) <- variable
-    if (length(variable) == 1) return(results[[1]])
-    return(results)
+    # Iterate over variables and periods
+    all_results <- list()
+    for (v in variable) {
+      if (is.list(period)) {
+        v_results <- list()
+        for (i in seq_along(period)) {
+          p <- period[[i]]
+          s_name <- names(period)[i] %||% paste0(p[1], "_", p[2])
+          
+          window_filename <- if (!is.null(filename)) {
+            if (length(variable) > 1) {
+              sub("\\.tif$", paste0(".", v, ".", s_name, ".", p[1], "_", p[2], ".tif"), filename)
+            } else {
+              sub("\\.tif$", paste0(".", s_name, ".", p[1], "_", p[2], ".tif"), filename)
+            }
+          } else {
+            prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
+            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+          }
+          
+          log_msg(sprintf("Processing variable %s, season %s", v, s_name))
+          v_results[[s_name]] <- process_seasonal_var(v, p, window_filename)
+        }
+        all_results[[v]] <- v_results
+      } else {
+        def_fname <- if (!is.null(filename)) {
+           if (length(variable) > 1) sub("\\.tif$", paste0(".", v, ".tif"), filename) else filename
+        } else {
+          prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
+          sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+        }
+        all_results[[v]] <- process_seasonal_var(v, period, def_fname)
+      }
+    }
+    
+    if (length(variable) == 1) return(all_results[[1]])
+    return(all_results)
   }
 
   # Helper function to process a single variable

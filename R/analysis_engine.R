@@ -22,6 +22,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   ret_var     <- config$ret_var
   precip_var  <- config$precip_var
   npp_var     <- config$npp_var
+  t_var       <- config$t_var
   l3_code     <- config$l3_code
   indicators  <- config$indicators
   use_local   <- config$data_source == "local"
@@ -35,12 +36,15 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   reg_info   <- if (!is.null(aoi_region)) Rwapor::wapor_parse_region(aoi_region) else NULL
   
   if (use_local) {
-    paths <- Rwapor::wapor_local_rasters(folder, aeti_var, period[1], period[2])
-    if (length(paths) == 0) stop("No local AETI files found.")
+    # Prefer AETI for template, fallback to others
+    template_var <- if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
+    paths <- Rwapor::wapor_local_rasters(folder, template_var, period[1], period[2])
+    if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
     template_r <- terra::rast(paths[1])
   } else {
-    urls <- Rwapor::wapor_generate_urls(aeti_var, l3_region = l3_code, period = period)
-    if (length(urls) == 0) stop("No AETI data found.")
+    template_var <- if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
+    urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
+    if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
     template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
   }
   
@@ -83,6 +87,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   
   # Helpers (internal to engine)
   .resolve_paths <- function(var, use_local, folder, period, l3_code) {
+    if (is.null(var) || nchar(var) == 0) return(NULL)
     if (use_local) {
       paths <- Rwapor::wapor_local_rasters(folder, var, period[1], period[2])
       if (length(paths) == 0) return(NULL)
@@ -125,24 +130,29 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # Loading logic
   stacks <- list()
   if (any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water") %in% indicators)) {
-    progress_callback(0.25, sprintf("Loading %s...", aeti_var))
+    progress_callback(0.25, sprintf("Loading %s...", aeti_var %||% "AETI"))
     p <- .resolve_paths(aeti_var, use_local, folder, period, l3_code)
     stacks$aeti <- .align_to_weights(.load_and_harmonize(aeti_var, p, template_r, reg_info, "bilinear"), target_dates)
   }
   if (any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)) {
-    progress_callback(0.30, sprintf("Loading %s...", ret_var))
+    progress_callback(0.30, sprintf("Loading %s...", ret_var %||% "RET"))
     p <- .resolve_paths(ret_var, use_local, folder, period, l3_code)
     stacks$ret <- .align_to_weights(.load_and_harmonize(ret_var, p, template_r, reg_info), target_dates)
   }
-  if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators)) {
-    progress_callback(0.35, sprintf("Loading %s...", precip_var))
+  if (any(c("agg_pcp", "peff", "green_water", "blue_water") %in% indicators)) {
+    progress_callback(0.35, sprintf("Loading %s...", precip_var %||% "PCP"))
     p <- .resolve_paths(precip_var, use_local, folder, period, l3_code)
     stacks$precip <- .align_to_weights(.load_and_harmonize(precip_var, p, template_r, reg_info), target_dates)
   }
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators)) {
-    progress_callback(0.40, sprintf("Loading %s...", npp_var))
+    progress_callback(0.40, sprintf("Loading %s...", npp_var %||% "NPP"))
     p <- .resolve_paths(npp_var, use_local, folder, period, l3_code)
     stacks$npp <- .align_to_weights(.load_and_harmonize(npp_var, p, template_r, reg_info), target_dates)
+  }
+  if ("agg_t" %in% indicators) {
+    progress_callback(0.42, sprintf("Loading %s...", t_var %||% "Transpiration"))
+    p <- .resolve_paths(t_var, use_local, folder, period, l3_code)
+    stacks$t <- .align_to_weights(.load_and_harmonize(t_var, p, template_r, reg_info, "bilinear"), target_dates)
   }
 
   # 5. Calculations
@@ -178,6 +188,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::analysis_layer_multipliers(ret_var, dekad_table)    else NULL
   precip_mult <- if (!is.null(stacks$precip)) Rwapor:::analysis_layer_multipliers(precip_var, dekad_table) else NULL
   npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::analysis_layer_multipliers(npp_var, dekad_table)    else NULL
+  t_mult      <- if (!is.null(stacks$t))      Rwapor:::analysis_layer_multipliers(t_var, dekad_table)      else NULL
 
   # Aggregates
   if (!is.null(stacks$aeti)) {
@@ -188,6 +199,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip)) {
     results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
+  }
+  if ("agg_t" %in% indicators && !is.null(stacks$t)) {
+    # T is a flux (mm/day), same as AETI
+    results$seasonal_t <- Rwapor::wapor_calc_seasonal_aeti(stacks$t, season_weights, h_mask, t_mult, incremental = use_incremental)
   }
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && !is.null(stacks$npp)) {
     results$seasonal_biomass_kg <- Rwapor::wapor_masked_sum(stacks$npp, season_weights, npp_mult, incremental = use_incremental) * 22.222
