@@ -140,7 +140,7 @@ wapor_map <- function(
 
   # --- Seasonal mode ---
   if (seasonal) {
-    process_seasonal_var <- function(var, current_period, current_filename) {
+    process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
       current_l3_code <- l3_code
@@ -157,8 +157,25 @@ wapor_map <- function(
       aggregation_rule <- get_seasonal_aggregation_rule(var)
       seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
       
+      # Smart-Linking for Timing Rasters:
+      # If specific masks for this season exist (e.g., Winter2018_start.tif), use them.
+      p_start_raster <- start_raster
+      p_end_raster   <- end_raster
+      
+      if (!is.null(folder)) {
+        # Check both the folder itself and the 'seasonal_masks' subfolder
+        mask_dirs <- c(folder, file.path(folder, "seasonal_masks"))
+        for (m_dir in mask_dirs) {
+          s_start_path <- file.path(m_dir, paste0(s_name, "_start.tif"))
+          s_end_path   <- file.path(m_dir, paste0(s_name, "_end.tif"))
+          if (file.exists(s_start_path)) p_start_raster <- terra::rast(s_start_path)
+          if (file.exists(s_end_path))   p_end_raster   <- terra::rast(s_end_path)
+        }
+      }
+
       seasonal_data <- tryCatch({
-        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder, do_mask = mask)
+        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder, 
+                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster)
       }, error = function(e) {
         warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
         return(NULL)
@@ -265,17 +282,18 @@ wapor_map <- function(
           }
           
           log_msg(sprintf("Processing variable %s, season %s", v, s_name))
-          v_results[[s_name]] <- process_seasonal_var(v, p, window_filename)
+          v_results[[s_name]] <- process_seasonal_var(v, p, window_filename, s_name)
         }
         all_results[[v]] <- v_results
       } else {
+        s_name <- if (!is.null(names(period))) names(period)[1] else "seasonal"
         def_fname <- if (!is.null(filename)) {
            if (length(variable) > 1) sub("\\.tif$", paste0(".", v, ".tif"), filename) else filename
         } else {
           prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
           sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
         }
-        all_results[[v]] <- process_seasonal_var(v, period, def_fname)
+        all_results[[v]] <- process_seasonal_var(v, period, def_fname, s_name)
       }
     }
     

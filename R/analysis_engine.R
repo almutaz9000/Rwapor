@@ -29,11 +29,35 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       p_config <- config
       p_config$period <- periods[[i]]
       
+      # Auto-derive ref_year for this season if needed
+      if (is.null(p_config$ref_year)) {
+        p_config$ref_year <- as.integer(format(as.Date(p_config$period[1]), "%Y"))
+      }
+      
+      # Smart-Linking: Look for season-specific masks in folder/seasonal_masks
+      p_rasters <- rasters
+      if (!is.null(config$folder)) {
+        # Check both the folder itself and the 'seasonal_masks' subfolder
+        mask_dirs <- c(config$folder, file.path(config$folder, "seasonal_masks"))
+        for (m_dir in mask_dirs) {
+          s_start_path <- file.path(m_dir, paste0(p_name, "_start.tif"))
+          s_end_path   <- file.path(m_dir, paste0(p_name, "_end.tif"))
+          if (file.exists(s_start_path)) {
+            p_rasters$season_start <- terra::rast(s_start_path)
+            p_config$use_season_rasters <- TRUE
+          }
+          if (file.exists(s_end_path)) {
+            p_rasters$season_end <- terra::rast(s_end_path)
+            p_config$use_season_rasters <- TRUE
+          }
+        }
+      }
+      
       # Recursive call for single period
       all_results[[p_name]] <- wapor_run_seasonal_analysis(
         config = p_config, 
         crop_params = crop_params, 
-        rasters = rasters, 
+        rasters = p_rasters, 
         aoi_region = aoi_region, 
         progress_callback = NULL # Suppress sub-progress
       )
@@ -43,7 +67,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # 1. Resolve basic params
   period      <- config$period
-  ref_year    <- config$ref_year
+  ref_year    <- config$ref_year %||% as.integer(format(as.Date(period[1]), "%Y"))
   aeti_var    <- config$aeti_var
   ret_var     <- config$ret_var
   precip_var  <- config$precip_var
