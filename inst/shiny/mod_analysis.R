@@ -673,6 +673,71 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       shiny::showNotification(sprintf("Detected %d seasons.", length(windows)), type = "message")
     })
 
+    # Custom Timing Mask Generation
+    shiny::observeEvent(input$an_generate_masks, {
+      shiny::req(input$an_mask_vector, input$an_mask_csv)
+      
+      folder <- global_folder()
+      if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
+        shiny::showNotification("Project folder not found. Please configure it in the Download tab.", type = "warning")
+        return()
+      }
+      
+      shiny::withProgress(message = "Generating timing masks...", value = 0, {
+        tryCatch({
+          # 1. Get Template Raster
+          template_r <- NULL
+          local_vars <- an_local_vars()
+          
+          if (!is.null(local_vars) && nrow(local_vars) > 0) {
+            # Try to find AETI or first available
+            best_var <- if (input$an_aeti_var %in% local_vars$variable) input$an_aeti_var else local_vars$variable[1]
+            var_folder <- local_vars$folder_path[local_vars$variable == best_var][1]
+            files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
+            if (length(files) > 0) template_r <- terra::rast(files[1])
+          }
+          
+          if (is.null(template_r)) {
+            # Fallback to API if AOI is set
+            reg <- current_region()
+            if (is.null(reg)) {
+              stop("No template raster found locally and no AOI defined to stream one from API.")
+            }
+            reg_info <- Rwapor::wapor_parse_region(reg)
+            # Use a dummy recent date
+            urls <- Rwapor::wapor_generate_urls(input$an_aeti_var, period = c("2023-01-01", "2023-01-01"))
+            if (length(urls) == 0) stop("Could not find template raster via API.")
+            template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
+            template_r <- Rwapor::wapor_crop_to_region(template_r, reg_info)
+          }
+          
+          shiny::incProgress(0.4, detail = "Rasterizing polygons...")
+          
+          # 2. Call Generation Function
+          # Note: input$an_mask_vector$datapath is the temp file path
+          results <- Rwapor::wapor_vector_to_season_rasters(
+            vector_path   = input$an_mask_vector$datapath,
+            csv_path      = input$an_mask_csv$datapath,
+            template_r    = template_r,
+            id_col        = input$an_mask_id_col,
+            ref_year      = 1970, # Global historical anchor
+            output_folder = file.path(folder, "seasonal_masks")
+          )
+          
+          shiny::incProgress(0.5, detail = "Finalizing...")
+          
+          shiny::showNotification(
+            sprintf("Successfully generated %d seasonal masks in 'seasonal_masks' folder.", nrow(results)),
+            type = "message",
+            duration = 10
+          )
+          
+        }, error = function(e) {
+          shiny::showNotification(paste("Mask generation failed:", e$message), type = "error")
+        })
+      })
+    })
+
     # Auto-update analysis period from season rasters
     shiny::observe({
       shiny::req(isTRUE(input$an_use_season_rasters))
