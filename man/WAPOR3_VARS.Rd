@@ -29,9 +29,9 @@ Variable naming convention: \code{{Level}-{Variable}-{TemporalResolution}}
 
 \strong{Levels:}
 \itemize{
-\item L1: Continental scale (~250m resolution for Africa and Near East)
-\item L2: Country/regional scale (~100m resolution)
-\item L3: Sub-national / irrigation scheme scale (~10-20m resolution)
+\item L1: Continental scale (~300m for ETLook variables; RET ~11 km; PCP ~5 km)
+\item L2: Country/regional scale (~100m; RET and PCP not available at this level)
+\item L3: Sub-national / irrigation scheme scale (~20m; RET and PCP not available at this level)
 }
 
 \strong{Temporal Resolutions:}
