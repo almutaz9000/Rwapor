@@ -1069,9 +1069,36 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
     x_num <- suppressWarnings(as.numeric(x))
     is_num <- !is.na(x_num) & !is.na(x) & nchar(x) > 4 # rudimentary check to avoid years like '2023' being treated as days
     
-    # 2. Try parsing text formats
-    # Common formats including month names (e.g. 01-Jan-2023)
-    orders <- c("ymd", "dmy", "mdy", "Ymd", "dmY", "mdY", "dby", "dbY", "bdy", "bdY")
+    # 2. Try parsing text formats with intelligent MDY vs DMY detection
+    # Common formats
+    base_orders <- c("ymd", "Ymd")
+    
+    # Check if MDY or DMY is more likely by looking for values > 12 in the first or second position
+    # (Only for strings that look like dates with separators)
+    date_samples <- x[!is.na(x) & nchar(x) >= 6 & grepl("[/-]", x)]
+    if (length(date_samples) > 0) {
+      # Extract first two numeric components
+      components <- regmatches(date_samples, gregexpr("\\d+", date_samples))
+      first_vals <- as.numeric(sapply(components, function(c) if(length(c) >= 1) c[1] else NA))
+      second_vals <- as.numeric(sapply(components, function(c) if(length(c) >= 2) c[2] else NA))
+      
+      has_first_gt_12 <- any(!is.na(first_vals) & first_vals > 12 & first_vals <= 31)
+      has_second_gt_12 <- any(!is.na(second_vals) & second_vals > 12 & second_vals <= 31)
+      
+      if (has_first_gt_12 && !has_second_gt_12) {
+        # Definitely DMY
+        orders <- c(base_orders, "dmy", "dmY", "dby", "dbY")
+      } else if (has_second_gt_12 && !has_first_gt_12) {
+        # Definitely MDY (like the user's screenshot)
+        orders <- c(base_orders, "mdy", "mdY", "bdy", "bdY")
+      } else {
+        # Ambiguous or already YMD, use both but prefer DMY as global standard
+        orders <- c(base_orders, "dmy", "dmY", "mdy", "mdY", "dby", "dbY", "bdy", "bdY")
+      }
+    } else {
+      orders <- c(base_orders, "dmy", "dmY", "mdy", "mdY", "dby", "dbY", "bdy", "bdY")
+    }
+    
     parsed <- lubridate::parse_date_time(x, orders = orders, quiet = TRUE)
     
     # 3. For those that failed text parsing, try numeric parsing (Excel style: origin 1899-12-30)
