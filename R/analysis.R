@@ -1015,3 +1015,94 @@ wapor_check_local <- function(urls, var, folder) {
 
   list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
 }
+
+#' Generate Seasonal Timing Rasters from Vector and CSV
+#'
+#' Creates "Start of Season" and "End of Season" rasters by rasterizing 
+#' polygon-specific dates onto a reference template. Polygons are grouped 
+#' by season name. This is useful for regions with heterogeneous planting 
+#' dates across different districts or farm plots.
+#'
+#' @param vector_path Character. Path to vector file (e.g., .geojson, .shp).
+#' @param csv_path Character. Path to CSV file with dates.
+#' @param template_r SpatRaster. Template for extent, resolution, and CRS.
+#' @param id_col Character. Name of the ID column common to vector and CSV.
+#' @param season_col Character. Column name for the season identifier.
+#' @param start_col Character. Column name for the start dates (YYYY-MM-DD).
+#' @param end_col Character. Column name for the end dates (YYYY-MM-DD).
+#' @param ref_year Integer. Reference year for Julian day calculation.
+#' @param output_folder Character. Where to save the generated rasters.
+#' @return A data.frame mapping season names to their generated raster paths.
+#' @export
+wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
+                                          id_col = "id", 
+                                          season_col = "season_name",
+                                          start_col = "start_date", 
+                                          end_col = "end_date",
+                                          ref_year = 1970,
+                                          output_folder = "seasonal_masks") {
+  # 1. Load data
+  v <- terra::vect(vector_path)
+  
+  # Ensure CRS matches template
+  if (terra::crs(v) != terra::crs(template_r)) {
+    v <- terra::project(v, terra::crs(template_r))
+  }
+  
+  d <- utils::read.csv(csv_path, stringsAsFactors = FALSE)
+  
+  # 2. Merge and Calculate Julian Days
+  # Ensure dates are valid
+  d[[start_col]] <- as.Date(d[[start_col]])
+  d[[end_col]]   <- as.Date(d[[end_col]])
+  
+  d$start_jd <- Rwapor::wapor_continuous_julian(d[[start_col]], ref_year)
+  d$end_jd   <- Rwapor::wapor_continuous_julian(d[[end_col]], ref_year)
+  
+  # Join to vector
+  v_merged <- terra::merge(v, d, by = id_col)
+  
+  if (nrow(v_merged) == 0) {
+    stop(sprintf("No matching IDs found between vector (%s) and CSV (%s).", 
+                 id_col, id_col), call. = FALSE)
+  }
+  
+  # 3. Process by Season
+  if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)
+  
+  seasons <- unique(d[[season_col]])
+  results <- list()
+  
+  for (s_name in seasons) {
+    # Subset vector for this season
+    v_subset <- v_merged[v_merged[[season_col]] == s_name, ]
+    
+    if (nrow(v_subset) == 0) next
+    
+    # Rasterize Start and End
+    # We use field = "column_name" and fun = "max" to handle overlapping boundaries if any
+    r_start <- terra::rasterize(v_subset, template_r, field = "start_jd", fun = "max")
+    r_end   <- terra::rasterize(v_subset, template_r, field = "end_jd", fun = "max")
+    
+    # Clean names for filename
+    s_safe <- gsub("[^a-zA-Z0-9_-]", "_", s_name)
+    start_path <- file.path(output_folder, paste0(s_safe, "_start.tif"))
+    end_path   <- file.path(output_folder, paste0(s_safe, "_end.tif"))
+    
+    # Save with metadata
+    r_start <- assign_raster_metadata(r_start, "Season Start", units_override = "Julian Days")
+    r_end   <- assign_raster_metadata(r_end, "Season End", units_override = "Julian Days")
+    
+    terra::writeRaster(r_start, start_path, overwrite = TRUE, NAflag = -9999)
+    terra::writeRaster(r_end, end_path, overwrite = TRUE, NAflag = -9999)
+    
+    results[[s_name]] <- data.frame(
+      season = s_name,
+      start_raster = normalizePath(start_path),
+      end_raster = normalizePath(end_path),
+      stringsAsFactors = FALSE
+    )
+  }
+  
+  do.call(rbind, results)
+}

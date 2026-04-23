@@ -20,22 +20,42 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             value = "Winter 2023", placeholder = "e.g. Winter 2023"
           ),
 
-          shiny::div(
-            class = "inline-row",
+          shiny::checkboxInput(ns("an_batch_mode"), "Run for multiple seasons (Batch Mode)", FALSE),
+
+          shiny::conditionalPanel(
+            condition = sprintf("!input['%s']", ns("an_batch_mode")),
             shiny::div(
-              style = "width: 90px;",
-              shiny::numericInput(
-                ns("an_ref_year"), "Reference Year",
-                value = 2023, min = 2009, max = 2030, step = 1
+              class = "inline-row",
+              shiny::div(
+                style = "width: 90px;",
+                shiny::numericInput(
+                  ns("an_ref_year"), "Ref Year",
+                  value = 2023, min = 2009, max = 2030, step = 1
+                )
+              ),
+              shiny::div(
+                class = "flex-1",
+                shiny::dateRangeInput(
+                  ns("an_period"), "Analysis Period",
+                  start = "2023-01-01", end = "2023-12-31",
+                  format = "yyyy-mm-dd"
+                )
               )
+            )
+          ),
+
+          shiny::conditionalPanel(
+            condition = sprintf("input['%s']", ns("an_batch_mode")),
+            shiny::helpText("Enter seasons as: Label, Start, End (one per line)"),
+            shiny::textAreaInput(
+              ns("an_batch_list"), NULL,
+              placeholder = "Winter2018, 2018-10-01, 2019-05-31\nWinter2019, 2019-10-01, 2020-05-31",
+              rows = 5
             ),
-            shiny::div(
-              class = "flex-1",
-              shiny::dateRangeInput(
-                ns("an_period"), "Analysis Period",
-                start = "2023-01-01", end = "2023-12-31",
-                format = "yyyy-mm-dd"
-              )
+            shiny::actionButton(
+              ns("an_detect_seasons"), "Detect Seasons from Folder",
+              icon = shiny::icon("wand-magic-sparkles"),
+              class = "btn-sm btn-outline-secondary w-100 mb-2"
             )
           )
         ),
