@@ -1030,15 +1030,17 @@ wapor_check_local <- function(urls, var, folder) {
 #' @param season_col Character. Column name for the season identifier.
 #' @param start_col Character. Column name for the start dates (YYYY-MM-DD).
 #' @param end_col Character. Column name for the end dates (YYYY-MM-DD).
+#' @param crop_col Character. Optional column name for crop class labels.
 #' @param ref_year Integer. Reference year for Julian day calculation.
 #' @param output_folder Character. Where to save the generated rasters.
 #' @return A data.frame mapping season names to their generated raster paths.
 #' @export
-wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
+wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r, 
                                           id_col = "id", 
                                           season_col = "season_name",
                                           start_col = "start_date", 
                                           end_col = "end_date",
+                                          crop_col = NULL,
                                           ref_year = 1970,
                                           output_folder = "seasonal_masks") {
   # 1. Load data
@@ -1084,10 +1086,17 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
     r_start <- terra::rasterize(v_subset, template_r, field = "start_jd", fun = "max")
     r_end   <- terra::rasterize(v_subset, template_r, field = "end_jd", fun = "max")
     
+    # Rasterize Crop Mask if provided
+    r_mask <- NULL
+    if (!is.null(crop_col) && crop_col %in% names(v_subset)) {
+      r_mask <- terra::rasterize(v_subset, template_r, field = crop_col, fun = "max")
+    }
+    
     # Clean names for filename
     s_safe <- gsub("[^a-zA-Z0-9_-]", "_", s_name)
     start_path <- file.path(output_folder, paste0(s_safe, "_start.tif"))
     end_path   <- file.path(output_folder, paste0(s_safe, "_end.tif"))
+    mask_path  <- file.path(output_folder, paste0(s_safe, "_mask.tif"))
     
     # Save with metadata
     r_start <- assign_raster_metadata(r_start, "Season Start", units_override = "Julian Days")
@@ -1096,10 +1105,16 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
     terra::writeRaster(r_start, start_path, overwrite = TRUE, NAflag = -9999)
     terra::writeRaster(r_end, end_path, overwrite = TRUE, NAflag = -9999)
     
+    if (!is.null(r_mask)) {
+      r_mask <- assign_raster_metadata(r_mask, "Crop Mask", units_override = "Class ID")
+      terra::writeRaster(r_mask, mask_path, overwrite = TRUE, NAflag = 0)
+    }
+    
     results[[s_name]] <- data.frame(
       season = s_name,
       start_raster = normalizePath(start_path),
       end_raster = normalizePath(end_path),
+      crop_mask = if (!is.null(r_mask)) normalizePath(mask_path) else NA_character_,
       stringsAsFactors = FALSE
     )
   }

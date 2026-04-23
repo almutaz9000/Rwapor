@@ -720,6 +720,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             csv_path      = input$an_mask_csv$datapath,
             template_r    = template_r,
             id_col        = input$an_mask_id_col,
+            crop_col      = if (nzchar(input$an_mask_crop_col)) input$an_mask_crop_col else NULL,
             ref_year      = 1970, # Global historical anchor
             output_folder = file.path(folder, "seasonal_masks")
           )
