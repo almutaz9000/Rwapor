@@ -323,10 +323,13 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   # Mean for state/indices: RET, RSM, ETa/ETp
   is_flux <- grepl("AETI|PCP|NPP|^-T-|^E-", variable, ignore.case = TRUE)
   
+  # Optimization: terra::sum() and terra::mean() are significantly faster than
+  # terra::app(..., fun="sum/mean") because they use dedicated C++ implementations
+  # for layer-wise aggregation.
   if (is_flux) {
-    res <- terra::app(s, fun = "sum", na.rm = TRUE)
+    res <- terra::sum(s, na.rm = TRUE)
   } else {
-    res <- terra::app(s, fun = "mean", na.rm = TRUE)
+    res <- terra::mean(s, na.rm = TRUE)
   }
   
   return(res)
