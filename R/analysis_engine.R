@@ -42,6 +42,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
         for (m_dir in mask_dirs) {
           s_start_path <- file.path(m_dir, paste0(p_name, "_start.tif"))
           s_end_path   <- file.path(m_dir, paste0(p_name, "_end.tif"))
+          s_mask_path  <- file.path(m_dir, paste0(p_name, "_mask.tif"))
+          
           if (file.exists(s_start_path)) {
             p_rasters$season_start <- terra::rast(s_start_path)
             p_config$use_season_rasters <- TRUE
@@ -49,6 +51,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
           if (file.exists(s_end_path)) {
             p_rasters$season_end <- terra::rast(s_end_path)
             p_config$use_season_rasters <- TRUE
+          }
+          if (file.exists(s_mask_path)) {
+            p_rasters$crop_mask <- terra::rast(s_mask_path)
+            p_config$use_crop_mask <- TRUE
           }
         }
       }

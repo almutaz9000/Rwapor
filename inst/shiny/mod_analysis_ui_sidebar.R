@@ -73,6 +73,8 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           
           shiny::textInput(ns("an_mask_id_col"), "ID Column", value = "id"),
           
+          shiny::textInput(ns("an_mask_crop_col"), "Crop Class Column (Optional)", value = ""),
+          
           shiny::actionButton(
             ns("an_generate_masks"), "Generate/Update Timing Masks",
             icon = shiny::icon("gears"),
