@@ -50,6 +50,13 @@ mod_analysis_ui_body <- function(ns) {
                 showcase = shiny::icon("leaf", class = "text-warning"),
                 theme = "light",
                 class = "border-warning py-1"
+              ),
+              bslib::value_box(
+                title = "Beneficial Frac.",
+                value = shiny::textOutput(ns("vbox_beneficial")),
+                showcase = shiny::icon("chart-pie", class = "text-secondary"),
+                theme = "light",
+                class = "border-secondary py-1"
               )
             )
           )

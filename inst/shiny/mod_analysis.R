@@ -306,6 +306,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             )
           }
 
+          # Update template dropdown with all .tif files
+          all_tifs <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+          shiny::updateSelectizeInput(session, "an_mask_template_file", 
+                                     choices = c("Auto-detect" = "", all_tifs),
+                                     server = TRUE)
+          
           # Show date range info but DON'T auto-change user's selected period
           # (Users complained that their selected period gets overwritten on rescan)
           if (nrow(local_vars) > 0) {
@@ -462,6 +468,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       }
 
       sprintf("%.1f %s", val, unit)
+    })
+
+    output$vbox_beneficial <- shiny::renderText({
+      res <- an_results()
+      if (is.null(res) || is.null(res$beneficial_fraction)) return("--")
+      val <- wapor_masked_global_mean(res$beneficial_fraction, res$valid_crop_mask)
+      sprintf("%.2f", val)
     })
 
     current_region <- shiny::reactive(aoi_region())
@@ -673,6 +686,42 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       shiny::showNotification(sprintf("Detected %d seasons.", length(windows)), type = "message")
     })
 
+    # --- Custom Timing Column Detection ---
+    shiny::observeEvent(input$an_mask_vector, {
+      f <- input$an_mask_vector
+      shiny::req(f)
+      tryCatch({
+        # Read names quickly using proxy
+        v <- terra::vect(f$datapath, proxy = TRUE)
+        cols <- names(v)
+        current <- input$an_mask_vector_id_col
+        sel <- if (!is.null(current) && current %in% cols) current else if ("id" %in% cols) "id" else if (length(cols) > 0) cols[1] else ""
+        shiny::updateSelectInput(session, "an_mask_vector_id_col", choices = c("", cols), selected = sel)
+      }, error = function(e) NULL)
+    })
+
+    shiny::observeEvent(input$an_mask_csv, {
+      f <- input$an_mask_csv
+      shiny::req(f)
+      tryCatch({
+        # Read only headers
+        d <- utils::read.csv(f$datapath, nrows = 1, check.names = FALSE)
+        cols <- names(d)
+        
+        upd_csv <- function(input_id, default_name) {
+          current <- input[[input_id]]
+          sel <- if (!is.null(current) && current %in% cols) current else if (default_name %in% cols) default_name else if (length(cols) > 0) cols[1] else ""
+          shiny::updateSelectInput(session, input_id, choices = c("", cols), selected = sel)
+        }
+        
+        upd_csv("an_mask_csv_id_col", "id")
+        upd_csv("an_mask_season_col", "season_name")
+        upd_csv("an_mask_start_col",  "start_date")
+        upd_csv("an_mask_end_col",    "end_date")
+        upd_csv("an_mask_crop_col",   "crop_type")
+      }, error = function(e) NULL)
+    })
+
     # Custom Timing Mask Generation
     shiny::observeEvent(input$an_generate_masks, {
       shiny::req(input$an_mask_vector, input$an_mask_csv)
@@ -688,21 +737,42 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           # 1. Get Template Raster
           template_r <- NULL
           local_vars <- an_local_vars()
+          folder <- global_folder()
           
-          if (!is.null(local_vars) && nrow(local_vars) > 0) {
-            # Try to find AETI or first available
-            best_var <- if (input$an_aeti_var %in% local_vars$variable) input$an_aeti_var else local_vars$variable[1]
-            var_folder <- local_vars$folder_path[local_vars$variable == best_var][1]
-            files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
-            if (length(files) > 0) template_r <- terra::rast(files[1])
+          # If not scanned yet, try a quick scan now
+          if (is.null(local_vars) && !is.null(folder) && dir.exists(folder)) {
+            try({
+               local_vars <- Rwapor::wapor_scan_local(folder)
+               an_local_vars(local_vars)
+            }, silent = TRUE)
+          }
+          
+          # Priority 0: User Selected Template
+          selected_template <- input$an_mask_template_file
+          if (!is.null(selected_template) && nzchar(selected_template)) {
+            template_path <- file.path(folder, selected_template)
+            if (file.exists(template_path)) {
+              template_r <- terra::rast(template_path)
+            }
+          }
+          
+          if (is.null(template_r)) {
+            if (!is.null(local_vars) && nrow(local_vars) > 0) {
+              # Try to find AETI or first available
+              best_var <- if (input$an_aeti_var %in% local_vars$variable) input$an_aeti_var else local_vars$variable[1]
+              var_folder <- local_vars$folder_path[local_vars$variable == best_var][1]
+              files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
+              if (length(files) > 0) template_r <- terra::rast(files[1])
+            }
           }
           
           if (is.null(template_r)) {
             # Fallback to API if AOI is set
             reg <- current_region()
             if (is.null(reg)) {
-              stop("No template raster found locally and no AOI defined to stream one from API.")
+              stop("Could not find a Template Raster. \n\nTo fix this:\n1. Select a region in the AOI tab, OR\n2. Download at least one WaPOR variable to your project folder, OR\n3. Click 'Re-scan Folder' if you already have data.")
             }
+            # ... rest of API fallback ...
             reg_info <- Rwapor::wapor_parse_region(reg)
             # Use a dummy recent date
             urls <- Rwapor::wapor_generate_urls(input$an_aeti_var, period = c("2023-01-01", "2023-01-01"))
@@ -719,7 +789,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             vector_path   = input$an_mask_vector$datapath,
             csv_path      = input$an_mask_csv$datapath,
             template_r    = template_r,
-            id_col        = input$an_mask_id_col,
+            vector_id_col = input$an_mask_vector_id_col,
+            csv_id_col    = input$an_mask_csv_id_col,
+            season_col    = input$an_mask_season_col,
+            start_col     = input$an_mask_start_col,
+            end_col       = input$an_mask_end_col,
             crop_col      = if (nzchar(input$an_mask_crop_col)) input$an_mask_crop_col else NULL,
             ref_year      = 1970, # Global historical anchor
             output_folder = file.path(folder, "seasonal_masks")
@@ -1686,6 +1760,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             },
             `ETc (mm)` = if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 1) else NA,
             `Yield (t/ha)` = if (!is.na(yield_val)) round(yield_val, 2) else NA,
+            `Beneficial Frac.` = if (!is.null(res$beneficial_fraction)) {
+              cls_mask <- if (!is.null(res$h_mask)) terra::ifel(res$h_mask == as.integer(cls_str), 1L, NA) else NULL
+              round(wapor_masked_global_mean(res$beneficial_fraction, cls_mask), 3)
+            } else NA,
             check.names = FALSE,
             stringsAsFactors = FALSE
           )

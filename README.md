@@ -92,6 +92,37 @@ run_wapor()
 
 ---
 
+## 🎯 Seasonal Analysis Scenarios
+
+Choose the analysis workflow that matches your data availability. Rwapor scales from simple regional studies to high-precision farm monitoring.
+
+### 🟢 Level 1: Starter (Regional Analysis)
+**Data Availability**: Minimum (AOI + Single Season dates).  
+**Scenario**: "I want to analyze how a single crop (e.g. Sugarbeet) performed across my entire project area this year."  
+**How-to**: 
+- Uncheck "Upload a crop mask" in the dashboard.
+- The app treats the whole AOI as one crop class.
+- Perfect for quick regional assessments or single-field studies.
+
+### 🟡 Level 2: Standard (Regional Monitoring)
+**Data Availability**: AOI + Multi-Year Season List.  
+**Scenario**: "I want to compare Wheat productivity across the last 5 years for this entire district."  
+**How-to**: 
+- Use **Batch Mode** in the "Season Definition" section.
+- Provide a text list of labels and dates (Start, End).
+- The app loops through each year, applying your crop profile to the whole area.
+
+### 🔴 Level 3: Advanced (High-Precision Monitoring)
+**Data Availability**: Maximum (Plot Boundaries + CSV with IDs, Dates, and Crops).  
+**Scenario**: "Every farm plot has a different planting date and different crops. I need precise results for each plot and season."  
+**How-to**: 
+- Use the **Custom Timing** section.
+- Upload your GeoJSON boundaries and a CSV attribute table.
+- Specify your **Grouping Column (Season)** to "unstack" rotations.
+- The app generates unique, pixel-perfect timing and crop masks for every plot.
+
+---
+
 ## Getting Started
 
 You have **two options** to use Rwapor:
