@@ -1137,7 +1137,7 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   
   for (s_name in seasons) {
     # Subset vector for this season
-    v_subset <- v_merged[v_merged[[season_col]] == s_name, ]
+    v_subset <- v_merged[terra::values(v_merged)[[season_col]] == s_name, ]
     
     if (nrow(v_subset) == 0) next
     
