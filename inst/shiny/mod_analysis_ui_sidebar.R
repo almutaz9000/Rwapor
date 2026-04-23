@@ -60,7 +60,28 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           )
         ),
 
-        # ── 2. Data Source ───────────────────────────────────────
+        # ── 2. Custom Timing (Optional) ──────────────────────────
+        bslib::accordion_panel(
+          "Custom Timing (Optional)", icon = shiny::icon("map-location-dot"),
+          shiny::helpText("Upload plot boundaries and specific dates to generate heterogeneous timing masks."),
+          
+          shiny::fileInput(ns("an_mask_vector"), "Vector File (Plot Boundaries)", 
+                           accept = c(".geojson", ".shp", ".zip"), width = "100%"),
+          
+          shiny::fileInput(ns("an_mask_csv"), "CSV File (Plot Dates)", 
+                           accept = ".csv", width = "100%"),
+          
+          shiny::textInput(ns("an_mask_id_col"), "ID Column", value = "id"),
+          
+          shiny::actionButton(
+            ns("an_generate_masks"), "Generate/Update Timing Masks",
+            icon = shiny::icon("gears"),
+            class = "btn-sm btn-outline-info w-100"
+          ),
+          shiny::tags$hr(class = "ctrl-divider")
+        ),
+
+        # ── 3. Data Source ───────────────────────────────────────
         bslib::accordion_panel(
           "Data Source", icon = shiny::icon("database"),
 
