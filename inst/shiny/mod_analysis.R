@@ -1055,7 +1055,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
                 } else {
                   sprintf("Class %d (%d px, %.1f ha)", cls, classes$pixel_count[i], classes$area_ha[i])
                 }
-              )
+              ),
+              shiny::checkboxInput(ns(paste0(prefix, "include")), NULL, value = TRUE)
             ),
             shiny::fluidRow(
               shiny::column(
@@ -1181,6 +1182,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       rows <- lapply(seq_len(nrow(classes)), function(i) {
         cls <- classes$class_value[i]
         prefix <- paste0("an_cls_", cls, "_")
+        
+        # Check if user included this class
+        if (!isTRUE(input[[paste0(prefix, "include")]])) return(NULL)
+        
           data.frame(
             class_value = cls,
             crop_label = null_default(input[[paste0(prefix, "label")]], paste("Class", cls)),
