@@ -291,7 +291,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
         kc_daily <- Rwapor::wapor_build_kc(
           kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
-          L_ini = cp$l_ini_days[1], L_dev = l_dev, L_mid = cp$l_mid_days[1], L_late = cp$l_late_days[1]
+          l_ini = cp$l_ini_days[1], l_dev = l_dev, l_mid = cp$l_mid_days[1], l_late = cp$l_late_days[1]
         )
         season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + profile_row$start_jd - 1L
         kc_dekad <- Rwapor::wapor_aggregate_kc(kc_daily, dekad_table, season_start_date)
