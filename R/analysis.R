@@ -1063,12 +1063,27 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   # 2. Merge and Calculate Julian Days
   # Ensure dates are valid
   parse_robust_date <- function(x) {
-    # Try common formats
-    parsed <- lubridate::parse_date_time(x, orders = c("ymd", "dmy", "mdy", "Ymd", "dmY", "mdY"))
-    if (any(is.na(parsed) & !is.na(x))) {
-       failed <- x[is.na(parsed) & !is.na(x)]
-       stop(sprintf("Failed to parse some dates in CSV. Example invalid values: %s. Expected YYYY-MM-DD or DD/MM/YYYY.", 
-                    paste(utils::head(failed, 3), collapse = ", ")), call. = FALSE)
+    if (is.null(x) || all(is.na(x))) return(as.Date(character(0)))
+    
+    # 1. Handle numeric (Excel) dates if any
+    x_num <- suppressWarnings(as.numeric(x))
+    is_num <- !is.na(x_num) & !is.na(x) & nchar(x) > 4 # rudimentary check to avoid years like '2023' being treated as days
+    
+    # 2. Try parsing text formats
+    # Common formats including month names (e.g. 01-Jan-2023)
+    orders <- c("ymd", "dmy", "mdy", "Ymd", "dmY", "mdY", "dby", "dbY", "bdy", "bdY")
+    parsed <- lubridate::parse_date_time(x, orders = orders, quiet = TRUE)
+    
+    # 3. For those that failed text parsing, try numeric parsing (Excel style: origin 1899-12-30)
+    if (any(is.na(parsed) & is_num)) {
+      idx <- which(is.na(parsed) & is_num)
+      parsed[idx] <- as.POSIXct(as.Date(x_num[idx], origin = "1899-12-30"))
+    }
+    
+    if (any(is.na(parsed) & !is.na(x) & nzchar(trimws(x)))) {
+       failed <- x[is.na(parsed) & !is.na(x) & nzchar(trimws(x))]
+       stop(sprintf("Failed to parse some dates in CSV. \nExample invalid values: '%s'. \n\nPlease ensure date columns follow a standard format like YYYY-MM-DD, DD/MM/YYYY, or DD-Mon-YYYY.", 
+                    paste(utils::head(unique(failed), 3), collapse = "', '")), call. = FALSE)
     }
     as.Date(parsed)
   }
