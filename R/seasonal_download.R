@@ -34,7 +34,8 @@
 #'
 #' @keywords internal
 #' @noRd
-download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE) {
+download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE,
+                                       start_raster = NULL, end_raster = NULL) {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
   aggregation_rule <- get_seasonal_aggregation_rule(variable)

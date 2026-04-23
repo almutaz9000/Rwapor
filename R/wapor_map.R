@@ -140,6 +140,13 @@ wapor_map <- function(
 
   # --- Seasonal mode ---
   if (seasonal) {
+    if (length(variable) != 1L) {
+      stop(sprintf(
+        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
+        length(variable)
+      ), call. = FALSE)
+    }
+
     process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
@@ -159,8 +166,8 @@ wapor_map <- function(
       
       # Smart-Linking for Timing Rasters:
       # If specific masks for this season exist (e.g., Winter2018_start.tif), use them.
-      p_start_raster <- start_raster
-      p_end_raster   <- end_raster
+      p_start_raster <- NULL
+      p_end_raster   <- NULL
       
       if (!is.null(folder)) {
         # Check both the folder itself and the 'seasonal_masks' subfolder
@@ -191,7 +198,8 @@ wapor_map <- function(
       running_value <- NULL
       running_weight <- NULL
       valid_count <- NULL
-      
+      component_paths <- character(0)
+
       var_folder <- file.path(folder, paste0(var, "_seasonal"))
       if (!dir.exists(var_folder)) {
         dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
@@ -201,15 +209,25 @@ wapor_map <- function(
         g <- groups[[g_name]]
         r_group <- g$raster
         multipliers <- g$multipliers
-        
+
         # Clean NaNs and apply temperature conversion
         r_group <- terra::subst(r_group, NaN, NA)
         r_group <- wapor_convert_temperature(r_group, g$variable)
 
         # Handle weighted sum/mean using terra::sum for performance and tree depth stability
         weighted_stack <- r_group * multipliers
-        
+
         group_sum <- sum(weighted_stack, na.rm = TRUE)
+
+        if (isTRUE(separate_files)) {
+          comp_dir <- file.path(var_folder, "components")
+          if (!dir.exists(comp_dir)) dir.create(comp_dir, recursive = TRUE, showWarnings = FALSE)
+          comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
+          r_comp <- terra::classify(group_sum, cbind(NA, -9999))
+          r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
+          suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+          component_paths <- c(component_paths, comp_fname)
+        }
         
         if (identical(aggregation_rule, "weighted_mean")) {
           # Sum of weights where data is not NA
@@ -254,10 +272,14 @@ wapor_map <- function(
       r_out <- assign_raster_metadata(r_out, var, units_override = seasonal_output_units)
       
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-      
-      log_msg(sprintf("Seasonal %s for %s saved to: %s", 
-                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate", 
+
+      log_msg(sprintf("Seasonal %s for %s saved to: %s",
+                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
                       var, out_path))
+
+      if (isTRUE(separate_files) && length(component_paths) > 0) {
+        return(list(seasonal_aggregate = out_path, seasonal_components = component_paths))
+      }
       return(out_path)
     }
 

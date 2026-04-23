@@ -8,7 +8,8 @@ wapor_vector_to_season_rasters(
   vector_path,
   csv_path,
   template_r,
-  id_col = "id",
+  vector_id_col = "id",
+  csv_id_col = "id",
   season_col = "season_name",
   start_col = "start_date",
   end_col = "end_date",
@@ -24,8 +25,6 @@ wapor_vector_to_season_rasters(
 
 \item{template_r}{SpatRaster. Template for extent, resolution, and CRS.}
 
-\item{id_col}{Character. Name of the ID column common to vector and CSV.}
-
 \item{season_col}{Character. Column name for the season identifier.}
 
 \item{start_col}{Character. Column name for the start dates (YYYY-MM-DD).}
@@ -37,6 +36,8 @@ wapor_vector_to_season_rasters(
 \item{ref_year}{Integer. Reference year for Julian day calculation.}
 
 \item{output_folder}{Character. Where to save the generated rasters.}
+
+\item{id_col}{Character. Name of the ID column common to vector and CSV.}
 }
 \value{
 A data.frame mapping season names to their generated raster paths.

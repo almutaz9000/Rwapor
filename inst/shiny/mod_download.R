@@ -9,6 +9,34 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
       width = 305,
       open  = TRUE,
       title = "Download Configuration",
+      # ── Project Folder — always visible at top of sidebar ─────────────
+      shiny::div(
+        class = "folder-header-strip",
+        shiny::tags$span(
+          shiny::icon("folder-open"), " Project Folder",
+          class = "ctrl-group-label req-label"
+        ),
+        shiny::div(
+          class = "inline-row",
+          shiny::div(
+            class = "flex-1",
+            shiny::textInput(
+              ns("folder"), NULL,
+              value       = file.path(getwd(), "wapor_project"),
+              placeholder = "Path to output folder"
+            )
+          ),
+          shiny::uiOutput(ns("favorite_btn_ui")),
+          shinyFiles::shinyDirButton(
+            ns("browse_folder"), label = "",
+            icon  = shiny::icon("folder-open"),
+            title = "Select project folder",
+            class = "btn-outline-secondary btn-sm",
+            style = "padding:0.37rem 0.6rem;"
+          )
+        ),
+        shiny::uiOutput(ns("favorites_ui"))
+      ),
       shiny::div(
         class = "sidebar-scroll-area",
         bslib::accordion(
@@ -19,35 +47,12 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
           bslib::accordion_panel(
             "Data Selection", icon = shiny::icon("database"),
 
-            shiny::tags$span("Project Folder", class = "ctrl-group-label"),
-            shiny::div(
-              class = "inline-row",
-              shiny::div(
-                class = "flex-1",
-                shiny::textInput(
-                  ns("folder"), NULL,
-                  value       = file.path(getwd(), "wapor_project"),
-                  placeholder = "Path to output folder"
-                )
-              ),
-              shiny::uiOutput(ns("favorite_btn_ui")),
-              shinyFiles::shinyDirButton(
-                ns("browse_folder"), label = "",
-                icon  = shiny::icon("folder-open"),
-                title = "Select project folder",
-                class = "btn-outline-secondary btn-sm",
-                style = "padding:0.37rem 0.6rem;"
-              )
-            ),
-            shiny::uiOutput(ns("favorites_ui")),
-
-            shiny::tags$hr(class = "ctrl-divider"),
-            shiny::tags$span("Area of Interest", class = "ctrl-group-label"),
+            shiny::tags$span("Area of Interest", class = "ctrl-group-label req-label"),
             shiny::helpText("Define AOI first to filter L3 regions automatically."),
             mod_aoi_ui(ns("aoi")),
             
             shiny::tags$hr(class = "ctrl-divider"),
-            shiny::tags$span("Variables", class = "ctrl-group-label"),
+            shiny::tags$span("Variables", class = "ctrl-group-label req-label"),
             shiny::selectizeInput(
               ns("dn_variables"), NULL,
               choices  = all_vars,
@@ -86,7 +91,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::tags$hr(class = "ctrl-divider"),
             shiny::div(
               class = "flex-row-center-between",
-              shiny::tags$span("Time Period", class = "ctrl-group-label"),
+              shiny::tags$span("Time Period", class = "ctrl-group-label req-label"),
               shiny::div(
                 style = "font-size: 0.8rem;",
                 shiny::checkboxInput(ns("multi_season"), "Multi-season", FALSE)

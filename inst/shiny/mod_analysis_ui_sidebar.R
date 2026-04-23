@@ -108,8 +108,21 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             )
           ),
           
-          shiny::selectizeInput(ns("an_mask_template_file"), "Reference Template (Optional)", 
-                               choices = NULL, options = list(placeholder = "Auto-detect from data")),
+          shiny::div(
+            class = "inline-row",
+            shiny::div(
+              class = "flex-1",
+              shiny::selectizeInput(ns("an_mask_template_file"), "Reference Template (Optional)", 
+                                   choices = NULL, options = list(placeholder = "Auto-detect from data"))
+            ),
+            shinyFiles::shinyFilesButton(
+              ns("an_browse_template"), label = "",
+              icon  = shiny::icon("folder-open"),
+              title = "Select reference template raster",
+              class = "btn-outline-secondary btn-sm",
+              style = "margin-top: 25px; padding: 0.37rem 0.6rem;"
+            )
+          ),
           shiny::helpText("Select a specific raster to use as the spatial grid template."),
           
           shiny::actionButton(

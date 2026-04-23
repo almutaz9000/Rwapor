@@ -138,10 +138,26 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     roots <- get_shinyfiles_roots()
 
     shinyFiles::shinyDirChoose(input, "an_browse_folder", roots = roots, session = session)
+    shinyFiles::shinyFileChoose(input, "an_browse_template", roots = roots, session = session, filetypes = c("tif", "tiff"))
+    
     shiny::observeEvent(input$an_browse_folder, {
       dir_path <- shinyFiles::parseDirPath(roots, input$an_browse_folder)
       if (length(dir_path) == 1 && nzchar(dir_path)) {
         shiny::updateTextInput(session, "an_folder", value = dir_path)
+      }
+    })
+
+    shiny::observeEvent(input$an_browse_template, {
+      file_info <- shinyFiles::parseFilePaths(roots, input$an_browse_template)
+      if (nrow(file_info) > 0) {
+        path <- file_info$datapath[1]
+        # Update dropdown with this file as the selection
+        current_choices <- isolate(input$an_mask_template_file)
+        new_choices <- unique(c(path, current_choices))
+        shiny::updateSelectizeInput(session, "an_mask_template_file", 
+                                   choices = c("Auto-detect" = "", new_choices),
+                                   selected = path,
+                                   server = TRUE)
       }
     })
 
@@ -150,6 +166,18 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       folder <- global_folder()
       if (!is.null(folder) && nzchar(folder) && !nzchar(input$an_folder)) {
         shiny::updateTextInput(session, "an_folder", value = folder)
+      }
+    })
+
+    # Proactively update template dropdown when folder changes
+    shiny::observe({
+      folder <- input$an_folder
+      shiny::req(folder)
+      if (dir.exists(folder)) {
+        all_tifs <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+        shiny::updateSelectizeInput(session, "an_mask_template_file", 
+                                   choices = c("Auto-detect" = "", all_tifs),
+                                   server = TRUE)
       }
     })
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
@@ -750,7 +778,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           # Priority 0: User Selected Template
           selected_template <- input$an_mask_template_file
           if (!is.null(selected_template) && nzchar(selected_template)) {
+            # Try as relative path first, then absolute
             template_path <- file.path(folder, selected_template)
+            if (!file.exists(template_path)) {
+              template_path <- selected_template
+            }
+            
             if (file.exists(template_path)) {
               template_r <- terra::rast(template_path)
             }

@@ -85,7 +85,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
         padding = "0.5rem",
 
         bslib::accordion(
-          open     = TRUE,
+          open     = c("Farm Layer", "Season Setup"),
           multiple = TRUE,
 
           # 0 · Project Management ───────────────────────────────────────────
