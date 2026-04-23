@@ -119,6 +119,7 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
               ns("an_browse_template"), label = "",
               icon  = shiny::icon("folder-open"),
               title = "Select reference template raster",
+              multiple = FALSE,
               class = "btn-outline-secondary btn-sm",
               style = "margin-top: 25px; padding: 0.37rem 0.6rem;"
             )
