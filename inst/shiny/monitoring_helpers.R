@@ -848,3 +848,88 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
 }
 # Functions in this file are now mostly superseded by core package functions 
 # in R/wapor_monitoring.R. UI-specific helpers remain.
+
+#' Extract time series statistics from a local folder of rasters
+#' 
+#' @param folder Path to folder containing .tif files
+#' @param polygons sf object with farm boundaries
+#' @param variables Vector of variable codes to include (e.g. "L3-AETI-D")
+#' @param threshold_pct Percentile threshold for zonal stats
+#' @return data.frame in the same format as farm_timeseries table
+#' @export
+wapor_extract_stats_from_folder <- function(folder, polygons, variables = NULL, threshold_pct = 5) {
+  if (!dir.exists(folder)) return(NULL)
+  
+  # 1. Scan folder
+  files <- list.files(folder, pattern = "\\.tif$", full.names = TRUE, recursive = TRUE)
+  if (length(files) == 0) return(NULL)
+  
+  # 2. Parse filenames
+  meta_list <- lapply(files, function(f) {
+    bname <- basename(f)
+    p <- wapor_parse_monitoring_filename(bname)
+    if (is.null(p)) return(NULL)
+    p$path <- f
+    p
+  })
+  valid_meta <- meta_list[!sapply(meta_list, is.null)]
+  if (length(valid_meta) == 0) return(NULL)
+  
+  meta_df <- do.call(rbind, lapply(valid_meta, as.data.frame))
+  
+  # Filter by variables if requested
+  if (!is.null(variables)) {
+    meta_df <- meta_df[meta_df$variable %in% variables, ]
+  }
+  
+  if (nrow(meta_df) == 0) return(NULL)
+  
+  # 3. Extract stats for each file
+  all_stats <- list()
+  
+  # Process each file
+  for (i in seq_len(nrow(meta_df))) {
+    row <- meta_df[i, ]
+    r <- terra::rast(row$path)
+    
+    # Extract stats for all polygons at once
+    stats <- wapor_enhanced_zonal_stats(r, polygons, threshold_pct)
+    
+    # Prepare result row
+    res <- data.frame(
+      farm_id = polygons$farm_id,
+      variable = row$variable,
+      start_date = as.Date(row$date),
+      end_date = as.Date(row$date) + 9, # Assume dekadal
+      stats,
+      stringsAsFactors = FALSE
+    )
+    all_stats[[i]] <- res
+  }
+  
+  do.call(rbind, all_stats)
+}
+
+#' Internal helper to parse monitoring filename
+#' @noRd
+wapor_parse_monitoring_filename <- function(filename) {
+  # Pattern 1: WaPOR standard (e.g. L3.AETI.D.2024-01-01.tif)
+  parts <- strsplit(filename, "\\.")[[1]]
+  if (length(parts) >= 4) {
+    date_part <- parts[4]
+    if (grepl("^\\d{4}-\\d{2}-\\d{2}", date_part)) {
+      var_code <- paste(parts[1], parts[2], parts[3], sep = "-")
+      return(list(variable = var_code, date = substr(date_part, 1, 10)))
+    }
+  }
+  
+  # Pattern 2: Seasonal Map (e.g. L3-AETI-D_2024-01-01_2024-05-31.tif)
+  if (grepl("_\\d{4}-\\d{2}-\\d{2}_", filename)) {
+    p2 <- strsplit(filename, "_")[[1]]
+    if (length(p2) >= 3) {
+      return(list(variable = p2[1], date = p2[2]))
+    }
+  }
+  
+  NULL
+}

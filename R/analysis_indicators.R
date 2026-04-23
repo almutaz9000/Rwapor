@@ -200,6 +200,24 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   aeti_seasonal / etc_safe
 }
 
+#' Compute Beneficial Fraction
+#'
+#' Beneficial Fraction = Transpiration (T) / Actual Evapotranspiration (AETI)
+#'
+#' @param t_seasonal SpatRaster or numeric. Seasonal Transpiration (mm).
+#' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
+#' @return SpatRaster or numeric of beneficial fraction (0-1).
+#' @export
+wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
+  # Avoid division by zero
+  if (inherits(aeti_seasonal, "SpatRaster")) {
+    aeti_safe <- terra::ifel(aeti_seasonal == 0, NA, aeti_seasonal)
+  } else {
+    aeti_safe <- ifelse(aeti_seasonal == 0, NA, aeti_seasonal)
+  }
+  t_seasonal / aeti_safe
+}
+
 #' Compute P95 of AETI Within Crop Class
 #'
 #' Extracts the 95th percentile of seasonal AETI for each crop class.

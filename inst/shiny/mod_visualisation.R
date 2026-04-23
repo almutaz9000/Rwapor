@@ -49,7 +49,7 @@ mod_visualisation_ui <- function(id) {
               class = "inline-row mb-1",
               shiny::div(
                 class = "flex-1",
-                shiny::selectInput(ns("raster_file"), "Raster 1", choices = NULL)
+                shiny::selectizeInput(ns("raster_file"), "Raster 1", choices = NULL)
               ),
               shiny::actionButton(
                 ns("scan_rasters"), NULL,
@@ -59,7 +59,17 @@ mod_visualisation_ui <- function(id) {
                 style = "padding:0.37rem 0.6rem;"
               )
             ),
-            shiny::selectInput(ns("raster_band"), "Band / Layer", choices = NULL),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::selectInput(ns("raster_band"), "Band / Layer", choices = NULL)
+              ),
+              shiny::div(
+                style = "padding-top: 1.8rem; margin-left: 10px;",
+                shiny::checkboxInput(ns("only_seasonal"), "Seasonal Only", FALSE)
+              )
+            ),
             
             # Second Raster (conditional on mode) - using uiOutput for reliable module compatibility
             shiny::uiOutput(ns("raster2_ui"))
@@ -198,7 +208,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       shiny::tagList(
         shiny::tags$hr(style = "margin: 15px 0;"),
         shiny::tags$strong("Raster 2", style = "display: block; margin-bottom: 8px;"),
-        shiny::selectInput(ns("raster_file2"), "File", choices = choices, selected = NULL),
+        shiny::selectizeInput(ns("raster_file2"), "File", choices = choices, selected = NULL),
         shiny::selectInput(ns("raster_band2"), "Band / Layer", choices = NULL)
       )
     })
@@ -409,7 +419,11 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     raster_choices <- shiny::reactive({
       folder <- global_folder()
       tif_files <- if (!is.null(folder) && dir.exists(folder)) {
-        list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+        files <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+        if (isTRUE(input$only_seasonal)) {
+          files <- files[grepl("_seasonal", files)]
+        }
+        files
       } else character(0)
       
       analysis_layers <- list()
@@ -427,8 +441,8 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       choices <- raster_choices()
       current <- input$raster_file
       current2 <- input$raster_file2
-      shiny::updateSelectInput(session, "raster_file", choices = choices, selected = current)
-      shiny::updateSelectInput(session, "raster_file2", choices = choices, selected = current2)
+      shiny::updateSelectizeInput(session, "raster_file", choices = choices, selected = current, server = TRUE)
+      shiny::updateSelectizeInput(session, "raster_file2", choices = choices, selected = current2, server = TRUE)
     })
 
     shiny::observeEvent(input$scan_rasters, {

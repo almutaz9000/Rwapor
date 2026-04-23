@@ -71,9 +71,46 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           shiny::fileInput(ns("an_mask_csv"), "CSV File (Plot Dates)", 
                            accept = ".csv", width = "100%"),
           
-          shiny::textInput(ns("an_mask_id_col"), "ID Column", value = "id"),
+          shiny::div(
+            class = "inline-row",
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_season_col"), "Grouping Column (Season)", choices = NULL)
+            ),
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_crop_col"), "Crop Column", choices = NULL)
+            )
+          ),
+          shiny::helpText("The Grouping Column is required to separate multi-year data into distinct seasonal masks."),
           
-          shiny::textInput(ns("an_mask_crop_col"), "Crop Class Column (Optional)", value = ""),
+          shiny::div(
+            class = "inline-row",
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_vector_id_col"), "Vector ID Col", choices = NULL)
+            ),
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_csv_id_col"), "CSV ID Col", choices = NULL)
+            )
+          ),
+          
+          shiny::div(
+            class = "inline-row",
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_start_col"), "Start Date Col", choices = NULL)
+            ),
+            shiny::div(
+              class = "flex-1",
+              shiny::selectInput(ns("an_mask_end_col"), "End Date Col", choices = NULL)
+            )
+          ),
+          
+          shiny::selectizeInput(ns("an_mask_template_file"), "Reference Template (Optional)", 
+                               choices = NULL, options = list(placeholder = "Auto-detect from data")),
+          shiny::helpText("Select a specific raster to use as the spatial grid template."),
           
           shiny::actionButton(
             ns("an_generate_masks"), "Generate/Update Timing Masks",
@@ -272,12 +309,13 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
               "Water Adequacy \u2013 P95 basis",
               "CWP / BWP \u2013 Water Productivity",
               "Yield \u2013 NPP-based estimate",
+              "Beneficial Fraction (T/AETI)",
               "Green Water \u2013 AETI from rainfall (requires Peff)",
               "Blue Water \u2013 AETI from irrigation (requires Peff)"
             ),
             choiceValues = list(
               "peff", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "yield_npp",
-              "green_water", "blue_water"
+              "beneficial_fraction", "green_water", "blue_water"
             ),
             selected = c("etc", "adequacy_etc", "yield_npp")
           ),

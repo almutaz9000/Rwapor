@@ -185,7 +185,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # Loading logic
   stacks <- list()
-  if (any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water") %in% indicators)) {
+  if (any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators)) {
     progress_callback(0.25, sprintf("Loading %s...", aeti_var %||% "AETI"))
     p <- .resolve_paths(aeti_var, use_local, folder, period, l3_code)
     stacks$aeti <- .align_to_weights(.load_and_harmonize(aeti_var, p, template_r, reg_info, "bilinear"), target_dates)
@@ -205,7 +205,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     p <- .resolve_paths(npp_var, use_local, folder, period, l3_code)
     stacks$npp <- .align_to_weights(.load_and_harmonize(npp_var, p, template_r, reg_info), target_dates)
   }
-  if ("agg_t" %in% indicators) {
+  if (any(c("agg_t", "beneficial_fraction") %in% indicators)) {
     progress_callback(0.42, sprintf("Loading %s...", t_var %||% "Transpiration"))
     p <- .resolve_paths(t_var, use_local, folder, period, l3_code)
     stacks$t <- .align_to_weights(.load_and_harmonize(t_var, p, template_r, reg_info, "bilinear"), target_dates)
@@ -341,6 +341,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     p95_table <- Rwapor::wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
     results$p95_table <- p95_table
     results$adequacy_p95 <- Rwapor::wapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
+  }
+
+  # Beneficial Fraction (T/AETI)
+  if ("beneficial_fraction" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(results$seasonal_t)) {
+    results$beneficial_fraction <- Rwapor::wapor_calc_beneficial_fraction(results$seasonal_t$raster, results$seasonal_aeti$raster)
   }
 
   # Peff (simplified seasonal estimate)

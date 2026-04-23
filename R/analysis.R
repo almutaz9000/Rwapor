@@ -1036,7 +1036,8 @@ wapor_check_local <- function(urls, var, folder) {
 #' @return A data.frame mapping season names to their generated raster paths.
 #' @export
 wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r, 
-                                          id_col = "id", 
+                                          vector_id_col = "id", 
+                                          csv_id_col = "id",
                                           season_col = "season_name",
                                           start_col = "start_date", 
                                           end_col = "end_date",
@@ -1053,6 +1054,12 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   
   d <- utils::read.csv(csv_path, stringsAsFactors = FALSE)
   
+  # Fallback for season_col
+  if (is.null(season_col) || !(season_col %in% names(d))) {
+    d$season_name_internal <- "Default_Season"
+    season_col <- "season_name_internal"
+  }
+  
   # 2. Merge and Calculate Julian Days
   # Ensure dates are valid
   d[[start_col]] <- as.Date(d[[start_col]])
@@ -1062,11 +1069,11 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   d$end_jd   <- Rwapor::wapor_continuous_julian(d[[end_col]], ref_year)
   
   # Join to vector
-  v_merged <- terra::merge(v, d, by = id_col)
+  v_merged <- terra::merge(v, d, by.x = vector_id_col, by.y = csv_id_col)
   
   if (nrow(v_merged) == 0) {
     stop(sprintf("No matching IDs found between vector (%s) and CSV (%s).", 
-                 id_col, id_col), call. = FALSE)
+                 vector_id_col, csv_id_col), call. = FALSE)
   }
   
   # 3. Process by Season

@@ -91,6 +91,14 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
           # 0 · Project Management ───────────────────────────────────────────
           bslib::accordion_panel(
             "Project Management", icon = shiny::icon("folder-tree"),
+            shiny::tags$span("Data Source", class = "ctrl-group-label"),
+            shiny::radioButtons(
+              ns("mon_source"), NULL,
+              choices = c("DuckDB Database" = "db", "Project Folder (Live)" = "folder"),
+              selected = "db",
+              inline = TRUE
+            ),
+            
             shiny::tags$span("Base Directory", class = "ctrl-group-label"),
             shiny::div(
               class = "inline-row",
@@ -99,7 +107,7 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
                 shiny::textInput(
                   ns("project_dir_path"), NULL,
                   value       = "projects",
-                  placeholder = "Folder to store project .json files"
+                  placeholder = "Folder for project files/data"
                 )
               ),
               shinyFiles::shinyDirButton(
@@ -591,20 +599,43 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       d
     })
 
-    # ── Helper: Refresh Time Series Data from DB ──────────────────────────────
+    # ── Helper: Refresh Time Series Data from Source ──────────────────────────
     refresh_ts_data <- function() {
-      db_path <- input$db_path
-      if (is.null(db_path) || !file.exists(db_path)) return()
+      source_type <- input$mon_source
       
-      tryCatch({
-        con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
-        on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
-        rv$ts_data <- DBI::dbGetQuery(con, 
-          "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date"
-        )
-      }, error = function(e) {
-        add_log("Error refreshing data: ", e$message)
-      })
+      if (source_type == "folder") {
+        # Folder Mode: Live extraction
+        pdir <- input$project_dir_path
+        shiny::req(rv$farms_sf, pdir)
+        
+        shiny::withProgress(message = "Scanning folder & extracting stats...", value = 0, {
+          rv$ts_data <- wapor_extract_stats_from_folder(
+            folder = pdir,
+            polygons = rv$farms_sf,
+            variables = input$mon_vars,
+            threshold_pct = input$threshold_pct
+          )
+        })
+        
+        if (is.null(rv$ts_data) || nrow(rv$ts_data) == 0) {
+          shiny::showNotification("No matching rasters found in the project folder.", type = "warning")
+        }
+        
+      } else {
+        # Database Mode: Load from DuckDB
+        db_path <- input$db_path
+        if (is.null(db_path) || !file.exists(db_path)) return()
+        
+        tryCatch({
+          con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+          on.exit(tryCatch(DBI::dbDisconnect(con, shutdown = TRUE), error = function(e) NULL))
+          rv$ts_data <- DBI::dbGetQuery(con, 
+            "SELECT * FROM farm_timeseries ORDER BY farm_id, variable, start_date"
+          )
+        }, error = function(e) {
+          add_log("Error refreshing database data: ", e$message)
+        })
+      }
     }
 
     # ── Helper: append log message ─────────────────────────────────────────────
@@ -1118,8 +1149,27 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
     shiny::observeEvent(input$btn_monitor, {
       shiny::req(rv$farms_sf)
       shiny::req(length(input$mon_vars) > 0)
-      shiny::req(input$db_path)
       shiny::req(!isTRUE(rv$monitoring))
+
+      source_type <- input$mon_source
+      
+      if (source_type == "folder") {
+        # --- Folder Mode Flow ---
+        add_log("Starting local folder scan & extraction...")
+        rv$monitoring <- TRUE
+        tryCatch({
+          refresh_ts_data()
+          add_log("Folder scan complete.")
+        }, error = function(e) {
+          add_log("Extraction error: ", e$message)
+        }, finally = {
+          rv$monitoring <- FALSE
+        })
+        return()
+      }
+
+      # --- Database Mode Flow (Existing) ---
+      shiny::req(input$db_path)
 
       farms_sf     <- rv$farms_sf
       sel_vars     <- input$mon_vars
