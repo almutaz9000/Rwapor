@@ -126,6 +126,124 @@ ui <- bslib::page_navbar(
       /* ── Value box tweaks ────────────────────────────────── */
       .bslib-value-box .value-box-title  { font-size: 0.78rem !important; }
       .bslib-value-box .value-box-value  { font-size: 1.1rem  !important; }
+
+      /* ── Mandatory / optional field markers ──────────────── */
+      .req-label::after {
+        content: ' *';
+        color: #dc3545;
+        font-size: 0.88em;
+        font-weight: 700;
+        margin-left: 1px;
+      }
+      .opt-label::after {
+        content: ' (optional)';
+        font-size: 0.76em;
+        font-weight: 400;
+        color: #9ca3af;
+      }
+
+      /* ── Viz-mode segmented button strip ─────────────────── */
+      .viz-mode-group .shiny-options-group {
+        display: flex;
+        flex-direction: row;
+        gap: 0;
+        margin-bottom: 0;
+      }
+      .viz-mode-group .radio { flex: 1; margin: 0; }
+      .viz-mode-group .radio label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        text-align: center;
+        cursor: pointer;
+        padding: 0.42rem 0.35rem;
+        border: 1px solid #ced4da;
+        margin-bottom: 0;
+        font-weight: 600;
+        font-size: 0.77rem;
+        color: #495057;
+        background: #fff;
+        transition: background 0.12s, color 0.12s;
+        user-select: none;
+      }
+      .viz-mode-group .radio:not(:first-child) label { border-left: none; }
+      .viz-mode-group .radio:first-child  label { border-radius: 6px 0 0 6px; }
+      .viz-mode-group .radio:last-child   label { border-radius: 0 6px 6px 0; }
+      .viz-mode-group .radio input[type='radio'] { display: none; }
+      .viz-mode-group .radio:has(input:checked) label {
+        background: #2c3e50;
+        color: #fff;
+        border-color: #2c3e50;
+      }
+
+      /* ── Palette swatch strip ────────────────────────────── */
+      .palette-swatch {
+        display: flex;
+        height: 12px;
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 2px 0 5px;
+        border: 1px solid rgba(0,0,0,0.08);
+      }
+      .palette-swatch span { flex: 1; display: block; }
+
+      /* ── Raster stat boxes in card footer ────────────────── */
+      .raster-stat-row {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        padding: 2px 0;
+      }
+      .raster-stat-box {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        padding: 4px 9px;
+        min-width: 80px;
+        flex: 1 1 auto;
+      }
+      .raster-stat-box .rsb-icon { font-size: 0.85rem; flex-shrink: 0; }
+      .raster-stat-box .rsb-label {
+        font-size: 0.64rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #6c757d;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .raster-stat-box .rsb-value {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #2c3e50;
+        line-height: 1.3;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* ── Regression axis panel in tab body ───────────────── */
+      .reg-axis-panel {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem 0.1rem;
+        margin-bottom: 0.55rem;
+      }
+      .reg-axis-panel .ctrl-group-label { margin-top: 0; }
+
+      /* ── Project folder header strip ─────────────────────── */
+      .folder-header-strip {
+        padding: 6px 10px 8px;
+        border-bottom: 1px solid #dee2e6;
+        background: #fff;
+      }
+      .folder-header-strip .ctrl-group-label { margin-top: 0; margin-bottom: 3px; }
     "))),
     shinyjs::useShinyjs()
   ),

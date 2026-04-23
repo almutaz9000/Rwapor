@@ -1062,8 +1062,19 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   
   # 2. Merge and Calculate Julian Days
   # Ensure dates are valid
-  d[[start_col]] <- as.Date(d[[start_col]])
-  d[[end_col]]   <- as.Date(d[[end_col]])
+  parse_robust_date <- function(x) {
+    # Try common formats
+    parsed <- lubridate::parse_date_time(x, orders = c("ymd", "dmy", "mdy", "Ymd", "dmY", "mdY"))
+    if (any(is.na(parsed) & !is.na(x))) {
+       failed <- x[is.na(parsed) & !is.na(x)]
+       stop(sprintf("Failed to parse some dates in CSV. Example invalid values: %s. Expected YYYY-MM-DD or DD/MM/YYYY.", 
+                    paste(utils::head(failed, 3), collapse = ", ")), call. = FALSE)
+    }
+    as.Date(parsed)
+  }
+  
+  d[[start_col]] <- parse_robust_date(d[[start_col]])
+  d[[end_col]]   <- parse_robust_date(d[[end_col]])
   
   d$start_jd <- Rwapor::wapor_continuous_julian(d[[start_col]], ref_year)
   d$end_jd   <- Rwapor::wapor_continuous_julian(d[[end_col]], ref_year)

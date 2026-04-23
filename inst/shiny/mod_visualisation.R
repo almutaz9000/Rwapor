@@ -20,14 +20,17 @@ mod_visualisation_ui <- function(id) {
           bslib::accordion_panel(
             "Visualization Mode", icon = shiny::icon("sliders"),
             
-            shiny::radioButtons(
-              ns("viz_mode"), NULL,
-              choices = c(
-                "Single Raster" = "single",
-                "Dual Raster Comparison" = "dual",
-                "Conditional Query" = "query"
-              ),
-              selected = "single"
+            shiny::div(
+              class = "viz-mode-group",
+              shiny::radioButtons(
+                ns("viz_mode"), NULL,
+                choices = c(
+                  "Single Raster"  = "single",
+                  "Dual Compare"   = "dual",
+                  "Query Filter"   = "query"
+                ),
+                selected = "single"
+              )
             ),
             
             shiny::conditionalPanel(
@@ -105,6 +108,7 @@ mod_visualisation_ui <- function(id) {
               )
             ),
 
+            shiny::uiOutput(ns("palette_swatch")),
             shiny::div(
               class = "inline-row",
               shiny::div(
@@ -173,9 +177,8 @@ mod_visualisation_ui <- function(id) {
         leaflet::leafletOutput(ns("analysis_map"), height = "100%", width = "100%")
       ),
       bslib::card_footer(
-        class = "raster-footer",
-        shiny::div(id = ns("raster_info_table"),
-          shiny::tableOutput(ns("raster_info")))
+        style = "padding: 0.4rem 0.6rem;",
+        shiny::uiOutput(ns("raster_stat_boxes"))
       )
     )
   )
@@ -978,6 +981,104 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
 
 
     # Raster info table
+    # ── Palette colour swatch ──────────────────────────────────────────────
+    output$palette_swatch <- shiny::renderUI({
+      pal_name <- input$palette_name
+      shiny::req(pal_name)
+      n_show <- 12L
+      cols <- if (pal_name %in% c("viridis", "magma", "plasma", "inferno", "cividis")) {
+        viridisLite::viridis(n_show, option = pal_name)
+      } else {
+        tryCatch(
+          grDevices::colorRampPalette(
+            RColorBrewer::brewer.pal(min(8L, max(3L, n_show)), pal_name)
+          )(n_show),
+          error = function(e) viridisLite::viridis(n_show)
+        )
+      }
+      if (isTRUE(input$reverse_palette)) cols <- rev(cols)
+      shiny::tags$div(
+        class = "palette-swatch",
+        lapply(cols, function(col) shiny::tags$span(style = paste0("background:", col, ";")))
+      )
+    })
+
+    # ── Raster stat boxes (replaces plain renderTable) ─────────────────────
+    output$raster_stat_boxes <- shiny::renderUI({
+      mode <- input$viz_mode
+
+      make_stat <- function(label, value, icon_name, icon_color = "#6c757d") {
+        shiny::div(
+          class = "raster-stat-box",
+          shiny::tags$div(
+            class = "rsb-icon",
+            shiny::icon(icon_name, style = paste0("color:", icon_color, ";"))
+          ),
+          shiny::tags$div(
+            shiny::tags$div(class = "rsb-label", label),
+            shiny::tags$div(class = "rsb-value", as.character(value))
+          )
+        )
+      }
+
+      no_data_msg <- function(msg) {
+        shiny::helpText(
+          shiny::icon("circle-info"), msg,
+          style = "font-size:0.8rem; color:#6c757d; padding:2px 0;"
+        )
+      }
+
+      if (is.null(mode) || mode == "single") {
+        r <- loaded_raster()
+        if (is.null(r)) return(no_data_msg(" Load a raster file to see statistics."))
+        band_idx <- suppressWarnings(as.integer(input$raster_band))
+        if (is.na(band_idx) || band_idx < 1L || band_idx > terra::nlyr(r)) return(NULL)
+        r_band <- r[[band_idx]]
+        vals   <- terra::values(r_band, na.rm = TRUE)
+        if (length(vals) == 0L) return(no_data_msg(" No valid pixel values."))
+        res_txt <- paste(round(terra::res(r_band), 6L), collapse = " × ")
+        shiny::div(
+          class = "raster-stat-row",
+          make_stat("Min",     round(min(vals,  na.rm = TRUE), 4L), "arrow-down",      "#1e8449"),
+          make_stat("Max",     round(max(vals,  na.rm = TRUE), 4L), "arrow-up",        "#c0392b"),
+          make_stat("Mean",    round(mean(vals, na.rm = TRUE), 4L), "chart-line",      "#2980b9"),
+          make_stat("Res (°)", res_txt,                              "magnifying-glass","#8e44ad"),
+          make_stat("Bands",   terra::nlyr(r),                       "layer-group",     "#d35400"),
+          make_stat("Active",  names(r)[band_idx],                   "tag",             "#7f8c8d")
+        )
+
+      } else if (mode == "dual") {
+        r1 <- loaded_raster(); r2 <- loaded_raster2()
+        if (is.null(r1) || is.null(r2)) return(no_data_msg(" Load both rasters."))
+        b1 <- suppressWarnings(as.integer(input$raster_band))
+        b2 <- suppressWarnings(as.integer(input$raster_band2))
+        if (is.na(b1) || is.na(b2)) return(NULL)
+        v1 <- terra::values(r1[[min(b1, terra::nlyr(r1))]], na.rm = TRUE)
+        v2 <- terra::values(r2[[min(b2, terra::nlyr(r2))]], na.rm = TRUE)
+        shiny::div(
+          class = "raster-stat-row",
+          make_stat("R1 Min",  round(min(v1,  na.rm = TRUE), 3L), "arrow-down", "#1e8449"),
+          make_stat("R1 Max",  round(max(v1,  na.rm = TRUE), 3L), "arrow-up",   "#c0392b"),
+          make_stat("R1 Mean", round(mean(v1, na.rm = TRUE), 3L), "chart-line", "#2980b9"),
+          make_stat("R2 Min",  round(min(v2,  na.rm = TRUE), 3L), "arrow-down", "#27ae60"),
+          make_stat("R2 Max",  round(max(v2,  na.rm = TRUE), 3L), "arrow-up",   "#e74c3c"),
+          make_stat("R2 Mean", round(mean(v2, na.rm = TRUE), 3L), "chart-line", "#3498db")
+        )
+
+      } else if (mode == "query") {
+        result <- query_result_raster()
+        if (is.null(result) || !isTRUE(result$success))
+          return(no_data_msg(" Apply a query to see match statistics."))
+        shiny::div(
+          class = "raster-stat-row",
+          make_stat("Match",    format(result$n_match,                  big.mark = ","), "check",       "#1e8449"),
+          make_stat("No Match", format(result$n_total - result$n_match, big.mark = ","), "xmark",       "#c0392b"),
+          make_stat("Total",    format(result$n_total,                  big.mark = ","), "table-cells", "#2980b9"),
+          make_stat("Match %",  paste0(round(result$pct_match, 2L), "%"),               "percent",     "#8e44ad")
+        )
+      }
+    })
+
     output$raster_info <- shiny::renderTable({
       mode <- input$viz_mode
       

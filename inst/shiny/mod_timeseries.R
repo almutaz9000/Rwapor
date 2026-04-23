@@ -198,17 +198,6 @@ mod_timeseries_ui <- function(id) {
                 format = "yyyy-mm-dd"
               ),
 
-              shiny::tags$hr(class = "ctrl-divider"),
-              shiny::tags$span("Regression axes (seasonal aggregates)", class = "ctrl-group-label"),
-              shiny::div(
-                class = "inline-row",
-                shiny::div(class = "flex-1",
-                  shiny::selectInput(ns("vars_reg_x"), "X", choices = NULL)
-                ),
-                shiny::div(class = "flex-1",
-                  shiny::selectInput(ns("vars_reg_y"), "Y", choices = NULL)
-                )
-              )
             ),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'saved'", ns("data_source")),
@@ -394,6 +383,22 @@ mod_timeseries_ui <- function(id) {
           "Regression", icon = shiny::icon("braille"),
           bslib::card_body(
             fillable = TRUE,
+            # ── Regression axis selectors (moved here from sidebar) ──────────
+            shiny::div(
+              class = "reg-axis-panel",
+              shiny::tags$span(
+                shiny::icon("right-left"), " Regression Axes",
+                class = "ctrl-group-label"
+              ),
+              shiny::fluidRow(
+                shiny::column(6,
+                  shiny::selectInput(ns("vars_reg_x"), "X-axis variable", choices = NULL)
+                ),
+                shiny::column(6,
+                  shiny::selectInput(ns("vars_reg_y"), "Y-axis variable", choices = NULL)
+                )
+              )
+            ),
             shiny::fluidRow(
               shiny::column(4,
                 shiny::checkboxInput(ns("reg_by_geom"),  "Colour by geometry", TRUE)),
