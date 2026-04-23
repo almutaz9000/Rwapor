@@ -19,9 +19,9 @@
 #' Variable naming convention: `{Level}-{Variable}-{TemporalResolution}`
 #'
 #' **Levels:**
-#' * L1: Continental scale (~250m resolution for Africa and Near East)
-#' * L2: Country/regional scale (~100m resolution)
-#' * L3: Sub-national / irrigation scheme scale (~10-20m resolution)
+#' * L1: Continental scale (~300m for ETLook variables; RET ~11 km; PCP ~5 km)
+#' * L2: Country/regional scale (~100m; RET and PCP not available at this level)
+#' * L3: Sub-national / irrigation scheme scale (~20m; RET and PCP not available at this level)
 #'
 #' **Temporal Resolutions:**
 #' * A: Annual
@@ -44,7 +44,7 @@
 #'
 #' @export
 WAPOR3_VARS <- list(
-  # ---- Level 1 (L1) - Continental scale (~250m) ----------------------------
+  # ---- Level 1 (L1) - Continental scale (~300m ETLook; RET ~11km; PCP ~5km) -
   "L1-AETI-A" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/year", scale = 0.1),
   "L1-AETI-D" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/day", scale = 0.1),
   "L1-AETI-M" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/month", scale = 0.1),
@@ -84,7 +84,7 @@ WAPOR3_VARS <- list(
   "L2-T-D"    = list(long_name = "Transpiration", units = "mm/day", scale = 0.1),
   "L2-TBP-A"  = list(long_name = "Total Biomass Production", units = "kg/ha", scale = 1.0),
 
-  # ---- Level 3 (L3) - Irrigation scheme scale (~10-20m) --------------------
+  # ---- Level 3 (L3) - Irrigation scheme scale (~20m) ----------------------
   "L3-AETI-A" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/year", scale = 0.1),
   "L3-AETI-D" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/day", scale = 0.1),
   "L3-AETI-M" = list(long_name = "Actual EvapoTranspiration and Interception", units = "mm/month", scale = 0.1),
@@ -162,7 +162,7 @@ AGERA5_VARS <- list(
 #'
 #' A named list containing metadata for all available WaPOR Level 3 (L3) regions.
 #' Each region represents an irrigation scheme, river basin, or study area at
-#' high resolution (~10-20m). Region codes are 3-letter uppercase identifiers
+#' high resolution (~20m in WaPOR v3). Region codes are 3-letter uppercase identifiers
 #' used by the FAO GISMGR API.
 #'
 #' @format A named list where each element (keyed by 3-letter region code)

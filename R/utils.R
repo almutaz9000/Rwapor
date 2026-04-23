@@ -9,6 +9,34 @@
   if (is.null(x)) y else x
 }
 
+#' Load the Rwapor Agent Skills Reference
+#'
+#' Returns the path to (or content of) the canonical agent skills markdown file
+#' that guides AI agents through available workflows, data sources, and
+#' preprocessing requirements for the Rwapor package.
+#'
+#' @param as_text Logical. If `TRUE` (default), returns the file content as a
+#'   single character string. If `FALSE`, returns only the file path.
+#'
+#' @return Character. Either the full markdown text or the file path, depending
+#'   on `as_text`.
+#'
+#' @examples
+#' # Get the file path (for passing to an LLM context loader)
+#' path <- wapor_agent_skills(as_text = FALSE)
+#'
+#' # Read content directly
+#' skills_text <- wapor_agent_skills()
+#' cat(substr(skills_text, 1, 500))
+#'
+#' @export
+wapor_agent_skills <- function(as_text = TRUE) {
+  path <- system.file("agent_skills", "RWAPOR_AGENT_SKILLS.md", package = "Rwapor")
+  if (!nzchar(path)) stop("Agent skills file not found. Reinstall the package.")
+  if (!as_text) return(path)
+  paste(readLines(path, warn = FALSE), collapse = "\n")
+}
+
 #' Parse Region Argument
 #'
 #' Parses various region input formats into a standardized structure

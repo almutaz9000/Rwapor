@@ -18,7 +18,7 @@ L3_REGIONS
 \description{
 A named list containing metadata for all available WaPOR Level 3 (L3) regions.
 Each region represents an irrigation scheme, river basin, or study area at
-high resolution (~10-20m). Region codes are 3-letter uppercase identifiers
+high resolution (~20m in WaPOR v3). Region codes are 3-letter uppercase identifiers
 used by the FAO GISMGR API.
 }
 \details{

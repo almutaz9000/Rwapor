@@ -10,7 +10,7 @@ wapor_init_monitoring_db(con)
 \item{con}{DuckDB connection object.}
 }
 \value{
-The connection object (invisibly).
+The connection object invisibly.
 }
 \description{
 Initialize a DuckDB database for farm monitoring

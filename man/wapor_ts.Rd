@@ -29,8 +29,9 @@ wapor_ts(
 \item{variable}{Character. Variable name following WaPOR/AgERA5 naming
 convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").}
 
-\item{period}{Character vector of length 2. Date range as
-\code{c(start_date, end_date)} in "YYYY-MM-DD" format.}
+\item{period}{Character vector or list. Date range as
+\code{c(start_date, end_date)} in "YYYY-MM-DD" format. Can also be a
+named or unnamed list of such vectors for multiple seasons.}
 
 \item{identifier}{Character. Optional column name in vector file to identify
 polygons in output. If NULL, numeric IDs are used.}
