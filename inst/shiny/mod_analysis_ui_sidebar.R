@@ -9,9 +9,43 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
       class = "sidebar-scroll-area",
       bslib::accordion(
         id   = ns("analysis_config_accordion"),
-        open = c("Season Definition", "Variables"),
+        open = c("Data Source", "Season Definition", "Variables"),
 
-        # ── 1. Season Definition ─────────────────────────────────
+        # ── 1. Data Source ───────────────────────────────────────
+        bslib::accordion_panel(
+          "Data Source", icon = shiny::icon("database"),
+
+          shiny::radioButtons(
+            ns("an_data_source"), NULL,
+            choices = c(
+              "Stream from API (online)"      = "api",
+              "Use local downloaded files"    = "local"
+            ),
+            selected = "api"
+          ),
+          shiny::conditionalPanel(
+            condition = sprintf("input['%s'] == 'api'", ns("an_data_source")),
+            shiny::helpText(
+              "Reads Cloud-Optimized GeoTIFFs directly from the WaPOR server via GDAL vsicurl. Internet required."
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = sprintf("input['%s'] == 'local'", ns("an_data_source")),
+            shiny::tags$div(
+              class = "alert alert-info p-2 mb-2 small",
+              shiny::icon("circle-info"),
+              " Uses files from the project folder (set in Download tab). Folder is scanned automatically when switching to local mode."
+            ),
+            shiny::actionButton(
+              ns("an_scan_local"), "Re-scan Folder",
+              icon  = shiny::icon("magnifying-glass"),
+              class = "btn-sm btn-outline-primary w-100 mb-2"
+            ),
+            shiny::verbatimTextOutput(ns("an_local_vars_info"))
+          )
+        ),
+
+        # ── 2. Season Definition ─────────────────────────────────
         bslib::accordion_panel(
           "Season Definition", icon = shiny::icon("calendar"),
 
@@ -132,40 +166,6 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             class = "btn-sm btn-outline-info w-100"
           ),
           shiny::tags$hr(class = "ctrl-divider")
-        ),
-
-        # ── 3. Data Source ───────────────────────────────────────
-        bslib::accordion_panel(
-          "Data Source", icon = shiny::icon("database"),
-
-          shiny::radioButtons(
-            ns("an_data_source"), NULL,
-            choices = c(
-              "Stream from API (online)"      = "api",
-              "Use local downloaded files"    = "local"
-            ),
-            selected = "api"
-          ),
-          shiny::conditionalPanel(
-            condition = sprintf("input['%s'] == 'api'", ns("an_data_source")),
-            shiny::helpText(
-              "Reads Cloud-Optimized GeoTIFFs directly from the WaPOR server via GDAL vsicurl. Internet required."
-            )
-          ),
-          shiny::conditionalPanel(
-            condition = sprintf("input['%s'] == 'local'", ns("an_data_source")),
-            shiny::tags$div(
-              class = "alert alert-info p-2 mb-2 small",
-              shiny::icon("circle-info"),
-              " Uses files from the project folder (set in Download tab). Folder is scanned automatically when switching to local mode."
-            ),
-            shiny::actionButton(
-              ns("an_scan_local"), "Re-scan Folder",
-              icon  = shiny::icon("magnifying-glass"),
-              class = "btn-sm btn-outline-primary w-100 mb-2"
-            ),
-            shiny::verbatimTextOutput(ns("an_local_vars_info"))
-          )
         ),
 
         # ── 3. Variables ─────────────────────────────────────────
