@@ -27,14 +27,23 @@
 ✅ **Download satellite imagery** (AETI, NPP, Precipitation) for any region  
 ✅ **Extract time-series** for crop fields and administrative boundaries  
 ✅ **Run seasonal crop analysis** with crop masks and growing season dates  
-✅ **Calculate water productivity indicators** (CWP, BWP, ETc, Adequacy)  
+✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
-## Installation
+## 🚀 New in v1.5: High-Precision Batch Analysis
+
+The latest version introduces powerful tools for large-scale agricultural research:
+
+*   🔄 **Batch Multi-Year Analysis**: Process 10+ years of crop seasons in a single run with automated season detection and historical anchor support.
+*   📍 **Plot-Level Precision**: Define unique planting/harvest dates for every single farm plot using a Vector file and CSV lookup table.
+
+## 🛠️ One-Time Setup
+
+You only need to perform these steps once on your computer (or when updating the package).
 
 ### Step 1: Install Required Dependencies
 
-Rwapor requires several geospatial and web-interface libraries. To ensure all dashboard features work correctly, install the following:
+Rwapor requires several geospatial and web-interface libraries. Run this code in R to ensure all dashboard features work correctly:
 
 ```r
 # Install all core and dashboard dependencies
@@ -54,26 +63,31 @@ install.packages(c(
 ))
 ```
 
-> **Note**: `sf` and `terra` require system libraries (GDAL, PROJ, GEOS). See the [sf installation guide](https://r-spatial.github.io/sf/#installing) if you encounter issues on Linux or Mac. Windows users usually get bundled binaries.
+> **Note for Windows Users**: `sf` and `terra` usually come with everything they need. Linux/Mac users may need to install system libraries like `libgdal-dev` and `libproj-dev` first.
 
 ### Step 2: Install Rwapor
 
-You can use either `remotes` (lightweight) or `devtools` to install from GitHub:
+Install the latest version directly from GitHub:
 
 ```r
-# Option A: using remotes (recommended)
 # install.packages("remotes")
 remotes::install_github("almutaz9000/Rwapor")
-
-# Option B: using devtools
-# install.packages("devtools")
-devtools::install_github("almutaz9000/Rwapor")
 ```
 
-### Step 3: Load the Package
+---
+
+## 🚀 Everyday Usage
+
+Whenever you start RStudio and want to work with WaPOR data, just run:
 
 ```r
 library(Rwapor)
+
+# Option A: Launch the point-and-click dashboard
+run_wapor()
+
+# Option B: Use R commands for analysis
+# results <- wapor_run_seasonal_analysis(...)
 ```
 
 ---

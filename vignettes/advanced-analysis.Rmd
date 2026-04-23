@@ -18,68 +18,86 @@ This guide covers advanced programmatic workflows for the `Rwapor` package, incl
 
 ## 1. Seasonal Crop Water Productivity Analysis
 
-This workflow demonstrates how to calculate seasonal indicators (AETI, RET, ETc, Yield, CWP) using user-provided crop masks and planting/harvest dates.
+The `Rwapor` package provides a unified engine, `wapor_run_seasonal_analysis()`, to perform complex seasonal calculations (AETI, ETc, Yield, CWP, Adequacy) in a single step.
+
+### 1.1 Single Season Analysis
+
+This workflow demonstrates how to calculate indicators for a single crop season using a crop mask and local data.
 
 ```r
 library(Rwapor)
-library(terra)
 
-# ===== STEP 1: Prepare Input Data =====
-
-# Load your crop mask (1 = crop, 0 or NA = non-crop)
-crop_mask <- rast("path/to/wheat_mask_2023.tif")
-
-# Load season start/end rasters (Julian day of year)
-season_start <- rast("path/to/planting_date.tif") 
-season_end   <- rast("path/to/harvest_date.tif")
-
-# ===== STEP 2: Download Required WaPOR Data =====
-bbox <- as.vector(ext(crop_mask))
-
-for (var in c("L2-AETI-D", "L2-RET-D", "L2-NPP-D", "L2-PCP-D")) {
-  wapor_map(region = bbox, variable = var,
-            period = c("2023-01-01", "2023-12-31"), folder = "wapor_data")
-}
-
-# ===== STEP 3: Load and Harmonize =====
-aeti_stack <- rast(list.files("wapor_data/L2-AETI-D", pattern = "\\.tif$", full.names = TRUE))
-ret_stack  <- rast(list.files("wapor_data/L2-RET-D",  pattern = "\\.tif$", full.names = TRUE))
-npp_stack  <- rast(list.files("wapor_data/L2-NPP-D",  pattern = "\\.tif$", full.names = TRUE))
-
-crop_mask_h    <- wapor_harmonize_raster(crop_mask,    aeti_stack[[1]], method = "near")
-season_start_h <- wapor_harmonize_raster(season_start, aeti_stack[[1]], method = "near")
-season_end_h   <- wapor_harmonize_raster(season_end,   aeti_stack[[1]], method = "near")
-
-# ===== STEP 4: Build Season Weights =====
-weights <- wapor_build_season_weights(
-  start_date     = "2023-01-01",
-  end_date       = "2023-12-31",
-  start_raster   = season_start_h,
-  end_raster     = season_end_h,
-  reference_year = 2023
+# 1. Define configuration
+config <- list(
+  period      = c("2023-10-01", "2024-05-31"),
+  ref_year    = 1970,           # Historical anchor
+  aeti_var    = "L3-AETI-D",
+  ret_var     = "L1-RET-D",
+  precip_var  = "L1-PCP-D",
+  npp_var     = "L3-NPP-D",
+  t_var       = "L3-T-D",       # Transpiration support
+  data_source = "local",        # Use downloaded files
+  folder      = "wapor_data",
+  indicators  = c("agg_aeti", "agg_t", "etc", "yield_npp", "adequacy_etc")
 )
 
-# ===== STEP 5: Calculate Indicators =====
-# Seasonal Actual ET
-seasonal_aeti <- wapor_calc_seasonal_aeti(aeti_stack, weights$weights, crop_mask_h)$raster
-
-# Crop Water Requirement (ETc)
+# 2. Set crop parameters (can be customized)
 crop_params <- wapor_crop_defaults("Winter Wheat")
-kc_daily <- wapor_build_kc(
-  kc_ini = crop_params$kc_ini, kc_mid = crop_params$kc_mid, kc_end = crop_params$kc_end,
-  l_ini = 30, l_dev = 40, l_mid = 60, l_late = 30
-)
-kc_dekad <- wapor_aggregate_kc(kc_daily, weights$dekad_table, season_start = as.Date("2023-01-01"))
-seasonal_etc <- wapor_calc_seasonal_etc(ret_stack, weights$weights, kc_dekad)
 
-# Yield and Productivity
-seasonal_npp <- wapor_masked_sum(npp_stack, weights$weights)
-seasonal_yield <- wapor_calc_yield_npp(seasonal_npp, mc=crop_params$MC, hi=crop_params$HI)
-cwp <- wapor_calc_cwp(seasonal_yield, seasonal_aeti, yield_unit = "t/ha")
-adequacy <- wapor_calc_adequacy_etc(seasonal_aeti, seasonal_etc)
+# 3. Run the engine
+results <- wapor_run_seasonal_analysis(
+  config      = config,
+  crop_params = crop_params,
+  rasters     = list(crop_mask = terra::rast("wheat_mask.tif"))
+)
+
+# 4. Save the results
+wapor_shiny_save_analysis_rasters(results, "output/Winter2023", "Winter2023", config$indicators)
+```
+
+### 1.2 Batch Multi-Year Analysis
+
+If you have multiple years of data, you can pass a named list of periods. The engine will automatically loop through them and perform "Smart-Linking" with any season-specific masks.
+
+```r
+# Define multiple seasons
+periods <- list(
+  "Winter2018" = c("2018-10-01", "2019-05-31"),
+  "Winter2019" = c("2019-10-01", "2020-05-31"),
+  "Winter2020" = c("2020-10-01", "2021-05-31")
+)
+
+config$period <- periods
+
+# The engine returns a named list of results for all years
+all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
+
+# Save all years at once
+wapor_shiny_save_analysis_rasters(all_results, "output/batch_analysis", NULL, config$indicators)
+```
+
+### 1.3 Plot-Specific Timing Masks (Heterogeneous Seasons)
+
+For regions where different farm plots have different planting/harvest dates, you can generate custom timing masks from a Vector file and a CSV.
+
+```r
+# 1. Generate heterogeneous masks
+mask_map <- wapor_vector_to_season_rasters(
+  vector_path   = "farm_plots.geojson",
+  csv_path      = "planting_dates.csv",
+  template_r    = terra::rast("template.tif"),
+  id_col        = "plot_id",
+  output_folder = "wapor_data/seasonal_masks"
+)
+
+# 2. Run analysis
+# The engine will automatically detect and apply the correct mask 
+# (e.g. Winter2018_start.tif) for each year in your batch.
+results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
 ```
 
 ## 2. Continuous Monitoring with DuckDB
+...
 
 The monitoring module allows you to maintain a local "Data Cube" that stays synchronized with the WaPOR API.
 
