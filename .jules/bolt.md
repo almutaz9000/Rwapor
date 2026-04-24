@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Vectorized Seasonal ETc and Optimized Weighted Sums]
+**Learning:** Vectorizing seasonal aggregations like ETc (RET * weights * Kc) using `terra::sum(stack * weights, na.rm=TRUE)` is significantly faster than R-level loops as it executes in a single pass in the C++ backend. Additionally, reordering operations to combine all weights and multipliers (e.g., `x * (weights * multipliers)`) before applying them to the primary data stack minimizes the number of expensive multi-layer raster operations.
+**Action:** Implement vectorized paths in all seasonal aggregation functions and always group weights/multipliers to reduce stack operations.

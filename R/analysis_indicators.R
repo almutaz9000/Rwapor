@@ -38,14 +38,11 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
     return(total)
   }
 
-  # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
-  weighted <- x * weights
-  if (!all(layer_multipliers == 1)) {
-    weighted <- weighted * layer_multipliers
-  }
-  # Optimization: terra::sum() is significantly faster than terra::app(..., fun="sum")
+  # Optimization: Combine multipliers and weights before applying to the main stack.
+  # This reduces the number of multi-layer stack operations, saving time and disk space.
+  # terra::sum() is significantly faster than terra::app(..., fun="sum")
   # as it uses a dedicated C++ implementation for layer-wise summation.
-  terra::sum(weighted, na.rm = TRUE)
+  terra::sum(x * (weights * layer_multipliers), na.rm = TRUE)
 }
 
 #' Compute Seasonal AETI with Season Mask
@@ -133,20 +130,22 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }
 
-#' Compute Seasonal ETc Incrementally
+#' Compute Seasonal ETc
 #'
-#' Avoids building a full multi-layer ETc stack by accumulating
-#' RET * season_weight * kc layer-by-layer. This is significantly more
-#' memory-efficient for long seasons.
+#' Computes the seasonal crop water requirement (ETc) by aggregating dekadal
+#' RET layers weighted by both seasonal availability and crop coefficients (Kc).
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Default FALSE (vectorized).
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -162,6 +161,13 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
   if (length(layer_multipliers) != n_layers) {
     stop(sprintf("layer_multipliers length (%d) must match ret_dekad layers (%d)",
                  length(layer_multipliers), n_layers), call. = FALSE)
+  }
+
+  if (!incremental) {
+    # Optimization: Vectorized stack operation is significantly faster than R-level loops.
+    # Multiplying by (weights * multipliers * kc) scales the stack in a single pass.
+    # The result is summed in the C++ backend.
+    return(terra::sum(ret_dekad * (season_weights * (kc_dekad * layer_multipliers)), na.rm = TRUE))
   }
 
   total <- NULL
