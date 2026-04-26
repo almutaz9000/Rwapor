@@ -13,3 +13,11 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Vectorized Class Masking]
+**Learning:** Iterative loops using logical OR (`|`) to build multi-class masks on SpatRasters are inefficient because they trigger multiple raster passes. The `%in%` operator is vectorized for SpatRasters in `terra` and performs the same operation in a single optimized pass.
+**Action:** Use `%in%` for building class masks from a vector of values instead of iterative `|` loops.
+
+## 2025-05-18 - [Consistent NA handling in Aggregation]
+**Learning:** `terra::sum(x, na.rm = TRUE)` returns 0 for cells where all layers are `NA`. In incremental (iterative) aggregation loops using `+`, the result for all-NA cells remains `NA`. To ensure logical consistency between optimized (vectorized) and fallback (incremental) paths, all-NA cells in incremental results must be substituted with 0 (e.g., via `terra::subst(total, NA, 0)`).
+**Action:** Always ensure identical `NA` handling behavior when providing both vectorized and iterative implementations of the same aggregation.
