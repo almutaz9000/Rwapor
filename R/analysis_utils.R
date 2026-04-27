@@ -38,12 +38,8 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
 wapor_build_class_mask <- function(mask_rast, class_values) {
   if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
 
-  match_rast <- mask_rast == as.integer(class_values[1])
-  if (length(class_values) > 1) {
-    for (cls in class_values[-1]) {
-      match_rast <- match_rast | (mask_rast == as.integer(cls))
-    }
-  }
+  # Optimization: Use vectorized %in% operator for SpatRaster
+  match_rast <- mask_rast %in% as.integer(class_values)
 
   terra::ifel(match_rast, 1L, NA)
 }

@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Strict NA Propagation in Seasonal Analysis]
+**Learning:** Automatically using `na.rm = TRUE` in seasonal indicators (like `wapor_calc_seasonal_etc`) can lead to scientific inaccuracies by underestimating seasonal totals when data is missing. R-level loops using `+` implicitly propagate NAs, so vectorized implementations using `terra::sum` must explicitly set `na.rm = FALSE` to maintain consistency.
+**Action:** Always verify scientific logic before applying blanket optimizations like `na.rm = TRUE`. Ensure vectorized paths match the fallback loop behavior regarding missing values.
