@@ -177,46 +177,45 @@ wapor_parse_region <- function(region) {
 #' @noRd
 calculate_conversion_factor <- function(source_time, target_unit, num_days, days_in_month, days_in_year = NULL) {
   if (source_time == target_unit) {
-    return(1)
+    return(rep(1, length(num_days)))
   }
 
   # Use actual year length when available, otherwise default to 365
-  yr_days <- if (!is.null(days_in_year)) days_in_year else 365L
-  yr_dekads <- yr_days / num_days  # approximate dekads in year
+  yr_days <- if (!is.null(days_in_year)) days_in_year else rep(365L, length(num_days))
 
   # Conversion matrix logic
   factor <- switch(
     source_time,
     "day" = switch(
       target_unit,
-      "day" = 1,
+      "day"   = rep(1, length(num_days)),
       "dekad" = num_days,
       "month" = days_in_month,
-      "year" = yr_days,
+      "year"  = yr_days,
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     "dekad" = switch(
       target_unit,
-      "day" = 1 / num_days,
-      "dekad" = 1,
-      "month" = 3,
-      "year" = yr_days / num_days,
+      "day"   = 1 / num_days,
+      "dekad" = rep(1, length(num_days)),
+      "month" = rep(3, length(num_days)),
+      "year"  = yr_days / num_days,
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     "month" = switch(
       target_unit,
-      "day" = 1 / days_in_month,
-      "dekad" = 1 / 3,
-      "month" = 1,
-      "year" = 12,
+      "day"   = 1 / days_in_month,
+      "dekad" = rep(1 / 3, length(num_days)),
+      "month" = rep(1, length(num_days)),
+      "year"  = rep(12, length(num_days)),
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     "year" = switch(
       target_unit,
-      "day" = 1 / yr_days,
+      "day"   = 1 / yr_days,
       "dekad" = num_days / yr_days,
-      "month" = 1 / 12,
-      "year" = 1,
+      "month" = rep(1 / 12, length(num_days)),
+      "year"  = rep(1, length(num_days)),
       stop(sprintf("Unknown target unit: %s", target_unit), call. = FALSE)
     ),
     stop(sprintf("Unknown source unit: %s", source_time), call. = FALSE)
@@ -409,120 +408,130 @@ get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_
 #' date_info$start_date
 #' # [1] "2023-06-01"
 wapor_date_info <- function(url, tres) {
-  # Input validation
-  if (!is.character(url) || length(url) != 1) {
-    stop("'url' must be a single character string", call. = FALSE)
+  res <- wapor_parse_dates(url, tres)
+  return(as.list(res[1, ]))
+}
+
+#' Vectorized WaPOR Date Parsing
+#'
+#' Extracts date information from a vector of WaPOR/AgERA5 URLs or filenames.
+#'
+#' @param urls Character vector of URLs or filenames.
+#' @param tres Character. Temporal resolution ("D", "M", "A", or "E").
+#' @return A data.frame with columns:
+#'   * \code{start_date}: Character "YYYY-MM-DD"
+#'   * \code{end_date}: Character "YYYY-MM-DD"
+#'   * \code{number_of_days}: Numeric
+#'   * \code{raw_date}: The date component from the filename
+#'
+#' @keywords internal
+#' @noRd
+wapor_parse_dates <- function(urls, tres) {
+  if (!is.character(urls)) {
+    stop("'urls' must be a character vector", call. = FALSE)
   }
   if (!is.character(tres) || length(tres) != 1) {
     stop("'tres' must be a single character string", call. = FALSE)
   }
   if (!tres %in% c("D", "M", "A", "E")) {
-    stop(
-      sprintf("Invalid temporal resolution '%s'. Must be one of: D, M, A, E", tres),
-      call. = FALSE
-    )
+    stop(sprintf("Invalid temporal resolution '%s'. Must be one of: D, M, A, E", tres), call. = FALSE)
   }
 
-  filename <- basename(url)
-  base <- tools::file_path_sans_ext(filename)
+  if (length(urls) == 0) {
+    return(data.frame(
+      start_date = character(0),
+      end_date = character(0),
+      number_of_days = numeric(0),
+      raw_date = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
 
+  # Extract date component
+  filenames <- basename(urls)
+  bases <- sub("\\.[^.]+$", "", filenames)
   # WaPOR URL format: WAPOR-3.L1-AETI-D.2018-01-D1.tif
-  # The date component is the last dot-separated part before extension
-  # Split by "." first to isolate the date component
-  dot_parts <- strsplit(base, "\\.")[[1]]
-  date_component <- dot_parts[length(dot_parts)]
+  date_components <- sub("^.*\\.", "", bases)
 
-  # Now split the date component by "-"
-  parts <- strsplit(date_component, "-")[[1]]
+  n <- length(urls)
+  start_dates <- character(n)
+  end_dates <- character(n)
 
   if (tres == "D") {
-    # Dekadal format: YYYY-MM-DX (e.g., 2018-01-D1) or YYYYMMDD (e.g., 20180101)
-    if (length(parts) < 3) {
-      if (nchar(date_component) == 8 && grepl("^\\d{8}$", date_component)) {
-        year_str <- substr(date_component, 1, 4)
-        month_str <- substr(date_component, 5, 6)
-        day_val <- as.numeric(substr(date_component, 7, 8))
-        start_day <- sprintf("%02d", day_val)
-        start_date <- paste(year_str, month_str, start_day, sep = "-")
-        # Map back to D1/D2/D3 for consistency
-        dekad_str <- if (day_val <= 10) "D1" else if (day_val <= 20) "D2" else "D3"
-      } else {
-        stop(sprintf("Cannot parse date from URL for Dekadal data: %s", filename), call. = FALSE)
-      }
-    } else {
-      year_str <- parts[1]
-      month_str <- parts[2]
-      dekad_str <- parts[3]
-      
-      dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21",
-                        "1" = "01", "2" = "11", "3" = "21")
-      
-      if (!dekad_str %in% names(dekad_map)) {
-        stop(sprintf("Unknown dekad format: %s", dekad_str), call. = FALSE)
-      }
-      
-      start_day <- dekad_map[[dekad_str]]
-      start_date <- paste(year_str, month_str, start_day, sep = "-")
+    # Dekadal format: YYYY-MM-DX or YYYYMMDD
+    is_compact <- nchar(date_components) == 8 & grepl("^\\d{8}$", date_components)
+
+    all_y <- character(n)
+    all_m <- character(n)
+    all_dekad_ids <- character(n)
+
+    if (any(is_compact)) {
+      all_y[is_compact] <- substr(date_components[is_compact], 1, 4)
+      all_m[is_compact] <- substr(date_components[is_compact], 5, 6)
+      d_vals <- as.numeric(substr(date_components[is_compact], 7, 8))
+      all_dekad_ids[is_compact] <- ifelse(d_vals <= 10, "D1", ifelse(d_vals <= 20, "D2", "D3"))
     }
 
-    # Calculate end date based on dekad
-    if (dekad_str %in% c("D1", "1")) {
-      end_date <- paste(year_str, month_str, "10", sep = "-")
-    } else if (dekad_str %in% c("D2", "2")) {
-      end_date <- paste(year_str, month_str, "20", sep = "-")
-    } else {
-      # Third dekad ends on last day of month
-      date_obj <- lubridate::ymd(start_date)
-      end_day <- lubridate::days_in_month(date_obj)
-      end_date <- paste(year_str, month_str, end_day, sep = "-")
+    is_standard <- !is_compact
+    if (any(is_standard)) {
+      parts <- strsplit(date_components[is_standard], "-")
+      all_y[is_standard] <- vapply(parts, `[`, 1, FUN.VALUE = character(1))
+      all_m[is_standard] <- vapply(parts, `[`, 2, FUN.VALUE = character(1))
+      all_dekad_ids[is_standard] <- vapply(parts, `[`, 3, FUN.VALUE = character(1))
+    }
+
+    dekad_map <- c("D1" = "01", "D2" = "11", "D3" = "21",
+                   "1" = "01", "2" = "11", "3" = "21")
+
+    start_dates <- paste(all_y, all_m, dekad_map[all_dekad_ids], sep = "-")
+
+    is_d1 <- all_dekad_ids %in% c("D1", "1")
+    is_d2 <- all_dekad_ids %in% c("D2", "2")
+    is_d3 <- !(is_d1 | is_d2)
+
+    end_dates[is_d1] <- paste(all_y[is_d1], all_m[is_d1], "10", sep = "-")
+    end_dates[is_d2] <- paste(all_y[is_d2], all_m[is_d2], "20", sep = "-")
+
+    if (any(is_d3)) {
+      sd_obj <- lubridate::ymd(start_dates[is_d3])
+      end_dates[is_d3] <- paste(all_y[is_d3], all_m[is_d3], lubridate::days_in_month(sd_obj), sep = "-")
     }
 
   } else if (tres == "M") {
-    # Monthly format: YYYY-MM (e.g., 2018-01)
-    if (length(parts) < 2) {
-      stop(sprintf("Cannot parse date from URL for Monthly data: %s", filename), call. = FALSE)
-    }
-    year_str <- parts[1]
-    month_str <- parts[2]
-    start_date <- paste(year_str, month_str, "01", sep = "-")
-    date_obj <- lubridate::ymd(start_date)
-    end_date <- paste(year_str, month_str, lubridate::days_in_month(date_obj), sep = "-")
+    parts <- strsplit(date_components, "-")
+    all_y <- vapply(parts, `[`, 1, FUN.VALUE = character(1))
+    all_m <- vapply(parts, `[`, 2, FUN.VALUE = character(1))
+    start_dates <- paste(all_y, all_m, "01", sep = "-")
+    end_dates <- paste(all_y, all_m, lubridate::days_in_month(lubridate::ymd(start_dates)), sep = "-")
 
   } else if (tres == "A") {
-    # Annual format: YYYY (e.g., 2018)
-    year_str <- parts[1]
-    start_date <- paste(year_str, "01", "01", sep = "-")
-    end_date <- paste(year_str, "12", "31", sep = "-")
+    start_dates <- paste(date_components, "01", "01", sep = "-")
+    end_dates <- paste(date_components, "12", "31", sep = "-")
 
   } else if (tres == "E") {
-    # Daily format: YYYY-MM-DD (e.g., 2018-01-15)
-    if (length(parts) < 3) {
-      stop(sprintf("Cannot parse date from URL for Daily data: %s", filename), call. = FALSE)
-    }
-    year_str <- parts[1]
-    month_str <- parts[2]
-    day_str <- parts[3]
-    start_date <- paste(year_str, month_str, day_str, sep = "-")
-    end_date <- start_date
+    start_dates <- date_components
+    end_dates <- date_components
   }
 
-  # Validate parsed dates
-  tryCatch({
-    start_dt <- lubridate::ymd(start_date)
-    end_dt <- lubridate::ymd(end_date)
-  }, error = function(e) {
-    stop(sprintf("Failed to parse date from URL '%s': invalid date components", url), call. = FALSE)
-  })
+  sd_obj_final <- lubridate::ymd(start_dates)
+  ed_obj_final <- lubridate::ymd(end_dates)
 
-  ndays <- as.numeric(difftime(lubridate::ymd(end_date), lubridate::ymd(start_date), units = "days")) + 1
+  if (any(is_na <- is.na(sd_obj_final) | is.na(ed_obj_final))) {
+    fail_idx <- which(is_na)[1]
+    stop(sprintf("Failed to parse date from URL '%s': invalid date components", urls[fail_idx]), call. = FALSE)
+  }
 
-  return(list(
-    start_date = start_date,
-    end_date = end_date,
+  ndays <- as.numeric(difftime(ed_obj_final, sd_obj_final, units = "days")) + 1
+
+  return(data.frame(
+    start_date = start_dates,
+    end_date = end_dates,
     number_of_days = ndays,
-    raw_date = date_component
+    raw_date = date_components,
+    stringsAsFactors = FALSE
   ))
 }
+
 
 
 #' Safe Terra Projection Wrapper

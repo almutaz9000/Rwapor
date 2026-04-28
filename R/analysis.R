@@ -952,11 +952,12 @@ wapor_check_local <- function(urls, var, folder) {
   missing_dates <- character(0)
   found_count <- 0L
 
+  meta_df <- wapor_parse_dates(urls, tres = tres_code)
+
   for (i in seq_along(urls)) {
     u <- urls[i]
-    date_info <- wapor_date_info(u, tres = tres_code)
-    raw_date <- date_info$raw_date
-    dash_date <- date_info$start_date
+    raw_date <- meta_df$raw_date[i]
+    dash_date <- meta_df$start_date[i]
 
     # Build candidate filenames (both with and without bb_ prefix, both date formats)
     candidates <- c(

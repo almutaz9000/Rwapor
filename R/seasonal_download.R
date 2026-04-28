@@ -73,27 +73,24 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     }
 
     # Parse each URL to get start_date for matching to plan rows
-    url_start_dates <- vapply(urls, function(u) {
-      wapor_date_info(u, tres = code)$start_date
-    }, character(1))
+    meta_df <- wapor_parse_dates(urls, tres = code)
+    url_start_dates <- meta_df$start_date
 
-    # Match plan rows to URLs and compute multipliers (pre-allocated)
-    n_rows <- nrow(code_rows)
-    matched_urls <- character(n_rows)
-    matched_idx <- integer(n_rows)
-    match_count <- 0L
+    # Match plan rows to URLs and compute multipliers
+    target_starts <- format(code_rows$slice_start, "%Y-%m-%d")
+    matched_indices <- match(target_starts, url_start_dates)
 
-    for (i in seq_len(n_rows)) {
-      row <- code_rows[i, ]
-      target_start <- format(row$slice_start, "%Y-%m-%d")
-      idx <- which(url_start_dates == target_start)
+    match_mask <- !is.na(matched_indices)
+    if (!any(match_mask)) next
 
-      if (length(idx) >= 1) {
-        match_count <- match_count + 1L
-        matched_urls[match_count] <- urls[idx[1]]
-        matched_idx[match_count] <- i
-      } else {
-        warning(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id),
+    matched_urls <- urls[matched_indices[match_mask]]
+    matched_idx <- which(match_mask)
+    match_count <- length(matched_urls)
+
+    if (any(!match_mask)) {
+      missing_rows <- code_rows[!match_mask, ]
+      for (i in seq_len(nrow(missing_rows))) {
+        warning(sprintf("No URL found for %s period %s. Skipping.", code, missing_rows$period_id[i]),
                 call. = FALSE)
       }
     }

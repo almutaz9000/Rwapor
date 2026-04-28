@@ -402,9 +402,9 @@ wapor_map <- function(
       r <- wapor_convert_temperature(r, var)
 
       # Standardize layer names to "YYYY-MM-DD"
-      layer_names <- vapply(chunk_urls, function(u) {
-        wapor_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
-      }, character(1))
+      clean_urls <- sub("^/vsicurl/", "", chunk_urls)
+      meta_chunk <- wapor_parse_dates(clean_urls, tres = tres_code)
+      layer_names <- meta_chunk$start_date
       names(r) <- layer_names
 
       if (separate_files) {
