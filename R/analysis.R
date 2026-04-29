@@ -954,7 +954,7 @@ wapor_check_local <- function(urls, var, folder) {
 
   for (i in seq_along(urls)) {
     u <- urls[i]
-    date_info <- wapor_date_info(u, tres = tres_code)
+    date_info <- wapor_date_info(u, tres = tres_code) # Backward compatibility
     raw_date <- date_info$raw_date
     dash_date <- date_info$start_date
 

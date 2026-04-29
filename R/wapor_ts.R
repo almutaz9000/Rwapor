@@ -324,9 +324,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   parts <- strsplit(variable, "-")[[1]]
   tres <- tail(parts, 1)
 
-  # Gather metadata for all layers
-  meta_list <- lapply(urls, function(u) wapor_date_info(u, tres))
-  meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
+  # Gather metadata for all layers (Vectorized)
+  meta_df <- wapor_parse_dates(urls, tres)
   meta_df$layer_index <- seq_len(nrow(meta_df))
 
   # Determine region type
