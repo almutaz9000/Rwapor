@@ -38,12 +38,8 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
 wapor_build_class_mask <- function(mask_rast, class_values) {
   if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
 
-  match_rast <- mask_rast == as.integer(class_values[1])
-  if (length(class_values) > 1) {
-    for (cls in class_values[-1]) {
-      match_rast <- match_rast | (mask_rast == as.integer(cls))
-    }
-  }
+  # Optimization: Use vectorized %in% operator on SpatRaster instead of iterative OR loop
+  match_rast <- mask_rast %in% as.integer(class_values)
 
   terra::ifel(match_rast, 1L, NA)
 }
@@ -291,7 +287,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
         "l_dev <- as.integer(mean_days - (crop_params$l_ini_days + crop_params$l_mid_days + crop_params$l_late_days))",
         "kc_daily <- wapor_build_kc(crop_params$kc_ini, crop_params$kc_mid, crop_params$kc_end, crop_params$l_ini_days, l_dev, crop_params$l_mid_days, crop_params$l_late_days)",
         "kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, period[1])",
-        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad)")
+        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad, incremental = FALSE)")
     } else NULL,
     "",
     "# [8] Save Results",

@@ -263,12 +263,9 @@ wapor_analysis_pipeline <- function(config,
 .build_valid_class_mask <- function(mask_rast, class_values) {
   if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
   
-  match_rast <- mask_rast == as.integer(class_values[1])
-  if (length(class_values) > 1) {
-    for (cls in class_values[-1]) {
-      match_rast <- match_rast | (mask_rast == as.integer(cls))
-    }
-  }
+  # Optimization: Use vectorized %in% operator on SpatRaster instead of iterative OR loop
+  match_rast <- mask_rast %in% as.integer(class_values)
+
   terra::ifel(match_rast, 1L, NA)
 }
 
@@ -408,13 +405,13 @@ wapor_analysis_pipeline <- function(config,
 
 .compute_derived_indicators <- function(results, indicators, ret_stack, season_weights,
                                         h_mask, h_start, h_end, crop_params, ref_year,
-                                        dekad_table, incremental, ret_var) {
+                                        dekad_table, incremental = FALSE, ret_var) {
   
   # ETc computation
   if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
     etc_results <- .compute_etc_by_class(
       ret_stack, season_weights, h_mask, h_start, h_end,
-      crop_params, ref_year, dekad_table, ret_var
+      crop_params, ref_year, dekad_table, incremental, ret_var
     )
     results$kc_by_class <- etc_results$kc_by_class
     results$etc_by_class <- etc_results$etc_by_class
@@ -462,7 +459,7 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
-                                  crop_params, ref_year, dekad_table, ret_var) {
+                                  crop_params, ref_year, dekad_table, incremental = FALSE, ret_var) {
   
   analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
@@ -508,7 +505,8 @@ wapor_analysis_pipeline <- function(config,
   for (key in names(kc_profiles)) {
     unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
       ret_stack, season_weights, kc_profiles[[key]],
-      layer_multipliers = ret_layer_multipliers
+      layer_multipliers = ret_layer_multipliers,
+      incremental = incremental
     )
   }
   

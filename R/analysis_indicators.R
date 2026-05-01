@@ -143,10 +143,13 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Default FALSE.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -164,19 +167,29 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
+  if (incremental) {
+    total <- NULL
+    for (i in seq_len(n_layers)) {
+      # Accumulate: term = RET_i * (weight_i * Kc_i * multiplier_i)
+      # Parentheses ensure numeric scalars are combined before multiplying with rasters
+      term <- ret_dekad[[i]] * (season_weights[[i]] * (kc_dekad[i] * layer_multipliers[i]))
+
+      if (is.null(total)) {
+        total <- term
+      } else {
+        total <- total + term
+      }
     }
+    return(total)
   }
-  total
+
+  # Optimization: Vectorized stack multiplication and specialized summation.
+  # Multiplying the entire stack by a weight vector and then using terra::sum
+  # is significantly faster than an R-level loop as it executes in a single C++ pass.
+  # We use na.rm = FALSE to ensure strict NA propagation (scientific integrity).
+  combined_multipliers <- kc_dekad * layer_multipliers
+  weighted <- ret_dekad * (season_weights * combined_multipliers)
+  terra::sum(weighted, na.rm = FALSE)
 }
 
 
