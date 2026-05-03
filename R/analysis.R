@@ -948,15 +948,19 @@ wapor_check_local <- function(urls, var, folder) {
     }
   }
 
+  # Optimization: Use a single vectorized call to wapor_parse_dates for all URLs
+  date_df <- wapor_parse_dates(urls, tres = tres_code)
+  raw_dates <- date_df$raw_date
+  dash_dates <- date_df$start_date
+
   optimized_paths <- character(length(urls))
   missing_dates <- character(0)
   found_count <- 0L
 
   for (i in seq_along(urls)) {
     u <- urls[i]
-    date_info <- wapor_date_info(u, tres = tres_code)
-    raw_date <- date_info$raw_date
-    dash_date <- date_info$start_date
+    raw_date <- raw_dates[i]
+    dash_date <- dash_dates[i]
 
     # Build candidate filenames (both with and without bb_ prefix, both date formats)
     candidates <- c(

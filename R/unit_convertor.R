@@ -93,15 +93,13 @@ wapor_convert_units <- function(df, unit_conversion) {
   years <- as.integer(format(parsed_dates, "%Y"))
   days_in_yr <- ifelse(lubridate::leap_year(years), 366L, 365L)
 
-  factor <- vapply(seq_len(nrow(df)), function(i) {
-    calculate_conversion_factor(
-      source_time,
-      unit_conversion,
-      num_days[i],
-      days_in_current_month[i],
-      days_in_year = days_in_yr[i]
-    )
-  }, numeric(1))
+  factor <- calculate_conversion_factor(
+    source_time,
+    unit_conversion,
+    num_days,
+    days_in_current_month,
+    days_in_year = days_in_yr
+  )
 
   # Apply conversion to statistical columns
   stat_cols <- c("mean", "min", "max", "median")
@@ -216,19 +214,17 @@ wapor_convert_raster <- function(r, variable, urls, unit_conversion) {
   # no repeated raster reads). terra broadcasts a numeric vector of length
   # nlyr(r) element-wise across layers, so the multiplication below triggers
   # a single read pass instead of nlyr separate passes.
-  date_infos <- lapply(urls, function(u) wapor_date_info(u, tres))
+  date_df <- wapor_parse_dates(urls, tres)
+  parsed_dates <- lubridate::ymd(date_df$start_date)
+  years <- as.integer(format(parsed_dates, "%Y"))
 
-  factors <- vapply(date_infos, function(di) {
-    sd <- lubridate::ymd(di$start_date)
-    yr <- as.integer(format(sd, "%Y"))
-    calculate_conversion_factor(
-      source_time,
-      unit_conversion,
-      di$number_of_days,
-      lubridate::days_in_month(sd),
-      days_in_year = ifelse(lubridate::leap_year(yr), 366L, 365L)
-    )
-  }, numeric(1))
+  factors <- calculate_conversion_factor(
+    source_time,
+    unit_conversion,
+    date_df$number_of_days,
+    lubridate::days_in_month(parsed_dates),
+    days_in_year = ifelse(lubridate::leap_year(years), 366L, 365L)
+  )
 
   if (any(factors != 1)) {
     r <- r * factors
