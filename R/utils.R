@@ -182,9 +182,8 @@ calculate_conversion_factor <- function(source_time, target_unit, num_days, days
 
   # Use actual year length when available, otherwise default to 365
   yr_days <- if (!is.null(days_in_year)) days_in_year else 365L
-  yr_dekads <- yr_days / num_days  # approximate dekads in year
 
-  # Conversion matrix logic
+  # Conversion matrix logic (vectorized for num_days, days_in_month, days_in_year)
   factor <- switch(
     source_time,
     "day" = switch(
@@ -369,159 +368,127 @@ get_seasonal_output_units <- function(variable, aggregation_rule = get_seasonal_
   result_units
 }
 
-#' Extract Date Information from URL
+#' Parse Multiple Dates from URLs
 #'
-#' Parses WaPOR or AgERA5 raster filenames to extract date information
-#' including start date, end date, and period duration.
+#' Vectorized version of \code{wapor_date_info}. Parses multiple WaPOR or
+#' AgERA5 raster filenames at once to extract date information.
 #'
-#' @param url Character. Resource URL or filename containing date information.
-#' @param tres Character. Temporal resolution code:
-#'   * "D" = Dekadal (10-day periods)
-#'   * "M" = Monthly
-#'   * "A" = Annual
-#'   * "E" = Daily
-#'
-#' @return A list with components:
-#'   * `start_date`: Character date string in "YYYY-MM-DD" format
-#'   * `end_date`: Character date string in "YYYY-MM-DD" format
-#'   * `number_of_days`: Integer number of days in the period
-#'
+#' @param urls Character vector. Resource URLs or filenames.
+#' @param tres Character. Temporal resolution code: "D", "M", "A", "E".
+#' @return A data.frame with columns:
+#'   * `start_date`: Character date string
+#'   * `end_date`: Character date string
+#'   * `number_of_days`: Numeric duration
+#'   * `raw_date`: The date component string from filename
 #' @export
-#'
 #' @importFrom lubridate days_in_month ymd
-#'
-#' @examples
-#' # Parse dekadal data URL (WaPOR format: WAPOR-3.L1-AETI-D.YYYY-MM-DX.tif)
-#' date_info <- wapor_date_info(
-#'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif",
-#'   tres = "D"
-#' )
-#' date_info$start_date
-#' # [1] "2023-01-01"
-#' date_info$number_of_days
-#' # [1] 10
-#'
-#' # Parse monthly data URL (WaPOR format: WAPOR-3.L1-AETI-M.YYYY-MM.tif)
-#' date_info <- wapor_date_info(
-#'   "https://gismgr.fao.org/DATA/WAPOR-3/MAPSET/L1-AETI-M/WAPOR-3.L1-AETI-M.2023-06.tif",
-#'   tres = "M"
-#' )
-#' date_info$start_date
-#' # [1] "2023-06-01"
-wapor_date_info <- function(url, tres) {
-  # Input validation
-  if (!is.character(url) || length(url) != 1) {
-    stop("'url' must be a single character string", call. = FALSE)
+wapor_parse_dates <- function(urls, tres) {
+  if (length(urls) == 0) {
+    return(data.frame(start_date = character(0), end_date = character(0),
+                      number_of_days = numeric(0), raw_date = character(0)))
   }
-  if (!is.character(tres) || length(tres) != 1) {
-    stop("'tres' must be a single character string", call. = FALSE)
-  }
+
   if (!tres %in% c("D", "M", "A", "E")) {
-    stop(
-      sprintf("Invalid temporal resolution '%s'. Must be one of: D, M, A, E", tres),
-      call. = FALSE
-    )
+    stop(sprintf("Invalid temporal resolution '%s'. Must be one of: D, M, A, E", tres), call. = FALSE)
   }
 
-  filename <- basename(url)
-  base <- tools::file_path_sans_ext(filename)
+  filenames <- basename(urls)
+  bases <- sub("\\.[^.]+$", "", filenames)
 
-  # WaPOR URL format: WAPOR-3.L1-AETI-D.2018-01-D1.tif
-  # The date component is the last dot-separated part before extension
-  # Split by "." first to isolate the date component
-  dot_parts <- strsplit(base, "\\.")[[1]]
-  date_component <- dot_parts[length(dot_parts)]
+  # Extract date component (last part after dot)
+  date_components <- sub("^.*\\.", "", bases)
 
-  # Now split the date component by "-"
-  parts <- strsplit(date_component, "-")[[1]]
+  start_dates <- character(length(urls))
+  end_dates   <- character(length(urls))
 
   if (tres == "D") {
-    # Dekadal format: YYYY-MM-DX (e.g., 2018-01-D1) or YYYYMMDD (e.g., 20180101)
-    if (length(parts) < 3) {
-      if (nchar(date_component) == 8 && grepl("^\\d{8}$", date_component)) {
-        year_str <- substr(date_component, 1, 4)
-        month_str <- substr(date_component, 5, 6)
-        day_val <- as.numeric(substr(date_component, 7, 8))
-        start_day <- sprintf("%02d", day_val)
-        start_date <- paste(year_str, month_str, start_day, sep = "-")
-        # Map back to D1/D2/D3 for consistency
-        dekad_str <- if (day_val <= 10) "D1" else if (day_val <= 20) "D2" else "D3"
-      } else {
-        stop(sprintf("Cannot parse date from URL for Dekadal data: %s", filename), call. = FALSE)
-      }
-    } else {
-      year_str <- parts[1]
-      month_str <- parts[2]
-      dekad_str <- parts[3]
+    # Handle YYYYMMDD
+    is_compact <- nchar(date_components) == 8 & grepl("^\\d{8}$", date_components)
+    if (any(is_compact)) {
+      compact_dates <- date_components[is_compact]
+      y <- substr(compact_dates, 1, 4)
+      m <- substr(compact_dates, 5, 6)
+      d_val <- as.numeric(substr(compact_dates, 7, 8))
+      start_dates[is_compact] <- paste(y, m, sprintf("%02d", d_val), sep = "-")
       
-      dekad_map <- list("D1" = "01", "D2" = "11", "D3" = "21",
-                        "1" = "01", "2" = "11", "3" = "21")
-      
-      if (!dekad_str %in% names(dekad_map)) {
-        stop(sprintf("Unknown dekad format: %s", dekad_str), call. = FALSE)
-      }
-      
-      start_day <- dekad_map[[dekad_str]]
-      start_date <- paste(year_str, month_str, start_day, sep = "-")
+      # Dekads end on 10, 20 or end of month
+      e_d <- ifelse(d_val <= 10, "10", ifelse(d_val <= 20, "20", "last"))
+      last_day <- lubridate::days_in_month(lubridate::ymd(start_dates[is_compact]))
+      end_dates[is_compact] <- ifelse(e_d == "last",
+                                      paste(y, m, last_day, sep = "-"),
+                                      paste(y, m, e_d, sep = "-"))
     }
 
-    # Calculate end date based on dekad
-    if (dekad_str %in% c("D1", "1")) {
-      end_date <- paste(year_str, month_str, "10", sep = "-")
-    } else if (dekad_str %in% c("D2", "2")) {
-      end_date <- paste(year_str, month_str, "20", sep = "-")
-    } else {
-      # Third dekad ends on last day of month
-      date_obj <- lubridate::ymd(start_date)
-      end_day <- lubridate::days_in_month(date_obj)
-      end_date <- paste(year_str, month_str, end_day, sep = "-")
+    # Handle YYYY-MM-DX
+    is_standard <- !is_compact
+    if (any(is_standard)) {
+      standard_comps <- date_components[is_standard]
+      parts <- strsplit(standard_comps, "-")
+      
+      # Validate
+      valid <- vapply(parts, length, integer(1)) >= 3
+      if (any(!valid)) stop("Cannot parse date component from URL for Dekadal data", call. = FALSE)
+      
+      y <- vapply(parts, `[`, character(1), 1)
+      m <- vapply(parts, `[`, character(1), 2)
+      dekad_str <- vapply(parts, `[`, character(1), 3)
+
+      start_day <- ifelse(dekad_str %in% c("D1", "1"), "01",
+                          ifelse(dekad_str %in% c("D2", "2"), "11", "21"))
+      start_dates[is_standard] <- paste(y, m, start_day, sep = "-")
+
+      # Calculate end date
+      date_obj <- lubridate::ymd(start_dates[is_standard])
+      last_day <- lubridate::days_in_month(date_obj)
+
+      e_day <- ifelse(dekad_str %in% c("D1", "1"), "10",
+                      ifelse(dekad_str %in% c("D2", "2"), "20", as.character(last_day)))
+      end_dates[is_standard] <- paste(y, m, e_day, sep = "-")
     }
 
   } else if (tres == "M") {
-    # Monthly format: YYYY-MM (e.g., 2018-01)
-    if (length(parts) < 2) {
-      stop(sprintf("Cannot parse date from URL for Monthly data: %s", filename), call. = FALSE)
-    }
-    year_str <- parts[1]
-    month_str <- parts[2]
-    start_date <- paste(year_str, month_str, "01", sep = "-")
-    date_obj <- lubridate::ymd(start_date)
-    end_date <- paste(year_str, month_str, lubridate::days_in_month(date_obj), sep = "-")
+    parts <- strsplit(date_components, "-")
+    if (any(vapply(parts, length, integer(1)) < 2)) stop("Cannot parse date for Monthly data", call. = FALSE)
+    y <- vapply(parts, `[`, character(1), 1)
+    m <- vapply(parts, `[`, character(1), 2)
+    start_dates <- paste(y, m, "01", sep = "-")
+    end_dates   <- paste(y, m, lubridate::days_in_month(lubridate::ymd(start_dates)), sep = "-")
 
   } else if (tres == "A") {
-    # Annual format: YYYY (e.g., 2018)
-    year_str <- parts[1]
-    start_date <- paste(year_str, "01", "01", sep = "-")
-    end_date <- paste(year_str, "12", "31", sep = "-")
+    start_dates <- paste(date_components, "01", "01", sep = "-")
+    end_dates   <- paste(date_components, "12", "31", sep = "-")
 
   } else if (tres == "E") {
-    # Daily format: YYYY-MM-DD (e.g., 2018-01-15)
-    if (length(parts) < 3) {
-      stop(sprintf("Cannot parse date from URL for Daily data: %s", filename), call. = FALSE)
-    }
-    year_str <- parts[1]
-    month_str <- parts[2]
-    day_str <- parts[3]
-    start_date <- paste(year_str, month_str, day_str, sep = "-")
-    end_date <- start_date
+    start_dates <- date_components
+    end_dates   <- date_components
   }
 
-  # Validate parsed dates
-  tryCatch({
-    start_dt <- lubridate::ymd(start_date)
-    end_dt <- lubridate::ymd(end_date)
-  }, error = function(e) {
-    stop(sprintf("Failed to parse date from URL '%s': invalid date components", url), call. = FALSE)
-  })
+  ndays <- as.numeric(difftime(lubridate::ymd(end_dates), lubridate::ymd(start_dates), units = "days")) + 1
 
-  ndays <- as.numeric(difftime(lubridate::ymd(end_date), lubridate::ymd(start_date), units = "days")) + 1
-
-  return(list(
-    start_date = start_date,
-    end_date = end_date,
+  data.frame(
+    start_date = start_dates,
+    end_date = end_dates,
     number_of_days = ndays,
-    raw_date = date_component
-  ))
+    raw_date = date_components,
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Extract Date Information from URL
+#'
+#' Parses WaPOR or AgERA5 raster filenames to extract date information.
+#' This is a backward-compatible wrapper around \code{wapor_parse_dates}.
+#'
+#' @param url Character. Resource URL or filename containing date information.
+#' @param tres Character. Temporal resolution code: "D", "M", "A", "E".
+#' @return A list with components: start_date, end_date, number_of_days, raw_date.
+#' @export
+wapor_date_info <- function(url, tres) {
+  if (!is.character(url) || length(url) != 1) {
+    stop("'url' must be a single character string", call. = FALSE)
+  }
+  res <- wapor_parse_dates(url, tres)
+  as.list(res[1, ])
 }
 
 
