@@ -924,78 +924,74 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
 wapor_check_local <- function(urls, var, folder) {
   if (length(urls) == 0) return(list(optimized_paths = character(0), missing_dates = character(0), found_count = 0L))
 
-  # Normalize folder path (handle potential issues with trailing slashes, etc.)
+  # Normalize folder path
   folder <- normalizePath(folder, winslash = "/", mustWork = FALSE)
 
   # Standard naming components
   parts <- strsplit(basename(urls[1]), "\\.")[[1]]
-  product_base <- if (length(parts) >= 3) {
-    paste(parts[1:(length(parts)-2)], collapse = ".")
-  } else {
-    var
-  }
+  product_base <- if (length(parts) >= 3) paste(parts[1:(length(parts)-2)], collapse = ".") else var
 
   tres_code <- strsplit(var, "-")[[1]][3]
   var_folder <- file.path(folder, var)
 
-  # Get list of all .tif files in the variable folder for flexible matching
-  existing_files <- character(0)
-  if (dir.exists(var_folder)) {
-    existing_files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
-    # Also normalize these paths for consistent comparison
-    if (length(existing_files) > 0) {
-      existing_files <- normalizePath(existing_files, winslash = "/", mustWork = FALSE)
-    }
-  }
+  # Pre-parse all date information in one go (vectorized)
+  date_infos <- wapor_parse_dates(urls, tres = tres_code)
+  raw_dates <- date_infos$raw_date
+  dash_dates <- date_infos$start_date
+
+  # Matrix-based candidate generation (4 naming patterns per URL)
+  cand_matrix <- cbind(
+    file.path(var_folder, paste0(product_base, ".", raw_dates, ".tif")),
+    file.path(var_folder, paste0("bb_", product_base, ".", raw_dates, ".tif")),
+    file.path(var_folder, paste0(product_base, ".", dash_dates, ".tif")),
+    file.path(var_folder, paste0("bb_", product_base, ".", dash_dates, ".tif"))
+  )
+
+  # Normalize all candidates at once (vectorized)
+  cand_vec <- as.vector(cand_matrix)
+  norm_cand_vec <- normalizePath(cand_vec, winslash = "/", mustWork = FALSE)
+
+  # Batch file existence check
+  exists_vec <- file.exists(norm_cand_vec)
+  exists_mat <- matrix(exists_vec, nrow = length(urls))
+
+  # Efficiently find the first existing candidate for each URL
+  found_idx <- max.col(exists_mat, ties.method = "first")
+  has_match <- rowSums(exists_mat) > 0
 
   optimized_paths <- character(length(urls))
-  missing_dates <- character(0)
-  found_count <- 0L
 
-  for (i in seq_along(urls)) {
-    u <- urls[i]
-    date_info <- wapor_date_info(u, tres = tres_code)
-    raw_date <- date_info$raw_date
-    dash_date <- date_info$start_date
+  # Extract matches
+  match_indices <- cbind(seq_len(length(urls))[has_match], found_idx[has_match])
+  optimized_paths[has_match] <- norm_cand_vec[((match_indices[, 2] - 1) * length(urls)) + match_indices[, 1]]
 
-    # Build candidate filenames (both with and without bb_ prefix, both date formats)
-    candidates <- c(
-      file.path(var_folder, paste0(product_base, ".", raw_date, ".tif")),
-      file.path(var_folder, paste0("bb_", product_base, ".", raw_date, ".tif")),
-      file.path(var_folder, paste0(product_base, ".", dash_date, ".tif")),
-      file.path(var_folder, paste0("bb_", product_base, ".", dash_date, ".tif"))
-    )
-    # Normalize candidates for comparison
-    candidates <- normalizePath(candidates, winslash = "/", mustWork = FALSE)
+  # Fallback for remaining URLs using date pattern search in existing files
+  if (any(!has_match) && dir.exists(var_folder)) {
+    existing_files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
+    if (length(existing_files) > 0) {
+      norm_existing <- normalizePath(existing_files, winslash = "/", mustWork = FALSE)
 
-    # Check each candidate
-    found <- FALSE
-    for (cand in candidates) {
-      if (file.exists(cand)) {
-        optimized_paths[i] <- cand
-        found_count <- found_count + 1L
-        found <- TRUE
-        break
+      # Vectorized date pattern matching
+      remaining_urls <- which(!has_match)
+      for (i in remaining_urls) {
+        date_pattern <- paste0("\\.", dash_dates[i], "\\.tif$")
+        matches <- grep(date_pattern, norm_existing, value = TRUE)
+        if (length(matches) > 0) {
+          optimized_paths[i] <- matches[1]
+          has_match[i] <- TRUE
+        }
       }
-    }
-
-    # Fallback: search by date pattern in existing files (handles minor naming variations)
-    if (!found && length(existing_files) > 0) {
-      # Look for any file containing the dash_date
-      date_pattern <- paste0("\\.", dash_date, "\\.tif$")
-      matches <- grep(date_pattern, existing_files, value = TRUE)
-      if (length(matches) > 0) {
-        optimized_paths[i] <- matches[1]
-        found_count <- found_count + 1L
-        found <- TRUE
-      }
-    }
-
-    if (!found) {
-      optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
-      missing_dates <- c(missing_dates, dash_date)
     }
   }
 
-  list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
+  # Fill missing with vsicurl
+  optimized_paths[!has_match] <- ifelse(grepl("^/vsicurl/", urls[!has_match]),
+                                       urls[!has_match],
+                                       paste0("/vsicurl/", urls[!has_match]))
+
+  list(
+    optimized_paths = optimized_paths,
+    missing_dates = dash_dates[!has_match],
+    found_count = sum(has_match)
+  )
 }
