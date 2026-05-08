@@ -401,10 +401,9 @@ wapor_map <- function(
       # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
       r <- wapor_convert_temperature(r, var)
 
-      # Standardize layer names to "YYYY-MM-DD"
-      layer_names <- vapply(chunk_urls, function(u) {
-        wapor_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
-      }, character(1))
+      # Standardize layer names to "YYYY-MM-DD" (vectorized)
+      chunk_date_df <- wapor_parse_dates(sub("^/vsicurl/", "", chunk_urls), tres = tres_code)
+      layer_names <- chunk_date_df$start_date
       names(r) <- layer_names
 
       if (separate_files) {

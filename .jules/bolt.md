@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2024-05-18 - [Vectorized Date Parsing and File Checks]
+**Learning:** Iteratively parsing dates from hundreds of URLs using regex and checking local file existence in a loop is a significant bottleneck in R. Vectorizing these operations using `sub`, `grepl`, matrix-based candidate generation, and a single `file.exists` call dramatically reduces overhead, especially for long time series.
+**Action:** Replace `lapply(urls, wapor_date_info)` with a vectorized `wapor_parse_dates` and use matrix-based batching for local file lookups.
