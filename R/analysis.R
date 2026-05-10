@@ -830,80 +830,28 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   var_parts <- strsplit(variable, "-")[[1]]
   tres_code <- if (length(var_parts) >= 3) var_parts[length(var_parts)] else "D"
 
-  # Extract dates and filter by range
-  date_patterns <- c(
-    "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",
-    "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"
-  )
+  # Use vectorized date parsing to extract dates from all filenames at once
+  date_info <- tryCatch({
+    wapor_parse_dates(tif_files, tres = tres_code)
+  }, error = function(e) {
+    # If parsing fails for some files, fallback to a safer approach or ignore
+    return(NULL)
+  })
 
-  file_dates <- data.frame(
-    path = tif_files,
-    file_start = as.Date(NA),
-    file_end = as.Date(NA),
-    stringsAsFactors = FALSE
-  )
-
-  for (i in seq_along(tif_files)) {
-    f <- basename(tif_files[i])
-    for (pattern in date_patterns) {
-      m <- regmatches(f, regexec(pattern, f))[[1]]
-      if (length(m) > 1) {
-        date_str <- m[2]
-        if (nchar(date_str) == 8) {
-          date_str <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", date_str)
-        }
-        file_start <- as.Date(date_str)
-        file_dates$file_start[i] <- file_start
-
-        # Calculate file end date based on temporal resolution
-        if (tres_code == "D") {
-          # Dekadal: each dekad covers ~10 days
-          day_of_month <- as.integer(format(file_start, "%d"))
-          if (day_of_month == 1) {
-            # First dekad: days 1-10
-            file_dates$file_end[i] <- file_start + 9
-          } else if (day_of_month == 11) {
-            # Second dekad: days 11-20
-            file_dates$file_end[i] <- file_start + 9
-          } else if (day_of_month == 21) {
-            # Third dekad: days 21 to end of month
-            file_dates$file_end[i] <- as.Date(paste0(
-              format(file_start, "%Y-%m-"),
-              lubridate::days_in_month(file_start)
-            ))
-          } else {
-            # Fallback for non-standard dekad start
-            file_dates$file_end[i] <- file_start + 9
-          }
-        } else if (tres_code == "M") {
-          # Monthly: end on last day of month
-          file_dates$file_end[i] <- as.Date(paste0(
-            format(file_start, "%Y-%m-"),
-            lubridate::days_in_month(file_start)
-          ))
-        } else if (tres_code %in% c("A", "Y")) {
-          # Annual: end on Dec 31
-          file_dates$file_end[i] <- as.Date(paste0(format(file_start, "%Y"), "-12-31"))
-        } else {
-          # Daily or unknown: same day
-          file_dates$file_end[i] <- file_start
-        }
-        break
-      }
-    }
-  }
+  if (is.null(date_info)) return(character(0))
 
   # Filter by overlap with analysis period (not just start date within period)
   # A file overlaps if: file_start <= end_date AND file_end >= start_date
-  file_dates <- file_dates[!is.na(file_dates$file_start), ]
-  file_dates <- file_dates[
-    file_dates$file_start <= end_date & file_dates$file_end >= start_date,
-  ]
+  file_start <- as.Date(date_info$start_date)
+  file_end <- as.Date(date_info$end_date)
+
+  keep <- !is.na(file_start) & file_start <= end_date & file_end >= start_date
+
+  if (!any(keep)) return(character(0))
 
   # Sort by start date
-  file_dates <- file_dates[order(file_dates$file_start), ]
-
-  file_dates$path
+  idx <- order(file_start[keep])
+  return(tif_files[keep][idx])
 }
 
 #' Check for Local Raster Files
@@ -924,7 +872,7 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
 wapor_check_local <- function(urls, var, folder) {
   if (length(urls) == 0) return(list(optimized_paths = character(0), missing_dates = character(0), found_count = 0L))
 
-  # Normalize folder path (handle potential issues with trailing slashes, etc.)
+  # Normalize folder path
   folder <- normalizePath(folder, winslash = "/", mustWork = FALSE)
 
   # Standard naming components
@@ -942,60 +890,58 @@ wapor_check_local <- function(urls, var, folder) {
   existing_files <- character(0)
   if (dir.exists(var_folder)) {
     existing_files <- list.files(var_folder, pattern = "\\.tif$", full.names = TRUE)
-    # Also normalize these paths for consistent comparison
     if (length(existing_files) > 0) {
       existing_files <- normalizePath(existing_files, winslash = "/", mustWork = FALSE)
     }
   }
 
+  # Vectorized date parsing for all URLs
+  date_info <- wapor_parse_dates(urls, tres = tres_code)
+
+  # Construct candidate matrix (n_urls x 4 candidates)
+  c1 <- file.path(var_folder, paste0(product_base, ".", date_info$raw_date, ".tif"))
+  c2 <- file.path(var_folder, paste0("bb_", product_base, ".", date_info$raw_date, ".tif"))
+  c3 <- file.path(var_folder, paste0(product_base, ".", date_info$start_date, ".tif"))
+  c4 <- file.path(var_folder, paste0("bb_", product_base, ".", date_info$start_date, ".tif"))
+
+  cand_mat <- matrix(normalizePath(c(c1, c2, c3, c4), winslash = "/", mustWork = FALSE), ncol = 4)
+
+  # Batch check file existence
+  exists_mat <- matrix(file.exists(cand_mat), ncol = 4)
+
+  # Identify first found candidate for each URL
+  found_idx <- max.col(exists_mat, "first")
+  actually_found <- exists_mat[cbind(seq_along(urls), found_idx)]
+
   optimized_paths <- character(length(urls))
-  missing_dates <- character(0)
-  found_count <- 0L
+  optimized_paths[actually_found] <- cand_mat[cbind(which(actually_found), found_idx[actually_found])]
 
-  for (i in seq_along(urls)) {
-    u <- urls[i]
-    date_info <- wapor_date_info(u, tres = tres_code)
-    raw_date <- date_info$raw_date
-    dash_date <- date_info$start_date
-
-    # Build candidate filenames (both with and without bb_ prefix, both date formats)
-    candidates <- c(
-      file.path(var_folder, paste0(product_base, ".", raw_date, ".tif")),
-      file.path(var_folder, paste0("bb_", product_base, ".", raw_date, ".tif")),
-      file.path(var_folder, paste0(product_base, ".", dash_date, ".tif")),
-      file.path(var_folder, paste0("bb_", product_base, ".", dash_date, ".tif"))
-    )
-    # Normalize candidates for comparison
-    candidates <- normalizePath(candidates, winslash = "/", mustWork = FALSE)
-
-    # Check each candidate
-    found <- FALSE
-    for (cand in candidates) {
-      if (file.exists(cand)) {
-        optimized_paths[i] <- cand
-        found_count <- found_count + 1L
-        found <- TRUE
-        break
-      }
-    }
-
-    # Fallback: search by date pattern in existing files (handles minor naming variations)
-    if (!found && length(existing_files) > 0) {
-      # Look for any file containing the dash_date
+  # Fallback for those not found yet
+  not_found <- !actually_found
+  if (any(not_found) && length(existing_files) > 0) {
+    missing_dash_dates <- date_info$start_date[not_found]
+    # Vectorized match of dash_dates against existing filenames using regex
+    # Since existing_files are full paths, we need to match the date pattern
+    for (i in which(not_found)) {
+      dash_date <- date_info$start_date[i]
       date_pattern <- paste0("\\.", dash_date, "\\.tif$")
-      matches <- grep(date_pattern, existing_files, value = TRUE)
-      if (length(matches) > 0) {
-        optimized_paths[i] <- matches[1]
-        found_count <- found_count + 1L
-        found <- TRUE
+      match_idx <- grep(date_pattern, existing_files)
+      if (length(match_idx) > 0) {
+        optimized_paths[i] <- existing_files[match_idx[1]]
+        actually_found[i] <- TRUE
       }
-    }
-
-    if (!found) {
-      optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
-      missing_dates <- c(missing_dates, dash_date)
     }
   }
 
-  list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
+  # Fill in remote paths for still missing files
+  missing_mask <- !actually_found
+  optimized_paths[missing_mask] <- ifelse(grepl("^/vsicurl/", urls[missing_mask]),
+                                         urls[missing_mask],
+                                         paste0("/vsicurl/", urls[missing_mask]))
+
+  list(
+    optimized_paths = optimized_paths,
+    missing_dates = date_info$start_date[missing_mask],
+    found_count = sum(actually_found)
+  )
 }

@@ -212,23 +212,19 @@ wapor_convert_raster <- function(r, variable, urls, unit_conversion) {
     )
   }
 
-  # Compute all per-layer conversion factors up front (one date parse per URL,
-  # no repeated raster reads). terra broadcasts a numeric vector of length
-  # nlyr(r) element-wise across layers, so the multiplication below triggers
-  # a single read pass instead of nlyr separate passes.
-  date_infos <- lapply(urls, function(u) wapor_date_info(u, tres))
+  # Compute all per-layer conversion factors up front (using vectorized date parsing
+  # and vectorized conversion factor calculation).
+  di <- wapor_parse_dates(urls, tres)
+  sd <- lubridate::ymd(di$start_date)
+  yr <- as.integer(format(sd, "%Y"))
 
-  factors <- vapply(date_infos, function(di) {
-    sd <- lubridate::ymd(di$start_date)
-    yr <- as.integer(format(sd, "%Y"))
-    calculate_conversion_factor(
-      source_time,
-      unit_conversion,
-      di$number_of_days,
-      lubridate::days_in_month(sd),
-      days_in_year = ifelse(lubridate::leap_year(yr), 366L, 365L)
-    )
-  }, numeric(1))
+  factors <- calculate_conversion_factor(
+    source_time,
+    unit_conversion,
+    di$number_of_days,
+    lubridate::days_in_month(sd),
+    days_in_year = ifelse(lubridate::leap_year(yr), 366L, 365L)
+  )
 
   if (any(factors != 1)) {
     r <- r * factors
