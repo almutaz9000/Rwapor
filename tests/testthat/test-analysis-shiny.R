@@ -110,6 +110,42 @@ test_that("wapor_generate_shiny_script emits parseable single-season and batch s
   expect_silent(parse(text = batch_script))
 })
 
+test_that("wapor_generate_shiny_script escapes Windows paths safely", {
+  crop_params <- data.frame(
+    class_value = 1L,
+    crop_label = "Wheat",
+    kc_ini = 0.3,
+    kc_mid = 1.15,
+    kc_end = 0.25,
+    l_ini_days = 30L,
+    l_mid_days = 40L,
+    l_late_days = 30L,
+    stringsAsFactors = FALSE
+  )
+
+  script_text <- Rwapor:::wapor_generate_shiny_script(
+    config = list(
+      period = c("2023-10-01", "2024-05-31"),
+      ref_year = 2023,
+      aeti_var = "L1-AETI-D",
+      ret_var = "L1-RET-D",
+      precip_var = "L1-PCP-D",
+      npp_var = "L1-NPP-D",
+      t_var = "",
+      data_source = "local",
+      folder = "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\analysis_output",
+      indicators = c("agg_aeti", "etc"),
+      use_crop_mask = FALSE,
+      use_season_rasters = FALSE,
+      season_label = "Winter 2023"
+    ),
+    crop_params = crop_params
+  )
+
+  expect_match(script_text, "C:\\\\\\\\Users\\\\\\\\Mohammedal")
+  expect_silent(parse(text = script_text))
+})
+
 test_that("wapor_run_seasonal_analysis handles named list periods", {
   skip_if_not_installed("terra")
 
