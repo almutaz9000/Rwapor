@@ -252,6 +252,28 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   npp_mult    <- if (!is.null(stacks$npp))    get_analysis_layer_multipliers(npp_var, dekad_table)    else NULL
   t_mult      <- if (!is.null(stacks$t))      get_analysis_layer_multipliers(t_var, dekad_table)      else NULL
 
+  results$season_weights <- season_weights
+  results$dekadal_stacks <- Filter(
+    Negate(is.null),
+    list(
+      aeti = stacks$aeti,
+      ret = stacks$ret,
+      pcp = stacks$precip,
+      npp = stacks$npp,
+      t = stacks$t
+    )
+  )
+  results$layer_multipliers <- Filter(
+    Negate(is.null),
+    list(
+      aeti = aeti_mult,
+      ret = ret_mult,
+      pcp = precip_mult,
+      npp = npp_mult,
+      t = t_mult
+    )
+  )
+
   # Aggregates
   if (!is.null(stacks$aeti)) {
     results$seasonal_aeti <- Rwapor::wapor_calc_seasonal_aeti(stacks$aeti, season_weights, h_mask, aeti_mult, incremental = use_incremental)
@@ -261,6 +283,14 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
     results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
+    results$monthly_precip_peff <- wapor_calc_monthly_precip_peff_rasters(
+      precip_stack = stacks$precip,
+      season_weights = season_weights,
+      dekad_table = dekad_table,
+      layer_multipliers = precip_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask
+    )
   }
   if (any(c("agg_t", "beneficial_fraction") %in% indicators) && !is.null(stacks$t)) {
     # T is a flux (mm/day), same as AETI
@@ -362,18 +392,9 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # Peff (simplified seasonal estimate)
   if (any(c("agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
-     results$seasonal_peff <- wapor_calc_seasonal_peff_raster(
-       stacks$precip,
-       season_weights,
-       dekad_table,
-       layer_multipliers = precip_mult,
-       incremental = use_incremental
-     )
-  }
-
-  # Green/Blue Water
-  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$seasonal_aeti) && !is.null(stacks$precip)) {
-     if (is.null(results$seasonal_peff)) {
+     if (!is.null(results$monthly_precip_peff)) {
+       results$seasonal_peff <- results$monthly_precip_peff$seasonal_peff
+     } else {
        results$seasonal_peff <- wapor_calc_seasonal_peff_raster(
          stacks$precip,
          season_weights,
@@ -381,6 +402,23 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
          layer_multipliers = precip_mult,
          incremental = use_incremental
        )
+     }
+  }
+
+  # Green/Blue Water
+  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$seasonal_aeti) && !is.null(stacks$precip)) {
+     if (is.null(results$seasonal_peff)) {
+       if (!is.null(results$monthly_precip_peff)) {
+         results$seasonal_peff <- results$monthly_precip_peff$seasonal_peff
+       } else {
+         results$seasonal_peff <- wapor_calc_seasonal_peff_raster(
+           stacks$precip,
+           season_weights,
+           dekad_table,
+           layer_multipliers = precip_mult,
+           incremental = use_incremental
+         )
+       }
      }
      if ("green_water" %in% indicators) results$green_water <- Rwapor::wapor_calc_green_water(results$seasonal_aeti$raster, results$seasonal_peff)
      if ("blue_water" %in% indicators)  results$blue_water <- Rwapor::wapor_calc_blue_water(results$seasonal_aeti$raster, results$seasonal_peff)

@@ -563,3 +563,91 @@ test_that("beneficial_fraction works without explicitly selecting agg_t", {
   bf_mean <- as.numeric(terra::global(result$Winter2024$beneficial_fraction, "mean", na.rm = TRUE)$mean)
   expect_equal(bf_mean, 0.5, tolerance = 1e-6)
 })
+
+test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, and monthly outputs", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("wapor_export_outputs_")
+  export_dir <- tempfile("wapor_export_dir_")
+  dir.create(analysis_dir, recursive = TRUE)
+  dir.create(export_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  on.exit(unlink(export_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  template <- terra::rast(
+    nrows = 4, ncols = 4, xmin = 0, xmax = 4,
+    ymin = 0, ymax = 4, crs = "EPSG:4326", vals = 1
+  )
+  crop_mask <- terra::setValues(template, rep(1L, terra::ncell(template)))
+
+  write_var <- function(variable, date_strings, value) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE, showWarnings = FALSE)
+    for (d in date_strings) {
+      r <- terra::setValues(template, value)
+      terra::writeRaster(
+        r, file.path(var_dir, paste0(variable, ".", d, ".tif")), overwrite = TRUE
+      )
+    }
+  }
+
+  dates <- c("2024-01-01", "2024-01-11", "2024-01-21")
+  write_var("L1-AETI-D", dates, 3)
+  write_var("L1-RET-D", dates, 2)
+  write_var("L1-PCP-D", dates, 1)
+  write_var("L1-NPP-D", dates, 5)
+  write_var("L1-T-D", dates, 1)
+
+  crop_params <- data.frame(
+    class_value = 1L, crop_label = "Wheat",
+    kc_ini = 1, kc_mid = 1, kc_end = 1,
+    l_ini_days = 10L, l_mid_days = 10L, l_late_days = 10L,
+    HI = 0.45, MC = 0.12, fc = 1, AOT = 0.8,
+    stringsAsFactors = FALSE
+  )
+
+  config <- list(
+    period = list(Winter2024 = c("2024-01-01", "2024-01-31")),
+    ref_year = NULL,
+    aeti_var = "L1-AETI-D",
+    ret_var = "L1-RET-D",
+    precip_var = "L1-PCP-D",
+    npp_var = "L1-NPP-D",
+    t_var = "L1-T-D",
+    data_source = "local",
+    folder = analysis_dir,
+    indicators = c(
+      "agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "agg_t",
+      "agg_biomass_t", "yield_npp", "beneficial_fraction",
+      "green_water", "blue_water", "cwp_bwp", "adequacy_p95"
+    ),
+    use_crop_mask = TRUE,
+    use_season_rasters = FALSE,
+    incremental = FALSE
+  )
+
+  result <- Rwapor::wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(crop_mask = crop_mask, season_start = NULL, season_end = NULL)
+  )
+
+  Rwapor::wapor_export_analysis_outputs(
+    results = result,
+    folder = export_dir,
+    indicators = config$indicators
+  )
+
+  season_dir <- file.path(export_dir, "Winter2024")
+  expect_true(dir.exists(file.path(season_dir, "seasonal_rasters")))
+  expect_true(dir.exists(file.path(season_dir, "seasonal_tables")))
+  expect_true(dir.exists(file.path(season_dir, "dekadal_stacks")))
+  expect_true(dir.exists(file.path(season_dir, "monthly_summaries")))
+
+  expect_true(file.exists(file.path(season_dir, "seasonal_rasters", "Winter2024_seasonal_aeti.tif")))
+  expect_true(file.exists(file.path(season_dir, "seasonal_rasters", "Winter2024_seasonal_peff.tif")))
+  expect_true(file.exists(file.path(season_dir, "dekadal_stacks", "Winter2024_dekadal_aeti.tif")))
+  expect_true(file.exists(file.path(season_dir, "monthly_summaries", "Winter2024_monthly_pcp_peff.csv")))
+  expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_summary_metrics.csv")))
+  expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_seasonal_aeti_by_class.csv")))
+})
