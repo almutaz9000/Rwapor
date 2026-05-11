@@ -10,3 +10,4 @@
 - Added the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
 - Added the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 - Logged `ISS-20260511-002` for the multi-season local-analysis session disconnect and script-preview drift.
+- Implemented the Shiny batch-analysis patch and added regression tests for batch parsing, batch scripts, and named-list period handling.

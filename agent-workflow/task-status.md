@@ -10,8 +10,7 @@ _Last updated: 2026-05-11_
 
 ## Pending
 
-- [ ] Implement the approved Shiny batch-analysis and script-generation fixes from `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
-- [ ] Reproduce and fix the Shiny session disconnect in multi-season local analysis, then add regression coverage for the batch path.
+- [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
@@ -22,5 +21,6 @@ _Last updated: 2026-05-11_
 - [x] Approved the shared agent workflow design.
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
 - [x] Wrote the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
+- [x] Implemented the Shiny batch-analysis and script-generation patch with regression tests.
 - [x] Added `agent-workflow/`, shared templates, and workflow scripts.
 - [x] Repointed the main repo adapters, hooks, and memory entrypoints to `agent-workflow/`.
