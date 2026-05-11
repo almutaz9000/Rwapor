@@ -80,15 +80,33 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
 
           shiny::conditionalPanel(
             condition = sprintf("input['%s']", ns("an_batch_mode")),
-            shiny::helpText("Enter seasons as: Label, Start, End (one per line)"),
+            shiny::tags$p(
+              class = "text-muted mb-1",
+              style = "font-size:0.78rem;",
+              "One season per line: ",
+              shiny::tags$code("Label, YYYY-MM-DD, YYYY-MM-DD")
+            ),
             shiny::textAreaInput(
               ns("an_batch_list"), NULL,
               placeholder = "Winter2018, 2018-10-01, 2019-05-31\nWinter2019, 2019-10-01, 2020-05-31",
               rows = 5
             ),
+            shiny::div(
+              class = "d-flex gap-1 mb-1",
+              shiny::actionButton(
+                ns("an_copy_from_download"), "Copy from Download",
+                icon = shiny::icon("copy"),
+                class = "btn-sm btn-outline-info flex-1"
+              ),
+              shiny::actionButton(
+                ns("an_detect_seasons"), "Detect from Folder",
+                icon = shiny::icon("wand-magic-sparkles"),
+                class = "btn-sm btn-outline-secondary flex-1"
+              )
+            ),
             shiny::actionButton(
-              ns("an_detect_seasons"), "Detect Seasons from Folder",
-              icon = shiny::icon("wand-magic-sparkles"),
+              ns("an_load_seasons_json"), "Load seasons from project folder (seasons.json)",
+              icon  = shiny::icon("folder-open"),
               class = "btn-sm btn-outline-secondary w-100 mb-2"
             )
           )

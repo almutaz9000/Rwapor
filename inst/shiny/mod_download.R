@@ -110,15 +110,32 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::conditionalPanel(
               condition = "input.multi_season",
               ns = ns,
-              shiny::uiOutput(ns("seasons_ui")),
+              shiny::tags$p(
+                class = "text-muted mb-1",
+                style = "font-size:0.78rem;",
+                "One season per line: ",
+                shiny::tags$code("Label, YYYY-MM-DD, YYYY-MM-DD")
+              ),
+              shiny::textAreaInput(
+                ns("seasons_text"), NULL,
+                placeholder = "Season1, 2020-10-01, 2021-05-31\nSeason2, 2021-10-01, 2022-05-31",
+                rows = 4,
+                width = "100%"
+              ),
               shiny::div(
-                style = "margin-top: 5px;",
+                class = "d-flex gap-1 mb-1",
                 shiny::actionButton(
-                  ns("add_season_btn"), "Add Season",
-                  icon = shiny::icon("plus"),
-                  class = "btn-outline-primary btn-sm w-100"
+                  ns("dn_save_seasons"), "Save seasons",
+                  icon  = shiny::icon("floppy-disk"),
+                  class = "btn-sm btn-outline-secondary flex-1"
+                ),
+                shiny::actionButton(
+                  ns("dn_load_seasons"), "Load seasons",
+                  icon  = shiny::icon("folder-open"),
+                  class = "btn-sm btn-outline-secondary flex-1"
                 )
-              )
+              ),
+              shiny::uiOutput(ns("seasons_preview"))
             )
           ),
 
@@ -200,112 +217,107 @@ mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
     roots <- get_shinyfiles_roots()
 
-    # --- Multi-season logic ---
-    # Initial season
-    seasons <- shiny::reactiveVal(list(
-      list(id = 1, name = "Season 1", start = Sys.Date() - 30, end = Sys.Date())
-    ))
-    
-    shiny::observeEvent(input$add_season_btn, {
-      s <- seasons()
-      new_id <- if (length(s) == 0) 1 else max(sapply(s, function(x) x$id)) + 1
-      s[[length(s) + 1]] <- list(
-        id = new_id, 
-        name = paste("Season", new_id), 
-        start = Sys.Date() - 30, 
-        end = Sys.Date()
-      )
-      seasons(s)
-    })
-    
-    # Observe inputs from dynamic UI and update the reactiveVal
-    shiny::observe({
-      s <- seasons()
-      if (length(s) == 0) return()
-      
-      changed <- FALSE
-      for (i in seq_along(s)) {
-        id <- s[[i]]$id
-        
-        # Name input
-        name_input_id <- sprintf("season_name_%d", id)
-        if (!is.null(input[[name_input_id]]) && input[[name_input_id]] != s[[i]]$name) {
-          s[[i]]$name <- input[[name_input_id]]
-          changed <- TRUE
-        }
-        
-        # Date input
-        date_input_id <- sprintf("season_dates_%d", id)
-        if (!is.null(input[[date_input_id]])) {
-          d_val <- input[[date_input_id]]
-          if (length(d_val) == 2 && !any(is.na(d_val))) {
-            if (!identical(as.Date(d_val[1]), as.Date(s[[i]]$start)) || 
-                !identical(as.Date(d_val[2]), as.Date(s[[i]]$end))) {
-              s[[i]]$start <- d_val[1]
-              s[[i]]$end <- d_val[2]
-              changed <- TRUE
-            }
-          }
-        }
+    # --- Multi-season logic (textarea-based) ---
+    # Parse "Label, YYYY-MM-DD, YYYY-MM-DD" lines into a list of named vectors.
+    parsed_seasons <- shiny::reactive({
+      text <- input$seasons_text %||% ""
+      lines <- strsplit(text, "\\r?\\n", perl = TRUE)[[1]]
+      lines <- lines[nzchar(trimws(lines))]
+      rows <- list()
+      for (line in lines) {
+        parts <- trimws(strsplit(line, ",", fixed = TRUE)[[1]])
+        if (length(parts) < 3L) next
+        label   <- parts[1]
+        start_d <- tryCatch(as.Date(parts[2]), error = function(e) NA)
+        end_d   <- tryCatch(as.Date(parts[3]), error = function(e) NA)
+        if (is.na(start_d) || is.na(end_d) || end_d < start_d || !nzchar(label)) next
+        rows[[length(rows) + 1L]] <- list(name = label, start = start_d, end = end_d)
       }
-      
-      if (changed) seasons(s)
+      rows
     })
-    
-    output$seasons_ui <- shiny::renderUI({
-      s <- seasons()
-      if (length(s) == 0) return(shiny::helpText("Add a season window..."))
-      
-      shiny::div(
-        class = "seasons-container",
-        lapply(seq_along(s), function(i) {
-          curr <- s[[i]]
-          shiny::div(
-            class = "season-row card p-2 mb-2",
-            style = "border-color: #eee; background: #fdfdfd;",
-            shiny::div(
-              class = "d-flex align-items-center justify-content-between mb-1",
-              shiny::textInput(
-                session$ns(sprintf("season_name_%d", curr$id)), 
-                NULL, 
-                value = curr$name, 
-                placeholder = "Season Name",
-                width = "85%"
-              ),
-              shiny::actionLink(
-                session$ns(sprintf("remove_season_%d", curr$id)),
-                NULL, 
-                icon = shiny::icon("times"), 
-                style = "color: #dc3545; font-size: 1.1rem; margin-top: -5px;"
-              )
-            ),
-            shiny::dateRangeInput(
-              session$ns(sprintf("season_dates_%d", curr$id)),
-              NULL,
-              start = curr$start,
-              end = curr$end,
-              format = "yyyy-mm-dd",
-              width = "100%"
-            )
+
+    output$seasons_preview <- shiny::renderUI({
+      rows <- parsed_seasons()
+      n <- length(rows)
+      if (n == 0) {
+        return(shiny::tags$p(
+          class = "text-muted mt-1",
+          style = "font-size:0.75rem;",
+          shiny::icon("circle-info"), " No valid seasons yet."
+        ))
+      }
+      shiny::tags$table(
+        class = "table table-sm table-bordered mb-0 mt-1",
+        style = "font-size:0.75rem;",
+        shiny::tags$thead(shiny::tags$tr(
+          shiny::tags$th("Label"), shiny::tags$th("Start"), shiny::tags$th("End")
+        )),
+        shiny::tags$tbody(lapply(rows, function(r) {
+          shiny::tags$tr(
+            shiny::tags$td(r$name),
+            shiny::tags$td(as.character(r$start)),
+            shiny::tags$td(as.character(r$end))
           )
-        })
+        }))
       )
     })
-    
-    # Handle removal
-    shiny::observe({
-      s <- seasons()
-      for (i in seq_along(s)) {
-        btn_id <- sprintf("remove_season_%d", s[[i]]$id)
-        if (!is.null(input[[btn_id]]) && input[[btn_id]] > 0) {
-          # Isolated removal
-          shiny::isolate({
-            s_new <- s[-i]
-            seasons(s_new)
-          })
-          break
-        }
+
+    # --- Save / Load seasons JSON ---
+    seasons_json_path <- shiny::reactive({
+      folder <- trimws(input$folder %||% "")
+      if (!nzchar(folder)) return(NULL)
+      file.path(folder, "seasons.json")
+    })
+
+    shiny::observeEvent(input$dn_save_seasons, {
+      rows <- parsed_seasons()
+      if (length(rows) == 0) {
+        shiny::showNotification("No valid seasons to save. Enter seasons first.", type = "warning")
+        return()
       }
+      path <- seasons_json_path()
+      if (is.null(path)) {
+        shiny::showNotification("Set a project folder before saving seasons.", type = "warning")
+        return()
+      }
+      folder <- dirname(path)
+      if (!dir.exists(folder)) dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+      season_list <- lapply(rows, function(r) {
+        list(label = r$name, start = as.character(r$start), end = as.character(r$end))
+      })
+      tryCatch({
+        jsonlite::write_json(season_list, path, pretty = TRUE, auto_unbox = TRUE)
+        shiny::showNotification(
+          sprintf("Saved %d season(s) to %s", length(rows), path),
+          type = "message", duration = 8
+        )
+      }, error = function(e) {
+        shiny::showNotification(paste("Failed to save seasons:", e$message), type = "error")
+      })
+    })
+
+    shiny::observeEvent(input$dn_load_seasons, {
+      path <- seasons_json_path()
+      if (is.null(path) || !file.exists(path)) {
+        shiny::showNotification(
+          "seasons.json not found in project folder. Save seasons first or set the correct folder.",
+          type = "warning", duration = 8
+        )
+        return()
+      }
+      tryCatch({
+        season_list <- jsonlite::read_json(path)
+        lines <- vapply(season_list, function(s) {
+          sprintf("%s, %s, %s", s$label, s$start, s$end)
+        }, character(1))
+        shiny::updateTextAreaInput(session, "seasons_text", value = paste(lines, collapse = "\n"))
+        shiny::showNotification(
+          sprintf("Loaded %d season(s) from %s", length(lines), path),
+          type = "message", duration = 6
+        )
+      }, error = function(e) {
+        shiny::showNotification(paste("Failed to load seasons:", e$message), type = "error")
+      })
     })
 
     # Favorites logic
@@ -581,7 +593,7 @@ mod_download_server <- function(id, l3_regions_meta) {
     })
     iv$add_rule("add_season_btn", function(value) {
       if (!isTRUE(input$multi_season)) return(NULL)
-      s <- seasons()
+      s <- parsed_seasons()
       if (length(s) == 0) return("Add at least one season window.")
       for (i in seq_along(s)) {
         if (as.Date(s[[i]]$end) < as.Date(s[[i]]$start)) {
@@ -733,7 +745,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       }
 
       period_str <- if (input$multi_season) {
-        s <- seasons()
+        s <- parsed_seasons()
         if (length(s) == 0) "list()" else {
           s_lines <- sapply(s, function(x) {
             sprintf("    \"%s\" = c(\"%s\", \"%s\")", x$name, x$start, x$end)
@@ -859,9 +871,10 @@ mod_download_server <- function(id, l3_regions_meta) {
             # Use the core wapor_map for each variable to provide granular progress
             # Resolve period
             current_period <- if (input$multi_season) {
-              s <- seasons()
-              p_list <- lapply(s, function(x) as.character(c(x$start, x$end)))
-              names(p_list) <- sapply(s, function(x) x$name)
+              rows <- shiny::isolate(parsed_seasons())
+              if (length(rows) == 0) stop("No valid seasons defined. Check format: Label, YYYY-MM-DD, YYYY-MM-DD")
+              p_list <- lapply(rows, function(r) as.character(c(r$start, r$end)))
+              names(p_list) <- sapply(rows, function(r) r$name)
               p_list
             } else {
               as.character(input$period)
@@ -928,8 +941,17 @@ mod_download_server <- function(id, l3_regions_meta) {
     })
 
     list(
-      region = current_region,
-      folder = shiny::reactive(input$folder)
+      region  = current_region,
+      folder  = shiny::reactive(input$folder),
+      seasons = shiny::reactive({
+        if (!isTRUE(input$multi_season)) return(list())
+        rows <- parsed_seasons()
+        if (length(rows) == 0) return(list())
+        stats::setNames(
+          lapply(rows, function(r) as.character(c(r$start, r$end))),
+          sapply(rows, function(r) r$name)
+        )
+      })
     )
   })
 }
