@@ -14,6 +14,26 @@ _Last updated: 2026-05-11_
   - Automated verification: parsed both touched files successfully with `Rscript` on 2026-05-11.
   - Remaining validation: manually open the Analysis tab with crop-mask and Kc previews visible, resize the window, and confirm both plots render without warnings.
 
+- [ ] Generated/handwritten analysis scripts can pass `peff` while the engine only recognizes `agg_peff`.
+  - ID: ISS-20260511-008
+  - First noted: 2026-05-11
+  - Symptoms: analysis scripts derived from the Shiny indicator UI can include `peff`, while engine checks and save helpers key off `agg_peff`; this creates version-sensitive failures and inconsistent behavior between Shiny, scripts, and installed-package runs.
+  - Root cause: the Analysis sidebar uses `peff` as the derived-indicator choice value, but the analysis engine and related helpers were written against the internal canonical name `agg_peff`.
+  - Fix applied: added `wapor_normalize_analysis_indicators()` and applied it in script generation, the seasonal-analysis engine, and raster-save helper so `peff` is normalized to `agg_peff`.
+  - Files changed: `R/analysis_utils.R`, `R/analysis_engine.R`, `tests/testthat/test-analysis-shiny.R`
+  - Automated verification: `testthat::test_file('tests/testthat/test-analysis-shiny.R')` passed on 2026-05-11, including a new normalization regression test; the patched workspace code also completed the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis with `peff` in the indicator list.
+  - Remaining validation: reinstall or load the updated package before rerunning standalone scripts that use `library(Rwapor)`.
+
+- [ ] `beneficial_fraction` can return no result when selected without `agg_t`.
+  - ID: ISS-20260512-009
+  - First noted: 2026-05-12
+  - Symptoms: running the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis one indicator at a time showed `beneficial_fraction` was the only failing indicator; the run completed but the expected `beneficial_fraction` raster was missing from each season result.
+  - Root cause: `R/analysis_engine.R` loaded the transpiration stack for `beneficial_fraction`, but only aggregated `seasonal_t` when `agg_t` was explicitly selected, leaving the derived fraction with no transpiration input.
+  - Fix applied: widened the `seasonal_t` aggregation guard so it runs for either `agg_t` or `beneficial_fraction`, and added a regression test that exercises `beneficial_fraction` without `agg_t`.
+  - Files changed: `R/analysis_engine.R`, `tests/testthat/test-analysis-shiny.R`
+  - Automated verification: `testthat::test_file('tests/testthat/test-analysis-shiny.R')` passed on 2026-05-12; the patched workspace code now returns `beneficial_fraction` for both `Winter 2024` and `Winter 2025` in the real `Kyrgystan` dataset.
+  - Remaining validation: reinstall or load the updated package code before rerunning standalone scripts that use `library(Rwapor)`.
+
 - [ ] Batch-mode local analysis can destabilize the Shiny session and disconnect the R console session.
   - ID: ISS-20260511-002
   - First noted: 2026-05-11

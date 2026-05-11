@@ -492,3 +492,74 @@ test_that("wapor_run_seasonal_analysis batch mode with full indicator set and cr
   expect_equal(raster_mean(result$Winter2023$seasonal_aeti$raster), 93, tolerance = 1e-4)
   expect_equal(raster_mean(result$Winter2024$seasonal_aeti$raster), 93, tolerance = 1e-4)
 })
+
+test_that("analysis indicator normalization keeps peff scripts compatible", {
+  expect_equal(
+    wapor_normalize_analysis_indicators(c("agg_aeti", "peff", "green_water", "peff")),
+    c("agg_aeti", "agg_peff", "green_water")
+  )
+})
+
+test_that("beneficial_fraction works without explicitly selecting agg_t", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("wapor_beneficial_fraction_")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  template <- terra::rast(
+    nrows = 4, ncols = 4, xmin = 0, xmax = 4,
+    ymin = 0, ymax = 4, crs = "EPSG:4326", vals = 1
+  )
+  crop_mask <- terra::setValues(template, rep(1L, terra::ncell(template)))
+
+  write_var <- function(variable, date_strings, value) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE, showWarnings = FALSE)
+    for (d in date_strings) {
+      r <- terra::setValues(template, value)
+      terra::writeRaster(
+        r, file.path(var_dir, paste0(variable, ".", d, ".tif")), overwrite = TRUE
+      )
+    }
+  }
+
+  dates <- c("2024-04-11", "2024-04-21", "2024-05-01")
+  write_var("L1-AETI-D", dates, 4)
+  write_var("L1-T-D", dates, 2)
+
+  crop_params <- data.frame(
+    class_value = 1L,
+    crop_label = "Wheat",
+    kc_ini = 1, kc_mid = 1, kc_end = 1,
+    l_ini_days = 10L, l_mid_days = 10L, l_late_days = 10L,
+    HI = 0.45, MC = 0.12, fc = 1, AOT = 0.8,
+    stringsAsFactors = FALSE
+  )
+
+  config <- list(
+    period = list(Winter2024 = c("2024-04-11", "2024-05-10")),
+    ref_year = NULL,
+    aeti_var = "L1-AETI-D",
+    ret_var = "L1-RET-D",
+    precip_var = "L1-PCP-D",
+    npp_var = "L1-NPP-D",
+    t_var = "L1-T-D",
+    data_source = "local",
+    folder = analysis_dir,
+    indicators = "beneficial_fraction",
+    use_crop_mask = TRUE,
+    use_season_rasters = FALSE,
+    incremental = FALSE
+  )
+
+  result <- Rwapor::wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(crop_mask = crop_mask, season_start = NULL, season_end = NULL)
+  )
+
+  expect_true(inherits(result$Winter2024$beneficial_fraction, "SpatRaster"))
+  bf_mean <- as.numeric(terra::global(result$Winter2024$beneficial_fraction, "mean", na.rm = TRUE)$mean)
+  expect_equal(bf_mean, 0.5, tolerance = 1e-6)
+})

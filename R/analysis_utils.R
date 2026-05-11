@@ -277,6 +277,21 @@ wapor_detect_folder_seasons <- function(folder) {
 #'
 #' Converts Shiny analysis parameters into a reproducible R script string.
 #'
+#' @keywords internal
+wapor_normalize_analysis_indicators <- function(indicators) {
+  if (is.null(indicators) || !length(indicators)) {
+    return(character(0))
+  }
+
+  indicators <- as.character(indicators)
+  indicators[indicators == "peff"] <- "agg_peff"
+  unique(indicators[!is.na(indicators) & nzchar(indicators)])
+}
+
+#' Generate an R script for standalone analysis
+#'
+#' Converts Shiny analysis parameters into a reproducible R script string.
+#'
 #' @param config List of configuration parameters.
 #' @param crop_params data.frame of crop parameters.
 #' @return Character string (the script).
@@ -357,8 +372,11 @@ wapor_generate_shiny_script <- function(config, crop_params) {
   output_folder <- config$output_folder %||% folder
   data_source <- config$data_source %||% "api"
   l3_code <- config$l3_code %||% config$l3_region
-  indicators <- unique(c(config$indicators, config$agg_vars, config$derived_vars))
-  indicators <- indicators[!is.na(indicators) & nzchar(indicators)]
+  indicators <- wapor_normalize_analysis_indicators(unique(c(
+    config$indicators,
+    config$agg_vars,
+    config$derived_vars
+  )))
   season_label <- config$season_label %||% "Season"
   aoi_region <- config$aoi_region %||% NULL
 
@@ -489,6 +507,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
 #' @param indicators Character vector of indicators to save.
 #' @export
 wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, indicators) {
+  indicators <- wapor_normalize_analysis_indicators(indicators)
   if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
   
   # Handle list of results (multi-period)

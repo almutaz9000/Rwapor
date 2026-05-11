@@ -80,7 +80,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   npp_var     <- config$npp_var
   t_var       <- config$t_var
   l3_code     <- config$l3_code
-  indicators  <- config$indicators
+  indicators  <- wapor_normalize_analysis_indicators(config$indicators)
   use_local   <- config$data_source == "local"
   folder      <- config$folder
   use_incremental <- isTRUE(config$incremental)
@@ -262,7 +262,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
     results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
   }
-  if ("agg_t" %in% indicators && !is.null(stacks$t)) {
+  if (any(c("agg_t", "beneficial_fraction") %in% indicators) && !is.null(stacks$t)) {
     # T is a flux (mm/day), same as AETI
     results$seasonal_t <- Rwapor::wapor_calc_seasonal_aeti(stacks$t, season_weights, h_mask, t_mult, incremental = use_incremental)
   }

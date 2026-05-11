@@ -10,6 +10,8 @@ _Last updated: 2026-05-11_
 
 ## Pending
 
+- [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
+- [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that use `beneficial_fraction`.
 - [ ] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
