@@ -21,5 +21,6 @@ _Last updated: 2026-05-11_
 
 - [x] Approved the shared agent workflow design.
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
+- [x] Wrote the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 - [x] Added `agent-workflow/`, shared templates, and workflow scripts.
 - [x] Repointed the main repo adapters, hooks, and memory entrypoints to `agent-workflow/`.
