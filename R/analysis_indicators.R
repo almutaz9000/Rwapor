@@ -334,8 +334,8 @@ wapor_calc_peff_usda <- function(p_monthly) {
 #' @return Numeric. Total seasonal effective precipitation in mm.
 #' @export
 wapor_calc_peff <- function(peff_monthly, start_date = NULL,
-                                      end_date = NULL, season_months = NULL,
-                                      season_year = NULL) {
+                                       end_date = NULL, season_months = NULL,
+                                       season_year = NULL) {
   if (!is.null(start_date) && !is.null(end_date)) {
     s_date <- as.Date(start_date)
     e_date <- as.Date(end_date)
@@ -368,6 +368,66 @@ wapor_calc_peff <- function(peff_monthly, start_date = NULL,
                                 peff_monthly$month %in% season_months, ]
     sum(subset_df$peff_mm, na.rm = TRUE)
   }
+}
+
+# Compute Seasonal Effective Precipitation Raster
+#
+# Aggregates weighted precipitation layers to monthly totals per pixel, applies
+# the USDA SCS effective precipitation formula month-by-month, then sums the
+# monthly Peff rasters across the season.
+wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_table,
+                                            layer_multipliers = NULL,
+                                            incremental = FALSE) {
+  n_layers <- terra::nlyr(precip_stack)
+  if (terra::nlyr(season_weights) != n_layers) {
+    stop(sprintf("season_weights layers (%d) must match precip_stack layers (%d)",
+                 terra::nlyr(season_weights), n_layers), call. = FALSE)
+  }
+  if (!is.data.frame(dekad_table) || nrow(dekad_table) != n_layers) {
+    stop("dekad_table must be a data.frame with one row per precipitation layer", call. = FALSE)
+  }
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, n_layers)
+  }
+  if (length(layer_multipliers) != n_layers) {
+    stop(sprintf("layer_multipliers length (%d) must match precip_stack layers (%d)",
+                 length(layer_multipliers), n_layers), call. = FALSE)
+  }
+
+  layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_start)
+  } else if ("dekad_key" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_key)
+  } else {
+    stop("dekad_table must contain either 'dekad_start' or 'dekad_key'", call. = FALSE)
+  }
+
+  month_keys <- format(layer_dates, "%Y-%m")
+  monthly_peff <- list()
+
+  for (month_key in unique(month_keys)) {
+    idx <- which(month_keys == month_key)
+    monthly_pcp <- wapor_masked_sum(
+      precip_stack[[idx]],
+      season_weights[[idx]],
+      layer_multipliers = layer_multipliers[idx],
+      incremental = incremental
+    )
+    monthly_peff[[month_key]] <- terra::ifel(
+      monthly_pcp <= 250,
+      monthly_pcp * (125 - 0.2 * monthly_pcp) / 125,
+      125 + 0.1 * monthly_pcp
+    )
+  }
+
+  total_peff <- monthly_peff[[1]]
+  if (length(monthly_peff) > 1) {
+    for (i in 2:length(monthly_peff)) {
+      total_peff <- total_peff + monthly_peff[[i]]
+    }
+  }
+
+  total_peff
 }
 
 
