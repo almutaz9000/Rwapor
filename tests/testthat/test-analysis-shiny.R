@@ -318,3 +318,177 @@ test_that("wapor_run_seasonal_analysis handles named list periods", {
   expect_equal(sort(names(res_multi_batch)), c("Winter2023", "Winter2024"))
   expect_true(!is.null(res_multi_batch$Winter2024$seasonal_aeti$raster))
 })
+
+test_that("wapor_run_seasonal_analysis batch mode with agg_peff uses terra::subset correctly", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("wapor_batch_peff_")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  template <- terra::rast(
+    nrows = 4, ncols = 4, xmin = 0, xmax = 4,
+    ymin = 0, ymax = 4, crs = "EPSG:4326", vals = 1
+  )
+  crop_mask    <- terra::setValues(template, c(rep(1L, 8), rep(2L, 8)))
+  season_start <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_end   <- terra::setValues(template, rep(31L, terra::ncell(template)))
+
+  write_var <- function(variable, date_strings, value) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE, showWarnings = FALSE)
+    for (d in date_strings) {
+      r <- terra::setValues(template, value)
+      terra::writeRaster(
+        r, file.path(var_dir, paste0(variable, ".", d, ".tif")), overwrite = TRUE
+      )
+    }
+  }
+
+  dates_2023 <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  dates_2024 <- c("2024-01-01", "2024-01-11", "2024-01-21")
+  write_var("L1-AETI-D", c(dates_2023, dates_2024), 3)
+  write_var("L1-PCP-D",  c(dates_2023, dates_2024), 1)
+
+  crop_params <- data.frame(
+    class_value = c(1L, 2L), crop_label = c("A", "B"),
+    kc_ini = c(1, 1), kc_mid = c(1, 1), kc_end = c(1, 1),
+    l_ini_days = c(10L, 10L), l_mid_days = c(10L, 10L), l_late_days = c(10L, 10L),
+    HI = c(0.45, 0.45), MC = c(0.12, 0.12), fc = c(1, 1), AOT = c(0.8, 0.8),
+    stringsAsFactors = FALSE
+  )
+
+  config <- list(
+    period = list(
+      Winter2023 = c("2023-01-01", "2023-01-31"),
+      Winter2024 = c("2024-01-01", "2024-01-31")
+    ),
+    ref_year    = NULL,
+    aeti_var    = "L1-AETI-D",
+    ret_var     = "L1-RET-D",
+    precip_var  = "L1-PCP-D",
+    npp_var     = "L1-NPP-D",
+    t_var       = "",
+    data_source = "local",
+    folder      = analysis_dir,
+    indicators  = c("agg_aeti", "agg_peff"),
+    use_crop_mask     = TRUE,
+    use_season_rasters = TRUE,
+    incremental = FALSE
+  )
+
+  result <- Rwapor::wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end)
+  )
+
+  expect_equal(sort(names(result)), c("Winter2023", "Winter2024"))
+  expect_true(inherits(result$Winter2023$seasonal_aeti$raster, "SpatRaster"))
+  expect_true(inherits(result$Winter2024$seasonal_aeti$raster, "SpatRaster"))
+  expect_true(inherits(result$Winter2023$seasonal_peff, "SpatRaster"))
+  expect_true(inherits(result$Winter2024$seasonal_peff, "SpatRaster"))
+  expect_false(all(is.na(terra::values(result$Winter2023$seasonal_peff))))
+  expect_false(all(is.na(terra::values(result$Winter2024$seasonal_peff))))
+
+  # Both seasons should have the same peff (same PCP=1mm/day input)
+  peff_2023 <- as.numeric(terra::global(result$Winter2023$seasonal_peff, "mean", na.rm = TRUE)$mean)
+  peff_2024 <- as.numeric(terra::global(result$Winter2024$seasonal_peff, "mean", na.rm = TRUE)$mean)
+  expect_equal(peff_2023, peff_2024, tolerance = 1e-4)
+  expect_true(peff_2023 > 0 && peff_2023 < 31)  # peff <= total_pcp = 31mm
+})
+
+test_that("wapor_run_seasonal_analysis batch mode with full indicator set and crop mask completes", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("wapor_batch_full_")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  template <- terra::rast(
+    nrows = 4, ncols = 4, xmin = 0, xmax = 4,
+    ymin = 0, ymax = 4, crs = "EPSG:4326", vals = 1
+  )
+  crop_mask    <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_start <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_end   <- terra::setValues(template, rep(31L, terra::ncell(template)))
+
+  write_var <- function(variable, date_strings, value) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE, showWarnings = FALSE)
+    for (d in date_strings) {
+      r <- terra::setValues(template, value)
+      terra::writeRaster(
+        r, file.path(var_dir, paste0(variable, ".", d, ".tif")), overwrite = TRUE
+      )
+    }
+  }
+
+  dates_2023 <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  dates_2024 <- c("2024-01-01", "2024-01-11", "2024-01-21")
+  all_dates  <- c(dates_2023, dates_2024)
+  write_var("L1-AETI-D", all_dates, 3)
+  write_var("L1-RET-D",  all_dates, 2)
+  write_var("L1-PCP-D",  all_dates, 1)
+  write_var("L1-NPP-D",  all_dates, 5)
+  write_var("L1-T-D",    all_dates, 1)
+
+  crop_params <- data.frame(
+    class_value = 1L, crop_label = "Wheat",
+    kc_ini = 1, kc_mid = 1, kc_end = 1,
+    l_ini_days = 10L, l_mid_days = 10L, l_late_days = 10L,
+    HI = 0.45, MC = 0.12, fc = 1, AOT = 0.8,
+    stringsAsFactors = FALSE
+  )
+
+  config <- list(
+    period = list(
+      Winter2023 = c("2023-01-01", "2023-01-31"),
+      Winter2024 = c("2024-01-01", "2024-01-31")
+    ),
+    ref_year    = NULL,
+    aeti_var    = "L1-AETI-D",
+    ret_var     = "L1-RET-D",
+    precip_var  = "L1-PCP-D",
+    npp_var     = "L1-NPP-D",
+    t_var       = "L1-T-D",
+    data_source = "local",
+    folder      = analysis_dir,
+    indicators  = c(
+      "agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "etc",
+      "adequacy_etc", "adequacy_p95", "agg_t", "beneficial_fraction",
+      "agg_biomass_kg", "agg_biomass_t", "yield_npp",
+      "green_water", "blue_water", "cwp_bwp"
+    ),
+    use_crop_mask      = TRUE,
+    use_season_rasters = TRUE,
+    incremental        = FALSE
+  )
+
+  result <- Rwapor::wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end)
+  )
+
+  expect_equal(sort(names(result)), c("Winter2023", "Winter2024"))
+
+  for (nm in c("Winter2023", "Winter2024")) {
+    s <- result[[nm]]
+    expect_true(inherits(s$seasonal_aeti$raster,  "SpatRaster"), info = paste(nm, "aeti"))
+    expect_true(inherits(s$seasonal_ret$raster,   "SpatRaster"), info = paste(nm, "ret"))
+    expect_true(inherits(s$seasonal_peff,          "SpatRaster"), info = paste(nm, "peff"))
+    expect_true(inherits(s$seasonal_t$raster,      "SpatRaster"), info = paste(nm, "t"))
+    expect_true(inherits(s$beneficial_fraction,    "SpatRaster"), info = paste(nm, "bf"))
+    expect_true(inherits(s$green_water,            "SpatRaster"), info = paste(nm, "gw"))
+    expect_true(inherits(s$blue_water,             "SpatRaster"), info = paste(nm, "bw"))
+    expect_true(!is.null(s$cwp),                                  info = paste(nm, "cwp"))
+    expect_true(!is.null(s$bwp),                                  info = paste(nm, "bwp"))
+    expect_false(all(is.na(terra::values(s$seasonal_peff))),      info = paste(nm, "peff non-NA"))
+  }
+
+  # AETI values: 3 mm/day * (10+10+11) days = 93 mm per season
+  raster_mean <- function(x) as.numeric(terra::global(x, "mean", na.rm = TRUE)$mean)
+  expect_equal(raster_mean(result$Winter2023$seasonal_aeti$raster), 93, tolerance = 1e-4)
+  expect_equal(raster_mean(result$Winter2024$seasonal_aeti$raster), 93, tolerance = 1e-4)
+})
