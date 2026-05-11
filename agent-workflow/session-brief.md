@@ -15,6 +15,8 @@ _Last updated: 2026-05-11_
 - Separated the Analysis tab project-data source from its output folder and added a direct project-folder override for previous-session local data.
 - Hardened Analysis `Detect from Folder` via a tested helper and simplified the Download-tab AOI upload flow back to a single browser entry point.
 - Hardened the Analysis crop-mask and Kc preview plots after Shiny hit `figure margins too large` and `invalid graphics state` on the embedded devices.
+- Normalized the Analysis `peff` indicator alias to the engine’s canonical `agg_peff` so generated scripts and batch runs stay compatible with the current code path.
+- Tested the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis one indicator at a time and fixed `beneficial_fraction`, which previously omitted its result unless `agg_t` was also selected.
 
 ## Top Open Issues
 
@@ -29,6 +31,8 @@ _Last updated: 2026-05-11_
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
+- [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
+- [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.
 - [ ] Manually verify that Analysis `Re-scan Folder` follows the active project folder and that the Analysis-local project-folder override works with older downloads.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session.
 - [ ] Manually verify that the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.

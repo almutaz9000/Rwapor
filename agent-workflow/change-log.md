@@ -1,5 +1,13 @@
 # Agent Workflow Change Log
 
+## 2026-05-12
+
+- Fixed the Analysis plot previews in `inst/shiny/mod_analysis.R` and `inst/shiny/mod_analysis_ui_body.R` so small embedded devices no longer trip `figure margins too large` / `invalid graphics state`.
+- Normalized the Analysis `peff` indicator alias to canonical `agg_peff` across script generation, the seasonal-analysis engine, and save helpers.
+- Added a regression test covering indicator normalization and revalidated `tests/testthat/test-analysis-shiny.R`.
+- Confirmed the current workspace code completes the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis when run from source.
+- Tested the `Kyrgystan` indicators one by one and fixed `beneficial_fraction` so it no longer depends on explicitly selecting `agg_t`.
+
 ## 2026-05-11
 
 - Added the shared `agent-workflow/` coordination layer.
