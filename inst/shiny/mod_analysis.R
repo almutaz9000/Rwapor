@@ -71,7 +71,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     # --- NEW: Observer for Missing Data Download Button ---
     shiny::observeEvent(input$an_download_missing_btn, {
       missing_info <- temp_missing_info()
-      folder <- analysis_folder()
+      folder <- project_folder()
       shiny::removeModal()
       
       if (is.null(missing_info) || length(missing_info) == 0) return()
@@ -147,12 +147,20 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     roots <- get_shinyfiles_roots()
 
     shinyFiles::shinyDirChoose(input, "an_browse_folder", roots = roots, session = session)
+    shinyFiles::shinyDirChoose(input, "an_browse_project_folder", roots = roots, session = session)
     shinyFiles::shinyFileChoose(input, "an_browse_template", roots = roots, session = session, filetypes = c("tif", "tiff"))
     
     shiny::observeEvent(input$an_browse_folder, {
       dir_path <- shinyFiles::parseDirPath(roots, input$an_browse_folder)
       if (length(dir_path) == 1 && nzchar(dir_path)) {
         shiny::updateTextInput(session, "an_folder", value = dir_path)
+      }
+    })
+
+    shiny::observeEvent(input$an_browse_project_folder, {
+      dir_path <- shinyFiles::parseDirPath(roots, input$an_browse_project_folder)
+      if (length(dir_path) == 1 && nzchar(dir_path)) {
+        shiny::updateTextInput(session, "an_project_folder", value = dir_path)
       }
     })
 
@@ -170,23 +178,54 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       }
     })
 
-    # Sync with global folder from Download tab
+    # Keep the project-folder field aligned with the Download tab when shared mode is active.
     shiny::observe({
-      folder <- global_folder()
-      if (!is.null(folder) && nzchar(folder) && !nzchar(input$an_folder)) {
+      folder <- trimws(global_folder() %||% "")
+      current <- trimws(input$an_project_folder %||% "")
+      if ((input$an_project_folder_mode %||% "download") == "download" &&
+          nzchar(folder) && !identical(current, folder)) {
+        shiny::updateTextInput(session, "an_project_folder", value = folder)
+      }
+    })
+
+    output_folder_touched <- shiny::reactiveVal(FALSE)
+    shiny::observeEvent(input$an_folder, {
+      output_folder_touched(TRUE)
+    }, ignoreInit = TRUE)
+
+    shiny::observe({
+      folder <- trimws(global_folder() %||% "")
+      current <- trimws(input$an_folder %||% "")
+      if (isTRUE(output_folder_touched())) return()
+      if (nzchar(folder) && !identical(current, folder)) {
         shiny::updateTextInput(session, "an_folder", value = folder)
       }
     })
 
-    # Proactively update template dropdown when folder changes
+    project_folder <- shiny::reactive({
+      mode <- input$an_project_folder_mode %||% "download"
+      path <- if (identical(mode, "manual")) {
+        trimws(input$an_project_folder %||% "")
+      } else {
+        trimws(global_folder() %||% "")
+      }
+      if (nzchar(path)) path else NULL
+    })
+
+    analysis_output_folder <- shiny::reactive({
+      path <- trimws(input$an_folder %||% "")
+      if (nzchar(path)) path else project_folder()
+    })
+
+    # Proactively update template dropdown when project folder changes
     shiny::observe({
-      folder <- input$an_folder
+      folder <- project_folder()
       shiny::req(folder)
       if (dir.exists(folder)) {
         all_tifs <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
         shiny::updateSelectizeInput(session, "an_mask_template_file", 
-                                   choices = c("Auto-detect" = "", all_tifs),
-                                   server = TRUE)
+                                    choices = c("Auto-detect" = "", all_tifs),
+                                    server = TRUE)
       }
     })
     an_crop_mask_rast <- shiny::reactiveVal(NULL)
@@ -209,10 +248,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     .an_running  <- shiny::reactiveVal(FALSE)
 
     analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-    analysis_folder <- shiny::reactive({
-      path <- trimws(input$an_folder %||% "")
-      if (nzchar(path)) path else global_folder()
-    })
 
     # (Internal helpers moved to R/analysis_utils.R)
 
@@ -270,7 +305,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     # Auto-scan when switching to local mode
     shiny::observe({
       if (input$an_data_source == "local") {
-        folder <- analysis_folder()
+        folder <- project_folder()
         if (!is.null(folder) && nzchar(folder) && dir.exists(folder)) {
           # Automatically scan project folder
           tryCatch({
@@ -285,10 +320,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     
     # Manual scan button
     shiny::observeEvent(input$an_scan_local, {
-      folder <- analysis_folder()
+      folder <- project_folder()
       if (is.null(folder) || !nzchar(folder)) {
         shiny::showNotification(
-          "No project folder set. Please configure the project folder in the Download tab first.",
+          "No project folder set. Use the Download tab folder or choose one directly in the Analysis tab.",
           type = "error"
         )
         return()
@@ -379,14 +414,16 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     output$an_local_vars_info <- shiny::renderPrint({
       local_vars <- an_local_vars()
-      folder <- analysis_folder()
+      folder <- project_folder()
+      mode <- input$an_project_folder_mode %||% "download"
 
       if (is.null(folder) || !nzchar(folder)) {
         cat("Project folder not set.\n")
-        cat("Configure it in the Download tab.\n")
+        cat("Use the Download tab folder or choose one in this Analysis tab.\n")
         return()
       }
 
+      cat("Source:", if (identical(mode, "manual")) "Analysis tab override" else "Download tab shared folder", "\n")
       cat("Folder:", folder, "\n\n")
 
       if (is.null(local_vars)) {
@@ -556,7 +593,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         ref_year <- input$an_ref_year
       }
 
-      folder <- analysis_folder()
+      folder <- project_folder()
+      output_folder <- analysis_output_folder()
       reg <- current_region()
       period_context <- if (is.list(periods)) periods[[1]] else periods
       vars_to_check <- c(
@@ -592,7 +630,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         }
       }
 
-      config <- list(
+        config <- list(
         period = periods,
         ref_year = ref_year,
         aeti_var = input$an_aeti_var,
@@ -600,10 +638,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         precip_var = input$an_precip_var,
         npp_var = input$an_npp_var,
         t_var = input$an_t_var,
-        data_source = input$an_data_source,
-        l3_code = l3_code,
-        folder = folder,
-        indicators = indicators,
+          data_source = input$an_data_source,
+          l3_code = l3_code,
+          folder = folder,
+          output_folder = output_folder,
+          indicators = indicators,
         agg_vars = input$an_agg_vars,
         derived_vars = input$an_derived_vars,
         incremental = isTRUE(input$an_incremental),
@@ -621,6 +660,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         season_table = season_table,
         periods = periods,
         folder = folder,
+        output_folder = output_folder,
         region = reg
       )
     }
@@ -954,7 +994,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     # Load seasons.json from the project folder
     shiny::observeEvent(input$an_load_seasons_json, {
-      folder <- analysis_folder()
+      folder <- project_folder()
       if (is.null(folder) || !nzchar(folder)) {
         shiny::showNotification("Set a project folder first.", type = "warning")
         return()
@@ -1011,53 +1051,35 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     # Batch Mode Season Detection
     shiny::observeEvent(input$an_detect_seasons, {
-      folder <- analysis_folder()
-      if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
+      folder <- project_folder()
+      detection <- tryCatch(
+        wapor_detect_folder_seasons(folder),
+        error = function(e) e
+      )
+
+      if (inherits(detection, "error")) {
         shiny::showNotification(
-          "Project folder not found. Set it in the Download tab first.",
-          type = "warning"
+          paste("Detect from Folder failed:", detection$message),
+          type = "error",
+          duration = 12
         )
         return()
       }
 
-      subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
-      seasonal_dirs <- subdirs[grepl("_seasonal$", subdirs)]
-
-      if (length(seasonal_dirs) == 0) {
+      if (length(detection$seasonal_dirs) == 0) {
         shiny::showNotification(
           paste0(
             "No seasonal aggregate folders (*_seasonal) found. ",
             "Either re-download with 'Seasonal aggregate' checked, ",
             "or use 'Copy from Download Tab' if seasons are configured there."
           ),
-          type = "info",
+          type = "message",
           duration = 12
         )
         return()
       }
 
-      # Scan ALL seasonal dirs and collect unique season windows
-      # Pattern handles both labeled and unlabeled seasonal files:
-      #   WAPOR-3.VAR.seasonal.Label.2020-01-01_2020-12-31.tif
-      #   WAPOR-3.VAR.seasonal.2020-01-01_2020-12-31.tif
-      win_pattern <- "\\.seasonal\\.(?:(.*?)\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$"
-
-      all_windows <- character(0)
-      for (sd in seasonal_dirs) {
-        tif_files <- list.files(file.path(folder, sd), pattern = "\\.tif$", full.names = FALSE)
-        for (f in tif_files) {
-          m <- regmatches(f, regexec(win_pattern, f))[[1]]
-          if (length(m) < 4) next
-          label <- if (nzchar(m[2])) m[2] else sprintf("Season_%s_%s", m[3], m[4])
-          # Sanitise label: replace commas that would break the CSV format
-          label <- gsub(",", "_", label, fixed = TRUE)
-          all_windows <- c(all_windows, sprintf("%s, %s, %s", label, m[3], m[4]))
-        }
-      }
-
-      windows <- unique(all_windows)
-
-      if (length(windows) == 0) {
+      if (length(detection$windows) == 0) {
         shiny::showNotification(
           paste0(
             "Seasonal folders exist but filenames don't match the expected pattern ",
@@ -1070,9 +1092,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         return()
       }
 
-      shiny::updateTextAreaInput(session, "an_batch_list", value = paste(windows, collapse = "\n"))
+      shiny::updateTextAreaInput(session, "an_batch_list", value = paste(detection$windows, collapse = "\n"))
       shiny::showNotification(
-        sprintf("Detected %d season window(s) from folder.", length(windows)),
+        sprintf("Detected %d season window(s) from folder.", length(detection$windows)),
         type = "message"
       )
     })
@@ -1117,9 +1139,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     shiny::observeEvent(input$an_generate_masks, {
       shiny::req(input$an_mask_vector, input$an_mask_csv)
       
-      folder <- analysis_folder()
+      folder <- project_folder()
       if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
-        shiny::showNotification("Project folder not found. Please configure it in the Download tab.", type = "warning")
+        shiny::showNotification("Project folder not found. Use the Download tab folder or choose one in Analysis first.", type = "warning")
         return()
       }
       
@@ -1128,7 +1150,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           # 1. Get Template Raster
           template_r <- NULL
           local_vars <- an_local_vars()
-          folder <- analysis_folder()
+          folder <- project_folder()
           
           # If not scanned yet, try a quick scan now
           if (is.null(local_vars) && !is.null(folder) && dir.exists(folder)) {
@@ -1596,7 +1618,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       cat("AETI:", input$an_aeti_var, "\n")
       cat("RET:", input$an_ret_var, "\n")
       cat("Precip:", input$an_precip_var, "\n")
-      cat("Configured Project Folder:", analysis_folder() %||% "Not set", "\n")
+      cat("Configured Project Folder:", project_folder() %||% "Not set", "\n")
+      cat("Analysis Output Folder:", analysis_output_folder() %||% "Not set", "\n")
 
       cat("\n--- Raster Status ---\n")
       cat("Crop Mask:", if (!is.null(an_crop_mask_rast())) "Loaded" else "Not loaded", "\n")
@@ -1614,7 +1637,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             cat(sprintf("%s: %d files %s\n", v$variable, v$file_count, status))
           }
         } else {
-          cat("\n[!] Click 'Scan Local Folder' to detect available data.\n")
+          cat("\n[!] Click 'Re-scan Folder' to detect available data.\n")
         }
       }
     })
@@ -1622,8 +1645,16 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     output$an_crop_mask_plot <- shiny::renderPlot({
       r <- an_crop_mask_rast()
       shiny::req(r)
-      graphics::par(mar = c(0.1, 0.1, 1.5, 0.1))
-      terra::plot(r, main = "Crop Mask Classes", col = grDevices::hcl.colors(20, "Set2"), axes = FALSE)
+      old_par <- graphics::par(no.readonly = TRUE)
+      on.exit(graphics::par(old_par), add = TRUE)
+      graphics::par(mar = c(1, 1, 2, 1))
+      terra::plot(
+        r,
+        main = "Crop Mask Classes",
+        col = grDevices::hcl.colors(20, "Set2"),
+        axes = FALSE,
+        legend = FALSE
+      )
     })
 
     output$an_season_raster_info <- shiny::renderPrint({
@@ -1789,13 +1820,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
       if (isTRUE(state$config$data_source == "local")) {
         if (is.null(state$folder) || !nzchar(state$folder) || !dir.exists(state$folder)) {
-          shiny::showNotification("Local data mode selected but project folder is not set. Configure it in the Download tab first.", type = "error")
+          shiny::showNotification("Local data mode selected but project folder is not set. Use the Download tab folder or choose one in Analysis.", type = "error")
           return()
         }
 
         local_vars <- an_local_vars()
         if (is.null(local_vars) || nrow(local_vars) == 0) {
-          shiny::showNotification("Please click 'Scan Local Folder' first to detect available variables.", type = "error")
+          shiny::showNotification("Please click 'Re-scan Folder' first to detect available variables.", type = "error")
           return()
         }
 
@@ -1834,9 +1865,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           an_results(results)
           an_crop_params(state$crop_params)
 
-          if (isTRUE(input$an_save_rasters) && nzchar(state$folder %||% "")) {
+          if (isTRUE(input$an_save_rasters) && nzchar(state$output_folder %||% "")) {
             season_label <- if (state$batch_mode) NULL else state$config$season_label
-            wapor_shiny_save_analysis_rasters(results, state$folder, season_label, state$indicators)
+            wapor_shiny_save_analysis_rasters(results, state$output_folder, season_label, state$indicators)
           }
 
           shiny::showNotification("Analysis complete!", type = "message", duration = 8)
@@ -1860,7 +1891,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       max_len <- max(vapply(kc_list, length, integer(1)))
       if (max_len == 0) return()
 
-      graphics::par(mar = c(3, 3, 2, 1), mgp = c(2, 0.7, 0))
+      old_par <- graphics::par(no.readonly = TRUE)
+      on.exit(graphics::par(old_par), add = TRUE)
+      graphics::par(mar = c(3.2, 3.2, 2.2, 1), mgp = c(2, 0.7, 0))
 
       cols <- grDevices::hcl.colors(length(kc_list), "Set2")
       graphics::plot(
@@ -1882,7 +1915,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           graphics::lines(seq_along(kc), kc, col = cols[i], lwd = 3)
         }
       }
-      graphics::legend("topright", legend = params$crop_label, col = cols, lwd = 3, cex = 0.9, bty = "n")
+      graphics::legend(
+        "topright",
+        legend = params$crop_label,
+        col = cols,
+        lwd = 3,
+        cex = 0.8,
+        bty = "n",
+        inset = 0.02
+      )
     })
 
     output$an_etc_aeti_table <- shiny::renderTable({

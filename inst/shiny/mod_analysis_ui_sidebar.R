@@ -34,7 +34,36 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             shiny::tags$div(
               class = "alert alert-info p-2 mb-2 small",
               shiny::icon("circle-info"),
-              " Uses files from the project folder (set in Download tab). Folder is scanned automatically when switching to local mode."
+              " Local mode reads downloaded rasters from a project folder. By default it follows the Download tab, but you can point Analysis to an older project folder directly."
+            ),
+            shiny::radioButtons(
+              ns("an_project_folder_mode"), NULL,
+              choices = c(
+                "Use Download tab folder" = "download",
+                "Choose project folder here" = "manual"
+              ),
+              selected = "download"
+            ),
+            shiny::conditionalPanel(
+              condition = sprintf("input['%s'] == 'manual'", ns("an_project_folder_mode")),
+              shiny::div(
+                class = "inline-row",
+                shiny::div(
+                  class = "flex-1",
+                  shiny::textInput(
+                    ns("an_project_folder"), "Project Folder",
+                    value = "",
+                    placeholder = "Path to folder containing downloaded WaPOR variable subfolders"
+                  )
+                ),
+                shinyFiles::shinyDirButton(
+                  ns("an_browse_project_folder"), label = "",
+                  icon  = shiny::icon("folder-open"),
+                  title = "Select project folder for local analysis",
+                  class = "btn-outline-secondary btn-sm",
+                  style = "margin-top: 25px; padding: 0.37rem 0.6rem;"
+                )
+              )
             ),
             shiny::actionButton(
               ns("an_scan_local"), "Re-scan Folder",
@@ -392,7 +421,7 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
         bslib::accordion_panel(
           "Output Settings", icon = shiny::icon("folder-open"),
 
-          shiny::tags$span("Output Folder", class = "ctrl-group-label"),
+          shiny::tags$span("Analysis Output Folder", class = "ctrl-group-label"),
           shiny::div(
             class = "inline-row",
             shiny::div(

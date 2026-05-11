@@ -408,8 +408,8 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
   for (month_key in unique(month_keys)) {
     idx <- which(month_keys == month_key)
     monthly_pcp <- wapor_masked_sum(
-      precip_stack[[idx]],
-      season_weights[[idx]],
+      terra::subset(precip_stack, idx),
+      terra::subset(season_weights, idx),
       layer_multipliers = layer_multipliers[idx],
       incremental = incremental
     )

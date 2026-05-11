@@ -10,8 +10,11 @@ _Last updated: 2026-05-11_
 
 ## Pending
 
+- [ ] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
-- [ ] Manually verify the download-tab AOI local explorer with nested folders and representative vector files on Windows.
+- [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
+- [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
+- [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
@@ -23,6 +26,8 @@ _Last updated: 2026-05-11_
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
 - [x] Wrote the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 - [x] Implemented the Shiny batch-analysis and script-generation patch with regression tests.
-- [x] Improved the download-tab AOI local file explorer so subfolders and supported spatial files are visible and selectable.
+- [x] Separated the Analysis tab local project-data source from the analysis output folder and added a project-folder override in Analysis.
+- [x] Hardened Analysis `Detect from Folder` with a tested helper and safe notification path.
+- [x] Simplified the download-tab AOI loader to a single browser-driven file flow.
 - [x] Added `agent-workflow/`, shared templates, and workflow scripts.
 - [x] Repointed the main repo adapters, hooks, and memory entrypoints to `agent-workflow/`.

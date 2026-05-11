@@ -67,7 +67,7 @@ mod_analysis_ui_body <- function(ns) {
       width = "400px",
       bslib::navset_card_tab(
         title = "Spatial Data",
-        bslib::nav_panel("Crop Mask", shiny::plotOutput(ns("an_crop_mask_plot"), height = "300px")),
+        bslib::nav_panel("Crop Mask", shiny::plotOutput(ns("an_crop_mask_plot"), height = "380px")),
         bslib::nav_panel("Season", shiny::verbatimTextOutput(ns("an_season_raster_info"))),
         bslib::nav_panel("Classes", shiny::tableOutput(ns("an_crop_class_table")))
       ),
@@ -75,7 +75,7 @@ mod_analysis_ui_body <- function(ns) {
         bslib::card_header(shiny::icon("chart-area"), " Kc Curves by Class"),
         bslib::card_body(
           padding = 1,
-          shiny::plotOutput(ns("an_kc_plot"), height = "300px")
+          shiny::plotOutput(ns("an_kc_plot"), height = "360px")
         )
       )
     ),

@@ -12,6 +12,9 @@ _Last updated: 2026-05-11_
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` and reran targeted analysis tests successfully.
 - Patched Windows-safe script serialization after a user hit `'\U' used without hex digits` from generated paths.
 - Improved the download-tab AOI local explorer in `inst/shiny/mod_aoi.R` so users can browse folders and pick supported spatial files more directly.
+- Separated the Analysis tab project-data source from its output folder and added a direct project-folder override for previous-session local data.
+- Hardened Analysis `Detect from Folder` via a tested helper and simplified the Download-tab AOI upload flow back to a single browser entry point.
+- Hardened the Analysis crop-mask and Kc preview plots after Shiny hit `figure margins too large` and `invalid graphics state` on the embedded devices.
 
 ## Top Open Issues
 
@@ -26,7 +29,10 @@ _Last updated: 2026-05-11_
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
-- [ ] Manually verify the new AOI local explorer against nested Windows/OneDrive folders and representative vector files.
+- [ ] Manually verify that Analysis `Re-scan Folder` follows the active project folder and that the Analysis-local project-folder override works with older downloads.
+- [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session.
+- [ ] Manually verify that the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
+- [ ] Manually verify the simplified AOI browser flow against nested Windows/OneDrive folders and representative vector files.
 
 ## Guardrails
 

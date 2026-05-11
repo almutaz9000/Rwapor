@@ -231,6 +231,48 @@ wapor_parse_batch_periods <- function(batch_text) {
   list(periods = periods, season_table = season_table)
 }
 
+#' Detect season windows from local seasonal raster folders
+#'
+#' @param folder Character path to the project folder.
+#' @return List with `seasonal_dirs` and `windows`.
+#' @keywords internal
+wapor_detect_folder_seasons <- function(folder) {
+  if (!is.character(folder) || length(folder) != 1 || !nzchar(folder) || !dir.exists(folder)) {
+    stop("Project folder not found.", call. = FALSE)
+  }
+
+  subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
+  seasonal_dirs <- subdirs[grepl("_seasonal$", subdirs)]
+  if (length(seasonal_dirs) == 0) {
+    return(list(seasonal_dirs = character(0), windows = character(0)))
+  }
+
+  win_pattern <- "\\.seasonal\\.(?:(.*?)\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$"
+  all_windows <- character(0)
+
+  for (sd in seasonal_dirs) {
+    tif_files <- tryCatch(
+      list.files(file.path(folder, sd), pattern = "\\.tif$", full.names = FALSE, ignore.case = TRUE),
+      error = function(e) character(0)
+    )
+    for (f in tif_files) {
+      m <- regmatches(f, regexec(win_pattern, f, perl = TRUE))[[1]]
+      if (length(m) < 4) next
+      label <- trimws(m[2] %||% "")
+      if (!nzchar(label)) {
+        label <- sprintf("Season_%s_%s", m[3], m[4])
+      }
+      label <- gsub(",", "_", label, fixed = TRUE)
+      all_windows <- c(all_windows, sprintf("%s, %s, %s", label, m[3], m[4]))
+    }
+  }
+
+  list(
+    seasonal_dirs = seasonal_dirs,
+    windows = unique(all_windows)
+  )
+}
+
 #' Generate an R script for standalone analysis
 #'
 #' Converts Shiny analysis parameters into a reproducible R script string.
@@ -312,6 +354,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
   npp_var <- config$npp_var %||% "L1-NPP-D"
   t_var <- config$t_var %||% ""
   folder <- config$folder %||% "analysis_output"
+  output_folder <- config$output_folder %||% folder
   data_source <- config$data_source %||% "api"
   l3_code <- config$l3_code %||% config$l3_region
   indicators <- unique(c(config$indicators, config$agg_vars, config$derived_vars))
@@ -341,7 +384,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     "",
     "# [1] Paths and area of interest",
     sprintf("project_folder <- %s", format_r_string(folder)),
-    sprintf("output_folder  <- %s", format_r_string(folder)),
+    sprintf("output_folder  <- %s", format_r_string(output_folder)),
     "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)",
     sprintf("aoi_region <- %s", format_aoi_region(aoi_region)),
     "",
@@ -360,7 +403,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
             "  vapply(season_list, function(s) s$label, character(1))",
             ")",
             "# Alternatively, define seasons manually:",
-            paste0("# periods <- ", format_period_object(period))
+            paste0("# periods <- ", gsub("\n", "\n# ", format_period_object(period), fixed = TRUE))
           )
         } else {
           c(

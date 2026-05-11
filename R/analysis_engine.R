@@ -186,7 +186,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
     idx <- match(as.character(targets), found)
     if (any(is.na(idx))) stop("Missing data for some dekads in the analysis period.")
-    s[[idx]]
+    terra::subset(s, idx)
   }
 
   # Loading logic
