@@ -17,6 +17,14 @@ _Last updated: 2026-05-11_
 
 ## Resolved Improvements
 
+- [x] Download-tab AOI local file explorer did not expose directories clearly enough to navigate local vector assets.
+  - ID: ISS-20260511-003
+  - Resolved: 2026-05-11
+  - Root cause: `inst/shiny/mod_aoi.R` relied mainly on a direct file picker flow, which made folder-by-folder exploration weak in the AOI upload UI.
+  - Fix applied: added a folder-first AOI explorer with `shinyDirChoose`, current-folder display, up/refresh controls, visible subfolder and supported-file lists, and kept the direct file picker as a fallback.
+  - Files: `inst/shiny/mod_aoi.R`
+  - Validation: R parse/load check of the updated module; manual Shiny verification still recommended for the interactive explorer flow.
+
 - [x] Parallel agent memory drift
   - ID: ISS-20260511-001
   - Resolved: 2026-05-11

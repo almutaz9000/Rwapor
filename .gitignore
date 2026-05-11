@@ -58,3 +58,4 @@ tests/l3_urls.txt
 # Database Files
 *.duckdb
 *.duckdb.wal
+.positai

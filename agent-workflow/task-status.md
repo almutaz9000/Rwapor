@@ -11,6 +11,7 @@ _Last updated: 2026-05-11_
 ## Pending
 
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
+- [ ] Manually verify the download-tab AOI local explorer with nested folders and representative vector files on Windows.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
@@ -22,5 +23,6 @@ _Last updated: 2026-05-11_
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
 - [x] Wrote the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 - [x] Implemented the Shiny batch-analysis and script-generation patch with regression tests.
+- [x] Improved the download-tab AOI local file explorer so subfolders and supported spatial files are visible and selectable.
 - [x] Added `agent-workflow/`, shared templates, and workflow scripts.
 - [x] Repointed the main repo adapters, hooks, and memory entrypoints to `agent-workflow/`.

@@ -346,7 +346,33 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     sprintf("aoi_region <- %s", format_aoi_region(aoi_region)),
     "",
     "# [2] Period configuration",
-    if (batch_mode) paste0("periods <- ", format_period_object(period)) else NULL,
+    if (batch_mode) {
+      seasons_json <- file.path(folder, "seasons.json")
+      json_exists  <- file.exists(seasons_json)
+      c(
+        if (json_exists) {
+          c(
+            "# Seasons loaded from project folder seasons.json",
+            sprintf("seasons_json <- file.path(project_folder, \"seasons.json\")"),
+            "season_list  <- jsonlite::read_json(seasons_json)",
+            "periods <- stats::setNames(",
+            "  lapply(season_list, function(s) c(s$start, s$end)),",
+            "  vapply(season_list, function(s) s$label, character(1))",
+            ")",
+            "# Alternatively, define seasons manually:",
+            paste0("# periods <- ", format_period_object(period))
+          )
+        } else {
+          c(
+            "# Define seasons manually (Label = c(start, end)):",
+            paste0("periods <- ", format_period_object(period)),
+            "# Tip: save to project folder with:",
+            "# season_list <- lapply(names(periods), function(nm) list(label=nm, start=periods[[nm]][1], end=periods[[nm]][2]))",
+            "# jsonlite::write_json(season_list, file.path(project_folder, \"seasons.json\"), pretty=TRUE, auto_unbox=TRUE)"
+          )
+        }
+      )
+    } else NULL,
     if (!batch_mode) sprintf("period <- %s", format_period_object(period)) else NULL,
     if (!batch_mode) sprintf("ref_year <- %s", format_scalar(ref_year)) else "ref_year <- NULL",
     sprintf("batch_mode <- %s", format_logical(batch_mode)),

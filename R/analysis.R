@@ -720,7 +720,7 @@ wapor_scan_local <- function(folder) {
     # 2. Standard: *.YYYYMMDD.tif
     # 3. Seasonal: *.seasonal.YYYY-MM-DD_YYYY-MM-DD.tif
     date_patterns <- c(
-      "\\.seasonal\\.(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$", # Seasonal range
+      "\\.seasonal\\.(?:.*\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$", # Seasonal range (with optional label)
       "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",  # YYYY-MM-DD
       "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"      # YYYYMMDD
     )
@@ -848,7 +848,7 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   # Extract dates and filter by range
   # Patterns: Standard date, or Seasonal range
   date_patterns <- c(
-    "\\.seasonal\\.(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$",
+    "\\.seasonal\\.(?:.*\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$",
     "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",
     "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"
   )

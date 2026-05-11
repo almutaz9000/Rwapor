@@ -11,6 +11,7 @@ _Last updated: 2026-05-11_
 - Implemented the batch-analysis patch across `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, and `inst/shiny/mod_analysis_ui_body.R`.
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` and reran targeted analysis tests successfully.
 - Patched Windows-safe script serialization after a user hit `'\U' used without hex digits` from generated paths.
+- Improved the download-tab AOI local explorer in `inst/shiny/mod_aoi.R` so users can browse folders and pick supported spatial files more directly.
 
 ## Top Open Issues
 
@@ -25,6 +26,7 @@ _Last updated: 2026-05-11_
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
+- [ ] Manually verify the new AOI local explorer against nested Windows/OneDrive folders and representative vector files.
 
 ## Guardrails
 

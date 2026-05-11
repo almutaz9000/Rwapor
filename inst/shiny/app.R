@@ -295,9 +295,10 @@ server <- function(input, output, session) {
   
   # 2. Analysis Module
   # Uses the shared folder and AOI from the download tab
-  an_out <- mod_analysis_server("an", 
-                               global_folder = dl_out$folder, 
-                               aoi_region = dl_out$region)
+  an_out <- mod_analysis_server("an",
+                               global_folder    = dl_out$folder,
+                               aoi_region       = dl_out$region,
+                               download_seasons = dl_out$seasons)
   
   # 3. Visualisation Module
   # Uses the shared folder and AOI, plus results from the analysis module

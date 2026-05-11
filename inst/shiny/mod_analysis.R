@@ -16,7 +16,7 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
   )
 }
 
-mod_analysis_server <- function(id, global_folder, aoi_region) {
+mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons = shiny::reactive(list())) {
   shiny::moduleServer(id, function(input, output, session) {
     # Phase 2: Missing data state
     temp_missing_info <- shiny::reactiveVal(NULL)
@@ -952,47 +952,129 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       })
     })
 
+    # Load seasons.json from the project folder
+    shiny::observeEvent(input$an_load_seasons_json, {
+      folder <- analysis_folder()
+      if (is.null(folder) || !nzchar(folder)) {
+        shiny::showNotification("Set a project folder first.", type = "warning")
+        return()
+      }
+      path <- file.path(folder, "seasons.json")
+      if (!file.exists(path)) {
+        shiny::showNotification(
+          paste0("seasons.json not found in: ", folder,
+                 ". Save seasons from the Download tab first."),
+          type = "warning", duration = 10
+        )
+        return()
+      }
+      tryCatch({
+        season_list <- jsonlite::read_json(path)
+        lines <- vapply(season_list, function(s) {
+          sprintf("%s, %s, %s", s$label, s$start, s$end)
+        }, character(1))
+        shiny::updateTextAreaInput(session, "an_batch_list", value = paste(lines, collapse = "\n"))
+        shiny::updateCheckboxInput(session, "an_batch_mode", value = TRUE)
+        shiny::showNotification(
+          sprintf("Loaded %d season(s) from seasons.json.", length(lines)),
+          type = "message", duration = 6
+        )
+      }, error = function(e) {
+        shiny::showNotification(paste("Failed to load seasons.json:", e$message), type = "error")
+      })
+    })
+
+    # Copy seasons from the Download tab into the batch list
+    shiny::observeEvent(input$an_copy_from_download, {
+      seasons <- download_seasons()
+      if (length(seasons) == 0) {
+        shiny::showNotification(
+          "No multi-season data in the Download tab. Enable Multi-season there and enter seasons first.",
+          type = "warning"
+        )
+        return()
+      }
+      text <- paste(
+        vapply(seq_along(seasons), function(i) {
+          nm    <- names(seasons)[i]
+          dates <- seasons[[i]]
+          sprintf("%s, %s, %s", nm, dates[1], dates[2])
+        }, character(1)),
+        collapse = "\n"
+      )
+      shiny::updateTextAreaInput(session, "an_batch_list", value = text)
+      shiny::showNotification(
+        sprintf("Copied %d season(s) from the Download tab.", length(seasons)),
+        type = "message"
+      )
+    })
+
     # Batch Mode Season Detection
     shiny::observeEvent(input$an_detect_seasons, {
       folder <- analysis_folder()
       if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
-        shiny::showNotification("Project folder not found. Set it in the Download tab and re-scan.", type = "warning")
+        shiny::showNotification(
+          "Project folder not found. Set it in the Download tab first.",
+          type = "warning"
+        )
         return()
       }
-      
-      # Search for seasonal folders
+
       subdirs <- list.dirs(folder, full.names = FALSE, recursive = FALSE)
       seasonal_dirs <- subdirs[grepl("_seasonal$", subdirs)]
-      
+
       if (length(seasonal_dirs) == 0) {
-        shiny::showNotification("No seasonal folders found in the project directory. Did you download seasonal rasters?", type = "info")
+        shiny::showNotification(
+          paste0(
+            "No seasonal aggregate folders (*_seasonal) found. ",
+            "Either re-download with 'Seasonal aggregate' checked, ",
+            "or use 'Copy from Download Tab' if seasons are configured there."
+          ),
+          type = "info",
+          duration = 12
+        )
         return()
       }
-      
-      # Extract windows from filenames in the first available seasonal folder
-      first_dir <- file.path(folder, seasonal_dirs[1])
-      tif_files <- list.files(first_dir, pattern = "\\.tif$", full.names = FALSE)
-      
-      # Pattern: *.seasonal.Label.YYYY-MM-DD_YYYY-MM-DD.tif
-      # Or: *.seasonal.YYYY-MM-DD_YYYY-MM-DD.tif
-      win_pattern <- "\\.seasonal\\.(?:(.*)\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$"
-      matches <- regmatches(tif_files, regexec(win_pattern, tif_files))
-      
-      windows <- lapply(matches, function(m) {
-        if (length(m) < 4) return(NULL)
-        label <- if (nzchar(m[2])) m[2] else sprintf("Season_%s", m[3])
-        sprintf("%s, %s, %s", label, m[3], m[4])
-      })
-      windows <- unique(unlist(windows))
-      
+
+      # Scan ALL seasonal dirs and collect unique season windows
+      # Pattern handles both labeled and unlabeled seasonal files:
+      #   WAPOR-3.VAR.seasonal.Label.2020-01-01_2020-12-31.tif
+      #   WAPOR-3.VAR.seasonal.2020-01-01_2020-12-31.tif
+      win_pattern <- "\\.seasonal\\.(?:(.*?)\\.)?(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})\\.tif$"
+
+      all_windows <- character(0)
+      for (sd in seasonal_dirs) {
+        tif_files <- list.files(file.path(folder, sd), pattern = "\\.tif$", full.names = FALSE)
+        for (f in tif_files) {
+          m <- regmatches(f, regexec(win_pattern, f))[[1]]
+          if (length(m) < 4) next
+          label <- if (nzchar(m[2])) m[2] else sprintf("Season_%s_%s", m[3], m[4])
+          # Sanitise label: replace commas that would break the CSV format
+          label <- gsub(",", "_", label, fixed = TRUE)
+          all_windows <- c(all_windows, sprintf("%s, %s, %s", label, m[3], m[4]))
+        }
+      }
+
+      windows <- unique(all_windows)
+
       if (length(windows) == 0) {
-        shiny::showNotification("Could not parse seasonal windows from filenames. Expected: *.seasonal.Label.YYYY-MM-DD_YYYY-MM-DD.tif", type = "warning")
+        shiny::showNotification(
+          paste0(
+            "Seasonal folders exist but filenames don't match the expected pattern ",
+            "(WAPOR-3.VAR.seasonal[.Label].YYYY-MM-DD_YYYY-MM-DD.tif). ",
+            "Try 'Copy from Download Tab' instead."
+          ),
+          type = "warning",
+          duration = 12
+        )
         return()
       }
-      
-      # Update UI
+
       shiny::updateTextAreaInput(session, "an_batch_list", value = paste(windows, collapse = "\n"))
-      shiny::showNotification(sprintf("Detected %d seasons.", length(windows)), type = "message")
+      shiny::showNotification(
+        sprintf("Detected %d season window(s) from folder.", length(windows)),
+        type = "message"
+      )
     })
 
     # --- Custom Timing Column Detection ---
@@ -2070,7 +2152,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     )
 
     shiny::onFlushed(function() {
-      set_script_preview(an_script_text())
+      set_script_preview(shiny::isolate(an_script_text()))
     }, once = TRUE)
 
     list(
