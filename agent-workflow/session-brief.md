@@ -7,6 +7,7 @@ _Last updated: 2026-05-11_
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Main repo adapters now point to the shared workflow instead of parallel memory paths.
 - Wrote the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
+- Wrote the implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 
 ## Top Open Issues
 
