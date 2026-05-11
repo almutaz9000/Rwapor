@@ -323,7 +323,7 @@ wapor_analysis_pipeline <- function(config,
 
 .align_stack_to_weights <- function(s, target_dates) {
   if (is.null(s)) return(NULL)
-  nms <- names(s)
+  candidate_labels <- names(s)
   
   extract_ymd <- function(nm) {
     m <- regmatches(nm, regexpr("\\d{4}-\\d{2}-\\d{2}", nm))
@@ -339,7 +339,11 @@ wapor_analysis_pipeline <- function(config,
     NA_character_
   }
   
-  found_dates <- vapply(nms, extract_ymd, character(1), USE.NAMES = FALSE)
+  found_dates <- vapply(candidate_labels, extract_ymd, character(1), USE.NAMES = FALSE)
+  if (all(is.na(found_dates))) {
+    source_labels <- basename(terra::sources(s))
+    found_dates <- vapply(source_labels, extract_ymd, character(1), USE.NAMES = FALSE)
+  }
   indices <- match(as.character(target_dates), found_dates)
   
   if (any(is.na(indices))) {

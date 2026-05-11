@@ -100,7 +100,11 @@ wapor_weighted_class_mean <- function(summary_tbl, class_stats, value_col) {
 #' @keywords internal
 wapor_masked_global_mean <- function(r, mask_rast = NULL) {
   if (is.null(r)) return(NA_real_)
-  target <- if (is.null(mask_rast)) r else r * mask_rast
+  target <- if (is.null(mask_rast)) {
+    r
+  } else {
+    r * terra::ifel(is.na(mask_rast), NA, 1L)
+  }
   terra::global(target, "mean", na.rm = TRUE)$mean
 }
 
@@ -381,6 +385,7 @@ wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, ind
   .write(results$seasonal_aeti$raster, "seasonal_aeti")
   .write(results$seasonal_ret$raster, "seasonal_ret")
   .write(results$seasonal_pcp, "seasonal_pcp")
+  .write(results$seasonal_peff, "seasonal_peff")
   .write(results$seasonal_t$raster, "seasonal_transpiration")
   
   if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {

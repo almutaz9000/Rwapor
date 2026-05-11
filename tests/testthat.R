@@ -1,9 +1,18 @@
 library(testthat)
-test_root <- if (file.exists("load_source.R")) "." else "tests"
-if (requireNamespace("Rwapor", quietly = TRUE)) {
+
+if (file.exists("DESCRIPTION") && requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(".", export_all = TRUE, helpers = FALSE, quiet = TRUE)
+  test_dir("tests/testthat")
+} else if (requireNamespace("Rwapor", quietly = TRUE)) {
   library(Rwapor)
   test_check("Rwapor")
+} else if (requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(".", export_all = TRUE, helpers = FALSE, quiet = TRUE)
+  test_dir("tests/testthat")
 } else {
-  source(file.path(test_root, "load_source.R"))
-  test_dir(file.path(test_root, "testthat"))
+  source_files <- list.files("R", pattern = "\\.[Rr]$", full.names = TRUE)
+  for (path in sort(source_files)) {
+    sys.source(path, envir = .GlobalEnv)
+  }
+  test_dir("tests/testthat")
 }

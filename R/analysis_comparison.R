@@ -218,7 +218,11 @@ wapor_compare_seasons <- function(season_results,
 
 .masked_global_mean <- function(r, mask_rast = NULL) {
   if (is.null(r)) return(NA_real_)
-  target <- if (is.null(mask_rast)) r else r * mask_rast
+  target <- if (is.null(mask_rast)) {
+    r
+  } else {
+    r * terra::ifel(is.na(mask_rast), NA, 1L)
+  }
   terra::global(target, "mean", na.rm = TRUE)$mean
 }
 
