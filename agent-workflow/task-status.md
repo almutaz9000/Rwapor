@@ -10,6 +10,8 @@ _Last updated: 2026-05-11_
 
 ## Pending
 
+- [ ] Implement the approved Shiny batch-analysis and script-generation fixes from `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
+- [ ] Reproduce and fix the Shiny session disconnect in multi-season local analysis, then add regression coverage for the batch path.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.

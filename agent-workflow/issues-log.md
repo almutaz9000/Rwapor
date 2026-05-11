@@ -4,7 +4,13 @@ _Last updated: 2026-05-11_
 
 ## Open Issues
 
-- [ ] None currently recorded in the shared workflow.
+- [ ] Batch-mode local analysis can destabilize the Shiny session and disconnect the R console session.
+  - ID: ISS-20260511-002
+  - First noted: 2026-05-11
+  - Symptoms: when running multi-season analysis against local downloaded rasters, the Shiny app remains open but the session disconnects and analysis stops; the generated script also does not reliably reflect the configured batch workflow.
+  - Likely root cause: `inst/shiny/mod_analysis.R` still mixes single-period and batch-period assumptions in validation, local data coverage checks, and run setup, while script preview is split between a generator path and a generic fallback.
+  - Planned fix: implement the approved design in `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md` so validation, execution, and script export consume one canonical config builder.
+  - Regression test: add coverage for batch parsing, multi-season local config flow, and batch script generation.
 
 ## Resolved Improvements
 
