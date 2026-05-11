@@ -17,6 +17,7 @@ _Last updated: 2026-05-11_
 - Hardened the Analysis crop-mask and Kc preview plots after Shiny hit `figure margins too large` and `invalid graphics state` on the embedded devices.
 - Normalized the Analysis `peff` indicator alias to the engine’s canonical `agg_peff` so generated scripts and batch runs stay compatible with the current code path.
 - Tested the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis one indicator at a time and fixed `beneficial_fraction`, which previously omitted its result unless `agg_t` was also selected.
+- Added `wapor_export_analysis_outputs()` plus monthly PCP/Peff summaries and dekadal-stack retention so standalone analysis scripts can export structured seasonal, dekadal, and monthly outputs.
 
 ## Top Open Issues
 

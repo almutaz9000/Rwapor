@@ -373,11 +373,12 @@ wapor_calc_peff <- function(peff_monthly, start_date = NULL,
 # Compute Seasonal Effective Precipitation Raster
 #
 # Aggregates weighted precipitation layers to monthly totals per pixel, applies
-# the USDA SCS effective precipitation formula month-by-month, then sums the
-# monthly Peff rasters across the season.
-wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_table,
-                                            layer_multipliers = NULL,
-                                            incremental = FALSE) {
+# the USDA SCS effective precipitation formula month-by-month, then returns both
+# the monthly rasters and the seasonal total.
+wapor_calc_monthly_precip_peff_rasters <- function(precip_stack, season_weights, dekad_table,
+                                                   layer_multipliers = NULL,
+                                                   incremental = FALSE,
+                                                   summary_mask = NULL) {
   n_layers <- terra::nlyr(precip_stack)
   if (terra::nlyr(season_weights) != n_layers) {
     stop(sprintf("season_weights layers (%d) must match precip_stack layers (%d)",
@@ -403,20 +404,21 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
   }
 
   month_keys <- format(layer_dates, "%Y-%m")
+  monthly_pcp <- list()
   monthly_peff <- list()
 
   for (month_key in unique(month_keys)) {
     idx <- which(month_keys == month_key)
-    monthly_pcp <- wapor_masked_sum(
+    monthly_pcp[[month_key]] <- wapor_masked_sum(
       terra::subset(precip_stack, idx),
       terra::subset(season_weights, idx),
       layer_multipliers = layer_multipliers[idx],
       incremental = incremental
     )
     monthly_peff[[month_key]] <- terra::ifel(
-      monthly_pcp <= 250,
-      monthly_pcp * (125 - 0.2 * monthly_pcp) / 125,
-      125 + 0.1 * monthly_pcp
+      monthly_pcp[[month_key]] <= 250,
+      monthly_pcp[[month_key]] * (125 - 0.2 * monthly_pcp[[month_key]]) / 125,
+      125 + 0.1 * monthly_pcp[[month_key]]
     )
   }
 
@@ -427,7 +429,44 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
     }
   }
 
-  total_peff
+  monthly_summary <- data.frame(
+    month_key = names(monthly_pcp),
+    year = as.integer(substr(names(monthly_pcp), 1, 4)),
+    month = as.integer(substr(names(monthly_pcp), 6, 7)),
+    stringsAsFactors = FALSE
+  )
+  monthly_summary$pcp_mean_mm <- vapply(
+    monthly_pcp,
+    function(r) wapor_masked_global_mean(r, summary_mask),
+    numeric(1)
+  )
+  monthly_summary$peff_mean_mm <- vapply(
+    monthly_peff,
+    function(r) wapor_masked_global_mean(r, summary_mask),
+    numeric(1)
+  )
+
+  list(
+    monthly_pcp = monthly_pcp,
+    monthly_peff = monthly_peff,
+    seasonal_peff = total_peff,
+    summary = monthly_summary
+  )
+}
+
+# Aggregates weighted precipitation layers to monthly totals per pixel, applies
+# the USDA SCS effective precipitation formula month-by-month, then sums the
+# monthly Peff rasters across the season.
+wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_table,
+                                            layer_multipliers = NULL,
+                                            incremental = FALSE) {
+  wapor_calc_monthly_precip_peff_rasters(
+    precip_stack = precip_stack,
+    season_weights = season_weights,
+    dekad_table = dekad_table,
+    layer_multipliers = layer_multipliers,
+    incremental = incremental
+  )$seasonal_peff
 }
 
 

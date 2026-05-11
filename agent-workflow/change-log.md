@@ -7,6 +7,7 @@
 - Added a regression test covering indicator normalization and revalidated `tests/testthat/test-analysis-shiny.R`.
 - Confirmed the current workspace code completes the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis when run from source.
 - Tested the `Kyrgystan` indicators one by one and fixed `beneficial_fraction` so it no longer depends on explicitly selecting `agg_t`.
+- Added the structured analysis export helper, updated generated scripts to use it, and validated the new folder layout plus regression coverage.
 
 ## 2026-05-11
 

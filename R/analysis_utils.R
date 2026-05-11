@@ -491,7 +491,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     "",
     "# [8] Save outputs",
     sprintf("season_label <- %s", if (batch_mode) "NULL" else format_r_string(season_label)),
-    "wapor_shiny_save_analysis_rasters(results, output_folder, season_label, indicators)",
+    "wapor_export_analysis_outputs(results, output_folder, indicators = indicators, season_label = season_label)",
     "",
     "print(\"Analysis complete!\")"
   )
@@ -507,49 +507,162 @@ wapor_generate_shiny_script <- function(config, crop_params) {
 #' @param indicators Character vector of indicators to save.
 #' @export
 wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, indicators) {
+  wapor_export_analysis_outputs(
+    results = results,
+    folder = folder,
+    indicators = indicators,
+    season_label = season_label,
+    include_dekadal = FALSE,
+    include_monthly = FALSE,
+    include_seasonal_tables = FALSE
+  )
+}
+
+#' Export Analysis Outputs to Structured Folders
+#'
+#' @param results List of analysis results from `wapor_run_seasonal_analysis()`.
+#' @param folder Path to the base output folder.
+#' @param indicators Character vector of indicators that were requested.
+#' @param season_label Optional season label for single-season exports.
+#' @param include_dekadal Logical. Write aligned dekadal stacks.
+#' @param include_monthly Logical. Write monthly PCP/Peff summary CSV files.
+#' @param include_seasonal_tables Logical. Write seasonal summary tables as CSV.
+#' @export
+wapor_export_analysis_outputs <- function(results, folder, indicators = character(0), season_label = NULL,
+                                          include_dekadal = TRUE,
+                                          include_monthly = TRUE,
+                                          include_seasonal_tables = TRUE) {
   indicators <- wapor_normalize_analysis_indicators(indicators)
   if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
-  
+
+  sanitize_label <- function(x) {
+    gsub("[^a-zA-Z0-9_-]", "_", x)
+  }
+
+  write_raster <- function(r, out_dir, prefix, suffix) {
+    if (!is.null(r)) {
+      terra::writeRaster(r, file.path(out_dir, paste0(prefix, "_", suffix, ".tif")), overwrite = TRUE)
+    }
+  }
+
+  write_table <- function(x, out_dir, prefix, suffix) {
+    if (!is.null(x) && is.data.frame(x) && nrow(x) > 0) {
+      utils::write.csv(x, file.path(out_dir, paste0(prefix, "_", suffix, ".csv")), row.names = FALSE)
+    }
+  }
+
+  summarize_yield_by_class <- function(results) {
+    if (is.null(results$yield_by_class) || length(results$yield_by_class) == 0) {
+      return(NULL)
+    }
+
+    data.frame(
+      class_value = names(results$yield_by_class),
+      mean_yield_t_ha = vapply(
+        results$yield_by_class,
+        function(r) wapor_masked_global_mean(r),
+        numeric(1)
+      ),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  build_summary_metrics <- function(results) {
+    metrics <- list(
+      cwp = results$cwp %||% NA_real_,
+      bwp = results$bwp %||% NA_real_
+    )
+    data.frame(
+      metric = names(metrics),
+      value = as.numeric(unlist(metrics, use.names = FALSE)),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  export_single <- function(results, folder, season_label) {
+    prefix <- if (!is.null(season_label) && nzchar(season_label)) {
+      sanitize_label(season_label)
+    } else "analysis"
+
+    season_dir <- if (!is.null(season_label) && nzchar(season_label)) {
+      file.path(folder, prefix)
+    } else {
+      folder
+    }
+    if (!dir.exists(season_dir)) dir.create(season_dir, recursive = TRUE)
+
+    seasonal_raster_dir <- file.path(season_dir, "seasonal_rasters")
+    seasonal_table_dir <- file.path(season_dir, "seasonal_tables")
+    dekadal_dir <- file.path(season_dir, "dekadal_stacks")
+    monthly_dir <- file.path(season_dir, "monthly_summaries")
+
+    dir.create(seasonal_raster_dir, recursive = TRUE, showWarnings = FALSE)
+    if (include_seasonal_tables) dir.create(seasonal_table_dir, recursive = TRUE, showWarnings = FALSE)
+    if (include_dekadal) dir.create(dekadal_dir, recursive = TRUE, showWarnings = FALSE)
+    if (include_monthly) dir.create(monthly_dir, recursive = TRUE, showWarnings = FALSE)
+
+    write_raster(results$seasonal_aeti$raster, seasonal_raster_dir, prefix, "seasonal_aeti")
+    write_raster(results$seasonal_ret$raster, seasonal_raster_dir, prefix, "seasonal_ret")
+    write_raster(results$seasonal_pcp, seasonal_raster_dir, prefix, "seasonal_pcp")
+    write_raster(results$seasonal_peff, seasonal_raster_dir, prefix, "seasonal_peff")
+    write_raster(results$seasonal_t$raster, seasonal_raster_dir, prefix, "seasonal_transpiration")
+    write_raster(results$beneficial_fraction, seasonal_raster_dir, prefix, "beneficial_fraction")
+    write_raster(results$green_water, seasonal_raster_dir, prefix, "green_water")
+    write_raster(results$blue_water, seasonal_raster_dir, prefix, "blue_water")
+    write_raster(results$yield_raster, seasonal_raster_dir, prefix, "yield_raster_t_ha")
+
+    if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
+      write_raster(results$seasonal_biomass_kg, seasonal_raster_dir, prefix, "seasonal_biomass_kg_ha")
+    }
+    if (any(c("agg_biomass_t", "yield_npp") %in% indicators)) {
+      write_raster(results$seasonal_biomass_t, seasonal_raster_dir, prefix, "seasonal_biomass_t_ha")
+    }
+
+    write_raster(results$adequacy_etc, seasonal_raster_dir, prefix, "adequacy_etc")
+    write_raster(results$adequacy_p95, seasonal_raster_dir, prefix, "adequacy_p95")
+
+    if (!is.null(results$etc_by_class)) {
+      for (cls in names(results$etc_by_class)) {
+        write_raster(results$etc_by_class[[cls]]$etc_seasonal, seasonal_raster_dir, prefix, paste0("etc_class_", cls))
+      }
+    }
+
+    if (include_seasonal_tables) {
+      write_table(results$seasonal_aeti$by_class, seasonal_table_dir, prefix, "seasonal_aeti_by_class")
+      write_table(results$seasonal_ret$by_class, seasonal_table_dir, prefix, "seasonal_ret_by_class")
+      write_table(results$seasonal_biomass_by_class, seasonal_table_dir, prefix, "seasonal_biomass_by_class")
+      write_table(results$p95_table, seasonal_table_dir, prefix, "p95_table")
+      write_table(results$mask_class_stats, seasonal_table_dir, prefix, "mask_class_stats")
+      write_table(summarize_yield_by_class(results), seasonal_table_dir, prefix, "yield_by_class")
+      write_table(build_summary_metrics(results), seasonal_table_dir, prefix, "summary_metrics")
+    }
+
+    if (include_dekadal && !is.null(results$dekadal_stacks)) {
+      for (nm in names(results$dekadal_stacks)) {
+        stack <- results$dekadal_stacks[[nm]]
+        if (!is.null(stack)) {
+          stack_copy <- stack
+          if (!is.null(results$dekad_table) && nrow(results$dekad_table) == terra::nlyr(stack_copy)) {
+            names(stack_copy) <- as.character(results$dekad_table$dekad_key)
+          }
+          write_raster(stack_copy, dekadal_dir, prefix, paste0("dekadal_", nm))
+        }
+      }
+    }
+
+    if (include_monthly && !is.null(results$monthly_precip_peff)) {
+      write_table(results$monthly_precip_peff$summary, monthly_dir, prefix, "monthly_pcp_peff")
+    }
+  }
+
   # Handle list of results (multi-period)
   if (is.list(results) && !is.null(results[[1]]) && !is.null(results[[1]]$h_mask)) {
-     for (s_name in names(results)) {
-        wapor_shiny_save_analysis_rasters(results[[s_name]], folder, s_name, indicators)
-     }
-     return(invisible(TRUE))
-  }
-
-  prefix <- if (!is.null(season_label) && nzchar(season_label)) {
-    gsub("[^a-zA-Z0-9_-]", "_", season_label)
-  } else "analysis"
-  
-  # Helper to write if exists
-  .write <- function(r, suffix) {
-    if (!is.null(r)) {
-      terra::writeRaster(r, file.path(folder, paste0(prefix, "_", suffix, ".tif")), overwrite = TRUE)
+    for (s_name in names(results)) {
+      export_single(results[[s_name]], folder, s_name)
     }
+    return(invisible(TRUE))
   }
 
-  .write(results$seasonal_aeti$raster, "seasonal_aeti")
-  .write(results$seasonal_ret$raster, "seasonal_ret")
-  .write(results$seasonal_pcp, "seasonal_pcp")
-  .write(results$seasonal_peff, "seasonal_peff")
-  .write(results$seasonal_t$raster, "seasonal_transpiration")
-  
-  if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
-    .write(results$seasonal_biomass_kg, "seasonal_biomass_kg_ha")
-  }
-  if (any(c("agg_biomass_t", "yield_npp") %in% indicators)) {
-    .write(results$seasonal_biomass_t, "seasonal_biomass_t_ha")
-  }
-
-  .write(results$adequacy_etc, "adequacy_etc")
-  .write(results$adequacy_p95, "adequacy_p95")
-  .write(results$green_water, "green_water")
-  .write(results$blue_water, "blue_water")
-  
-  if (!is.null(results$etc_by_class)) {
-    for (cls in names(results$etc_by_class)) {
-      .write(results$etc_by_class[[cls]]$etc_seasonal, paste0("etc_class_", cls))
-    }
-  }
+  export_single(results, folder, season_label)
+  invisible(TRUE)
 }
