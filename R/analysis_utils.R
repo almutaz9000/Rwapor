@@ -177,6 +177,60 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
   return(profile_df)
 }
 
+#' Parse Shiny batch input into named season periods
+#'
+#' @param batch_text Character scalar with one `Label, Start, End` entry per line.
+#' @return List with `periods` and `season_table`.
+#' @keywords internal
+wapor_parse_batch_periods <- function(batch_text) {
+  lines <- strsplit(batch_text %||% "", "\\r?\\n", perl = TRUE)[[1]]
+  lines <- trimws(lines)
+  lines <- lines[nzchar(lines)]
+
+  if (length(lines) == 0) {
+    stop("Batch list is empty. Enter seasons or use Detect Seasons.", call. = FALSE)
+  }
+
+  rows <- vector("list", length(lines))
+  for (i in seq_along(lines)) {
+    parts <- trimws(strsplit(lines[[i]], ",", fixed = TRUE)[[1]])
+    if (length(parts) != 3L || any(!nzchar(parts))) {
+      stop(
+        sprintf("Invalid batch line %d. Use: Label, YYYY-MM-DD, YYYY-MM-DD", i),
+        call. = FALSE
+      )
+    }
+
+    start_date <- tryCatch(as.Date(parts[2]), error = function(e) NA)
+    end_date <- tryCatch(as.Date(parts[3]), error = function(e) NA)
+    if (is.na(start_date) || is.na(end_date)) {
+      stop(sprintf("Invalid date on batch line %d.", i), call. = FALSE)
+    }
+    if (end_date < start_date) {
+      stop(sprintf("End date must be on or after start date on batch line %d.", i), call. = FALSE)
+    }
+
+    rows[[i]] <- data.frame(
+      label = parts[1],
+      start = as.character(start_date),
+      end = as.character(end_date),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  season_table <- do.call(rbind, rows)
+  if (anyDuplicated(season_table$label)) {
+    stop("Batch labels must be unique.", call. = FALSE)
+  }
+
+  periods <- stats::setNames(
+    lapply(seq_len(nrow(season_table)), function(i) c(season_table$start[i], season_table$end[i])),
+    season_table$label
+  )
+
+  list(periods = periods, season_table = season_table)
+}
+
 #' Generate an R script for standalone analysis
 #'
 #' Converts Shiny analysis parameters into a reproducible R script string.
@@ -186,30 +240,81 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
 #' @return Character string (the script).
 #' @keywords internal
 wapor_generate_shiny_script <- function(config, crop_params) {
-  # 1. Resolve metadata
-  ref_year    <- config$ref_year %||% 2023
-  period      <- config$period %||% as.character(c(Sys.Date(), Sys.Date()))
-  aeti_var    <- config$aeti_var %||% "L1-AETI-D"
-  ret_var     <- config$ret_var  %||% "L1-RET-D"
-  precip_var  <- config$precip_var %||% "L1-PCP-D"
-  npp_var     <- config$npp_var    %||% "L1-NPP-D"
-  t_var       <- config$t_var      %||% ""
-  folder      <- config$folder %||% "analysis_output"
+  format_character_vector <- function(x) {
+    paste0("c(", paste(shQuote(x), collapse = ", "), ")")
+  }
+
+  format_numeric_vector <- function(x) {
+    paste0("c(", paste(format(x, trim = TRUE, scientific = FALSE), collapse = ", "), ")")
+  }
+
+  format_logical <- function(x) {
+    if (isTRUE(x)) "TRUE" else "FALSE"
+  }
+
+  format_scalar <- function(x) {
+    if (is.null(x) || (length(x) == 1L && is.na(x)) || !length(x)) {
+      "NULL"
+    } else if (is.character(x)) {
+      shQuote(x)
+    } else if (is.numeric(x)) {
+      format(x, trim = TRUE, scientific = FALSE)
+    } else if (is.logical(x)) {
+      if (isTRUE(x)) "TRUE" else "FALSE"
+    } else {
+      deparse(x)[1]
+    }
+  }
+
+  format_period_object <- function(period) {
+    if (is.list(period) && length(period) > 0) {
+      rows <- vapply(names(period), function(label) {
+        dates <- period[[label]]
+        safe_label <- gsub("`", "\\\\`", label, fixed = TRUE)
+        sprintf("  `%s` = c(%s, %s)", safe_label, shQuote(dates[1]), shQuote(dates[2]))
+      }, character(1))
+      paste(c("list(", paste(rows, collapse = ",\n"), ")"), collapse = "\n")
+    } else {
+      sprintf("c(%s, %s)", shQuote(period[1]), shQuote(period[2]))
+    }
+  }
+
+  format_aoi_region <- function(region) {
+    if (is.null(region) || !length(region)) {
+      return("NULL")
+    }
+    if (is.character(region)) {
+      return(shQuote(region))
+    }
+    if (is.numeric(region)) {
+      return(format_numeric_vector(region))
+    }
+    "NULL"
+  }
+
+  period <- config$period %||% as.character(c(Sys.Date(), Sys.Date()))
+  batch_mode <- is.list(period)
+  first_period <- if (is.list(period) && length(period) > 0) period[[1]] else period
+
+  ref_year <- config$ref_year
+  if (is.null(ref_year) && !batch_mode) {
+    ref_year <- as.integer(format(as.Date(first_period[1]), "%Y"))
+  }
+
+  aeti_var <- config$aeti_var %||% "L1-AETI-D"
+  ret_var <- config$ret_var %||% "L1-RET-D"
+  precip_var <- config$precip_var %||% "L1-PCP-D"
+  npp_var <- config$npp_var %||% "L1-NPP-D"
+  t_var <- config$t_var %||% ""
+  folder <- config$folder %||% "analysis_output"
   data_source <- config$data_source %||% "api"
-  l3_region   <- if (any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var, t_var)))) config$l3_region else NULL
+  l3_code <- config$l3_code %||% config$l3_region
+  indicators <- unique(c(config$indicators, config$agg_vars, config$derived_vars))
+  indicators <- indicators[!is.na(indicators) & nzchar(indicators)]
+  season_label <- config$season_label %||% "Season"
+  aoi_region <- config$aoi_region %||% NULL
 
-  # Fetch scale factors dynamically
-  aeti_scale   <- Rwapor::wapor_variable_metadata(aeti_var)$scale   %||% 1.0
-  ret_scale    <- Rwapor::wapor_variable_metadata(ret_var)$scale    %||% 1.0
-  precip_scale <- Rwapor::wapor_variable_metadata(precip_var)$scale %||% 1.0
-  npp_scale    <- Rwapor::wapor_variable_metadata(npp_var)$scale    %||% 1.0
-  t_scale      <- if (nzchar(t_var)) Rwapor::wapor_variable_metadata(t_var)$scale %||% 1.0 else 1.0
-
-
-  indicators <- unique(c(config$agg_vars, config$derived_vars)) %||% character(0)
-
-  # 2. Format Crop Parameters
-  params_code <- "data.frame(class_value = integer(0))" # Fallback
+  params_code <- "data.frame(class_value = integer(0))"
   if (!is.null(crop_params) && nrow(crop_params) > 0) {
     cols <- character()
     for (col in names(crop_params)) {
@@ -225,127 +330,76 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     params_code <- paste0("data.frame(\n", paste(cols, collapse = ",\n"), "\n)")
   }
 
-  # 3. Assemble Script
   script <- c(
     "library(Rwapor)",
     "library(terra)",
     "",
-    "# [1] Configuration Settings",
-    sprintf("ref_year <- %d", ref_year),
-    sprintf("period <- c(\"%s\", \"%s\")", as.character(period[1]), as.character(period[2])),
-    sprintf("output_folder <- %s", shQuote(folder)),
-    sprintf("data_source <- %s  # %s", shQuote(data_source), if (data_source == "api") "requires internet" else "requires local files"),
+    "# [1] Paths and area of interest",
+    sprintf("project_folder <- %s", shQuote(folder)),
+    sprintf("output_folder  <- %s", shQuote(folder)),
+    "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)",
+    sprintf("aoi_region <- %s", format_aoi_region(aoi_region)),
     "",
-    "# [2] Variables Selection",
+    "# [2] Period configuration",
+    if (batch_mode) paste0("periods <- ", format_period_object(period)) else NULL,
+    if (!batch_mode) sprintf("period <- %s", format_period_object(period)) else NULL,
+    if (!batch_mode) sprintf("ref_year <- %s", format_scalar(ref_year)) else "ref_year <- NULL",
+    sprintf("batch_mode <- %s", format_logical(batch_mode)),
+    "",
+    "# [3] Variables selection",
     sprintf("aeti_var <- %s", shQuote(aeti_var)),
     sprintf("ret_var  <- %s", shQuote(ret_var)),
     sprintf("precip_var <- %s", shQuote(precip_var)),
     sprintf("npp_var    <- %s", shQuote(npp_var)),
     if (nzchar(t_var)) sprintf("t_var      <- %s", shQuote(t_var)) else NULL,
-    if (!is.null(l3_region)) sprintf("l3_region  <- %s", shQuote(l3_region)) else NULL,
+    sprintf("l3_code    <- %s", format_scalar(l3_code)),
+    sprintf("data_source <- %s", shQuote(data_source)),
+    sprintf("indicators <- %s", format_character_vector(indicators)),
     "",
-    "# [3] Crop parameters & Kc curves",
+    "# [4] Crop parameters",
     paste0("crop_params <- ", params_code),
     "",
-    "# [4] Load Input Rasters",
-    if (isTRUE(config$use_crop_mask)) {
-      c("# Note: Provide the actual path to your crop mask GeoTIFF",
-        "crop_mask <- wapor_load_crop_mask(\"path/to/your/crop_mask.tif\")")
-    } else {
-      "# Using entire area (no crop mask)"
-    },
-    if (isTRUE(config$use_season_rasters)) {
-      c("# Note: Provide actual paths to your DOY rasters",
-        "s_start <- wapor_load_season_raster(\"path/to/season_start.tif\")",
-        "s_end   <- wapor_load_season_raster(\"path/to/season_end.tif\")")
-    } else NULL,
+    "# [5] Input rasters",
+    if (isTRUE(config$use_crop_mask)) "crop_mask <- wapor_load_crop_mask(\"path/to/your/crop_mask.tif\")" else "crop_mask <- NULL",
+    if (isTRUE(config$use_season_rasters)) "season_start <- wapor_load_season_raster(\"path/to/season_start.tif\")" else "season_start <- NULL",
+    if (isTRUE(config$use_season_rasters)) "season_end   <- wapor_load_season_raster(\"path/to/season_end.tif\")" else "season_end <- NULL",
     "",
-    "# [5] Analysis Logic",
-    "# Fetch a template and harmonize inputs",
-    if (data_source == "api") {
-      sprintf("urls <- wapor_generate_urls(aeti_var, %s, period = period)", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL")
-    } else {
-      "local_paths <- wapor_local_rasters(output_folder, aeti_var, period[1], period[2])"
-    },
+    "# [6] Analysis configuration",
+    "config <- list(",
+    if (batch_mode) "  period = periods," else "  period = period,",
+    sprintf("  ref_year = %s,", if (batch_mode) "NULL" else format_scalar(ref_year)),
+    sprintf("  aeti_var = %s,", shQuote(aeti_var)),
+    sprintf("  ret_var = %s,", shQuote(ret_var)),
+    sprintf("  precip_var = %s,", shQuote(precip_var)),
+    sprintf("  npp_var = %s,", shQuote(npp_var)),
+    sprintf("  t_var = %s,", shQuote(t_var)),
+    sprintf("  data_source = %s,", shQuote(data_source)),
+    sprintf("  l3_code = %s,", format_scalar(l3_code)),
+    "  indicators = indicators,",
+    "  folder = project_folder,",
+    sprintf("  incremental = %s,", format_logical(config$incremental)),
+    sprintf("  use_crop_mask = %s,", format_logical(config$use_crop_mask)),
+    sprintf("  use_season_rasters = %s", format_logical(config$use_season_rasters)),
+    ")",
     "",
-    if (data_source == "api") {
-      "template_r <- terra::rast(paste0(\"/vsicurl/\", urls[1])) # Use first dekad as template"
-    } else {
-      "template_r <- terra::rast(local_paths[1])"
-    },
+    "rasters <- list(",
+    "  crop_mask = crop_mask,",
+    "  season_start = season_start,",
+    "  season_end = season_end",
+    ")",
     "",
-    if (isTRUE(config$use_crop_mask)) {
-      "h_mask <- wapor_harmonize_crop_mask(crop_mask, template_r)"
-    } else {
-      "h_mask <- terra::classify(template_r * 0 + 1, cbind(NA, NA))"
-    },
+    "# [7] Run analysis",
+    if (identical(data_source, "local")) "# Local mode expects downloaded WaPOR folders under project_folder" else "# API mode streams rasters directly from WaPOR services",
+    "results <- wapor_run_seasonal_analysis(",
+    "  config = config,",
+    "  crop_params = crop_params,",
+    "  rasters = rasters,",
+    "  aoi_region = aoi_region",
+    ")",
     "",
-    if (isTRUE(config$use_season_rasters)) {
-      paste0("h_start <- wapor_harmonize_raster(s_start, template_r, method = \"near\")\n",
-             "h_end   <- wapor_harmonize_raster(s_end, template_r, method = \"near\")")
-    } else {
-      paste0("# Continuous Julian days relative to ref_year handle cross-year seasons correctly\n",
-             "h_start <- template_r * 0 + wapor_continuous_julian(period[1], ref_year)\n",
-             "h_end   <- template_r * 0 + wapor_continuous_julian(period[2], ref_year)")
-    },
-    "",
-    "sw <- wapor_build_season_weights(period[1], period[2], h_start, h_end, ref_year)",
-    "season_weights <- sw$weights",
-    "dekad_table    <- sw$dekad_table",
-    "",
-    "# [6] Load Variable Stacks",
-    "# This step loads and harmonizes all layers to the template grid",
-    if (any(indicators %in% c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp"))) {
-      paste0("aeti_stack <- if (data_source == \"api\") {\n",
-             "  urls <- wapor_generate_urls(aeti_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
-             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", aeti_scale, " # scale by metadata\n",
-             "} else {\n",
-             "  paths <- wapor_local_rasters(output_folder, aeti_var, period[1], period[2])\n",
-             "  terra::rast(paths) * ", aeti_scale, "\n",
-             "}")
-    } else NULL,
-
-    "",
-    if (any(indicators %in% c("agg_ret", "etc", "adequacy_etc"))) {
-      paste0("ret_stack <- if (data_source == \"api\") {\n",
-             "  urls <- wapor_generate_urls(ret_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
-             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", ret_scale, "\n",
-             "} else {\n",
-             "  paths <- wapor_local_rasters(output_folder, ret_var, period[1], period[2])\n",
-             "  terra::rast(paths) * ", ret_scale, "\n",
-             "}")
-    } else NULL,
-
-    if ("agg_t" %in% indicators) {
-      paste0("t_stack <- if (data_source == \"api\") {\n",
-             "  urls <- wapor_generate_urls(t_var, ", if (!is.null(l3_region)) "l3_region = l3_region" else "l3_region = NULL", ", period = period)\n",
-             "  terra::rast(paste0(\"/vsicurl/\", urls)) * ", t_scale, "\n",
-             "} else {\n",
-             "  paths <- wapor_local_rasters(output_folder, t_var, period[1], period[2])\n",
-             "  terra::rast(paths) * ", t_scale, "\n",
-             "}")
-    } else NULL,
-
-    "",
-    "# [7] Calculate Indicators",
-    "results <- list()",
-    if ("agg_aeti" %in% indicators) "results$seasonal_aeti <- wapor_calc_seasonal_aeti(aeti_stack, season_weights, h_mask)" else NULL,
-    if ("agg_ret" %in% indicators) "results$seasonal_ret  <- wapor_calc_seasonal_ret(ret_stack, season_weights, h_mask)" else NULL,
-    if ("agg_t" %in% indicators) "results$seasonal_t <- wapor_calc_seasonal_aeti(t_stack, season_weights, h_mask)" else NULL,
-    if ("etc" %in% indicators) {
-      c("# Generate Kc curve based on season duration",
-        "total_days_r <- h_end - h_start + 1",
-        "mean_days <- terra::global(total_days_r, \"mean\", na.rm = TRUE)$mean",
-        "l_dev <- as.integer(mean_days - (crop_params$l_ini_days + crop_params$l_mid_days + crop_params$l_late_days))",
-        "kc_daily <- wapor_build_kc(crop_params$kc_ini, crop_params$kc_mid, crop_params$kc_end, crop_params$l_ini_days, l_dev, crop_params$l_mid_days, crop_params$l_late_days)",
-        "kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, period[1])",
-        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad)")
-    } else NULL,
-    "",
-    "# [8] Save Results",
-    "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)",
-    "if (!is.null(results$seasonal_aeti)) terra::writeRaster(results$seasonal_aeti$raster, file.path(output_folder, \"seasonal_aeti.tif\"), overwrite = TRUE)",
-    "if (!is.null(results$etc)) terra::writeRaster(results$etc, file.path(output_folder, \"seasonal_etc.tif\"), overwrite = TRUE)",
+    "# [8] Save outputs",
+    sprintf("season_label <- %s", if (batch_mode) "NULL" else shQuote(season_label)),
+    "wapor_shiny_save_analysis_rasters(results, output_folder, season_label, indicators)",
     "",
     "print(\"Analysis complete!\")"
   )

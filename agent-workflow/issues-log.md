@@ -9,8 +9,10 @@ _Last updated: 2026-05-11_
   - First noted: 2026-05-11
   - Symptoms: when running multi-season analysis against local downloaded rasters, the Shiny app remains open but the session disconnects and analysis stops; the generated script also does not reliably reflect the configured batch workflow.
   - Likely root cause: `inst/shiny/mod_analysis.R` still mixes single-period and batch-period assumptions in validation, local data coverage checks, and run setup, while script preview is split between a generator path and a generic fallback.
-  - Planned fix: implement the approved design in `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md` so validation, execution, and script export consume one canonical config builder.
-  - Regression test: add coverage for batch parsing, multi-season local config flow, and batch script generation.
+  - Fix applied: normalized Shiny analysis config assembly, added batch parsing and season-aware local checks, unified script preview/export generation, and updated the engine to treat named period lists consistently.
+  - Files changed: `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, `inst/shiny/mod_analysis_ui_body.R`, `tests/testthat/test-analysis-shiny.R`
+  - Automated verification: `pkgload::load_all('.')` with `testthat::test_file('tests/testthat/test-analysis-shiny.R')` and `testthat::test_file('tests/testthat/test-analysis.R')` both passed on 2026-05-11.
+  - Remaining validation: manually confirm the Shiny UI no longer disconnects during a local multi-season run and that the downloaded `.R` script matches the configured workflow end-to-end.
 
 ## Resolved Improvements
 

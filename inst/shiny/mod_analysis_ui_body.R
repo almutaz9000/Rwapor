@@ -104,6 +104,10 @@ mod_analysis_ui_body <- function(ns) {
             shiny::downloadButton(ns("an_dl_peff"), "Peff CSV", class = "btn-outline-primary w-100 btn-sm")
           )
         ),
+        shiny::div(
+          class = "mt-2",
+          shiny::downloadButton(ns("an_dl_script"), "Download R Script", class = "btn-outline-secondary w-100 btn-sm")
+        ),
         shiny::hr(),
         shiny::checkboxInput(ns("an_incremental"), "Memory Optimization (Incremental Sum)", value = FALSE),
         shiny::helpText("Recommended for very long seasons or low-RAM systems (e.g. 8GB)."),

@@ -71,7 +71,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     # --- NEW: Observer for Missing Data Download Button ---
     shiny::observeEvent(input$an_download_missing_btn, {
       missing_info <- temp_missing_info()
-      folder <- global_folder()
+      folder <- analysis_folder()
       shiny::removeModal()
       
       if (is.null(missing_info) || length(missing_info) == 0) return()
@@ -100,22 +100,31 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
             stop("Could not resolve an AOI or Crop Mask extent for the download.")
           }
           
-          vars <- names(missing_info)
-          for (i in seq_along(vars)) {
-            v <- vars[i]
-            dates <- missing_info[[v]]
-            period_v <- c(as.character(dates[1]), as.character(dates[length(dates)]))
-            
-            shiny::incProgress(0.1 + (0.8 * i/length(vars)), detail = sprintf("Downloading %s...", v))
-            
-            Rwapor::wapor_map(
+          season_names <- names(missing_info)
+          total_downloads <- sum(vapply(missing_info, length, integer(1)))
+          completed <- 0L
+
+          for (season_name in season_names) {
+            vars <- names(missing_info[[season_name]])
+            for (v in vars) {
+              dates <- missing_info[[season_name]][[v]]
+              period_v <- c(as.character(dates[1]), as.character(dates[length(dates)]))
+              completed <- completed + 1L
+
+              shiny::incProgress(
+                0.1 + (0.8 * completed / max(total_downloads, 1L)),
+                detail = sprintf("Downloading %s for %s...", v, season_name)
+              )
+
+              Rwapor::wapor_map(
                 variable = v,
                 period = period_v,
                 region = reg,
                 mask = do_mask,
                 folder = folder,
                 separate_files = TRUE
-            )
+              )
+            }
           }
           
           # Refresh local variables list automatically
@@ -188,6 +197,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     an_results        <- shiny::reactiveVal(NULL)
     an_peff_monthly   <- shiny::reactiveVal(NULL)
     an_local_vars     <- shiny::reactiveVal(NULL)
+    an_script_text    <- shiny::reactiveVal("# Validate inputs to generate a reusable R script.\n")
 
     # ── Harmonized-raster cache ──────────────────────────────────────────────
     # Stores list(key, h_mask, h_start, h_end, template_r) so that re-runs
@@ -199,6 +209,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     .an_running  <- shiny::reactiveVal(FALSE)
 
     analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+    analysis_folder <- shiny::reactive({
+      path <- trimws(input$an_folder %||% "")
+      if (nzchar(path)) path else global_folder()
+    })
 
     # (Internal helpers moved to R/analysis_utils.R)
 
@@ -256,7 +270,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     # Auto-scan when switching to local mode
     shiny::observe({
       if (input$an_data_source == "local") {
-        folder <- global_folder()
+        folder <- analysis_folder()
         if (!is.null(folder) && nzchar(folder) && dir.exists(folder)) {
           # Automatically scan project folder
           tryCatch({
@@ -271,7 +285,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     
     # Manual scan button
     shiny::observeEvent(input$an_scan_local, {
-      folder <- global_folder()
+      folder <- analysis_folder()
       if (is.null(folder) || !nzchar(folder)) {
         shiny::showNotification(
           "No project folder set. Please configure the project folder in the Download tab first.",
@@ -365,7 +379,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
     output$an_local_vars_info <- shiny::renderPrint({
       local_vars <- an_local_vars()
-      folder <- global_folder()
+      folder <- analysis_folder()
 
       if (is.null(folder) || !nzchar(folder)) {
         cat("Project folder not set.\n")
@@ -506,6 +520,273 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     })
 
     current_region <- shiny::reactive(aoi_region())
+
+    build_analysis_state <- function(require_crop_params = TRUE) {
+      indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
+      indicators <- indicators[!is.na(indicators) & nzchar(indicators)]
+      if (length(indicators) == 0) {
+        stop("Select at least one indicator.", call. = FALSE)
+      }
+
+      crop_params <- collect_crop_params()
+      if (require_crop_params && (is.null(crop_params) || nrow(crop_params) == 0)) {
+        stop("No crop class parameters defined.", call. = FALSE)
+      }
+
+      batch_mode <- isTRUE(input$an_batch_mode)
+      if (batch_mode) {
+        period_info <- wapor_parse_batch_periods(input$an_batch_list)
+        periods <- period_info$periods
+        season_table <- period_info$season_table
+        ref_year <- NULL
+      } else {
+        period <- as.character(input$an_period)
+        if (length(period) != 2 || any(is.na(period))) {
+          stop("Select a valid date range.", call. = FALSE)
+        }
+        season_label <- trimws(input$an_season_label %||% "")
+        if (!nzchar(season_label)) season_label <- "Season"
+        periods <- period
+        season_table <- data.frame(
+          label = season_label,
+          start = period[1],
+          end = period[2],
+          stringsAsFactors = FALSE
+        )
+        ref_year <- input$an_ref_year
+      }
+
+      folder <- analysis_folder()
+      reg <- current_region()
+      period_context <- if (is.list(periods)) periods[[1]] else periods
+      vars_to_check <- c(
+        input$an_aeti_var %||% "",
+        input$an_ret_var %||% "",
+        input$an_precip_var %||% "",
+        input$an_npp_var %||% "",
+        input$an_t_var %||% ""
+      )
+      any_l3 <- any(grepl("^L3-", vars_to_check[nzchar(vars_to_check)]))
+      l3_code <- if (any_l3 && nzchar(input$an_l3_region %||% "")) input$an_l3_region else NULL
+
+      if (is.null(l3_code) && any_l3) {
+        cand_reg <- reg
+        if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
+          cm_rast <- an_crop_mask_rast()
+          tryCatch({
+            cm_ext <- terra::ext(cm_rast)
+            cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+            terra::values(cm_poly) <- NULL
+            cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
+            e_4326 <- terra::ext(cm_poly_4326)
+            cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
+          }, error = function(e) NULL)
+        }
+
+        if (!is.null(cand_reg)) {
+          guess <- tryCatch({
+            reg_info_guess <- Rwapor::wapor_parse_region(cand_reg)
+            Rwapor::wapor_guess_region(input$an_aeti_var, reg_info_guess, period_context)
+          }, error = function(e) NULL)
+          if (length(guess) > 0) l3_code <- guess[1]
+        }
+      }
+
+      config <- list(
+        period = periods,
+        ref_year = ref_year,
+        aeti_var = input$an_aeti_var,
+        ret_var = input$an_ret_var,
+        precip_var = input$an_precip_var,
+        npp_var = input$an_npp_var,
+        t_var = input$an_t_var,
+        data_source = input$an_data_source,
+        l3_code = l3_code,
+        folder = folder,
+        indicators = indicators,
+        agg_vars = input$an_agg_vars,
+        derived_vars = input$an_derived_vars,
+        incremental = isTRUE(input$an_incremental),
+        use_crop_mask = isTRUE(input$an_use_crop_mask),
+        use_season_rasters = isTRUE(input$an_use_season_rasters),
+        season_label = trimws(input$an_season_label %||% ""),
+        aoi_region = reg
+      )
+
+      list(
+        config = config,
+        crop_params = crop_params,
+        indicators = indicators,
+        batch_mode = batch_mode,
+        season_table = season_table,
+        periods = periods,
+        folder = folder,
+        region = reg
+      )
+    }
+
+    run_analysis_validation <- function(state) {
+      validations <- vector("list", nrow(state$season_table))
+
+      for (i in seq_len(nrow(state$season_table))) {
+        season_row <- state$season_table[i, ]
+        season_config <- state$config
+        season_config$period <- c(season_row$start, season_row$end)
+        season_config$ref_year <- as.integer(format(as.Date(season_row$start), "%Y"))
+        season_config$crop_params <- state$crop_params
+
+        validations[[i]] <- Rwapor::wapor_preflight_check(
+          config = season_config,
+          data_source = season_config$data_source,
+          folder = season_config$folder,
+          crop_mask = an_crop_mask_rast(),
+          season_start = an_start_rast(),
+          season_end = an_end_rast()
+        )
+      }
+
+      if (!state$batch_mode) {
+        return(validations[[1]])
+      }
+
+      errors <- character()
+      warnings <- character()
+      recommendations <- character()
+      for (i in seq_along(validations)) {
+        season_label <- state$season_table$label[i]
+        validation <- validations[[i]]
+        if (length(validation$errors) > 0) {
+          errors <- c(errors, paste0("[", season_label, "] ", validation$errors))
+        }
+        if (length(validation$warnings) > 0) {
+          warnings <- c(warnings, paste0("[", season_label, "] ", validation$warnings))
+        }
+        if (length(validation$recommendations) > 0) {
+          recommendations <- c(recommendations, paste0("[", season_label, "] ", validation$recommendations))
+        }
+      }
+
+      list(
+        overall = if (length(errors) > 0) "failed" else if (length(warnings) > 0) "warning" else "passed",
+        errors = errors,
+        warnings = warnings,
+        recommendations = unique(recommendations)
+      )
+    }
+
+    collect_missing_local_data <- function(state) {
+      required_vars <- state$config$aeti_var
+      if (any(c("agg_ret", "etc", "adequacy_etc") %in% state$indicators)) {
+        required_vars <- c(required_vars, state$config$ret_var)
+      }
+      if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% state$indicators)) {
+        required_vars <- c(required_vars, state$config$precip_var)
+      }
+      if (
+        any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% state$indicators) ||
+        ("cwp_bwp" %in% state$indicators && is.null(input$an_biomass_file))
+      ) {
+        required_vars <- c(required_vars, state$config$npp_var)
+      }
+      if (any(c("agg_t", "beneficial_fraction") %in% state$indicators)) {
+        required_vars <- c(required_vars, state$config$t_var)
+      }
+
+      required_vars <- unique(required_vars[nzchar(required_vars)])
+      local_vars <- an_local_vars()
+      missing_vars <- required_vars[!required_vars %in% local_vars$variable]
+      if (length(missing_vars) > 0) {
+        stop(
+          sprintf(
+            "Required variable(s) not found locally: %s. Download them first or switch to API streaming.",
+            paste(missing_vars, collapse = ", ")
+          ),
+          call. = FALSE
+        )
+      }
+
+      missing_info <- list()
+      for (i in seq_len(nrow(state$season_table))) {
+        season_row <- state$season_table[i, ]
+        season_missing <- list()
+        period_i <- c(season_row$start, season_row$end)
+        for (v in required_vars) {
+          urls <- Rwapor::wapor_generate_urls(v, l3_region = state$config$l3_code, period = period_i)
+          check <- Rwapor::wapor_check_local(urls, v, state$folder)
+          if (length(check$missing_dates) > 0) {
+            season_missing[[v]] <- check$missing_dates
+          }
+        }
+        if (length(season_missing) > 0) {
+          missing_info[[season_row$label]] <- season_missing
+        }
+      }
+
+      missing_info
+    }
+
+    show_missing_local_data_modal <- function(missing_info, folder, local_vars) {
+      temp_missing_info(missing_info)
+
+      season_blocks <- vapply(names(missing_info), function(season_label) {
+        var_lines <- vapply(names(missing_info[[season_label]]), function(v) {
+          dates <- missing_info[[season_label]][[v]]
+          sprintf(
+            "<li><b>%s</b>: %d dekads missing (%s...%s)</li>",
+            v, length(dates), dates[1], dates[length(dates)]
+          )
+        }, character(1))
+        paste0(
+          "<li><b>", season_label, "</b><ul>",
+          paste(var_lines, collapse = ""),
+          "</ul></li>"
+        )
+      }, character(1))
+
+      diag_lines <- vapply(unique(unlist(lapply(missing_info, names))), function(v) {
+        var_row <- local_vars[local_vars$variable == v, ]
+        if (nrow(var_row) > 0) {
+          sprintf("%s: local data found from %s to %s (%d files)", v, var_row$min_date, var_row$max_date, var_row$file_count)
+        } else {
+          sprintf("%s: variable folder not found", v)
+        }
+      }, character(1))
+
+      shiny::showModal(shiny::modalDialog(
+        title = "Missing Data Detected",
+        shiny::HTML(paste0(
+          sprintf("<p>Required rasters were not found in the configured project folder (<b>%s</b>) for one or more seasons:</p>", folder),
+          "<ul>", paste(season_blocks, collapse = ""), "</ul>",
+          "<p><b>Tip:</b> This can happen if:</p>",
+          "<ul>",
+          "<li>The analysis periods extend beyond the downloaded data range</li>",
+          "<li>Different variables were downloaded for different date ranges</li>",
+          "<li>Files were downloaded with a different AOI or region</li>",
+          "</ul>",
+          "<p><small><b>Local data available:</b><br/>",
+          paste(diag_lines, collapse = "<br/>"),
+          "</small></p>",
+          "<p>Would you like to download the missing dekadal rasters now?</p>",
+          sprintf("<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box. Files will be saved in subfolders within <b>%s</b>.</i></small></p>", folder)
+        )),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("an_download_missing_btn"), "Download Missing Data", class = "btn-success")
+        ),
+        easyClose = FALSE,
+        size = "l"
+      ))
+    }
+
+    set_script_preview <- function(script_text) {
+      an_script_text(script_text)
+      shinyAce::updateAceEditor(session, "an_code_preview", value = script_text)
+    }
+
+    generate_rwapor_script <- function() {
+      state <- build_analysis_state()
+      wapor_generate_shiny_script(config = state$config, crop_params = state$crop_params)
+    }
 
     shiny::observeEvent(input$an_crop_mask, {
       shiny::req(input$an_crop_mask)
@@ -673,7 +954,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
 
     # Batch Mode Season Detection
     shiny::observeEvent(input$an_detect_seasons, {
-      folder <- global_folder()
+      folder <- analysis_folder()
       if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
         shiny::showNotification("Project folder not found. Set it in the Download tab and re-scan.", type = "warning")
         return()
@@ -754,7 +1035,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     shiny::observeEvent(input$an_generate_masks, {
       shiny::req(input$an_mask_vector, input$an_mask_csv)
       
-      folder <- global_folder()
+      folder <- analysis_folder()
       if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
         shiny::showNotification("Project folder not found. Please configure it in the Download tab.", type = "warning")
         return()
@@ -765,7 +1046,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           # 1. Get Template Raster
           template_r <- NULL
           local_vars <- an_local_vars()
-          folder <- global_folder()
+          folder <- analysis_folder()
           
           # If not scanned yet, try a quick scan now
           if (is.null(local_vars) && !is.null(folder) && dir.exists(folder)) {
@@ -1233,7 +1514,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       cat("AETI:", input$an_aeti_var, "\n")
       cat("RET:", input$an_ret_var, "\n")
       cat("Precip:", input$an_precip_var, "\n")
-      cat("Shared Output Folder:", global_folder() %||% "Not set", "\n")
+      cat("Configured Project Folder:", analysis_folder() %||% "Not set", "\n")
 
       cat("\n--- Raster Status ---\n")
       cat("Crop Mask:", if (!is.null(an_crop_mask_rast())) "Loaded" else "Not loaded", "\n")
@@ -1255,30 +1536,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         }
       }
     })
-
-    # --- Script Code Preview Generation ---
-    generate_rwapor_script <- function() {
-      wapor_generate_shiny_script(
-        config = list(
-          ref_year = input$an_ref_year,
-          period = input$an_period,
-          aeti_var = input$an_aeti_var,
-          ret_var = input$an_ret_var,
-          precip_var = input$an_precip_var,
-          npp_var = input$an_npp_var,
-          t_var = input$an_t_var,
-          folder = global_folder(), # Use global folder reactive
-          data_source = input$an_data_source,
-          l3_region = input$an_l3_region,
-          agg_vars = input$an_agg_vars,
-          derived_vars = input$an_derived_vars,
-          use_crop_mask = input$an_use_crop_mask,
-          use_season_rasters = input$an_use_season_rasters
-        ),
-        crop_params = collect_crop_params()
-      )
-    }
-
 
     output$an_crop_mask_plot <- shiny::renderPlot({
       r <- an_crop_mask_rast()
@@ -1354,32 +1611,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
 
     shiny::observeEvent(input$an_validate_btn, {
-      # Build configuration object
-      config <- list(
-        ref_year = input$an_ref_year,
-        period = as.character(input$an_period),
-        aeti_var = input$an_aeti_var,
-        ret_var = input$an_ret_var,
-        precip_var = input$an_precip_var,
-        npp_var = input$an_npp_var,
-        t_var = input$an_t_var,
-        crop_params = collect_crop_params(),
-        indicators = unique(c(input$an_agg_vars, input$an_derived_vars)),
-        l3_code = if (any(grepl("^L3-", c(input$an_aeti_var, input$an_ret_var)))) {
-          input$an_l3_region
-        } else NULL
-      )
-      
-      # Run comprehensive pre-flight check
       validation <- tryCatch({
-        Rwapor::wapor_preflight_check(
-          config = config,
-          data_source = input$an_data_source,
-          folder = global_folder(),
-          crop_mask = an_crop_mask_rast(),
-          season_start = an_start_rast(),
-          season_end = an_end_rast()
-        )
+        state <- build_analysis_state()
+        run_analysis_validation(state)
       }, error = function(e) {
         list(overall = "failed", errors = e$message, warnings = character(), 
              recommendations = character())
@@ -1413,12 +1647,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         shiny::showNotification("✓ Configuration is valid with warnings. You can proceed or address the warnings first.", 
                                type = "message", duration = 5)
         # Generate script preview on validation success
-        shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
+        set_script_preview(generate_rwapor_script())
       } else {
         shiny::showNotification("✓ All validation checks passed! Ready to run analysis.", 
                                type = "message", duration = 5)
         # Generate script preview on validation success
-        shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
+        set_script_preview(generate_rwapor_script())
       }
     })
 
@@ -1436,6 +1670,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       # Remove terra temp files accumulated during analysis to free disk space
       tryCatch(terra::tmpFiles(remove = TRUE), error = function(e) NULL)
 
+      set_script_preview("# Validate inputs to generate a reusable R script.\n")
       shiny::showNotification("Analysis state reset and temp files cleared.", type = "message")
     })
 
@@ -1464,83 +1699,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
         if (is.null(wapor_shiny_safe_rast(an_end_rast,   "Season end raster")))   return()
       }
 
-      indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
-      if (length(indicators) == 0) {
-        shiny::showNotification("Select at least one indicator.", type = "error")
+      state <- tryCatch(build_analysis_state(), error = function(e) e)
+      if (inherits(state, "error")) {
+        shiny::showNotification(state$message, type = "error", duration = 10)
         return()
       }
 
-      crop_params <- collect_crop_params()
-      if (is.null(crop_params) || nrow(crop_params) == 0) {
-        shiny::showNotification("No crop class parameters defined.", type = "error")
-        return()
-      }
-
-      # 2. Resolve metadata for check and analysis
-      batch_mode <- isTRUE(input$an_batch_mode)
-      
-      periods <- if (batch_mode) {
-        lines <- strsplit(input$an_batch_list, "\n")[[1]]
-        lines <- lines[nzchar(trimws(lines))]
-        if (length(lines) == 0) {
-          shiny::showNotification("Batch list is empty. Enter seasons or use Detect Seasons.", type = "error")
-          return()
-        }
-        plist <- list()
-        for (ln in lines) {
-          parts <- trimws(strsplit(ln, ",")[[1]])
-          if (length(parts) < 3) next
-          plist[[parts[1]]] <- c(parts[2], parts[3])
-        }
-        if (length(plist) == 0) {
-           shiny::showNotification("Invalid batch list format. Use: Label, Start, End", type = "error")
-           return()
-        }
-        plist
-      } else {
-        as.character(input$an_period)
-      }
-      
-      ref_year <- if (batch_mode) NULL else input$an_ref_year
-      reg      <- current_region()
-      aeti_var <- input$an_aeti_var
-      ret_var  <- input$an_ret_var
-      precip_var <- input$an_precip_var
-      npp_var    <- input$an_npp_var
-      t_var      <- input$an_t_var
-      folder     <- global_folder()
-      
-      # Resolve L3 code if needed (check all required variables)
-      any_l3 <- any(grepl("^L3-", c(aeti_var, ret_var, precip_var, npp_var, t_var) %||% ""))
-      l3_code <- if (any_l3) input$an_l3_region else NULL
-      
-      if (is.null(l3_code) && any_l3) {
-         # Attempt to auto-resolve L3 region from AOI or Mask for URL generation
-         cand_reg <- reg
-         if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
-            cm_rast <- an_crop_mask_rast()
-            tryCatch({
-              cm_ext <- terra::ext(cm_rast)
-              cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
-              terra::values(cm_poly) <- NULL  # Clear NA attributes
-              cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
-              e_4326 <- terra::ext(cm_poly_4326)
-              cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
-            }, error = function(e) NULL)
-         }
-         
-         if (!is.null(cand_reg)) {
-            guess <- tryCatch({
-              reg_info_guess <- Rwapor::wapor_parse_region(cand_reg)
-              Rwapor::wapor_guess_region(aeti_var, reg_info_guess, period)
-            }, error = function(e) NULL)
-            if (length(guess) > 0) l3_code <- guess[1]
-         }
-      }
-
-      # 3. Check data availability if in Local Mode
-      if (isTRUE(input$an_data_source == "local")) {
-        if (is.null(folder) || !nzchar(folder) || !dir.exists(folder)) {
+      if (isTRUE(state$config$data_source == "local")) {
+        if (is.null(state$folder) || !nzchar(state$folder) || !dir.exists(state$folder)) {
           shiny::showNotification("Local data mode selected but project folder is not set. Configure it in the Download tab first.", type = "error")
           return()
         }
@@ -1551,166 +1717,48 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
           return()
         }
 
-        # Check if required variables are available locally
-        required_vars <- aeti_var
-        if (any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)) {
-          required_vars <- c(required_vars, ret_var)
-        }
-        if (any(c("agg_pcp", "agg_peff") %in% indicators)) {
-          required_vars <- c(required_vars, precip_var)
-        }
-        if (
-          any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) ||
-          ("cwp_bwp" %in% indicators && is.null(input$an_biomass_file))
-        ) {
-          required_vars <- c(required_vars, npp_var)
-        }
-        if ("agg_t" %in% indicators) {
-          required_vars <- c(required_vars, t_var)
-        }
-
-        missing_vars <- required_vars[!required_vars %in% local_vars$variable]
-        if (length(missing_vars) > 0) {
-          shiny::showNotification(
-            sprintf("Required variable(s) not found locally: %s. Download them first or switch to API streaming.",
-                    paste(missing_vars, collapse = ", ")),
-            type = "error",
-            duration = 10
-          )
+        missing_info <- tryCatch(collect_missing_local_data(state), error = function(e) e)
+        if (inherits(missing_info, "error")) {
+          shiny::showNotification(missing_info$message, type = "error", duration = 10)
           return()
         }
 
-        # Check for specific missing dekads
-        all_missing_info <- list()
-        for (v in required_vars) {
-          urls <- Rwapor::wapor_generate_urls(v, l3_region = l3_code, period = period)
-          check <- Rwapor::wapor_check_local(urls, v, folder)
-          if (length(check$missing_dates) > 0) {
-            all_missing_info[[v]] <- check$missing_dates
-          }
-        }
-
-        if (length(all_missing_info) > 0) {
-          temp_missing_info(all_missing_info)
-          missing_lines <- lapply(names(all_missing_info), function(v) {
-            dates <- all_missing_info[[v]]
-            sprintf("<b>%s</b>: %d dekads missing (%s...%s)",
-                    v, length(dates), dates[1], dates[length(dates)])
-          })
-
-          # Build diagnostic info
-          local_var_info <- local_vars
-          diag_lines <- lapply(names(all_missing_info), function(v) {
-            var_row <- local_var_info[local_var_info$variable == v, ]
-            if (nrow(var_row) > 0) {
-              sprintf("%s: local data found from %s to %s (%d files)",
-                      v, var_row$min_date, var_row$max_date, var_row$file_count)
-            } else {
-              sprintf("%s: variable folder not found", v)
-            }
-          })
-
-          shiny::showModal(shiny::modalDialog(
-            title = "Missing Data Detected",
-            shiny::HTML(paste0(
-              sprintf("<p>The following data is required for your analysis period (<b>%s</b> to <b>%s</b>) but was not found in the project folder (<b>%s</b>):</p>",
-                      period[1], period[2], folder),
-              "<ul><li>", paste(missing_lines, collapse = "</li><li>"), "</li></ul>",
-              "<p><b>Tip:</b> This can happen if:</p>",
-              "<ul>",
-              "<li>The analysis period extends beyond the downloaded data range</li>",
-              "<li>Different variables were downloaded for different date ranges</li>",
-              "<li>Files were downloaded with a different AOI or region</li>",
-              "</ul>",
-              "<p><small><b>Local data available:</b><br/>",
-              paste(diag_lines, collapse = "<br/>"),
-              "</small></p>",
-              "<p>Would you like to download the missing dekadal rasters now?</p>",
-              sprintf("<p><small><i>Note: The download will use your selected AOI or the crop mask bounding box. Files will be saved in subfolders within <b>%s</b>.</i></small></p>", folder)
-            )),
-            footer = shiny::tagList(
-              shiny::modalButton("Cancel"),
-              shiny::actionButton(ns("an_download_missing_btn"), "Download Missing Data", class = "btn-success")
-            ),
-            easyClose = FALSE,
-            size = "l"
-          ))
+        if (length(missing_info) > 0) {
+          show_missing_local_data_modal(missing_info, state$folder, local_vars)
           return()
         }
       }
 
-      # 4. Run Analysis
       an_peff_monthly(NULL)
       .an_running(TRUE)
       shinyjs::disable("an_run_btn")
 
-      # Build a cache key from all parameters that affect harmonization
-      .cache_key <- paste(
-        paste(period, collapse = "_"),
-        aeti_var, ret_var, precip_var,
-        if (is.null(final_reg)) "no_reg" else paste(round(final_reg, 4), collapse = "_"),
-        isTRUE(input$an_use_crop_mask),
-        isTRUE(input$an_use_season_rasters),
-        sep = "|"
-      )
-
       shiny::withProgress(message = "Running analysis...", value = 0, {
         tryCatch({
-          # 1. Prepare Configuration
-          config <- list(
-            period      = periods,
-            ref_year    = ref_year,
-            aeti_var    = aeti_var,
-            ret_var     = ret_var,
-            precip_var  = precip_var,
-            npp_var     = npp_var,
-            t_var       = t_var,
-            data_source = input$an_data_source,
-            l3_code     = l3_code,
-            indicators  = indicators,
-            folder      = input$an_folder,
-            incremental = isTRUE(input$an_incremental),
-            use_crop_mask       = isTRUE(input$an_use_crop_mask),
-            use_season_rasters = isTRUE(input$an_use_season_rasters)
-          )
-          
-          # 2. Gather Rasters
           rasters <- list(
             crop_mask    = an_crop_mask_rast(),
             season_start = an_start_rast(),
             season_end   = an_end_rast()
           )
-          
-          # Smart-Linking for Batch Mode:
-          # If we are in batch mode, we check if there are season-specific masks 
-          # generated by wapor_vector_to_season_rasters in the output folder.
-          if (batch_mode && !is.null(folder)) {
-             # We can't easily inject this into the engine call without modifying the engine,
-             # but we can do it in the loop I added to the engine earlier.
-             # Wait, the engine handles the loop. I should update the engine to be 'mask-aware' in its loop.
-          }
-          
-          # 3. Call Standalone Engine
+
           results <- Rwapor::wapor_run_seasonal_analysis(
-            config           = config,
-            crop_params      = crop_params,
-            rasters          = rasters,
-            aoi_reg          = reg,
+            config            = state$config,
+            crop_params       = state$crop_params,
+            rasters           = rasters,
+            aoi_region        = state$region,
             progress_callback = shiny::incProgress
           )
-          
-          # 4. Handle Results
-          an_results(results)
-          an_crop_params(crop_params)
 
-          # --- Automatic Raster Saving ---
-          if (isTRUE(input$an_save_rasters) && nzchar(input$an_folder)) {
-            # (Saving logic remains in Shiny for now to handle notifications/UI context)
-            wapor_shiny_save_analysis_rasters(results, input$an_folder, input$an_season_label, indicators)
+          an_results(results)
+          an_crop_params(state$crop_params)
+
+          if (isTRUE(input$an_save_rasters) && nzchar(state$folder %||% "")) {
+            season_label <- if (state$batch_mode) NULL else state$config$season_label
+            wapor_shiny_save_analysis_rasters(results, state$folder, season_label, state$indicators)
           }
 
           shiny::showNotification("Analysis complete!", type = "message", duration = 8)
-          shinyAce::updateAceEditor(session, "an_code_preview", value = generate_rwapor_script())
+          set_script_preview(generate_rwapor_script())
 
         }, error = function(e) {
           shiny::showNotification(paste("Analysis failed:", e$message), type = "error", duration = 15)
@@ -2008,47 +2056,22 @@ mod_analysis_server <- function(id, global_folder, aoi_region) {
       }
     )
 
-    output$an_code_preview <- shiny::renderText({
-      reg <- current_region()
-      reg_str <- if (is.null(reg)) {
-        "NULL"
-      } else if (is.character(reg)) {
-        sprintf("\"%s\"", reg)
-      } else {
-        sprintf("c(%f, %f, %f, %f)", reg[1], reg[2], reg[3], reg[4])
+    output$an_dl_script <- shiny::downloadHandler(
+      filename = function() {
+        paste0("rwapor_analysis_", Sys.Date(), ".R")
+      },
+      content = function(file) {
+        script_text <- an_script_text()
+        if (!nzchar(trimws(script_text %||% ""))) {
+          script_text <- generate_rwapor_script()
+        }
+        writeLines(script_text, con = file, useBytes = TRUE)
       }
+    )
 
-      sprintf(
-        paste0(
-          "library(Rwapor)\n\n",
-          "# 0. Setup output folder\n",
-          "output_folder <- \"%s\"\n",
-          "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)\n\n",
-          "# 1. Load rasters\n",
-          "crop_mask <- wapor_load_crop_mask(\"crop_mask.tif\")\n",
-          "season_start <- wapor_load_season_raster(\"season_start.tif\")\n",
-          "season_end <- wapor_load_season_raster(\"season_end.tif\")\n\n",
-          "# 2. Harmonize to AETI grid\n",
-          "template <- terra::rast(\"aeti_reference.tif\")\n",
-          "crop_mask_h <- wapor_harmonize_crop_mask(crop_mask, template)\n",
-          "start_h <- wapor_harmonize_raster(season_start, template)\n",
-          "end_h <- wapor_harmonize_raster(season_end, template)\n\n",
-          "# 3. Build season weights\n",
-          "sw <- wapor_build_season_weights(\n",
-          "  \"%s\", \"%s\", start_h, end_h, %d\n",
-          ")\n\n",
-          "# 4. Fetch data and compute indicators\n",
-          "# aeti_ts <- wapor_ts(region = %s, variable = \"%s\", ...)\n",
-          "# See package documentation for full workflow"
-        ),
-        input$an_folder,
-        input$an_period[1],
-        input$an_period[2],
-        input$an_ref_year,
-        reg_str,
-        input$an_aeti_var
-      )
-    })
+    shiny::onFlushed(function() {
+      set_script_preview(an_script_text())
+    }, once = TRUE)
 
     list(
       mask_rast = an_crop_mask_rast,

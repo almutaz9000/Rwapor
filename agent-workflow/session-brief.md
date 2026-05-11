@@ -8,10 +8,12 @@ _Last updated: 2026-05-11_
 - Main repo adapters now point to the shared workflow instead of parallel memory paths.
 - Wrote the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
 - Wrote the implementation plan at `improvements/P4_shiny_batch_analysis.md`.
+- Implemented the batch-analysis patch across `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, and `inst/shiny/mod_analysis_ui_body.R`.
+- Added regression coverage in `tests/testthat/test-analysis-shiny.R` and reran targeted analysis tests successfully.
 
 ## Top Open Issues
 
-- `ISS-20260511-002`: batch-mode local analysis still contains single-period assumptions and can destabilize the Shiny session while script preview/export drifts from actual configuration.
+- `ISS-20260511-002`: code fix is in place, but manual Shiny verification is still pending for the multi-season local session-disconnect scenario.
 
 ## Recently Resolved
 
@@ -21,7 +23,7 @@ _Last updated: 2026-05-11_
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
-- [ ] Implement the approved Shiny batch-analysis and script-generation fixes from `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
+- [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 
 ## Guardrails
 

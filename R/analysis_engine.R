@@ -16,7 +16,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if (is.null(progress_callback)) progress_callback <- function(v, d) NULL
   
   # Handle multi-period list
-  if (is.list(config$period) && length(config$period) > 1) {
+  if (is.list(config$period)) {
     periods <- config$period
     all_results <- list()
     n_p <- length(periods)
