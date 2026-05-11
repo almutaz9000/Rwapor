@@ -12,6 +12,7 @@ _Last updated: 2026-05-11_
   - Fix applied: normalized Shiny analysis config assembly, added batch parsing and season-aware local checks, unified script preview/export generation, and updated the engine to treat named period lists consistently.
   - Files changed: `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, `inst/shiny/mod_analysis_ui_body.R`, `tests/testthat/test-analysis-shiny.R`
   - Automated verification: `pkgload::load_all('.')` with `testthat::test_file('tests/testthat/test-analysis-shiny.R')` and `testthat::test_file('tests/testthat/test-analysis.R')` both passed on 2026-05-11.
+  - Follow-up fix: `R/analysis_utils.R` now emits R-safe escaped string literals for generated scripts, covering Windows `C:\...` paths that previously produced `'\U' used without hex digits`.
   - Remaining validation: manually confirm the Shiny UI no longer disconnects during a local multi-season run and that the downloaded `.R` script matches the configured workflow end-to-end.
 
 ## Resolved Improvements

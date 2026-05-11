@@ -10,6 +10,7 @@ _Last updated: 2026-05-11_
 - Wrote the implementation plan at `improvements/P4_shiny_batch_analysis.md`.
 - Implemented the batch-analysis patch across `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, and `inst/shiny/mod_analysis_ui_body.R`.
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` and reran targeted analysis tests successfully.
+- Patched Windows-safe script serialization after a user hit `'\U' used without hex digits` from generated paths.
 
 ## Top Open Issues
 

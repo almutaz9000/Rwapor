@@ -240,8 +240,13 @@ wapor_parse_batch_periods <- function(batch_text) {
 #' @return Character string (the script).
 #' @keywords internal
 wapor_generate_shiny_script <- function(config, crop_params) {
+  format_r_string <- function(x) {
+    paste(deparse(as.character(x)), collapse = "")
+  }
+
   format_character_vector <- function(x) {
-    paste0("c(", paste(shQuote(x), collapse = ", "), ")")
+    encoded <- vapply(x, format_r_string, character(1))
+    paste0("c(", paste(encoded, collapse = ", "), ")")
   }
 
   format_numeric_vector <- function(x) {
@@ -256,7 +261,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     if (is.null(x) || (length(x) == 1L && is.na(x)) || !length(x)) {
       "NULL"
     } else if (is.character(x)) {
-      shQuote(x)
+      format_r_string(x)
     } else if (is.numeric(x)) {
       format(x, trim = TRUE, scientific = FALSE)
     } else if (is.logical(x)) {
@@ -271,11 +276,11 @@ wapor_generate_shiny_script <- function(config, crop_params) {
       rows <- vapply(names(period), function(label) {
         dates <- period[[label]]
         safe_label <- gsub("`", "\\\\`", label, fixed = TRUE)
-        sprintf("  `%s` = c(%s, %s)", safe_label, shQuote(dates[1]), shQuote(dates[2]))
+        sprintf("  `%s` = c(%s, %s)", safe_label, format_r_string(dates[1]), format_r_string(dates[2]))
       }, character(1))
       paste(c("list(", paste(rows, collapse = ",\n"), ")"), collapse = "\n")
     } else {
-      sprintf("c(%s, %s)", shQuote(period[1]), shQuote(period[2]))
+      sprintf("c(%s, %s)", format_r_string(period[1]), format_r_string(period[2]))
     }
   }
 
@@ -284,7 +289,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
       return("NULL")
     }
     if (is.character(region)) {
-      return(shQuote(region))
+      return(format_r_string(region))
     }
     if (is.numeric(region)) {
       return(format_numeric_vector(region))
@@ -319,7 +324,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     cols <- character()
     for (col in names(crop_params)) {
       val <- if (is.character(crop_params[[col]])) {
-        paste0("c(", paste(shQuote(crop_params[[col]]), collapse = ", "), ")")
+        paste0("c(", paste(vapply(crop_params[[col]], format_r_string, character(1)), collapse = ", "), ")")
       } else if (is.integer(crop_params[[col]])) {
         paste0("c(", paste(crop_params[[col]], collapse = "L, "), "L)")
       } else {
@@ -335,8 +340,8 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     "library(terra)",
     "",
     "# [1] Paths and area of interest",
-    sprintf("project_folder <- %s", shQuote(folder)),
-    sprintf("output_folder  <- %s", shQuote(folder)),
+    sprintf("project_folder <- %s", format_r_string(folder)),
+    sprintf("output_folder  <- %s", format_r_string(folder)),
     "if (!dir.exists(output_folder)) dir.create(output_folder, recursive = TRUE)",
     sprintf("aoi_region <- %s", format_aoi_region(aoi_region)),
     "",
@@ -347,13 +352,13 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     sprintf("batch_mode <- %s", format_logical(batch_mode)),
     "",
     "# [3] Variables selection",
-    sprintf("aeti_var <- %s", shQuote(aeti_var)),
-    sprintf("ret_var  <- %s", shQuote(ret_var)),
-    sprintf("precip_var <- %s", shQuote(precip_var)),
-    sprintf("npp_var    <- %s", shQuote(npp_var)),
-    if (nzchar(t_var)) sprintf("t_var      <- %s", shQuote(t_var)) else NULL,
+    sprintf("aeti_var <- %s", format_r_string(aeti_var)),
+    sprintf("ret_var  <- %s", format_r_string(ret_var)),
+    sprintf("precip_var <- %s", format_r_string(precip_var)),
+    sprintf("npp_var    <- %s", format_r_string(npp_var)),
+    if (nzchar(t_var)) sprintf("t_var      <- %s", format_r_string(t_var)) else NULL,
     sprintf("l3_code    <- %s", format_scalar(l3_code)),
-    sprintf("data_source <- %s", shQuote(data_source)),
+    sprintf("data_source <- %s", format_r_string(data_source)),
     sprintf("indicators <- %s", format_character_vector(indicators)),
     "",
     "# [4] Crop parameters",
@@ -368,12 +373,12 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     "config <- list(",
     if (batch_mode) "  period = periods," else "  period = period,",
     sprintf("  ref_year = %s,", if (batch_mode) "NULL" else format_scalar(ref_year)),
-    sprintf("  aeti_var = %s,", shQuote(aeti_var)),
-    sprintf("  ret_var = %s,", shQuote(ret_var)),
-    sprintf("  precip_var = %s,", shQuote(precip_var)),
-    sprintf("  npp_var = %s,", shQuote(npp_var)),
-    sprintf("  t_var = %s,", shQuote(t_var)),
-    sprintf("  data_source = %s,", shQuote(data_source)),
+    sprintf("  aeti_var = %s,", format_r_string(aeti_var)),
+    sprintf("  ret_var = %s,", format_r_string(ret_var)),
+    sprintf("  precip_var = %s,", format_r_string(precip_var)),
+    sprintf("  npp_var = %s,", format_r_string(npp_var)),
+    sprintf("  t_var = %s,", format_r_string(t_var)),
+    sprintf("  data_source = %s,", format_r_string(data_source)),
     sprintf("  l3_code = %s,", format_scalar(l3_code)),
     "  indicators = indicators,",
     "  folder = project_folder,",
@@ -398,7 +403,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     ")",
     "",
     "# [8] Save outputs",
-    sprintf("season_label <- %s", if (batch_mode) "NULL" else shQuote(season_label)),
+    sprintf("season_label <- %s", if (batch_mode) "NULL" else format_r_string(season_label)),
     "wapor_shiny_save_analysis_rasters(results, output_folder, season_label, indicators)",
     "",
     "print(\"Analysis complete!\")"
