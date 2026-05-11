@@ -6,10 +6,11 @@ _Last updated: 2026-05-11_
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Main repo adapters now point to the shared workflow instead of parallel memory paths.
+- Wrote the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
 
 ## Top Open Issues
 
-- None recorded in `agent-workflow/issues-log.md`.
+- `ISS-20260511-002`: batch-mode local analysis still contains single-period assumptions and can destabilize the Shiny session while script preview/export drifts from actual configuration.
 
 ## Recently Resolved
 
@@ -19,6 +20,7 @@ _Last updated: 2026-05-11_
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
+- [ ] Implement the approved Shiny batch-analysis and script-generation fixes from `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
 
 ## Guardrails
 
