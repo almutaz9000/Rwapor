@@ -352,7 +352,7 @@ wapor_analysis_pipeline <- function(config,
          call. = FALSE)
   }
   
-  s[[indices]]
+  terra::subset(s, indices)
 }
 
 .compute_seasonal_aggregations <- function(stacks, season_weights, dekad_table, 

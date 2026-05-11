@@ -107,7 +107,55 @@ test_that("wapor_generate_shiny_script emits parseable single-season and batch s
   expect_match(batch_script, "`Winter 2023` = c\\(")
   expect_match(batch_script, "season_label <- NULL")
   expect_match(batch_script, "wapor_run_seasonal_analysis\\(")
+  expect_match(single_script, "indicators <- c\\(")
+  expect_match(batch_script, "indicators <- c\\(")
   expect_silent(parse(text = batch_script))
+})
+
+test_that("wapor_generate_shiny_script batch script with seasons.json parses cleanly", {
+  tmp <- tempfile("wapor_seasons_json_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE))
+
+  season_list <- list(
+    list(label = "Winter 2023", start = "2023-10-01", end = "2024-05-31"),
+    list(label = "Winter 2024", start = "2024-10-01", end = "2025-05-31")
+  )
+  jsonlite::write_json(season_list, file.path(tmp, "seasons.json"), pretty = TRUE, auto_unbox = TRUE)
+
+  crop_params <- data.frame(
+    class_value = 1L, crop_label = "Wheat",
+    kc_ini = 0.3, kc_mid = 1.15, kc_end = 0.25,
+    l_ini_days = 30L, l_mid_days = 40L, l_late_days = 30L,
+    HI = 0.45, MC = 0.12, fc = 1, AOT = 0.8,
+    stringsAsFactors = FALSE
+  )
+
+  script <- Rwapor:::wapor_generate_shiny_script(
+    config = list(
+      period = list(
+        "Winter 2023" = c("2023-10-01", "2024-05-31"),
+        "Winter 2024" = c("2024-10-01", "2025-05-31")
+      ),
+      ref_year = NULL,
+      aeti_var = "L1-AETI-D",
+      ret_var = "L1-RET-D",
+      precip_var = "L1-PCP-D",
+      npp_var = "L1-NPP-D",
+      t_var = "",
+      data_source = "local",
+      folder = tmp,
+      indicators = c("agg_aeti", "etc"),
+      use_crop_mask = FALSE,
+      use_season_rasters = FALSE,
+      aoi_region = c(30, 10, 31, 11)
+    ),
+    crop_params = crop_params
+  )
+
+  expect_match(script, "indicators <- c\\(")
+  expect_false(grepl("^`Winter", script, perl = TRUE))
+  expect_silent(parse(text = script))
 })
 
 test_that("wapor_generate_shiny_script escapes Windows paths safely", {
@@ -144,6 +192,33 @@ test_that("wapor_generate_shiny_script escapes Windows paths safely", {
 
   expect_match(script_text, "C:\\\\\\\\Users\\\\\\\\Mohammedal")
   expect_silent(parse(text = script_text))
+})
+
+test_that("wapor_detect_folder_seasons finds labeled and unlabeled seasonal windows", {
+  project_dir <- tempfile("wapor_season_detect_")
+  dir.create(project_dir, recursive = TRUE)
+  dir.create(file.path(project_dir, "L1-AETI-D_seasonal"))
+  dir.create(file.path(project_dir, "L1-RET-D_seasonal"))
+
+  file.create(file.path(
+    project_dir, "L1-AETI-D_seasonal",
+    "WAPOR-3.L1-AETI-D.seasonal.Winter2023.2023-10-01_2024-05-31.tif"
+  ))
+  file.create(file.path(
+    project_dir, "L1-RET-D_seasonal",
+    "WAPOR-3.L1-RET-D.seasonal.2024-10-01_2025-05-31.tif"
+  ))
+
+  detected <- Rwapor:::wapor_detect_folder_seasons(project_dir)
+
+  expect_equal(sort(detected$seasonal_dirs), c("L1-AETI-D_seasonal", "L1-RET-D_seasonal"))
+  expect_equal(
+    sort(detected$windows),
+    sort(c(
+      "Winter2023, 2023-10-01, 2024-05-31",
+      "Season_2024-10-01_2025-05-31, 2024-10-01, 2025-05-31"
+    ))
+  )
 })
 
 test_that("wapor_run_seasonal_analysis handles named list periods", {

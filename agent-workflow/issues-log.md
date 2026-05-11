@@ -4,6 +4,16 @@ _Last updated: 2026-05-11_
 
 ## Open Issues
 
+- [ ] Analysis-tab plot previews can fail with `figure margins too large` and leave the graphics device in an invalid state.
+  - ID: ISS-20260511-007
+  - First noted: 2026-05-11
+  - Symptoms: opening the Analysis tab with a crop mask or Kc preview available can raise `graphics::plot.new: figure margins too large`, followed by `invalid graphics state` on resize/replay for `an_crop_mask_plot` and `an_kc_plot`.
+  - Root cause: `inst/shiny/mod_analysis.R` rendered both previews into `300px` plot devices inside card/tab containers; the available device area could become too small once container chrome, margins, and legend space were applied, and the failed draw then poisoned later saved-plot replay.
+  - Fix applied: increased the Analysis preview plot heights in `inst/shiny/mod_analysis_ui_body.R`, reset `par()` safely around both renderers, removed the crop-mask auto legend, and tightened the Kc legend sizing/inset to reduce device pressure.
+  - Files changed: `inst/shiny/mod_analysis.R`, `inst/shiny/mod_analysis_ui_body.R`
+  - Automated verification: parsed both touched files successfully with `Rscript` on 2026-05-11.
+  - Remaining validation: manually open the Analysis tab with crop-mask and Kc previews visible, resize the window, and confirm both plots render without warnings.
+
 - [ ] Batch-mode local analysis can destabilize the Shiny session and disconnect the R console session.
   - ID: ISS-20260511-002
   - First noted: 2026-05-11
@@ -15,7 +25,35 @@ _Last updated: 2026-05-11_
   - Follow-up fix: `R/analysis_utils.R` now emits R-safe escaped string literals for generated scripts, covering Windows `C:\...` paths that previously produced `'\U' used without hex digits`.
   - Remaining validation: manually confirm the Shiny UI no longer disconnects during a local multi-season run and that the downloaded `.R` script matches the configured workflow end-to-end.
 
+- [ ] Analysis-tab local folder scan can target the output folder instead of the intended project-data folder.
+  - ID: ISS-20260511-004
+  - First noted: 2026-05-11
+  - Symptoms: clicking `Re-scan Folder` in Analysis can inspect a different folder than the Download tab project folder; users also cannot explicitly point Analysis at a previous-session project directory.
+  - Likely root cause: `inst/shiny/mod_analysis.R` overloaded `an_folder` as both output folder and local-data source, while the sidebar only exposed that single path.
+  - Fix applied: split Analysis into a `project folder` source selector and a separate `analysis output folder`, defaulted local mode to the shared Download tab folder, added an Analysis-local folder override, and updated script generation to preserve the separation.
+  - Files changed: `inst/shiny/mod_analysis.R`, `inst/shiny/mod_analysis_ui_sidebar.R`, `R/analysis_utils.R`
+  - Automated verification: `pkgload::load_all('.')` plus direct sourcing of `inst/shiny/mod_analysis*.R` and `inst/shiny/utils_shiny.R` passed on 2026-05-11.
+  - Remaining validation: manually confirm `Re-scan Folder` now follows the active project folder and that switching to an older project directory in Analysis works end-to-end.
+
+- [ ] `Detect from Folder` in Analysis can disconnect the Shiny session when folder parsing fails unexpectedly.
+  - ID: ISS-20260511-005
+  - First noted: 2026-05-11
+  - Symptoms: clicking `Detect from Folder` for season selection can terminate the active Shiny connection instead of returning a user-facing warning or detected batch list.
+  - Likely root cause: the observer in `inst/shiny/mod_analysis.R` performed direct folder scanning and filename parsing inline without guarding filesystem and pattern-matching failures.
+  - Fix applied: moved season-window detection into `R/analysis_utils.R::wapor_detect_folder_seasons()`, wrapped the observer in `tryCatch`, and converted empty/non-matching cases into notifications instead of uncaught session-breaking errors.
+  - Files changed: `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `tests/testthat/test-analysis-shiny.R`
+  - Automated verification: `testthat::test_file('tests/testthat/test-analysis-shiny.R')` passed on 2026-05-11, including the new season-detection regression test.
+  - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
+
 ## Resolved Improvements
+
+- [x] Download-tab AOI upload flow exposed two competing local-file entry points and felt unnecessarily complex.
+  - ID: ISS-20260511-006
+  - Resolved: 2026-05-11
+  - Root cause: `inst/shiny/mod_aoi.R` presented both a folder browser and a direct file picker for the same AOI-upload task, increasing UI complexity without adding much value.
+  - Fix applied: collapsed the upload mode to a single `Browse AOI Files` entry point backed by the local file explorer and kept favorites/project assets intact.
+  - Files: `inst/shiny/mod_aoi.R`
+  - Validation: Shiny module load check passed; manual dashboard verification still recommended.
 
 - [x] Download-tab AOI local file explorer did not expose directories clearly enough to navigate local vector assets.
   - ID: ISS-20260511-003

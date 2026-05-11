@@ -74,27 +74,13 @@ mod_aoi_ui <- function(id) {
         shiny::div(
           style = "display: flex; gap: 5px; align-items: center;",
           shiny::div(
-            style = "flex: 1; display: flex; gap: 5px;",
-            shiny::div(
-              style = "flex: 1;",
-              shinyFiles::shinyDirButton(
-                ns("browse_vector_dir"),
-                "Browse Folder",
-                "Select a folder to explore",
-                class = "w-100 btn-sm btn-outline-secondary",
-                icon = shiny::icon("folder-tree")
-              )
-            ),
-            shiny::div(
-              style = "flex: 1;",
-              shinyFiles::shinyFilesButton(
-                ns("browse_vector"),
-                "Direct File Picker",
-                "Select vector or raster file",
-                multiple = FALSE,
-                class = "w-100 btn-sm btn-outline-secondary",
-                icon = shiny::icon("folder-open")
-              )
+            style = "flex: 1;",
+            shinyFiles::shinyDirButton(
+              ns("browse_vector_dir"),
+              "Browse AOI Files",
+              "Select a folder to explore",
+              class = "w-100 btn-sm btn-outline-secondary",
+              icon = shiny::icon("folder-open")
             )
           ),
           shiny::uiOutput(ns("fav_vector_btn_ui"))
@@ -210,29 +196,9 @@ mod_aoi_server <- function(id,
       session = session
     )
 
-    shinyFiles::shinyFileChoose(
-      input,
-      "browse_vector",
-      roots = roots,
-      session = session,
-      filetypes = spatial_filetypes
-    )
-
     # Favorites logic
     favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
     current_upload_path <- shiny::reactiveVal(NULL)
-    
-    shiny::observe({
-      file_info <- input$browse_vector
-      if (!is.null(file_info) && is.list(file_info)) {
-        path <- shinyFiles::parseFilePaths(roots, file_info)$datapath
-        if (length(path) > 0 && nzchar(path)) {
-          # normalize path
-          path <- normalizePath(path, winslash = "/", mustWork = FALSE)
-          current_upload_path(path)
-        }
-      }
-    })
 
     shiny::observeEvent(input$browse_vector_dir, {
       dir_path <- shinyFiles::parseDirPath(roots, input$browse_vector_dir)
@@ -628,39 +594,6 @@ mod_aoi_server <- function(id,
       })
     }
 
-    shiny::observeEvent(input$browse_vector, {
-      file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
-      if (nrow(file_info) > 0) {
-        # Get the datapath and normalize it carefully
-        path <- file_info$datapath[1]
-        
-        # Try multiple path normalizations to handle various formats
-        if (!file.exists(path)) {
-          # Try with forward slashes
-          path_fwd <- gsub("\\\\", "/", path)
-          if (file.exists(path_fwd)) {
-            path <- path_fwd
-          } else {
-            # Try with expanded path (handles ~ and environment variables)
-            path_expanded <- path.expand(path_fwd)
-            if (file.exists(path_expanded)) {
-              path <- path_expanded
-            } else {
-              # Try normalizePath which handles symlinks and relative paths
-              path_norm <- tryCatch(
-                normalizePath(path_expanded, winslash = "/", mustWork = TRUE),
-                error = function(e) path_expanded
-              )
-              path <- path_norm
-            }
-          }
-        }
-        
-        current_browser_dir(normalizePath(dirname(path), winslash = "/", mustWork = FALSE))
-        handle_vector_file(path)
-      }
-    })
-
     # --- Project Assets Scanner ---
     project_vectors <- shiny::reactiveVal(character(0))
     
@@ -701,6 +634,7 @@ mod_aoi_server <- function(id,
     shiny::observeEvent(input$selected_project_vector, {
       path <- input$selected_project_vector
       if (nzchar(path) && file.exists(path)) {
+        current_upload_path(path)
         handle_vector_file(path)
       }
     })
