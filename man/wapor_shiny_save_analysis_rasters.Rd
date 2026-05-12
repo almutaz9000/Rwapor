@@ -4,7 +4,13 @@
 \alias{wapor_shiny_save_analysis_rasters}
 \title{Save Analysis Rasters (Shiny Helper)}
 \usage{
-wapor_shiny_save_analysis_rasters(results, folder, season_label, indicators)
+wapor_shiny_save_analysis_rasters(
+  results,
+  folder,
+  season_label,
+  indicators,
+  include_monthly = FALSE
+)
 }
 \arguments{
 \item{results}{List of analysis results.}
@@ -14,6 +20,8 @@ wapor_shiny_save_analysis_rasters(results, folder, season_label, indicators)
 \item{season_label}{Character label for the season.}
 
 \item{indicators}{Character vector of indicators to save.}
+
+\item{include_monthly}{Logical. Include monthly rasters and summaries.}
 }
 \description{
 Save Analysis Rasters (Shiny Helper)

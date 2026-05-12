@@ -407,7 +407,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       }
       month_keys <- format(layer_dates, "%Y-%m")
       month_order <- unique(month_keys)
-      monthly_etc <- setNames(vector("list", length(month_order)), month_order)
+      monthly_etc <- stats::setNames(vector("list", length(month_order)), month_order)
 
       for (j in seq_len(nrow(crop_params))) {
         cls <- as.character(crop_params$class_value[j])

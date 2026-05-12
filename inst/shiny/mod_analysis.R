@@ -1907,7 +1907,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
           if (isTRUE(input$an_save_rasters) && nzchar(state$output_folder %||% "")) {
             season_label <- if (state$batch_mode) NULL else state$config$season_label
-            wapor_shiny_save_analysis_rasters(results, state$output_folder, season_label, state$indicators)
+            wapor_shiny_save_analysis_rasters(
+              results,
+              state$output_folder,
+              season_label,
+              state$indicators,
+              include_monthly = isTRUE(input$an_include_monthly_exports)
+            )
           }
 
           shiny::showNotification("Analysis complete!", type = "message", duration = 8)
