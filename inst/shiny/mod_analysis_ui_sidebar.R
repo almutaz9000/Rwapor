@@ -459,6 +459,11 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             ns("an_save_rasters"),
             "Save analysis rasters to folder",
             value = TRUE
+          ),
+          shiny::checkboxInput(
+            ns("an_include_monthly_exports"),
+            "Include monthly exports",
+            value = FALSE
           )
         )
       )

@@ -135,7 +135,7 @@ wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
 #' @param summary_mask Optional SpatRaster mask for mean summaries.
 #' @param summary_value_name Character. Name of the summary column to create.
 #' @return A list with `rasters` and `summary` entries.
-#' @keywords internal
+#' @export
 wapor_calc_monthly_weighted_rasters <- function(x, season_weights, dekad_table,
                                                 layer_multipliers = NULL,
                                                 incremental = FALSE,
@@ -192,12 +192,16 @@ wapor_calc_monthly_weighted_rasters <- function(x, season_weights, dekad_table,
 
   list(rasters = monthly_rasters, summary = monthly_summary)
 }
+#' Compute Dekadal ETc
+#'
+#' Multiplies dekadal RET by dekadal Kc to produce dekadal ETc.
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param kc_dekad SpatRaster or numeric vector. Dekadal Kc values.
 #'   If a numeric vector, each value is applied uniformly to the
 #'   corresponding layer.
 #' @return A SpatRaster of dekadal ETc.
+#' @keywords internal
 wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }

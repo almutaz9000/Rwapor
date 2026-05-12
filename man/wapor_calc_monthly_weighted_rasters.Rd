@@ -41,4 +41,3 @@ Compute Monthly Weighted Raster Series
 Aggregates a dekadal raster stack into per-month rasters using season weights
 and optional per-layer multipliers.
 }
-\keyword{internal}
