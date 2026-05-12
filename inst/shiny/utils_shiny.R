@@ -84,13 +84,23 @@ has_draw_tools <- !is.null(add_draw_toolbar) &&
 
 # Returns a named vector of available file system roots for shinyFiles widgets.
 # Computed once at module init; volumes/cwd don't change during a session.
+# Includes user-friendly shortcuts (Desktop, Downloads, Documents) so Windows
+# users don't have to navigate all the way from a drive root.
 get_shinyfiles_roots <- function() {
   tryCatch({
     vols <- shinyFiles::getVolumes()()
     if (length(vols) > 0) {
       names(vols) <- gsub(":\\\\", ":/", names(vols))
     }
-    c(vols, Project = getwd())
+    home <- normalizePath("~", winslash = "/", mustWork = FALSE)
+    shortcuts <- Filter(
+      dir.exists,
+      stats::setNames(
+        file.path(home, c("Desktop", "Downloads", "Documents")),
+        c("Desktop", "Downloads", "Documents")
+      )
+    )
+    c(vols, shortcuts, Project = getwd())
   }, error = function(e) {
     c(Project = getwd(), Home = normalizePath("~", winslash = "/"))
   })
