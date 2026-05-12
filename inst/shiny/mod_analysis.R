@@ -53,7 +53,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       f_dirs <- f[f$type == "directory", "path"]
       if (length(f_dirs) == 0) return(NULL)
 
-      display_names <- stats::setNames(f_dirs, paste("\U1F4C2", basename(f_dirs)))
+      display_names <- stats::setNames(f_dirs, paste("\U0001F4C2", basename(f_dirs)))
       shiny::tagList(
         shiny::tags$span("Saved folders", class = "fav-section-label"),
         shiny::selectizeInput(
@@ -1846,10 +1846,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
       # Validate raster references haven't gone stale
       if (isTRUE(input$an_use_crop_mask))
-        if (is.null(wapor_shiny_safe_rast(an_crop_mask_rast, "Crop mask"))) return()
+        if (is.null(Rwapor:::wapor_shiny_safe_rast(an_crop_mask_rast, "Crop mask"))) return()
       if (isTRUE(input$an_use_season_rasters)) {
-        if (is.null(wapor_shiny_safe_rast(an_start_rast, "Season start raster"))) return()
-        if (is.null(wapor_shiny_safe_rast(an_end_rast,   "Season end raster")))   return()
+        if (is.null(Rwapor:::wapor_shiny_safe_rast(an_start_rast, "Season start raster"))) return()
+        if (is.null(Rwapor:::wapor_shiny_safe_rast(an_end_rast,   "Season end raster")))   return()
       }
 
       state <- tryCatch(build_analysis_state(), error = function(e) e)

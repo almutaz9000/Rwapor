@@ -87,7 +87,8 @@ library(Rwapor)
 run_wapor()
 
 # Option B: Use R commands for analysis
-# results <- wapor_run_seasonal_analysis(...)
+# results <- wapor_run_seasonal_analysis(...) followed by
+# wapor_export_analysis_outputs(results, folder = "analysis_output")
 ```
 
 ---
@@ -163,17 +164,20 @@ run_wapor(data_folder = "C:/WaPOR_Data")
 - Extract time-series statistics for each polygon
 
 **📊 Analysis Tab**:
+- Choose **project folder** (local rasters source) and a separate **output folder**
 - Upload crop mask raster
 - Upload season start/end rasters (Julian day of year)
 - Configure crop parameters (Kc coefficients, growth stages)
 - Or select from FAO-56 crop defaults (Wheat, Maize, Rice, etc.)
+- Run single-season or batch analysis with `Detect from Folder` season parsing
 - Calculate seasonal indicators:
   - Seasonal AETI and RET
+  - Effective precipitation (`peff`, normalized internally to `agg_peff`)
   - Crop evapotranspiration (ETc)
   - Water adequacy ratios
   - Crop/Biomass water productivity
   - NPP-based yield estimates
-- Export results as rasters and CSV tables
+- Export structured outputs (seasonal rasters, optional dekadal rasters, monthly CSV summaries)
 
 ---
 
@@ -237,26 +241,46 @@ library(terra)
 r <- rast(map_path)
 plot(r[[1]], main = "AETI - 2023-06-01")
 
-### Example 3: Selective Multi-Season Download
+### Example 3: Seasonal Analysis + Structured Export
 
-Download data only for specific windows (e.g., non-contiguous growing seasons) to avoid redundant downloads:
+Run multi-season analysis from local data and export all outputs in one step:
 
 ```r
-# Define specific windows for different years
+library(Rwapor)
+
 periods <- list(
-  "Winter_2019" = c("2018-10-12", "2019-05-31"),
-  "Winter_2021" = c("2020-11-07", "2022-04-25")
+  Winter_2019 = c("2018-10-12", "2019-05-31"),
+  Winter_2021 = c("2020-11-07", "2021-04-25")
 )
 
-# Downloads only data within these windows
-wapor_map(
-  region   = "my_basin.shp",
-  variable = "L1-AETI-D",
-  period   = periods,
-  seasonal = TRUE, # Will produce two seasonal rasters: one per window
-  folder   = "multi_season_results"
+config <- list(
+  period = periods,
+  ref_year = 1970,
+  aeti_var = "L1-AETI-D",
+  ret_var = "L1-RET-D",
+  precip_var = "L1-PCP-D",
+  npp_var = "L1-NPP-D",
+  t_var = "L1-T-D",
+  data_source = "local",
+  folder = "multi_season_results",
+  indicators = c("agg_aeti", "peff", "etc", "beneficial_fraction", "yield_npp")
 )
-```
+
+crop_params <- wapor_crop_defaults("Winter Wheat")
+rasters <- list(crop_mask = terra::rast("wheat_mask.tif"))
+
+results <- wapor_run_seasonal_analysis(
+  config = config,
+  crop_params = crop_params,
+  rasters = rasters
+)
+
+wapor_export_analysis_outputs(
+  results = results,
+  folder = "analysis_outputs",
+  indicators = config$indicators,
+  season_label = NULL
+)
 ```
 
 ---

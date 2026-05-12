@@ -19,7 +19,7 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
   if (!ok) {
     if (!is.null(session)) {
       shiny::showNotification(
-        sprintf("%s reference expired — please re-upload the file.", label),
+        sprintf("%s reference expired -- please re-upload the file.", label),
         type = "warning", duration = 8
       )
     }

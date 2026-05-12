@@ -27,3 +27,20 @@
 ^.*\.duckdb\.wal$
 
 ^\.positai$
+^\.gemini$
+^\.jules$
+^AGENTS\.md$
+^agent-workflow$
+^improvements$
+^projects$
+^scratch$
+^debug_paths\.R$
+^debug_r\.R$
+^empty\.R$
+^repro_error\.R$
+^run_parallel_test\.bat$
+^test_monitoring\.R$
+^test_monitoring_run\.R$
+^test_monitoring_run\.log$
+^test_monitoring_run_err\.log$
+^wrapper\.R$

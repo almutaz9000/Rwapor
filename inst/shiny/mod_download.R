@@ -365,7 +365,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       f_dirs <- f[f$type == "directory", "path"]
       if (length(f_dirs) == 0) return(NULL)
 
-      display_names <- stats::setNames(f_dirs, paste("\U1F4C2", basename(f_dirs)))
+      display_names <- stats::setNames(f_dirs, paste("\U0001F4C2", basename(f_dirs)))
       shiny::tagList(
         shiny::tags$span("Saved folders", class = "fav-section-label"),
         shiny::selectizeInput(
