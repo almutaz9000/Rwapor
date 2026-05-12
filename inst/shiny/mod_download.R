@@ -30,9 +30,22 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
           shinyFiles::shinyDirButton(
             ns("browse_folder"), label = "",
             icon  = shiny::icon("folder-open"),
-            title = "Select project folder",
+            title = "Browse for folder (Desktop / Downloads / Documents and all drives are available as starting points)",
             class = "btn-outline-secondary btn-sm",
             style = "padding:0.37rem 0.6rem;"
+          )
+        ),
+        shiny::div(
+          class = "d-flex align-items-center justify-content-between",
+          style = "min-height: 24px; margin-bottom: 4px;",
+          shiny::uiOutput(ns("folder_status_ui")),
+          shinyjs::hidden(
+            shiny::actionButton(
+              ns("create_folder_btn"), "Create",
+              icon  = shiny::icon("folder-plus"),
+              class = "btn-outline-success btn-sm",
+              style = "padding: 0.1rem 0.5rem; font-size: 0.75rem;"
+            )
           )
         ),
         shiny::uiOutput(ns("favorites_ui"))
@@ -351,20 +364,70 @@ mod_download_server <- function(id, l3_regions_meta) {
       f <- favs()
       f_dirs <- f[f$type == "directory", "path"]
       if (length(f_dirs) == 0) return(NULL)
-      
-      shiny::selectizeInput(
-        session$ns("quick_fav"),
-        NULL, # No label to keep it compact
-        choices = c("Quick Access Favorites..." = "", f_dirs),
-        options = list(placeholder = "Select a favorite project folder")
+
+      display_names <- stats::setNames(f_dirs, paste("\U1F4C2", basename(f_dirs)))
+      shiny::tagList(
+        shiny::tags$span("Saved folders", class = "fav-section-label"),
+        shiny::selectizeInput(
+          session$ns("quick_fav"),
+          NULL,
+          choices = c("Select a saved folder..." = "", display_names),
+          options = list(placeholder = "Select a saved folder...")
+        )
       )
     })
-    
+
     shiny::observeEvent(input$quick_fav, {
       path <- input$quick_fav
       if (nzchar(path)) {
         shiny::updateTextInput(session, "folder", value = path)
+        shiny::updateSelectizeInput(session, "quick_fav", selected = "")
       }
+    })
+
+    # ── Folder status badge + create-on-demand button ─────────────────────
+    folder_exists_status <- shiny::reactive({
+      path <- trimws(input$folder %||% "")
+      if (!nzchar(path)) return("empty")
+      if (dir.exists(path)) "exists" else "missing"
+    })
+
+    output$folder_status_ui <- shiny::renderUI({
+      switch(folder_exists_status(),
+        "exists"  = shiny::span(
+          class = "folder-status-badge exists",
+          shiny::icon("circle-check"), " Folder exists"
+        ),
+        "missing" = shiny::span(
+          class = "folder-status-badge missing",
+          shiny::icon("circle-plus"), " Will be created on download"
+        ),
+        NULL
+      )
+    })
+
+    shiny::observe({
+      if (folder_exists_status() == "missing") {
+        shinyjs::show("create_folder_btn")
+      } else {
+        shinyjs::hide("create_folder_btn")
+      }
+    })
+
+    shiny::observeEvent(input$create_folder_btn, {
+      path <- trimws(input$folder %||% "")
+      if (!nzchar(path)) return()
+      tryCatch({
+        dir.create(path, recursive = TRUE, showWarnings = FALSE)
+        if (dir.exists(path)) {
+          shiny::showNotification(
+            sprintf("Folder created: %s", path),
+            type = "message", duration = 5
+          )
+        }
+      }, error = function(e) {
+        shiny::showNotification(paste("Could not create folder:", e$message), type = "error")
+      })
     })
 
     current_l3_region <- shiny::reactive({
@@ -744,6 +807,8 @@ mod_download_server <- function(id, l3_regions_meta) {
         reg_str <- sprintf("c(%f, %f, %f, %f)", reg[1], reg[2], reg[3], reg[4])
       }
 
+      folder_safe <- normalizePath(input$folder %||% "", winslash = "/", mustWork = FALSE)
+
       period_str <- if (input$multi_season) {
         s <- parsed_seasons()
         if (length(s) == 0) "list()" else {
@@ -799,7 +864,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           reg_str,
           period_str,
           var_list_str,
-          input$folder,
+          folder_safe,
           unit_conv,
           mask_str,
           unit_conv,
@@ -827,7 +892,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           reg_str,
           period_str,
           var_list_str,
-          input$folder,
+          folder_safe,
           unit_conv,
           input$seasonal,
           input$separate_files,

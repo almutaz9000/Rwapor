@@ -8,6 +8,12 @@
 - Confirmed the current workspace code completes the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis when run from source.
 - Tested the `Kyrgystan` indicators one by one and fixed `beneficial_fraction` so it no longer depends on explicitly selecting `agg_t`.
 - Added the structured analysis export helper, updated generated scripts to use it, and validated the new folder layout plus regression coverage.
+- Improved folder selection across Download and Analysis tabs: path-existence badge, Create Folder button, basename-only favorites dropdown, auto-reset after favorite selection.
+- Augmented `get_shinyfiles_roots()` in `utils_shiny.R` to include Desktop / Downloads / Documents shortcuts.
+- Fixed duplicate `observeEvent(input$an_crop_mask)` in `mod_analysis.R`; merged L3 auto-detection into the single remaining observer.
+- Fixed auto-scan observer to fire only on data-source switch, not on every folder keystroke.
+- Fixed Windows backslash paths in download code-preview (using `normalizePath(..., winslash="/")`).
+- Added `folder-status-badge` CSS to `premium_style.css`.
 
 ## 2026-05-11
 

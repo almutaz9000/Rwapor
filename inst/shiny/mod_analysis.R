@@ -52,20 +52,70 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       f <- favs()
       f_dirs <- f[f$type == "directory", "path"]
       if (length(f_dirs) == 0) return(NULL)
-      
-      shiny::selectizeInput(
-        session$ns("an_quick_fav"),
-        NULL,
-        choices = c("Quick Access Favorites..." = "", f_dirs),
-        options = list(placeholder = "Select a favorite analysis folder")
+
+      display_names <- stats::setNames(f_dirs, paste("\U1F4C2", basename(f_dirs)))
+      shiny::tagList(
+        shiny::tags$span("Saved folders", class = "fav-section-label"),
+        shiny::selectizeInput(
+          session$ns("an_quick_fav"),
+          NULL,
+          choices = c("Select a saved folder..." = "", display_names),
+          options = list(placeholder = "Select a saved folder...")
+        )
       )
     })
-    
+
     shiny::observeEvent(input$an_quick_fav, {
       path <- input$an_quick_fav
       if (nzchar(path)) {
         shiny::updateTextInput(session, "an_folder", value = path)
+        shiny::updateSelectizeInput(session, "an_quick_fav", selected = "")
       }
+    })
+
+    # ── Analysis folder status badge + create-on-demand button ───────────
+    an_folder_exists_status <- shiny::reactive({
+      path <- trimws(input$an_folder %||% "")
+      if (!nzchar(path)) return("empty")
+      if (dir.exists(path)) "exists" else "missing"
+    })
+
+    output$an_folder_status_ui <- shiny::renderUI({
+      switch(an_folder_exists_status(),
+        "exists"  = shiny::span(
+          class = "folder-status-badge exists",
+          shiny::icon("circle-check"), " Folder exists"
+        ),
+        "missing" = shiny::span(
+          class = "folder-status-badge missing",
+          shiny::icon("circle-plus"), " Will be created on run"
+        ),
+        NULL
+      )
+    })
+
+    shiny::observe({
+      if (an_folder_exists_status() == "missing") {
+        shinyjs::show("an_create_folder_btn")
+      } else {
+        shinyjs::hide("an_create_folder_btn")
+      }
+    })
+
+    shiny::observeEvent(input$an_create_folder_btn, {
+      path <- trimws(input$an_folder %||% "")
+      if (!nzchar(path)) return()
+      tryCatch({
+        dir.create(path, recursive = TRUE, showWarnings = FALSE)
+        if (dir.exists(path)) {
+          shiny::showNotification(
+            sprintf("Folder created: %s", path),
+            type = "message", duration = 5
+          )
+        }
+      }, error = function(e) {
+        shiny::showNotification(paste("Could not create folder:", e$message), type = "error")
+      })
     })
     
     # --- NEW: Observer for Missing Data Download Button ---
@@ -252,34 +302,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     # (Internal helpers moved to R/analysis_utils.R)
 
     # --- File Upload Observers ---
-    shiny::observeEvent(input$an_crop_mask, {
-      f <- input$an_crop_mask
-      shiny::req(f)
-      tryCatch({
-        r <- terra::rast(f$datapath)
-        an_crop_mask_rast(r)
-        .h_cache(NULL)  # invalidate harmonization cache
-        
-        # Auto-detect L3 region if an L3 variable is selected or potentially selected
-        aeti_v <- input$an_aeti_var
-        if (!is.null(aeti_v) && startsWith(aeti_v, "L3-")) {
-          shiny::withProgress(message = "Detecting Level 3 region...", value = 0.5, {
-            reg_info <- Rwapor::wapor_parse_region(f$datapath)
-            period <- as.character(input$an_period)
-            intersecting <- Rwapor::wapor_guess_region(aeti_v, reg_info, period)
-            
-            if (length(intersecting) > 0) {
-              shiny::updateSelectInput(session, "an_l3_region", selected = intersecting[1])
-              shiny::showNotification(
-                sprintf("Automatically matched crop mask to L3 region: %s", intersecting[1]),
-                type = "message"
-              )
-            }
-          })
-        }
-      }, error = function(e) shiny::showNotification(paste("Error loading crop mask:", e$message), type = "error"))
-    })
-
     shiny::observeEvent(input$an_season_start, {
       f <- input$an_season_start
       shiny::req(f)
@@ -302,12 +324,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     # --- Local Data Source Logic ---
     
-    # Auto-scan when switching to local mode
-    shiny::observe({
+    # Auto-scan only when the user switches to local mode, not on every folder keystroke
+    shiny::observeEvent(input$an_data_source, {
       if (input$an_data_source == "local") {
         folder <- project_folder()
         if (!is.null(folder) && nzchar(folder) && dir.exists(folder)) {
-          # Automatically scan project folder
           tryCatch({
             vars_df <- Rwapor::wapor_scan_local(folder)
             an_local_vars(vars_df)
@@ -316,7 +337,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           })
         }
       }
-    })
+    }, ignoreInit = TRUE)
     
     # Manual scan button
     shiny::observeEvent(input$an_scan_local, {
@@ -856,6 +877,25 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         }
 
         an_crop_mask_rast(r)
+        .h_cache(NULL)
+
+        # Auto-detect L3 region when an L3 variable is selected
+        aeti_v <- shiny::isolate(input$an_aeti_var)
+        if (!is.null(aeti_v) && startsWith(aeti_v, "L3-")) {
+          tryCatch({
+            reg_info      <- Rwapor::wapor_parse_region(file_path)
+            period_str    <- as.character(shiny::isolate(input$an_period))
+            intersecting  <- Rwapor::wapor_guess_region(aeti_v, reg_info, period_str)
+            if (length(intersecting) > 0) {
+              shiny::updateSelectInput(session, "an_l3_region", selected = intersecting[1])
+              shiny::showNotification(
+                sprintf("Auto-matched crop mask to L3 region: %s", intersecting[1]),
+                type = "message"
+              )
+            }
+          }, error = function(e) NULL)
+        }
+
         classes <- Rwapor::wapor_extract_crop_classes(r)
 
         # Check if any valid classes were found

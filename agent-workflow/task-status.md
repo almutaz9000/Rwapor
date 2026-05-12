@@ -1,12 +1,17 @@
 # Task Status
 
-_Last updated: 2026-05-11_
+_Last updated: 2026-05-12_
 
 ## Active
 
 - [ ] Monitor the shared `agent-workflow/` flow during the next real multi-model work session.
   - Scope: confirm the startup digest, closeout behavior, and shared handoff stay practical in normal use.
   - Next action: use the workflow on the next substantial repo task and trim any newly exposed friction.
+
+## Recently Completed
+
+- [x] Improved folder-selection UI in Download and Analysis tabs (2026-05-12).
+- [x] Fixed four bugs in `mod_analysis.R`: duplicate observer, auto-scan performance, code-preview path escaping, fav reset.
 
 ## Pending
 

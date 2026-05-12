@@ -436,9 +436,22 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             shinyFiles::shinyDirButton(
               ns("an_browse_folder"), label = "",
               icon  = shiny::icon("folder-open"),
-              title = "Select output folder",
+              title = "Browse for folder (Desktop / Downloads / Documents and all drives are available as starting points)",
               class = "btn-outline-secondary btn-sm",
               style = "padding:0.37rem 0.6rem;"
+            )
+          ),
+          shiny::div(
+            class = "d-flex align-items-center justify-content-between",
+            style = "min-height: 24px; margin-bottom: 4px;",
+            shiny::uiOutput(ns("an_folder_status_ui")),
+            shinyjs::hidden(
+              shiny::actionButton(
+                ns("an_create_folder_btn"), "Create",
+                icon  = shiny::icon("folder-plus"),
+                class = "btn-outline-success btn-sm",
+                style = "padding: 0.1rem 0.5rem; font-size: 0.75rem;"
+              )
             )
           ),
           shiny::uiOutput(ns("an_favorites_ui")),

@@ -1,23 +1,20 @@
 # Session Brief
 
-_Last updated: 2026-05-11_
+_Last updated: 2026-05-12_
 
 ## Active Focus
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
-- Main repo adapters now point to the shared workflow instead of parallel memory paths.
-- Wrote the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
-- Wrote the implementation plan at `improvements/P4_shiny_batch_analysis.md`.
-- Implemented the batch-analysis patch across `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `R/analysis_engine.R`, and `inst/shiny/mod_analysis_ui_body.R`.
-- Added regression coverage in `tests/testthat/test-analysis-shiny.R` and reran targeted analysis tests successfully.
-- Patched Windows-safe script serialization after a user hit `'\U' used without hex digits` from generated paths.
-- Improved the download-tab AOI local explorer in `inst/shiny/mod_aoi.R` so users can browse folders and pick supported spatial files more directly.
-- Separated the Analysis tab project-data source from its output folder and added a direct project-folder override for previous-session local data.
-- Hardened Analysis `Detect from Folder` via a tested helper and simplified the Download-tab AOI upload flow back to a single browser entry point.
-- Hardened the Analysis crop-mask and Kc preview plots after Shiny hit `figure margins too large` and `invalid graphics state` on the embedded devices.
-- Normalized the Analysis `peff` indicator alias to the engine’s canonical `agg_peff` so generated scripts and batch runs stay compatible with the current code path.
-- Tested the real `C:/Users/almut/Desktop/Kyrgystan` batch analysis one indicator at a time and fixed `beneficial_fraction`, which previously omitted its result unless `agg_t` was also selected.
-- Added `wapor_export_analysis_outputs()` plus monthly PCP/Peff summaries and dekadal-stack retention so standalone analysis scripts can export structured seasonal, dekadal, and monthly outputs.
+- Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
+- Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).
+- Improved download-tab AOI local explorer in `inst/shiny/mod_aoi.R`.
+- Separated Analysis tab project-data source from output folder; added project-folder override.
+- Hardened crop-mask and Kc preview plots (`figure margins too large` fix).
+- Normalized `peff` → `agg_peff` across script generation and seasonal-analysis engine.
+- Fixed `beneficial_fraction` — no longer requires explicit `agg_t` selection.
+- Added `wapor_export_analysis_outputs()` for structured seasonal/dekadal/monthly exports.
+- Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
+- Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
 
 ## Top Open Issues
 

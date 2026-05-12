@@ -153,3 +153,37 @@ body {
   font-size: 0.7rem;
   margin-top: 12px;
 }
+
+/* ── Folder Selector Enhancements ───────────────── */
+.folder-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 20px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.folder-status-badge.exists {
+  background: rgba(39, 174, 96, 0.12);
+  color: #27ae60;
+  border: 1px solid rgba(39, 174, 96, 0.3);
+}
+
+.folder-status-badge.missing {
+  background: rgba(243, 156, 18, 0.12);
+  color: #c07800;
+  border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.fav-section-label {
+  font-size: 0.68rem;
+  color: #909399;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.4rem;
+  margin-bottom: 0.15rem;
+  display: block;
+}
