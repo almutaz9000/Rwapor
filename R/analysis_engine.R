@@ -275,7 +275,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   )
 
   if (!is.null(stacks$aeti)) {
-    results$monthly_aeti <- Rwapor::wapor_calc_monthly_weighted_rasters(
+    results$monthly_aeti <- wapor_calc_monthly_weighted_rasters(
       stacks$aeti,
       season_weights,
       dekad_table,
@@ -286,7 +286,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     )
   }
   if (!is.null(stacks$ret)) {
-    results$monthly_ret <- Rwapor::wapor_calc_monthly_weighted_rasters(
+    results$monthly_ret <- wapor_calc_monthly_weighted_rasters(
       stacks$ret,
       season_weights,
       dekad_table,
@@ -307,7 +307,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     )
   }
   if (!is.null(stacks$t)) {
-    results$monthly_t <- Rwapor::wapor_calc_monthly_weighted_rasters(
+    results$monthly_t <- wapor_calc_monthly_weighted_rasters(
       stacks$t,
       season_weights,
       dekad_table,

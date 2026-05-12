@@ -618,7 +618,7 @@ test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, an
     folder = analysis_dir,
     indicators = c(
       "agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "agg_t",
-      "agg_biomass_t", "yield_npp", "beneficial_fraction",
+      "agg_biomass_t", "yield_npp", "beneficial_fraction", "etc",
       "green_water", "blue_water", "cwp_bwp", "adequacy_p95"
     ),
     use_crop_mask = TRUE,
