@@ -29,10 +29,11 @@ Imports:
     exactextractr,
     memoise,
     jsonlite,
-    future,
     future.apply
 Suggests:
     testthat (>= 3.0.0),
+    pkgload,
+    future,
     knitr,
     rmarkdown,
     ggplot2,

@@ -230,7 +230,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
     )
 
     if (is.null(items)) {
-      message(sprintf("  Skipped %s (network error — existing cache not overwritten).", lvl))
+      message(sprintf("  Skipped %s (network error -- existing cache not overwritten).", lvl))
       next
     }
 
@@ -309,7 +309,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
 #' @keywords internal
 #' @noRd
 .extract_item_metadata <- function(item, level) {
-  # Spatial extent — may be missing, NULL, or a named list / bbox array
+  # Spatial extent -- may be missing, NULL, or a named list / bbox array
   se_raw <- item$spatialExtent
   spatial_extent <- if (is.null(se_raw)) {
     NULL
@@ -325,7 +325,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
     NULL
   }
 
-  # Temporal resolution — may live at top level or inside info
+  # Temporal resolution -- may live at top level or inside info
   temp_res <- item$temporalResolution %||%
     item$info$temporalResolution %||%
     NA_character_

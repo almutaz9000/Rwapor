@@ -1026,7 +1026,8 @@ wapor_check_local <- function(urls, var, folder) {
 #' @param vector_path Character. Path to vector file (e.g., .geojson, .shp).
 #' @param csv_path Character. Path to CSV file with dates.
 #' @param template_r SpatRaster. Template for extent, resolution, and CRS.
-#' @param id_col Character. Name of the ID column common to vector and CSV.
+#' @param vector_id_col Character. Name of the polygon ID column in the vector layer.
+#' @param csv_id_col Character. Name of the matching ID column in the CSV table.
 #' @param season_col Character. Column name for the season identifier.
 #' @param start_col Character. Column name for the start dates (YYYY-MM-DD).
 #' @param end_col Character. Column name for the end dates (YYYY-MM-DD).
