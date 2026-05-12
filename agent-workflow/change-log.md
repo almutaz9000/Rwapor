@@ -14,6 +14,7 @@
 - Fixed auto-scan observer to fire only on data-source switch, not on every folder keystroke.
 - Fixed Windows backslash paths in download code-preview (using `normalizePath(..., winslash="/")`).
 - Added `folder-status-badge` CSS to `premium_style.css`.
+- Replaced `.jules/bolt.md` with a thin Jules adapter that starts from `agent-workflow/START-HERE.md`, uses `task-status.md` as the pending-work queue, and routes durable learnings back into `agent-workflow/project-memory.md`.
 
 ## 2026-05-11
 

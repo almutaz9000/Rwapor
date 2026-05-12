@@ -506,10 +506,10 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       res <- an_results()
       if (is.null(res) || is.null(res$seasonal_aeti)) return("--")
 
-      class_stats <- wapor_filter_class_stats(res)
-      val <- wapor_weighted_class_mean(res$seasonal_aeti$by_class, class_stats, "mean_seasonal_aeti")
+      class_stats <- Rwapor:::wapor_filter_class_stats(res)
+      val <- Rwapor:::wapor_weighted_class_mean(res$seasonal_aeti$by_class, class_stats, "mean_seasonal_aeti")
       if (is.na(val)) {
-        val <- wapor_masked_global_mean(res$seasonal_aeti$raster, res$valid_crop_mask)
+        val <- Rwapor:::wapor_masked_global_mean(res$seasonal_aeti$raster, res$valid_crop_mask)
       }
       sprintf("%.1f mm", val)
     })
@@ -522,11 +522,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       etc_tbl <- data.frame(
         class_value = as.integer(names(res$etc_by_class)),
         mean_seasonal_etc = vapply(names(res$etc_by_class), function(cls) {
-          wapor_masked_global_mean(res$etc_by_class[[cls]]$etc_seasonal)
+          Rwapor:::wapor_masked_global_mean(res$etc_by_class[[cls]]$etc_seasonal)
         }, numeric(1)),
         stringsAsFactors = FALSE
       )
-      val <- wapor_weighted_class_mean(etc_tbl, wapor_filter_class_stats(res), "mean_seasonal_etc")
+      val <- Rwapor:::wapor_weighted_class_mean(etc_tbl, Rwapor:::wapor_filter_class_stats(res), "mean_seasonal_etc")
       if (is.na(val)) {
         val <- mean(etc_tbl$mean_seasonal_etc, na.rm = TRUE)
       }
@@ -538,7 +538,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       res <- an_results()
       if (is.null(res) || (is.null(res$adequacy_etc) && is.null(res$adequacy_p95))) return("--")
       adq_rast <- res$adequacy_etc %||% res$adequacy_p95
-      val <- wapor_masked_global_mean(adq_rast, res$valid_crop_mask)
+      val <- Rwapor:::wapor_masked_global_mean(adq_rast, res$valid_crop_mask)
 
       sprintf("%.0f%%", val * 100)
     })
@@ -562,9 +562,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       } else {
         res$seasonal_biomass_kg %||% res$seasonal_biomass %||% res$biomass
       }
-      val <- wapor_weighted_class_mean(res$seasonal_biomass_by_class, wapor_filter_class_stats(res), stats_col)
+      val <- Rwapor:::wapor_weighted_class_mean(res$seasonal_biomass_by_class, Rwapor:::wapor_filter_class_stats(res), stats_col)
       if (is.na(val)) {
-        val <- wapor_masked_global_mean(bio_rast, res$valid_crop_mask)
+        val <- Rwapor:::wapor_masked_global_mean(bio_rast, res$valid_crop_mask)
       }
 
       sprintf("%.1f %s", val, unit)
@@ -573,7 +573,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     output$vbox_beneficial <- shiny::renderText({
       res <- an_results()
       if (is.null(res) || is.null(res$beneficial_fraction)) return("--")
-      val <- wapor_masked_global_mean(res$beneficial_fraction, res$valid_crop_mask)
+      val <- Rwapor:::wapor_masked_global_mean(res$beneficial_fraction, res$valid_crop_mask)
       sprintf("%.2f", val)
     })
 
@@ -593,7 +593,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
       batch_mode <- isTRUE(input$an_batch_mode)
       if (batch_mode) {
-        period_info <- wapor_parse_batch_periods(input$an_batch_list)
+        period_info <- Rwapor:::wapor_parse_batch_periods(input$an_batch_list)
         periods <- period_info$periods
         season_table <- period_info$season_table
         ref_year <- NULL
@@ -846,7 +846,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     generate_rwapor_script <- function() {
       state <- build_analysis_state()
-      wapor_generate_shiny_script(config = state$config, crop_params = state$crop_params)
+      Rwapor:::wapor_generate_shiny_script(config = state$config, crop_params = state$crop_params)
     }
 
     shiny::observeEvent(input$an_crop_mask, {
@@ -1093,7 +1093,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     shiny::observeEvent(input$an_detect_seasons, {
       folder <- project_folder()
       detection <- tryCatch(
-        wapor_detect_folder_seasons(folder),
+        Rwapor:::wapor_detect_folder_seasons(folder),
         error = function(e) e
       )
 
@@ -1977,7 +1977,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         etc_means <- if (!is.null(res$etc_by_class)) {
           vapply(names(res$etc_by_class), function(cls) {
             etc_r <- res$etc_by_class[[cls]]$etc_seasonal
-            if (!is.null(etc_r)) wapor_masked_global_mean(etc_r) else NA_real_
+            if (!is.null(etc_r)) Rwapor:::wapor_masked_global_mean(etc_r) else NA_real_
           }, numeric(1))
         } else {
           numeric()
@@ -2011,7 +2011,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             `Yield (t/ha)` = if (!is.na(yield_val)) round(yield_val, 2) else NA,
             `Beneficial Frac.` = if (!is.null(res$beneficial_fraction)) {
               cls_mask <- if (!is.null(res$h_mask)) terra::ifel(res$h_mask == as.integer(cls_str), 1L, NA) else NULL
-              round(wapor_masked_global_mean(res$beneficial_fraction, cls_mask), 3)
+              round(Rwapor:::wapor_masked_global_mean(res$beneficial_fraction, cls_mask), 3)
             } else NA,
             check.names = FALSE,
             stringsAsFactors = FALSE
@@ -2036,7 +2036,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         classes <- params$class_value %||% integer(0)
         for (cls in classes) {
           cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
-          mean_adq <- wapor_masked_global_mean(res$adequacy_etc, cls_mask)
+          mean_adq <- Rwapor:::wapor_masked_global_mean(res$adequacy_etc, cls_mask)
 
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
@@ -2060,7 +2060,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         for (i in seq_len(nrow(p95_tbl))) {
           cls <- p95_tbl$class_value[i]
           cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
-          mean_adq <- wapor_masked_global_mean(res$adequacy_p95, cls_mask)
+          mean_adq <- Rwapor:::wapor_masked_global_mean(res$adequacy_p95, cls_mask)
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
             if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
@@ -2141,7 +2141,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         classes <- if (!is.null(params)) params$class_value else integer(0)
         for (cls in classes) {
           cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
-          mean_gw <- wapor_masked_global_mean(res$green_water, cls_mask)
+          mean_gw <- Rwapor:::wapor_masked_global_mean(res$green_water, cls_mask)
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
             if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
@@ -2162,7 +2162,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         classes <- if (!is.null(params)) params$class_value else integer(0)
         for (cls in classes) {
           cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
-          mean_bw <- wapor_masked_global_mean(res$blue_water, cls_mask)
+          mean_bw <- Rwapor:::wapor_masked_global_mean(res$blue_water, cls_mask)
           label <- if (!is.null(params)) {
             idx <- which(params$class_value == cls)
             if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)

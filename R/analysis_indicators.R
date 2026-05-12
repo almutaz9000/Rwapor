@@ -121,6 +121,77 @@ wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
 #'
 #' ETc = RET * Kc for each dekad. Both inputs should have the same
 #' number of layers (one per dekad).
+
+#' Compute Monthly Weighted Raster Series
+#'
+#' Aggregates a dekadal raster stack into per-month rasters using season weights
+#' and optional per-layer multipliers.
+#'
+#' @param x SpatRaster. Multi-layer raster stack.
+#' @param season_weights SpatRaster. Per-layer season weights.
+#' @param dekad_table data.frame. Must include either `dekad_start` or `dekad_key`.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer.
+#' @param summary_mask Optional SpatRaster mask for mean summaries.
+#' @param summary_value_name Character. Name of the summary column to create.
+#' @return A list with `rasters` and `summary` entries.
+#' @keywords internal
+wapor_calc_monthly_weighted_rasters <- function(x, season_weights, dekad_table,
+                                                layer_multipliers = NULL,
+                                                incremental = FALSE,
+                                                summary_mask = NULL,
+                                                summary_value_name = "mean_mm") {
+  n_layers <- terra::nlyr(x)
+  if (terra::nlyr(season_weights) != n_layers) {
+    stop(sprintf("season_weights layers (%d) must match x layers (%d)",
+                 terra::nlyr(season_weights), n_layers), call. = FALSE)
+  }
+  if (!is.data.frame(dekad_table) || nrow(dekad_table) != n_layers) {
+    stop("dekad_table must be a data.frame with one row per raster layer", call. = FALSE)
+  }
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, n_layers)
+  }
+  if (length(layer_multipliers) != n_layers) {
+    stop(sprintf("layer_multipliers length (%d) must match x layers (%d)",
+                 length(layer_multipliers), n_layers), call. = FALSE)
+  }
+
+  layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_start)
+  } else if ("dekad_key" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_key)
+  } else {
+    stop("dekad_table must contain either 'dekad_start' or 'dekad_key'", call. = FALSE)
+  }
+
+  month_keys <- format(layer_dates, "%Y-%m")
+  monthly_rasters <- list()
+
+  for (month_key in unique(month_keys)) {
+    idx <- which(month_keys == month_key)
+    monthly_rasters[[month_key]] <- wapor_masked_sum(
+      terra::subset(x, idx),
+      terra::subset(season_weights, idx),
+      layer_multipliers = layer_multipliers[idx],
+      incremental = incremental
+    )
+  }
+
+  monthly_summary <- data.frame(
+    month_key = names(monthly_rasters),
+    year = as.integer(substr(names(monthly_rasters), 1, 4)),
+    month = as.integer(substr(names(monthly_rasters), 6, 7)),
+    stringsAsFactors = FALSE
+  )
+  monthly_summary[[summary_value_name]] <- vapply(
+    monthly_rasters,
+    function(r) wapor_masked_global_mean(r, summary_mask),
+    numeric(1)
+  )
+
+  list(rasters = monthly_rasters, summary = monthly_summary)
+}
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param kc_dekad SpatRaster or numeric vector. Dekadal Kc values.
@@ -379,78 +450,47 @@ wapor_calc_monthly_precip_peff_rasters <- function(precip_stack, season_weights,
                                                    layer_multipliers = NULL,
                                                    incremental = FALSE,
                                                    summary_mask = NULL) {
-  n_layers <- terra::nlyr(precip_stack)
-  if (terra::nlyr(season_weights) != n_layers) {
-    stop(sprintf("season_weights layers (%d) must match precip_stack layers (%d)",
-                 terra::nlyr(season_weights), n_layers), call. = FALSE)
-  }
-  if (!is.data.frame(dekad_table) || nrow(dekad_table) != n_layers) {
-    stop("dekad_table must be a data.frame with one row per precipitation layer", call. = FALSE)
-  }
-  if (is.null(layer_multipliers)) {
-    layer_multipliers <- rep(1, n_layers)
-  }
-  if (length(layer_multipliers) != n_layers) {
-    stop(sprintf("layer_multipliers length (%d) must match precip_stack layers (%d)",
-                 length(layer_multipliers), n_layers), call. = FALSE)
-  }
+  monthly_pcp <- wapor_calc_monthly_weighted_rasters(
+    precip_stack,
+    season_weights,
+    dekad_table,
+    layer_multipliers = layer_multipliers,
+    incremental = incremental,
+    summary_mask = summary_mask,
+    summary_value_name = "pcp_mean_mm"
+  )
 
-  layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
-    as.Date(dekad_table$dekad_start)
-  } else if ("dekad_key" %in% names(dekad_table)) {
-    as.Date(dekad_table$dekad_key)
-  } else {
-    stop("dekad_table must contain either 'dekad_start' or 'dekad_key'", call. = FALSE)
-  }
-
-  month_keys <- format(layer_dates, "%Y-%m")
-  monthly_pcp <- list()
-  monthly_peff <- list()
-
-  for (month_key in unique(month_keys)) {
-    idx <- which(month_keys == month_key)
-    monthly_pcp[[month_key]] <- wapor_masked_sum(
-      terra::subset(precip_stack, idx),
-      terra::subset(season_weights, idx),
-      layer_multipliers = layer_multipliers[idx],
-      incremental = incremental
+  monthly_peff <- monthly_pcp
+  monthly_peff$rasters <- lapply(monthly_peff$rasters, function(r) {
+    terra::ifel(
+      r <= 250,
+      r * (125 - 0.2 * r) / 125,
+      125 + 0.1 * r
     )
-    monthly_peff[[month_key]] <- terra::ifel(
-      monthly_pcp[[month_key]] <= 250,
-      monthly_pcp[[month_key]] * (125 - 0.2 * monthly_pcp[[month_key]]) / 125,
-      125 + 0.1 * monthly_pcp[[month_key]]
-    )
-  }
+  })
+  monthly_peff$summary$peff_mean_mm <- vapply(
+    monthly_peff$rasters,
+    function(r) wapor_masked_global_mean(r, summary_mask),
+    numeric(1)
+  )
 
-  total_peff <- monthly_peff[[1]]
-  if (length(monthly_peff) > 1) {
-    for (i in 2:length(monthly_peff)) {
-      total_peff <- total_peff + monthly_peff[[i]]
+  total_peff <- monthly_peff$rasters[[1]]
+  if (length(monthly_peff$rasters) > 1) {
+    for (i in 2:length(monthly_peff$rasters)) {
+      total_peff <- total_peff + monthly_peff$rasters[[i]]
     }
   }
 
-  monthly_summary <- data.frame(
-    month_key = names(monthly_pcp),
-    year = as.integer(substr(names(monthly_pcp), 1, 4)),
-    month = as.integer(substr(names(monthly_pcp), 6, 7)),
-    stringsAsFactors = FALSE
-  )
-  monthly_summary$pcp_mean_mm <- vapply(
-    monthly_pcp,
-    function(r) wapor_masked_global_mean(r, summary_mask),
-    numeric(1)
-  )
-  monthly_summary$peff_mean_mm <- vapply(
-    monthly_peff,
-    function(r) wapor_masked_global_mean(r, summary_mask),
-    numeric(1)
-  )
-
   list(
-    monthly_pcp = monthly_pcp,
-    monthly_peff = monthly_peff,
+    monthly_pcp = monthly_pcp$rasters,
+    monthly_peff = monthly_peff$rasters,
+    rasters = list(pcp = monthly_pcp$rasters, peff = monthly_peff$rasters),
     seasonal_peff = total_peff,
-    summary = monthly_summary
+    summary = {
+      out <- monthly_pcp$summary
+      out$peff_mean_mm <- monthly_peff$summary$peff_mean_mm
+      out
+    }
   )
 }
 

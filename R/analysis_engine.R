@@ -274,6 +274,50 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     )
   )
 
+  if (!is.null(stacks$aeti)) {
+    results$monthly_aeti <- Rwapor::wapor_calc_monthly_weighted_rasters(
+      stacks$aeti,
+      season_weights,
+      dekad_table,
+      layer_multipliers = aeti_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "aeti_mean_mm"
+    )
+  }
+  if (!is.null(stacks$ret)) {
+    results$monthly_ret <- Rwapor::wapor_calc_monthly_weighted_rasters(
+      stacks$ret,
+      season_weights,
+      dekad_table,
+      layer_multipliers = ret_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "ret_mean_mm"
+    )
+  }
+  if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
+    results$monthly_precip_peff <- wapor_calc_monthly_precip_peff_rasters(
+      precip_stack = stacks$precip,
+      season_weights = season_weights,
+      dekad_table = dekad_table,
+      layer_multipliers = precip_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask
+    )
+  }
+  if (!is.null(stacks$t)) {
+    results$monthly_t <- Rwapor::wapor_calc_monthly_weighted_rasters(
+      stacks$t,
+      season_weights,
+      dekad_table,
+      layer_multipliers = t_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "t_mean_mm"
+    )
+  }
+
   # Aggregates
   if (!is.null(stacks$aeti)) {
     results$seasonal_aeti <- Rwapor::wapor_calc_seasonal_aeti(stacks$aeti, season_weights, h_mask, aeti_mult, incremental = use_incremental)
@@ -283,14 +327,6 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
     results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
-    results$monthly_precip_peff <- wapor_calc_monthly_precip_peff_rasters(
-      precip_stack = stacks$precip,
-      season_weights = season_weights,
-      dekad_table = dekad_table,
-      layer_multipliers = precip_mult,
-      incremental = use_incremental,
-      summary_mask = results$valid_crop_mask
-    )
   }
   if (any(c("agg_t", "beneficial_fraction") %in% indicators) && !is.null(stacks$t)) {
     # T is a flux (mm/day), same as AETI
@@ -363,6 +399,61 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
         etc_by_class[[cls]] <- list(etc_seasonal = class_etc)
       }
       results$etc_by_class <- etc_by_class
+
+      layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
+        as.Date(dekad_table$dekad_start)
+      } else {
+        as.Date(dekad_table$dekad_key)
+      }
+      month_keys <- format(layer_dates, "%Y-%m")
+      month_order <- unique(month_keys)
+      monthly_etc <- setNames(vector("list", length(month_order)), month_order)
+
+      for (j in seq_len(nrow(crop_params))) {
+        cls <- as.character(crop_params$class_value[j])
+        class_profiles <- profile_table[profile_table$class_value == as.integer(cls), , drop = FALSE]
+        if (nrow(class_profiles) == 0) next
+
+        for (i in seq_len(nrow(class_profiles))) {
+          key <- class_profiles$kc_key[i]
+          profile_mask <- terra::ifel(
+            (h_mask == as.integer(cls)) &
+              (h_start == class_profiles$start_jd[i]) &
+              (h_end == class_profiles$end_jd[i]),
+            1L,
+            NA
+          )
+
+          for (month_key in month_order) {
+            idx <- which(month_keys == month_key)
+            profile_month_etc <- Rwapor::wapor_masked_sum(
+              terra::subset(stacks$ret, idx),
+              terra::subset(season_weights, idx),
+              layer_multipliers = ret_mult[idx] * kc_profiles[[key]][idx],
+              incremental = use_incremental
+            )
+            profile_month_etc <- profile_month_etc * profile_mask
+            monthly_etc[[month_key]] <- if (is.null(monthly_etc[[month_key]])) {
+              profile_month_etc
+            } else {
+              terra::cover(monthly_etc[[month_key]], profile_month_etc)
+            }
+          }
+        }
+      }
+
+      monthly_etc_summary <- data.frame(
+        month_key = names(monthly_etc),
+        year = as.integer(substr(names(monthly_etc), 1, 4)),
+        month = as.integer(substr(names(monthly_etc), 6, 7)),
+        stringsAsFactors = FALSE
+      )
+      monthly_etc_summary$etc_mean_mm <- vapply(
+        monthly_etc,
+        function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+        numeric(1)
+      )
+      results$monthly_etc <- list(rasters = monthly_etc, summary = monthly_etc_summary)
     }
   }
 
@@ -388,6 +479,49 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # Beneficial Fraction (T/AETI)
   if ("beneficial_fraction" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(results$seasonal_t)) {
     results$beneficial_fraction <- Rwapor::wapor_calc_beneficial_fraction(results$seasonal_t$raster, results$seasonal_aeti$raster)
+  }
+
+  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
+    month_keys <- intersect(names(results$monthly_aeti$rasters), names(results$monthly_precip_peff$monthly_peff))
+    monthly_green <- list()
+    monthly_blue <- list()
+
+    for (month_key in month_keys) {
+      monthly_green[[month_key]] <- Rwapor::wapor_calc_green_water(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_peff[[month_key]]
+      )
+      monthly_blue[[month_key]] <- Rwapor::wapor_calc_blue_water(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_peff[[month_key]]
+      )
+    }
+
+    monthly_green_summary <- data.frame(
+      month_key = names(monthly_green),
+      year = as.integer(substr(names(monthly_green), 1, 4)),
+      month = as.integer(substr(names(monthly_green), 6, 7)),
+      stringsAsFactors = FALSE
+    )
+    monthly_blue_summary <- data.frame(
+      month_key = names(monthly_blue),
+      year = as.integer(substr(names(monthly_blue), 1, 4)),
+      month = as.integer(substr(names(monthly_blue), 6, 7)),
+      stringsAsFactors = FALSE
+    )
+    monthly_green_summary$green_mean_mm <- vapply(
+      monthly_green,
+      function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+      numeric(1)
+    )
+    monthly_blue_summary$blue_mean_mm <- vapply(
+      monthly_blue,
+      function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+      numeric(1)
+    )
+
+    results$monthly_green_water <- list(rasters = monthly_green, summary = monthly_green_summary)
+    results$monthly_blue_water <- list(rasters = monthly_blue, summary = monthly_blue_summary)
   }
 
   # Peff (simplified seasonal estimate)

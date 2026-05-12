@@ -15,6 +15,7 @@ _Last updated: 2026-05-12_
 - Added `wapor_export_analysis_outputs()` for structured seasonal/dekadal/monthly exports.
 - Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
 - Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
+- Added a Jules adapter in `.jules/bolt.md` that points online Jules work to `agent-workflow/` for startup, pending tasks, issue logging, and validated commits.
 
 ## Top Open Issues
 

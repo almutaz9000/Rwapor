@@ -551,6 +551,16 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     }
   }
 
+    write_monthly_series <- function(series, out_dir, prefix, suffix) {
+      if (is.null(series) || is.null(series$rasters) || length(series$rasters) == 0) return()
+      series_dir <- file.path(out_dir, suffix)
+      dir.create(series_dir, recursive = TRUE, showWarnings = FALSE)
+      for (month_key in names(series$rasters)) {
+        month_suffix <- paste0(suffix, "_", gsub("-", "_", month_key))
+        write_raster(series$rasters[[month_key]], series_dir, prefix, month_suffix)
+      }
+    }
+
   summarize_yield_by_class <- function(results) {
     if (is.null(results$yield_by_class) || length(results$yield_by_class) == 0) {
       return(NULL)
@@ -595,11 +605,13 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     seasonal_table_dir <- file.path(season_dir, "seasonal_tables")
     dekadal_dir <- file.path(season_dir, "dekadal_stacks")
     monthly_dir <- file.path(season_dir, "monthly_summaries")
+    monthly_raster_dir <- file.path(season_dir, "monthly_rasters")
 
     dir.create(seasonal_raster_dir, recursive = TRUE, showWarnings = FALSE)
     if (include_seasonal_tables) dir.create(seasonal_table_dir, recursive = TRUE, showWarnings = FALSE)
     if (include_dekadal) dir.create(dekadal_dir, recursive = TRUE, showWarnings = FALSE)
     if (include_monthly) dir.create(monthly_dir, recursive = TRUE, showWarnings = FALSE)
+    if (include_monthly) dir.create(monthly_raster_dir, recursive = TRUE, showWarnings = FALSE)
 
     write_raster(results$seasonal_aeti$raster, seasonal_raster_dir, prefix, "seasonal_aeti")
     write_raster(results$seasonal_ret$raster, seasonal_raster_dir, prefix, "seasonal_ret")
@@ -650,8 +662,26 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
       }
     }
 
-    if (include_monthly && !is.null(results$monthly_precip_peff)) {
+    if (include_monthly) {
+      write_monthly_series(results$monthly_aeti, monthly_raster_dir, prefix, "monthly_aeti")
+      write_monthly_series(results$monthly_ret, monthly_raster_dir, prefix, "monthly_ret")
+      write_monthly_series(results$monthly_t, monthly_raster_dir, prefix, "monthly_t")
+      write_monthly_series(results$monthly_etc, monthly_raster_dir, prefix, "monthly_etc")
+      write_monthly_series(results$monthly_green_water, monthly_raster_dir, prefix, "monthly_green_water")
+      write_monthly_series(results$monthly_blue_water, monthly_raster_dir, prefix, "monthly_blue_water")
+
+      if (!is.null(results$monthly_precip_peff)) {
+        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_pcp), monthly_raster_dir, prefix, "monthly_pcp")
+        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_peff), monthly_raster_dir, prefix, "monthly_peff")
+      }
+
       write_table(results$monthly_precip_peff$summary, monthly_dir, prefix, "monthly_pcp_peff")
+      write_table(results$monthly_aeti$summary, monthly_dir, prefix, "monthly_aeti")
+      write_table(results$monthly_ret$summary, monthly_dir, prefix, "monthly_ret")
+      write_table(results$monthly_t$summary, monthly_dir, prefix, "monthly_t")
+      write_table(results$monthly_etc$summary, monthly_dir, prefix, "monthly_etc")
+      write_table(results$monthly_green_water$summary, monthly_dir, prefix, "monthly_green_water")
+      write_table(results$monthly_blue_water$summary, monthly_dir, prefix, "monthly_blue_water")
     }
   }
 
