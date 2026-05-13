@@ -214,13 +214,9 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimization: Use terra's built-in "quantile" C++ backend instead of a custom R function.
+  # This avoids the expensive overhead of passing every pixel value back into R.
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile", probs = 0.95, na.rm = TRUE)
 
   # Count valid analysis pixels, not just mask pixels.
   valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
@@ -239,6 +235,11 @@ wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
   result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
   
   result$n_pixels <- as.integer(result$n_pixels)
+
+  # Apply min_pixels threshold: set P95 to NA if count is insufficient
+  # This maintains exact functional compatibility with the original custom R function logic.
+  result$p95_aeti[result$n_pixels < min_pixels] <- NA_real_
+
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
   
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
