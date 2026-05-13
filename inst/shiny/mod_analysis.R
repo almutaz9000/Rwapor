@@ -2,30 +2,16 @@
 # Seasonal analysis workflow.
 
 # Source sub-UI components (assuming they are in the same directory)
-# In a package context, these are usually sourced by the main app or the package loader.
-# For local development/testing, we source them here.
-.wapor_source_shiny_module <- function(path) {
-  if (!file.exists(path)) {
-    stop(sprintf("Missing Shiny module file: %s", path), call. = FALSE)
-  }
-
-  tryCatch(
-    source(path, local = TRUE),
-    error = function(e) {
-      stop(sprintf("Failed to source '%s': %s", path, e$message), call. = FALSE)
-    }
-  )
-}
-
-.wapor_source_shiny_module("mod_analysis_ui_sidebar.R")
-.wapor_source_shiny_module("mod_analysis_ui_body.R")
+source("mod_analysis_ui_sidebar.R", local = TRUE)
+source("mod_analysis_ui_body.R", local = TRUE)
 
 mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
   ns <- shiny::NS(id)
 
   bslib::layout_sidebar(
     sidebar = mod_analysis_ui_sidebar(ns, all_vars, l3_region_choices),
-    mod_analysis_ui_body(ns)
+    mod_analysis_ui_body(ns),
+    fillable = TRUE
   )
 }
 
@@ -476,7 +462,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       cat("=== Available Local Variables ===\n\n")
       for (i in seq_len(nrow(local_vars))) {
         v <- local_vars[i, ]
-        cat(sprintf("%s:\n", v$variable))
+        type_label <- if (isTRUE(v$is_seasonal)) "(Seasonal)" else "(Dekadal)"
+        cat(sprintf("%s %s:\n", v$variable, type_label))
         cat(sprintf("  Files: %d\n", v$file_count))
         if (!is.na(v$min_date) && !is.na(v$max_date)) {
           cat(sprintf("  Coverage: %s to %s\n", v$min_date, v$max_date))
@@ -1687,7 +1674,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           for (i in seq_len(nrow(local_vars))) {
             v <- local_vars[i, ]
             status <- if (v$variable %in% c(input$an_aeti_var, input$an_ret_var, input$an_precip_var)) "[SELECTED]" else ""
-            cat(sprintf("%s: %d files %s\n", v$variable, v$file_count, status))
+            type_label <- if (isTRUE(v$is_seasonal)) "(Seasonal)" else "(Dekadal)"
+            cat(sprintf("%s %s: %d files %s\n", v$variable, type_label, v$file_count, status))
           }
         } else {
           cat("\n[!] Click 'Re-scan Folder' to detect available data.\n")
@@ -2200,7 +2188,38 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       }
 
       if (length(rows) > 0) do.call(rbind, rows) else {
-        data.frame(Message = "Run analysis with Green/Blue Water indicators and a precipitation variable selected.", stringsAsFactors = FALSE)
+        data.frame(Message = "Run analysis with Green/Blue Water indicators selected.", stringsAsFactors = FALSE)
+      }
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    output$an_beneficial_table <- shiny::renderTable({
+      res <- an_results()
+      shiny::req(res)
+      shiny::req(!is.null(res$beneficial_fraction))
+
+      rows <- list()
+      mask_rast <- res$h_mask %||% an_crop_mask_rast()
+      params <- res$crop_params
+
+      classes <- if (!is.null(params)) params$class_value else integer(0)
+      for (cls in classes) {
+        cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls, 1L, NA) else NULL
+        val <- Rwapor:::wapor_masked_global_mean(res$beneficial_fraction, cls_mask)
+        label <- if (!is.null(params)) {
+          idx <- which(params$class_value == cls)
+          if (length(idx) > 0) params$crop_label[idx[1]] else as.character(cls)
+        } else as.character(cls)
+        
+        rows[[length(rows) + 1]] <- data.frame(
+          Class = label,
+          `Beneficial Fraction (T/AETI)` = if (!is.nan(val)) round(val, 3) else NA,
+          check.names = FALSE,
+          stringsAsFactors = FALSE
+        )
+      }
+
+      if (length(rows) > 0) do.call(rbind, rows) else {
+        data.frame(Message = "Run analysis with Beneficial Fraction selected.", stringsAsFactors = FALSE)
       }
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
 

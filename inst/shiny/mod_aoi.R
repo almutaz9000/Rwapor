@@ -75,17 +75,18 @@ mod_aoi_ui <- function(id) {
           style = "display: flex; gap: 5px; align-items: center;",
           shiny::div(
             style = "flex: 1;",
-            shinyFiles::shinyDirButton(
-              ns("browse_vector_dir"),
-              "Browse AOI Files",
-              "Select a folder to explore",
+            shinyFiles::shinyFilesButton(
+              ns("browse_vector"),
+              label = "Browse & Select File",
+              title = "Select a spatial file (.shp, .geojson, .gpkg, .tif, etc.)",
+              multiple = FALSE,
               class = "w-100 btn-sm btn-outline-secondary",
               icon = shiny::icon("folder-open")
             )
           ),
           shiny::uiOutput(ns("fav_vector_btn_ui"))
         ),
-        shiny::uiOutput(ns("vector_browser_ui")),
+        shiny::uiOutput(ns("selected_vector_ui")),
         shiny::helpText(
           "Supported: .shp, .geojson, .gpkg, .kml, .zip, .tif, .tiff, .img, .nc, .grd, .asc, .sdat",
           shiny::br(),
@@ -107,7 +108,7 @@ mod_aoi_ui <- function(id) {
         shiny::actionButton(
           ns("scan_project_assets"),
           "Scan Project Folder",
-          icon = shiny::icon("magnifying-glass"),
+          icon = shiny::icon("search"),
           class = "btn-sm btn-outline-primary w-100 mb-2"
         ),
         shiny::uiOutput(ns("project_vector_ui"))
@@ -145,66 +146,38 @@ mod_aoi_server <- function(id,
     roots <- get_shinyfiles_roots()
     spatial_filetypes <- c("shp", "geojson", "gpkg", "kml", "zip", "tif", "tiff", "img", "nc", "grd", "asc", "sdat")
     spatial_file_pattern <- sprintf("\\.(%s)$", paste(spatial_filetypes, collapse = "|"))
-    current_browser_dir <- shiny::reactiveVal(NULL)
 
-    list_spatial_dir_entries <- function(path) {
-      if (!is.character(path) || length(path) != 1 || !nzchar(path) || !dir.exists(path)) {
-        return(list(directories = character(0), files = character(0)))
-      }
-
-      entries <- list.files(path, full.names = TRUE, all.files = FALSE, no.. = TRUE)
-      directories <- entries[dir.exists(entries)]
-      files <- entries[file.exists(entries) & !dir.exists(entries) &
-        grepl(spatial_file_pattern, entries, ignore.case = TRUE)]
-
-      directories <- directories[order(tolower(basename(directories)))]
-      files <- files[order(tolower(basename(files)))]
-
-      list(directories = directories, files = files)
-    }
-
-    normalize_existing_path <- function(path) {
-      if (!is.character(path) || length(path) != 1 || !nzchar(path)) return(NULL)
-      if (!file.exists(path) && !dir.exists(path)) return(NULL)
-      normalizePath(path, winslash = "/", mustWork = FALSE)
-    }
-
-    default_browser_dir <- shiny::reactive({
-      folder <- tryCatch(global_folder(), error = function(e) NULL)
-      folder <- normalize_existing_path(folder)
-      if (!is.null(folder) && dir.exists(folder)) return(folder)
-
-      project_dir <- normalize_existing_path(getwd())
-      if (!is.null(project_dir) && dir.exists(project_dir)) return(project_dir)
-
-      home_dir <- normalize_existing_path(path.expand("~"))
-      if (!is.null(home_dir) && dir.exists(home_dir)) return(home_dir)
-
-      NULL
-    })
-
-    shiny::observe({
-      if (is.null(current_browser_dir())) {
-        current_browser_dir(default_browser_dir())
-      }
-    })
-
-    shinyFiles::shinyDirChoose(
+    shinyFiles::shinyFileChoose(
       input,
-      "browse_vector_dir",
+      "browse_vector",
       roots = roots,
-      session = session
+      session = session,
+      filetypes = spatial_filetypes
     )
 
     # Favorites logic
     favs <- shiny::reactiveVal(Rwapor::wapor_get_favorites())
     current_upload_path <- shiny::reactiveVal(NULL)
 
-    shiny::observeEvent(input$browse_vector_dir, {
-      dir_path <- shinyFiles::parseDirPath(roots, input$browse_vector_dir)
-      if (length(dir_path) > 0 && nzchar(dir_path) && dir.exists(dir_path)) {
-        current_browser_dir(normalizePath(dir_path, winslash = "/", mustWork = FALSE))
+    shiny::observeEvent(input$browse_vector, {
+      file_info <- shinyFiles::parseFilePaths(roots, input$browse_vector)
+      if (nrow(file_info) > 0) {
+        path <- normalizePath(file_info$datapath, winslash = "/", mustWork = FALSE)
+        current_upload_path(path)
+        handle_vector_file(path)
       }
+    })
+    
+    output$selected_vector_ui <- shiny::renderUI({
+      path <- current_upload_path()
+      if (is.null(path)) return(NULL)
+      
+      shiny::div(
+        style = "font-size: 0.78rem; color: #1e8449; margin: 5px 0; word-break: break-all; background: #f4fdf4; padding: 4px 8px; border-radius: 4px; border: 1px solid #d4efdf;",
+        shiny::icon("circle-check"),
+        shiny::tags$b("Selected: "),
+        basename(path)
+      )
     })
     
     output$fav_vector_btn_ui <- shiny::renderUI({
@@ -244,137 +217,6 @@ mod_aoi_server <- function(id,
         choices = c("Quick Access Favorites..." = "", f_files),
         options = list(placeholder = "Select a favorite file (vector or raster)")
       )
-    })
-
-    output$vector_browser_ui <- shiny::renderUI({
-      folder <- current_browser_dir()
-      if (is.null(folder) || !dir.exists(folder)) {
-        return(
-          shiny::helpText(
-            "Select a starting folder, then browse subfolders and supported spatial files here."
-          )
-        )
-      }
-
-      entries <- list_spatial_dir_entries(folder)
-      dir_choices <- stats::setNames(entries$directories, basename(entries$directories))
-      file_choices <- stats::setNames(entries$files, basename(entries$files))
-
-      shiny::div(
-        class = "mt-2 p-2 border rounded bg-light",
-        shiny::tags$div(
-          style = "font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;",
-          "Local File Explorer"
-        ),
-        shiny::textInput(
-          session$ns("vector_current_dir"),
-          "Current folder",
-          value = folder,
-          width = "100%"
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            4,
-            shiny::actionButton(
-              session$ns("vector_go_up"),
-              "Up",
-              icon = shiny::icon("level-up-alt"),
-              class = "btn-sm btn-outline-secondary w-100"
-            )
-          ),
-          shiny::column(
-            4,
-            shiny::actionButton(
-              session$ns("vector_refresh_dir"),
-              "Refresh",
-              icon = shiny::icon("rotate"),
-              class = "btn-sm btn-outline-secondary w-100"
-            )
-          ),
-          shiny::column(
-            4,
-            shiny::actionButton(
-              session$ns("vector_open_dir"),
-              "Open Folder",
-              icon = shiny::icon("folder-open"),
-              class = "btn-sm btn-outline-primary w-100"
-            )
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            6,
-            shiny::selectInput(
-              session$ns("vector_subdir"),
-              sprintf("Subfolders (%d)", length(dir_choices)),
-              choices = c("Select a subfolder..." = "", dir_choices),
-              selected = ""
-            )
-          ),
-          shiny::column(
-            6,
-            shiny::selectInput(
-              session$ns("vector_file"),
-              sprintf("Spatial files (%d)", length(file_choices)),
-              choices = c("Select a file..." = "", file_choices),
-              selected = ""
-            )
-          )
-        ),
-        shiny::actionButton(
-          session$ns("load_browser_vector"),
-          "Load Selected File",
-          icon = shiny::icon("map"),
-          class = "btn-sm btn-outline-success w-100"
-        )
-      )
-    })
-
-    shiny::observeEvent(input$vector_open_dir, {
-      path <- trimws(input$vector_current_dir %||% "")
-      if (!nzchar(path)) return()
-
-      normalized <- normalize_existing_path(path)
-      if (is.null(normalized) || !dir.exists(normalized)) {
-        shiny::showNotification("Folder does not exist or is not accessible.", type = "warning")
-        return()
-      }
-
-      current_browser_dir(normalized)
-    })
-
-    shiny::observeEvent(input$vector_go_up, {
-      folder <- current_browser_dir()
-      if (is.null(folder) || !dir.exists(folder)) return()
-
-      parent <- normalizePath(dirname(folder), winslash = "/", mustWork = FALSE)
-      if (!identical(parent, folder) && dir.exists(parent)) {
-        current_browser_dir(parent)
-      }
-    })
-
-    shiny::observeEvent(input$vector_refresh_dir, {
-      folder <- current_browser_dir()
-      if (!is.null(folder) && dir.exists(folder)) {
-        current_browser_dir(normalizePath(folder, winslash = "/", mustWork = FALSE))
-      }
-    })
-
-    shiny::observeEvent(input$load_browser_vector, {
-      path <- input$vector_file %||% ""
-      if (!nzchar(path)) {
-        shiny::showNotification("Select a spatial file first.", type = "warning")
-        return()
-      }
-
-      normalized <- normalize_existing_path(path)
-      if (is.null(normalized) || !file.exists(normalized)) {
-        shiny::showNotification("Selected file is no longer available.", type = "warning")
-        return()
-      }
-
-      current_upload_path(normalized)
-      handle_vector_file(normalized)
     })
 
     shiny::observeEvent(input$quick_fav_vector, {

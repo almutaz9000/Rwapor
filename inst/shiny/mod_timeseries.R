@@ -131,7 +131,7 @@ mod_timeseries_ui <- function(id) {
               shiny::uiOutput(ns("ts_folder_info_ui")),
               shiny::actionButton(
                 ns("btn_scan"), "Scan for variables",
-                icon  = shiny::icon("magnifying-glass"),
+                icon  = shiny::icon("search"),
                 class = "btn-outline-primary btn-sm w-100 mt-1"
               )
             ),

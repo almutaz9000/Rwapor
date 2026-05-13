@@ -58,7 +58,7 @@ runtime_state$restore <- function() {
   }
 
   tryCatch(
-    source(path),
+    source(path, local = FALSE),
     error = function(e) {
       stop(sprintf("Failed to source '%s': %s", path, e$message), call. = FALSE)
     }
@@ -116,6 +116,16 @@ ui <- bslib::page_navbar(
                                 border-top: 1px solid #dee2e6; padding: 0.55rem 0.7rem; z-index: 20; }
       .code-preview-body    { max-height: 220px; overflow-y: auto; font-size: 0.78rem;
                                 background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem; }
+
+      /* ── Fullscreen adjustments ────────────────────────── */
+      .bslib-full-screen-exit { 
+        top: 15px !important; 
+        right: 80px !important; 
+        background: rgba(44, 62, 80, 0.8) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        color: white !important;
+      }
+      .bslib-full-screen-exit:hover { background: rgba(44, 62, 80, 1) !important; }
 
       /* ── Global sidebar typography ──────────────────────── */
       .bslib-sidebar-layout .accordion-button {
@@ -271,6 +281,21 @@ ui <- bslib::page_navbar(
         background: #fff;
       }
       .folder-header-strip .ctrl-group-label { margin-top: 0; margin-bottom: 3px; }
+
+      /* ── Command Center Refinements ──────────────────────── */
+      .analysis-sidebar-pills .nav-pills { gap: 4px; padding-right: 5px; border-right: 1px solid #eee; }
+      .analysis-sidebar-pills .nav-link { 
+        font-size: 0.78rem; padding: 0.5rem 0.7rem; border-radius: 4px;
+        text-align: left; font-weight: 500; color: #495057; }
+      .analysis-sidebar-pills .nav-link.active { background: #2c3e50; color: #fff; }
+      .analysis-sidebar-pills .nav-link i { margin-right: 6px; width: 14px; text-align: center; }
+
+      .console-card { border: 1px solid #343a40; background: #212529; color: #f8f9fa; }
+      .console-header { background: #343a40 !important; color: #fff !important; border-bottom: 1px solid #495057; }
+      .console-body { background: #1e1e1e; padding: 0 !important; }
+      .console-footer { background: #212529; border-top: 1px solid #343a40; padding: 0.4rem 0.8rem; }
+      
+      .ace_editor.ace-monokai { background-color: #1e1e1e !important; }
     "))),
     shinyjs::useShinyjs()
   ),

@@ -1042,7 +1042,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           make_stat("Min",     round(min(vals,  na.rm = TRUE), 4L), "arrow-down",      "#1e8449"),
           make_stat("Max",     round(max(vals,  na.rm = TRUE), 4L), "arrow-up",        "#c0392b"),
           make_stat("Mean",    round(mean(vals, na.rm = TRUE), 4L), "chart-line",      "#2980b9"),
-          make_stat("Res (°)", res_txt,                              "magnifying-glass","#8e44ad"),
+          make_stat("Res (°)", res_txt,                              "search","#8e44ad"),
           make_stat("Bands",   terra::nlyr(r),                       "layer-group",     "#d35400"),
           make_stat("Active",  names(r)[band_idx],                   "tag",             "#7f8c8d")
         )
