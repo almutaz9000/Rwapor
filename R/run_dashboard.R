@@ -44,6 +44,14 @@
 #' \dontrun{
 #' run_wapor()
 #' }
+.wapor_dashboard_required_pkgs <- function() {
+  c(
+    "shiny", "leaflet", "bslib", "shinyFiles", "shinyvalidate",
+    "shinyjs", "shinyAce", "ggplot2", "DT", "shinycssloaders",
+    "future", "promises"
+  )
+}
+
 run_wapor <- function(display.mode = "normal", launch.browser = interactive(), ...) {
   # 1. Try finding it in the installed package
   app_dir <- system.file("shiny", package = "Rwapor")
@@ -66,8 +74,7 @@ run_wapor <- function(display.mode = "normal", launch.browser = interactive(), .
   }
   
   # Ensure required suggest packages are available
-  required_pkgs <- c("shiny", "leaflet", "bslib", "shinyFiles", "shinyvalidate", 
-                     "shinyjs", "shinyAce", "ggplot2", "DT", "shinycssloaders")
+  required_pkgs <- .wapor_dashboard_required_pkgs()
   missing_pkgs <- required_pkgs[!vapply(required_pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
   
   if (length(missing_pkgs) > 0) {

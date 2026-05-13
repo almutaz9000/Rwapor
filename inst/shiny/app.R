@@ -24,10 +24,12 @@ library(Rwapor)
 # Cap at 2 to avoid overwhelming the WaPOR API or local disk I/O.
 
 # Configure future options for Windows compatibility
-options(
+old_future_options <- options(
   future.rscript.sh = "auto",  # Auto-detect R script path
   future.availableCores.fallback = 2L  # Fallback core count
 )
+
+old_future_plan <- future::plan()
 
 # Fallback to sequential if multisession fails (common on Windows with path issues)
 tryCatch({
@@ -37,14 +39,39 @@ tryCatch({
   future::plan(future::sequential)
 })
 
+runtime_state <- new.env(parent = emptyenv())
+runtime_state$restored <- FALSE
+runtime_state$restore <- function() {
+  if (isTRUE(runtime_state$restored)) return(invisible(NULL))
+
+  runtime_state$restored <- TRUE
+  options(old_future_options)
+  try(future::plan(old_future_plan), silent = TRUE)
+
+  invisible(NULL)
+}
+
 # --- Source Utility Functions and Modules ---
-source("utils_shiny.R")
-source("mod_aoi.R")
-source("mod_download.R")
-source("mod_visualisation.R")
-source("mod_analysis.R")
-source("mod_timeseries.R")
-source("mod_monitoring.R")
+.wapor_source_app_module <- function(path) {
+  if (!file.exists(path)) {
+    stop(sprintf("Missing Shiny app module file: %s", path), call. = FALSE)
+  }
+
+  tryCatch(
+    source(path),
+    error = function(e) {
+      stop(sprintf("Failed to source '%s': %s", path, e$message), call. = FALSE)
+    }
+  )
+}
+
+.wapor_source_app_module("utils_shiny.R")
+.wapor_source_app_module("mod_aoi.R")
+.wapor_source_app_module("mod_download.R")
+.wapor_source_app_module("mod_visualisation.R")
+.wapor_source_app_module("mod_analysis.R")
+.wapor_source_app_module("mod_timeseries.R")
+.wapor_source_app_module("mod_monitoring.R")
 
 # --- Global / Static Configuration ---
 # Build variable list from package metadata
@@ -284,7 +311,12 @@ server <- function(input, output, session) {
   # Automatically stop the app when the browser tab is closed
   session$onSessionEnded(function() {
     log_msg("Browser session ended. Stopping app.")
+    runtime_state$restore()
     shiny::stopApp()
+  })
+
+  shiny::onStop(function() {
+    runtime_state$restore()
   })
 
   # Initialize Modules

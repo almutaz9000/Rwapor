@@ -16,6 +16,21 @@ test_that("wapor_parse_batch_periods parses valid batch input", {
   expect_equal(parsed$season_table$label, c("Winter 2023", "Winter 2024"))
 })
 
+test_that("analysis preview plots avoid full par restore to prevent pin errors", {
+  mod_analysis_path <- normalizePath(
+    file.path(test_path("..", "..", "inst", "shiny", "mod_analysis.R")),
+    winslash = "/",
+    mustWork = TRUE
+  )
+  lines <- readLines(mod_analysis_path, warn = FALSE)
+
+  has_no_readonly_restore <- any(grepl("par\\(no\\.readonly\\s*=\\s*TRUE\\)", lines))
+  has_old_par_restore <- any(grepl("on\\.exit\\(graphics::par\\(old_par\\)", lines))
+
+  expect_false(has_no_readonly_restore)
+  expect_false(has_old_par_restore)
+})
+
 test_that("wapor_parse_batch_periods rejects malformed input", {
   expect_error(
     Rwapor:::wapor_parse_batch_periods("Winter 2023, 2023-10-01"),

@@ -1,6 +1,6 @@
 # Issues Log
 
-_Last updated: 2026-05-12_
+_Last updated: 2026-05-13_
 
 ## Open Issues
 
@@ -75,6 +75,38 @@ _Last updated: 2026-05-12_
   - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
 
 ## Resolved Improvements
+
+- [x] Analysis preview plots could raise `invalid value specified for graphical parameter "pin"` after resize/device changes.
+  - ID: ISS-20260513-014
+  - Resolved: 2026-05-13
+  - Root cause: `inst/shiny/mod_analysis.R` saved and restored full graphics `par()` state (`no.readonly=TRUE`) in renderers, which can replay stale device-geometry parameters like `pin`.
+  - Fix applied: switched to selective restore of only explicitly changed parameters (`mar`, `mgp`) for crop-mask and Kc preview plots.
+  - Files: `inst/shiny/mod_analysis.R`, `tests/testthat/test-analysis-shiny.R`
+  - Validation: `devtools::test(filter='analysis-shiny')` and full `devtools::test()` passed.
+
+- [x] Dashboard preflight could miss async runtime dependencies used by the Shiny app entrypoint.
+  - ID: ISS-20260513-011
+  - Resolved: 2026-05-13
+  - Root cause: `R/run_dashboard.R` required-package checks did not include `future` and `promises`, while `inst/shiny/app.R` loads both packages.
+  - Fix applied: centralized required packages in `.wapor_dashboard_required_pkgs()` and included async runtime dependencies in `run_wapor()` preflight checks.
+  - Files: `R/run_dashboard.R`, `tests/testthat/test-dashboard-validation.R`
+  - Validation: `devtools::test(filter='dashboard-validation')` and full `devtools::test()` passed.
+
+- [x] Analysis config validation could throw on malformed period dates instead of returning structured validation errors.
+  - ID: ISS-20260513-012
+  - Resolved: 2026-05-13
+  - Root cause: `R/analysis_validation.R` used direct `as.Date()` calls without safe parsing in `wapor_validate_analysis_config()`.
+  - Fix applied: added safe date parsing with explicit invalid-date errors and preserved non-throwing validation contract.
+  - Files: `R/analysis_validation.R`, `tests/testthat/test-dashboard-validation.R`
+  - Validation: targeted and full test suites passed; manual reproduction no longer throws.
+
+- [x] Shiny startup could hide source errors and leak global async runtime state after app exit.
+  - ID: ISS-20260513-013
+  - Resolved: 2026-05-13
+  - Root cause: `inst/shiny/mod_analysis.R` used silent `try(source(...), silent = TRUE)`, and `inst/shiny/app.R` modified `future::plan()` and options globally without restoration.
+  - Fix applied: replaced silent source calls with explicit guarded loaders and added runtime-state restore hooks for app/session shutdown.
+  - Files: `inst/shiny/mod_analysis.R`, `inst/shiny/app.R`
+  - Validation: package tests and package check passed.
 
 - [x] Download-tab AOI upload flow exposed two competing local-file entry points and felt unnecessarily complex.
   - ID: ISS-20260511-006
