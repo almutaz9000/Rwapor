@@ -5,6 +5,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
   ns <- shiny::NS(id)
 
   bslib::layout_sidebar(
+    fillable = TRUE,
     sidebar = bslib::sidebar(
       width = 305,
       open  = TRUE,
@@ -136,16 +137,12 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
                 width = "100%"
               ),
               shiny::div(
-                class = "d-flex gap-1 mb-1",
-                shiny::actionButton(
-                  ns("dn_save_seasons"), "Save seasons",
-                  icon  = shiny::icon("floppy-disk"),
-                  class = "btn-sm btn-outline-secondary flex-1"
-                ),
-                shiny::actionButton(
-                  ns("dn_load_seasons"), "Load seasons",
-                  icon  = shiny::icon("folder-open"),
-                  class = "btn-sm btn-outline-secondary flex-1"
+                class = "inline-row mb-1",
+                shiny::div(class = "flex-1", shiny::textInput(ns("seasons_config_name"), NULL, value = "seasons", placeholder = "Config name")),
+                shiny::div(
+                  class = "btn-group btn-group-sm",
+                  shiny::actionButton(ns("dn_save_seasons"), NULL, icon = shiny::icon("floppy-disk"), class = "btn-outline-secondary", title = "Save config"),
+                  shiny::actionButton(ns("dn_load_seasons"), NULL, icon = shiny::icon("folder-open"), class = "btn-outline-secondary", title = "Load config")
                 )
               ),
               shiny::uiOutput(ns("seasons_preview"))
@@ -178,7 +175,9 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
                            "Per month"     = "month",
                            "Per year"      = "year"),
               selected = "none"
-            )
+            ),
+
+            shiny::tags$hr(class = "ctrl-divider")
           )
         )
       ),
@@ -191,35 +190,45 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
         )
       )
     ),
-    shiny::div(
-      bslib::card(
-        id = ns("download_map_card"),
-        full_screen = TRUE,
-        bslib::card_header("Map"),
+    bslib::navset_card_tab(
+      id = ns("download_main_nav"),
+      full_screen = TRUE,
+      
+      # ── Tab 1: Map ──────────────────────────────────────────────────────────
+      bslib::nav_panel(
+        title = "Area of Interest",
+        icon  = shiny::icon("map"),
         bslib::card_body(
-          class = "p-0 main-map-output",
+          padding = 0,
+          class = "main-map-output",
           leaflet::leafletOutput(ns("map"), height = "100%", width = "100%")
         )
       ),
-      shiny::tags$button(
-        class = "btn btn-sm btn-outline-secondary code-preview-toggle mt-1",
-        `data-bs-toggle` = "collapse",
-        `data-bs-target` = sprintf("#%s", ns("codePreviewCollapse")),
-        `aria-expanded` = "false",
-        shiny::icon("code"),
-        " R Code Preview"
-      ),
-      shiny::div(
-        id = ns("codePreviewCollapse"),
-        class = "collapse code-preview-body",
-        shinyAce::aceEditor(
-          ns("code_preview"),
-          mode = "r",
-          theme = "monokai",
-          readOnly = TRUE,
-          height = "250px",
-          fontSize = 12,
-          wordWrap = TRUE
+      
+      # ── Tab 2: Technical Console ───────────────────────────────────────────
+      bslib::nav_panel(
+        title = "Technical Console",
+        icon  = shiny::icon("terminal"),
+        bslib::card_body(
+          padding = 0,
+          shinyAce::aceEditor(
+            ns("code_preview"),
+            mode = "r", theme = "monokai", readOnly = TRUE,
+            height = "100%", fontSize = 12,
+            wordWrap = TRUE, showLineNumbers = TRUE
+          )
+        ),
+        footer = shiny::div(
+          class = "d-flex justify-content-between align-items-center p-2 bg-light border-top",
+          shiny::div(
+            class = "btn-group btn-group-sm",
+            shiny::actionButton(ns("dn_copy_code"), "Copy", icon = shiny::icon("copy"), class = "btn-outline-secondary"),
+            shiny::actionButton(ns("dn_export_script"), "Export .R", icon = shiny::icon("file-export"), class = "btn-outline-secondary")
+          ),
+          shiny::div(
+            class = "small text-muted",
+            shiny::icon("terminal"), " Reproducible R Script"
+          )
         )
       )
     )
@@ -279,7 +288,10 @@ mod_download_server <- function(id, l3_regions_meta) {
     seasons_json_path <- shiny::reactive({
       folder <- trimws(input$folder %||% "")
       if (!nzchar(folder)) return(NULL)
-      file.path(folder, "seasons.json")
+      name <- trimws(input$seasons_config_name %||% "seasons")
+      if (!nzchar(name)) name <- "seasons"
+      if (!grepl("\\.json$", name, ignore.case = TRUE)) name <- paste0(name, ".json")
+      file.path(folder, name)
     })
 
     shiny::observeEvent(input$dn_save_seasons, {
@@ -1002,6 +1014,34 @@ mod_download_server <- function(id, l3_regions_meta) {
         }, error = function(e) {
           shiny::showNotification(paste("Download failed:", e$message), type = "error", duration = 15)
         })
+      })
+    })
+
+
+
+    # --- Console Actions ---
+    shiny::observeEvent(input$dn_copy_code, {
+      code <- input$code_preview
+      if (is.null(code) || !nzchar(code)) return()
+      shinyjs::runjs(sprintf("navigator.clipboard.writeText(%s);", jsonlite::toJSON(code, auto_unbox = TRUE)))
+      shiny::showNotification("Code copied to clipboard", type = "message", duration = 3)
+    })
+
+    shiny::observeEvent(input$dn_export_script, {
+      code <- input$code_preview
+      if (is.null(code) || !nzchar(code)) return()
+      
+      folder <- input$folder %||% getwd()
+      if (!dir.exists(folder)) dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+      
+      filename <- sprintf("wapor_download_%s.R", format(Sys.time(), "%Y%m%d_%H%M%S"))
+      path <- file.path(folder, filename)
+      
+      tryCatch({
+        writeLines(code, path)
+        shiny::showNotification(sprintf("Script exported to: %s", path), type = "message", duration = 8)
+      }, error = function(e) {
+        shiny::showNotification(paste("Export failed:", e$message), type = "error")
       })
     })
 
