@@ -1,6 +1,6 @@
 # Session Brief
 
-_Last updated: 2026-05-12_
+_Last updated: 2026-05-13_
 
 ## Active Focus
 
@@ -16,6 +16,13 @@ _Last updated: 2026-05-12_
 - Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
 - Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
 - Added a Jules adapter in `.jules/bolt.md` that points online Jules work to `agent-workflow/` for startup, pending tasks, issue logging, and validated commits.
+- Hardened dashboard startup dependency checks to include async runtime packages (`future`, `promises`).
+- Made `wapor_validate_analysis_config()` robust to malformed period dates (returns validation errors instead of throwing).
+- Replaced silent Analysis UI sourcing with explicit error messages if module files fail to load.
+- Added Shiny app runtime-state restoration for `future::plan()` and `options()` on app shutdown.
+- Added regression tests in `tests/testthat/test-dashboard-validation.R` for dashboard dependencies and date-validation behavior.
+- Fixed Shiny preview plotting to avoid restoring full `par()` state (prevents device-size-dependent `pin` errors on resize).
+- Added regression coverage in `tests/testthat/test-analysis-shiny.R` to guard against reintroducing full `par(no.readonly=TRUE)` restore patterns.
 
 ## Top Open Issues
 
@@ -24,6 +31,9 @@ _Last updated: 2026-05-12_
 ## Recently Resolved
 
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
+- `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
+- `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
+- `ISS-20260513-013`: app/module startup now fails explicitly on source errors and restores async global state on shutdown.
 
 ## Pending Tasks
 

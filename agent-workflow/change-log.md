@@ -1,5 +1,16 @@
 # Agent Workflow Change Log
 
+## 2026-05-13
+
+- Added `.wapor_dashboard_required_pkgs()` and extended `run_wapor()` dependency precheck to include async runtime packages (`future`, `promises`).
+- Hardened `wapor_validate_analysis_config()` period handling to safely parse invalid dates and report validation errors without throwing.
+- Replaced silent source calls in `inst/shiny/mod_analysis.R` with explicit guarded loaders and actionable error messages.
+- Added guarded module sourcing plus runtime state restoration (`future::plan()` and options) in `inst/shiny/app.R` for cleaner app shutdown behavior.
+- Added regression tests in `tests/testthat/test-dashboard-validation.R`.
+- Replaced full `par(no.readonly=TRUE)` save/restore in Analysis preview plots with selective `mar`/`mgp` restore to avoid `pin` errors on resized devices.
+- Added regression test in `tests/testthat/test-analysis-shiny.R` to prevent reintroduction of full `par` restore patterns in `mod_analysis.R`.
+- Re-ran `devtools::test()` and `devtools::check(document = FALSE, manual = FALSE, cran = FALSE)` with zero failures.
+
 ## 2026-05-12
 
 - Fixed the Analysis plot previews in `inst/shiny/mod_analysis.R` and `inst/shiny/mod_analysis_ui_body.R` so small embedded devices no longer trip `figure margins too large` / `invalid graphics state`.

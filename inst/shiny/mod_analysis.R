@@ -4,8 +4,21 @@
 # Source sub-UI components (assuming they are in the same directory)
 # In a package context, these are usually sourced by the main app or the package loader.
 # For local development/testing, we source them here.
-try(source("mod_analysis_ui_sidebar.R", local = TRUE), silent = TRUE)
-try(source("mod_analysis_ui_body.R", local = TRUE), silent = TRUE)
+.wapor_source_shiny_module <- function(path) {
+  if (!file.exists(path)) {
+    stop(sprintf("Missing Shiny module file: %s", path), call. = FALSE)
+  }
+
+  tryCatch(
+    source(path, local = TRUE),
+    error = function(e) {
+      stop(sprintf("Failed to source '%s': %s", path, e$message), call. = FALSE)
+    }
+  )
+}
+
+.wapor_source_shiny_module("mod_analysis_ui_sidebar.R")
+.wapor_source_shiny_module("mod_analysis_ui_body.R")
 
 mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
   ns <- shiny::NS(id)
@@ -1685,8 +1698,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     output$an_crop_mask_plot <- shiny::renderPlot({
       r <- an_crop_mask_rast()
       shiny::req(r)
-      old_par <- graphics::par(no.readonly = TRUE)
-      on.exit(graphics::par(old_par), add = TRUE)
+      old_mar <- graphics::par("mar")
+      on.exit(graphics::par(mar = old_mar), add = TRUE)
       graphics::par(mar = c(1, 1, 2, 1))
       terra::plot(
         r,
@@ -1937,8 +1950,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       max_len <- max(vapply(kc_list, length, integer(1)))
       if (max_len == 0) return()
 
-      old_par <- graphics::par(no.readonly = TRUE)
-      on.exit(graphics::par(old_par), add = TRUE)
+      old_mar <- graphics::par("mar")
+      old_mgp <- graphics::par("mgp")
+      on.exit(graphics::par(mar = old_mar, mgp = old_mgp), add = TRUE)
       graphics::par(mar = c(3.2, 3.2, 2.2, 1), mgp = c(2, 0.7, 0))
 
       cols <- grDevices::hcl.colors(length(kc_list), "Set2")

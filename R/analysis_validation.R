@@ -24,12 +24,23 @@ wapor_validate_analysis_config <- function(config, crop_mask = NULL,
     errors <- c(errors, "Reference year must be between 2000 and 2030")
   }
   
-  if (is.null(config$period) || length(config$period) != 2) {
-    errors <- c(errors, "Period must be a vector of 2 dates")
+  if (is.null(config$period) || length(config$period) != 2 ||
+      !(is.character(config$period) || inherits(config$period, "Date"))) {
+    errors <- c(errors, "Period must be a character or Date vector of 2 dates")
   } else {
-    start <- as.Date(config$period[1])
-    end <- as.Date(config$period[2])
-    if (end < start) {
+    parse_date <- function(x) {
+      tryCatch(
+        suppressWarnings(as.Date(x)),
+        error = function(e) as.Date(NA)
+      )
+    }
+
+    start <- parse_date(config$period[1])
+    end <- parse_date(config$period[2])
+
+    if (is.na(start) || is.na(end)) {
+      errors <- c(errors, "Period dates must be valid (YYYY-MM-DD)")
+    } else if (end < start) {
       errors <- c(errors, "End date must be after start date")
     }
   }
