@@ -987,6 +987,17 @@ These capabilities are planned or recommended to improve agent-driven workflows:
 
 5. **Structured error objects**: Errors should return machine-readable codes alongside human messages so agents can route to the correct recovery action.
 
+## 11. Repository Navigation for Agents
+
+When working in this repository, use these path conventions to reduce context noise and avoid mixing production/runtime code with development artifacts:
+
+- Package/runtime code: `R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`
+- Shared workflow memory/state: `agent-workflow/`
+- Reusable development scripts and diagnostics: `dev-tools/scripts/`
+- Archived development outputs and historical notes: `dev-archive/`
+
+Agents should prefer package/runtime paths for feature and bug work, and only traverse `dev-archive/` when historical context is explicitly needed.
+
 ---
 
 *This file is maintained as part of the Rwapor package. Report issues at https://github.com/almutaz9000/Rwapor/issues*

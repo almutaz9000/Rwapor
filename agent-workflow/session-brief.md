@@ -5,6 +5,7 @@ _Last updated: 2026-05-13_
 ## Active Focus
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
+- Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).
 - Improved download-tab AOI local explorer in `inst/shiny/mod_aoi.R`.

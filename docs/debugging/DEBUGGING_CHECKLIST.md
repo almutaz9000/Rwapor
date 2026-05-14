@@ -10,7 +10,7 @@ Use this checklist for API, raster, seasonal analysis, Shiny, performance, testi
 - Run environment diagnostics:
 
 ```powershell
-C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe scripts/debug/check_env_windows.R
+C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe dev-tools/scripts/debug/check_env_windows.R
 ```
 
 ## 2. Reproduce Minimally
@@ -51,11 +51,11 @@ C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe -e "devtool
 
 ## 5. Debug Helpers
 
-- Environment check: `scripts/debug/check_env_windows.R`
-- API repro harness: `scripts/debug/repro_api_failure.R`
-- Raster alignment harness: `scripts/debug/repro_alignment_check.R`
-- Mock stack generator: `scripts/debug/mock_wapor_stacks.R`
-- Profiling harness: `scripts/debug/profile_seasonal_analysis.R`
+- Environment check: `dev-tools/scripts/debug/check_env_windows.R`
+- API repro harness: `dev-tools/scripts/debug/repro_api_failure.R`
+- Raster alignment harness: `dev-tools/scripts/debug/repro_alignment_check.R`
+- Mock stack generator: `dev-tools/scripts/debug/mock_wapor_stacks.R`
+- Profiling harness: `dev-tools/scripts/debug/profile_seasonal_analysis.R`
 
 ## 6. Exit Criteria
 

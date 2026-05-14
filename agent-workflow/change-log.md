@@ -11,6 +11,14 @@
 - Added regression test in `tests/testthat/test-analysis-shiny.R` to prevent reintroduction of full `par` restore patterns in `mod_analysis.R`.
 - Re-ran `devtools::test()` and `devtools::check(document = FALSE, manual = FALSE, cran = FALSE)` with zero failures.
 
+## 2026-05-14
+
+- Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
+- Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
+- Updated debugging references and graph indexing exclusions to the new script/archive paths.
+- Updated the FAO crop-data refresh script to resolve repo-root output paths even after relocation.
+- Added repository structure documentation for agents and contributors at `docs/REPOSITORY_STRUCTURE.md`.
+
 ## 2026-05-12
 
 - Fixed the Analysis plot previews in `inst/shiny/mod_analysis.R` and `inst/shiny/mod_analysis_ui_body.R` so small embedded devices no longer trip `figure margins too large` / `invalid graphics state`.
@@ -35,7 +43,7 @@
 - Started repointing repo-local adapters, skills, and hooks away from parallel memory paths.
 - Validated `agent_preflight.ps1`, `agent_digest.ps1`, and `agent_closeout.ps1` from the repo root.
 - Added the Shiny batch-analysis design spec at `docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md`.
-- Added the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
+- Added the Shiny batch-analysis implementation plan at `dev-archive/2026-05-production-cleanup/improvements/P4_shiny_batch_analysis.md`.
 - Logged `ISS-20260511-002` for the multi-season local-analysis session disconnect and script-preview drift.
 - Implemented the Shiny batch-analysis patch and added regression tests for batch parsing, batch scripts, and named-list period handling.
 - Fixed generated script escaping for Windows paths after a follow-up `\U` parse error report.

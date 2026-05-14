@@ -30,7 +30,7 @@
 ✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
-## 🚀 New in v1.5: High-Precision Batch Analysis
+## 🚀 Recent Highlights: High-Precision Batch Analysis
 
 The latest version introduces powerful tools for large-scale agricultural research:
 
@@ -319,6 +319,17 @@ For advanced features, see:
 - **[Data Catalog](vignettes/data-catalog.Rmd)**: All available variables and resolutions
 - **[Shiny Dashboard Guide](vignettes/shiny-dashboard.Rmd)**: Dashboard usage and features
 - **Function References**: Type `?function_name` in R (e.g., `?wapor_ts`)
+
+### Repository Structure (Production vs Development)
+
+The repository is organized to keep package runtime code easy to navigate:
+
+- Production package paths: `R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`
+- Agent workflow state: `agent-workflow/`
+- Reusable developer scripts: `dev-tools/scripts/`
+- Archived development artifacts: `dev-archive/2026-05-production-cleanup/`
+
+For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ### Key Functions
 

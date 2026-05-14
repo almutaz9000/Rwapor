@@ -10,6 +10,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).
 - [x] Replaced silent Analysis module sourcing with explicit startup failures and improved diagnostics (2026-05-13).
@@ -36,7 +37,7 @@ _Last updated: 2026-05-13_
 
 - [x] Approved the shared agent workflow design.
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
-- [x] Wrote the Shiny batch-analysis implementation plan at `improvements/P4_shiny_batch_analysis.md`.
+- [x] Wrote the Shiny batch-analysis implementation plan at `dev-archive/2026-05-production-cleanup/improvements/P4_shiny_batch_analysis.md`.
 - [x] Implemented the Shiny batch-analysis and script-generation patch with regression tests.
 - [x] Separated the Analysis tab local project-data source from the analysis output folder and added a project-folder override in Analysis.
 - [x] Hardened Analysis `Detect from Folder` with a tested helper and safe notification path.
