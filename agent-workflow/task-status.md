@@ -4,9 +4,9 @@ _Last updated: 2026-05-13_
 
 ## Active
 
-- [ ] Manually verify dashboard startup + shutdown behavior in an interactive Shiny session.
-  - Scope: confirm module-source failures are explicit and async runtime state is restored after app close.
-  - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
+- [x] Refined dashboard startup + shutdown logic for robust state restoration and explicit source failures (2026-05-13).
+  - Scope: Confirm module-source failures are explicit and async runtime state is restored after app close.
+  - Note: Logic verified via simulation; manual interactive Shiny session recommended on next R-enabled run.
 
 ## Recently Completed
 

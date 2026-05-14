@@ -4,7 +4,11 @@
 # agronomic stress visualisations.
 
 # ── Load helper functions ──────────────────────────────────────────────────────
-source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local = TRUE)
+if (exists(".wapor_source_app_module", mode = "function")) {
+  .wapor_source_app_module("monitoring_helpers.R", local = TRUE)
+} else {
+  source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local = TRUE)
+}
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 

@@ -343,6 +343,11 @@ Contributions are welcome! Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
 
+### 🤖 Developer & Agent Workflow
+
+This repository uses a structured workflow for AI agents and human contributors to ensure consistency and performance.
+See **[agent-workflow/START-HERE.md](agent-workflow/START-HERE.md)** for the canonical session entry point and project memory.
+
 ---
 
 ## 📄 License

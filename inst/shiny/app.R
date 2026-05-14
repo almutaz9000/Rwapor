@@ -52,13 +52,23 @@ runtime_state$restore <- function() {
 }
 
 # --- Source Utility Functions and Modules ---
-.wapor_source_app_module <- function(path) {
+.wapor_source_app_module <- function(path, local = FALSE) {
   if (!file.exists(path)) {
-    stop(sprintf("Missing Shiny app module file: %s", path), call. = FALSE)
+    # Fallback to system.file if not found locally (handles package vs dev-mode)
+    sys_path <- system.file("shiny", path, package = "Rwapor")
+    if (nzchar(sys_path) && file.exists(sys_path)) {
+      path <- sys_path
+    } else {
+      stop(sprintf("Missing Shiny app module file: %s", path), call. = FALSE)
+    }
   }
 
+  # Scoping fix: if local = TRUE, source into the environment of the CALLER
+  # of this wrapper, not the wrapper's own environment.
+  eval_env <- if (is.logical(local) && local) parent.frame() else local
+
   tryCatch(
-    source(path, local = FALSE),
+    source(path, local = eval_env),
     error = function(e) {
       stop(sprintf("Failed to source '%s': %s", path, e$message), call. = FALSE)
     }

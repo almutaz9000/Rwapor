@@ -1,9 +1,15 @@
 # mod_analysis.R
 # Seasonal analysis workflow.
 
-# Source sub-UI components (assuming they are in the same directory)
-source("mod_analysis_ui_sidebar.R", local = TRUE)
-source("mod_analysis_ui_body.R", local = TRUE)
+# Source sub-UI components
+# Use the guarded loader from app.R if available, else fallback to standard source
+if (exists(".wapor_source_app_module", mode = "function")) {
+  .wapor_source_app_module("mod_analysis_ui_sidebar.R", local = TRUE)
+  .wapor_source_app_module("mod_analysis_ui_body.R", local = TRUE)
+} else {
+  source("mod_analysis_ui_sidebar.R", local = TRUE)
+  source("mod_analysis_ui_body.R", local = TRUE)
+}
 
 mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
   ns <- shiny::NS(id)
