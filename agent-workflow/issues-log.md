@@ -1,6 +1,6 @@
 # Issues Log
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Open Issues
 
@@ -75,6 +75,14 @@ _Last updated: 2026-05-13_
   - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
 
 ## Resolved Improvements
+
+- [x] Repository root contained mixed production and development artifacts, increasing agent/context noise.
+  - ID: ISS-20260514-015
+  - Resolved: 2026-05-14
+  - Root cause: development outputs (graph snapshots, ad hoc databases, improvement notes, project-specific snapshots, utility scripts) were stored alongside runtime package paths.
+  - Fix applied: moved development artifacts to `dev-archive/2026-05-production-cleanup/`, moved helper scripts to `dev-tools/scripts/`, updated affected docs/workflow references, and documented the production-first structure.
+  - Files: `README.md`, `docs/REPOSITORY_STRUCTURE.md`, `docs/debugging/DEBUGGING_CHECKLIST.md`, `dev-tools/scripts/get_fao_crop_data.R`, `agent-workflow/*`, `.graphifyignore`, `.Rbuildignore`
+  - Validation: `devtools::test()` passed with R 4.5.3 using `Rscript.exe --vanilla` (`FAIL 0 | WARN 0 | SKIP 5 | PASS 473`).
 
 - [x] Analysis preview plots could raise `invalid value specified for graphical parameter "pin"` after resize/device changes.
   - ID: ISS-20260513-014

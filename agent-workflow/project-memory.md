@@ -5,6 +5,8 @@ _Last updated: 2026-05-11_
 ## Confirmed Patterns
 
 - **Shared workflow is canonical**: Use `agent-workflow/` as the single source of truth. Model-specific folders are adapters only.
+- **Production-first repo layout**: Keep package runtime artifacts at root (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`) and move development-only artifacts under `dev-archive/`.
+- **Developer tooling location**: Keep non-package helper scripts in `dev-tools/scripts/` and update docs when script paths move.
 - **R stack**: Use `terra` and `sf`. Do not introduce `raster` or `sp` into active workflows.
 - **R version**: Use `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe` for package commands.
 - **Vectorized zonal stats**: Prefer passing full multi-layer stacks to `exactextractr::exact_extract()` once and using matrix-style aggregation instead of looping layer-by-layer, which recomputes polygon coverage and is much slower.

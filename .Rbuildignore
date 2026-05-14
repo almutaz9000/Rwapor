@@ -18,11 +18,11 @@
 ^\.agents$
 ^CLAUDE\.md$
 ^tests/manual$
-^scripts$
+^dev-tools$
+^dev-archive$
 ^fao_crop_coefficients\.csv$
 ^fao_growth_stages\.csv$
 ^memories$
-^archived_reports$
 ^.*\.duckdb$
 ^.*\.duckdb\.wal$
 
