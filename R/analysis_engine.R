@@ -565,7 +565,13 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
        cls <- as.character(crop_params$class_value[j])
        cp <- crop_params[j, ]
        class_mask <- terra::ifel(h_mask == as.integer(cls), 1L, NA)
-       yield_rast <- (cp$HI * cp$AOT * cp$fc * (results$seasonal_biomass / (1 - cp$MC))) / 1000
+       yield_rast <- Rwapor::wapor_calc_yield_npp(
+         npp_gc_m2 = results$seasonal_biomass_kg / 22.222,
+         mc = cp$MC,
+         fc = cp$fc,
+         aot = cp$AOT,
+         hi = cp$HI
+       )
        yield_layers[[cls]] <- yield_rast * class_mask
      }
      results$yield_by_class <- yield_layers
