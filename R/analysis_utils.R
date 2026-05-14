@@ -288,7 +288,8 @@ wapor_generate_shiny_script <- function(config, crop_params) {
         "l_dev <- as.integer(mean_days - (crop_params$l_ini_days + crop_params$l_mid_days + crop_params$l_late_days))",
         "kc_daily <- wapor_build_kc(crop_params$kc_ini, crop_params$kc_mid, crop_params$kc_end, crop_params$l_ini_days, l_dev, crop_params$l_mid_days, crop_params$l_late_days)",
         "kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, period[1])",
-        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad)")
+        sprintf("results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad, incremental = %s)",
+                if (isTRUE(config$incremental)) "TRUE" else "FALSE"))
     } else NULL,
     "",
     "# [8] Save Results",
