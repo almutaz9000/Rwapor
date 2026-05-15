@@ -57,11 +57,7 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           shiny::checkboxInput(ns("an_batch_mode"), "Batch Mode", FALSE),
           shiny::conditionalPanel(
             condition = sprintf("!input['%s']", ns("an_batch_mode")),
-            shiny::div(
-              class = "inline-row",
-              shiny::div(style = "width: 80px;", shiny::numericInput(ns("an_ref_year"), "Ref Year", value = 2023, min = 2009, max = 2030)),
-              shiny::div(class = "flex-1", shiny::dateRangeInput(ns("an_period"), "Analysis Period", start = "2023-01-01", end = "2023-12-31"))
-            )
+            shiny::dateRangeInput(ns("an_period"), "Analysis Period", start = "2023-01-01", end = "2023-12-31")
           ),
           shiny::conditionalPanel(
             condition = sprintf("input['%s']", ns("an_batch_mode")),

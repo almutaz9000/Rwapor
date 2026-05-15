@@ -358,10 +358,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
   batch_mode <- is.list(period)
   first_period <- if (is.list(period) && length(period) > 0) period[[1]] else period
 
-  ref_year <- config$ref_year
-  if (is.null(ref_year) && !batch_mode) {
-    ref_year <- as.integer(format(as.Date(first_period[1]), "%Y"))
-  }
+  ref_year <- if (!batch_mode) as.integer(format(as.Date(first_period[1]), "%Y")) else NULL
 
   aeti_var <- config$aeti_var %||% "L1-AETI-D"
   ret_var <- config$ret_var %||% "L1-RET-D"
@@ -435,7 +432,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
       )
     } else NULL,
     if (!batch_mode) sprintf("period <- %s", format_period_object(period)) else NULL,
-    if (!batch_mode) sprintf("ref_year <- %s", format_scalar(ref_year)) else "ref_year <- NULL",
+    if (!batch_mode) "ref_year <- as.integer(format(as.Date(period[1]), \"%Y\"))" else "ref_year <- NULL",
     sprintf("batch_mode <- %s", format_logical(batch_mode)),
     "",
     "# [3] Variables selection",
@@ -459,7 +456,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     "# [6] Analysis configuration",
     "config <- list(",
     if (batch_mode) "  period = periods," else "  period = period,",
-    sprintf("  ref_year = %s,", if (batch_mode) "NULL" else format_scalar(ref_year)),
+    sprintf("  ref_year = %s,", if (batch_mode) "NULL" else "ref_year"),
     sprintf("  aeti_var = %s,", format_r_string(aeti_var)),
     sprintf("  ret_var = %s,", format_r_string(ret_var)),
     sprintf("  precip_var = %s,", format_r_string(precip_var)),
