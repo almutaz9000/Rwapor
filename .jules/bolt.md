@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Optimization of Zonal Statistics and Masking]
+**Learning:** Using built-in string identifiers in `terra::zonal` and `terra::global` (e.g., "quantile", "notNA", "mean", "sd") is significantly faster than custom R closures because they utilize the C++ backend, avoiding the heavy overhead of R callbacks. Additionally, multi-indicator statistics can often be combined into a single pass (e.g., `fun = c("mean", "sd")`). For class-wide masking, the vectorized `%in%` operator on a SpatRaster outperforms iterative `ifel` loops.
+**Action:** Always prefer built-in `terra` string functions for statistics and use `%in%` for multi-value masking.

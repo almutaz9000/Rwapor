@@ -214,33 +214,37 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Fast grouped quantile calculation using terra's C++ backend (built-in string)
+  # This is significantly faster than using an R closure as it avoids
+  # hundreds of callbacks into the R interpreter.
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile", probs = 0.95, na.rm = TRUE)
+  
+  # Optimization: Use "notNA" built-in for counting valid pixels.
+  # This avoids creating a temporary !is.na() mask raster and uses C++ for counting.
+  count_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "notNA")
+  
+  # Handle varying column names in zonal output (e.g., 'class' or 'value')
+  # and ensure they are merged on the class identifier.
+  p95_df <- as.data.frame(p95_vals)
+  names(p95_df)[1] <- "class_value"
+  names(p95_df)[2] <- "p95_aeti"
+  
+  count_df <- as.data.frame(count_vals)
+  names(count_df)[1] <- "class_value"
+  names(count_df)[2] <- "n_pixels"
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
-  
   # Merge results
-  result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
-    stringsAsFactors = FALSE
-  )
-  
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
+  result <- merge(p95_df, count_df, by = "class_value", all = TRUE)
+
+  # Apply the minimum pixel threshold at the data frame level (fast R operation)
+  # instead of inside the per-pixel raster callback.
+  result$n_pixels[is.na(result$n_pixels)] <- 0
   result$n_pixels <- as.integer(result$n_pixels)
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
   
+  # Enforce threshold
+  result$p95_aeti[!result$valid] <- NA_real_
+
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
 
