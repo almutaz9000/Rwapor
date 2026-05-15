@@ -35,10 +35,11 @@ _Last updated: 2026-05-13_
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
 - `ISS-20260513-013`: app/module startup now fails explicitly on source errors and restores async global state on shutdown.
+- `ISS-20260512-010`: internal function visibility in standalone Shiny hardened by explicit namespacing.
 
 ## Pending Tasks
 
-- [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
+- [x] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
 - [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.

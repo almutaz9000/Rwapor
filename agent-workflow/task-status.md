@@ -10,6 +10,11 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Vectorized `wapor_parse_dates()` in `R/utils.R` with seasonal support (2026-05-14).
+- [x] Optimized `wapor_ts()` wide-to-long conversion with matrix operations (2026-05-14).
+- [x] Vectorized `wapor_check_local()` and `wapor_local_rasters()` existence checks (2026-05-14).
+- [x] Hardened internal namespacing in `mod_analysis.R` (2026-05-14).
+
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).

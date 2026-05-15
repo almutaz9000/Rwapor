@@ -35,6 +35,13 @@
 - Added `folder-status-badge` CSS to `premium_style.css`.
 - Replaced `.jules/bolt.md` with a thin Jules adapter that starts from `agent-workflow/START-HERE.md`, uses `task-status.md` as the pending-work queue, and routes durable learnings back into `agent-workflow/project-memory.md`.
 
+## 2026-05-14
+
+- Implemented `wapor_parse_dates()` in `R/utils.R` for vectorized date extraction from WaPOR and AgERA5 URLs, including support for seasonal filename patterns.
+- Optimized `wapor_ts()` in `R/wapor_ts.R` by replacing iterative loops with matrix-based wide-to-long conversion of zonal statistics.
+- Vectorized `wapor_check_local()` and `wapor_local_rasters()` in `R/analysis.R`, using batch `file.exists()` checks and matrix-based path generation.
+- Hardened `inst/shiny/mod_analysis.R` by explicitly namespacing internal package function calls with `Rwapor::`.
+
 ## 2026-05-11
 
 - Added the shared `agent-workflow/` coordination layer.

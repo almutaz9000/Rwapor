@@ -354,9 +354,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   parts <- strsplit(variable, "-")[[1]]
   tres <- tail(parts, 1)
 
-  # Gather metadata for all layers
-  meta_list <- lapply(urls, function(u) wapor_date_info(u, tres))
-  meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
+  # Gather metadata for all layers using vectorized parser
+  meta_df <- wapor_parse_dates(urls, tres)
   meta_df$layer_index <- seq_len(nrow(meta_df))
 
   # Determine region type
@@ -422,8 +421,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
     if (!is.null(vect)) {
       # Zonal statistics for polygons using exactextractr
-      names(r) <- paste0("L", seq_len(terra::nlyr(r)))
       n_lyr <- terra::nlyr(r)
+      names(r) <- paste0("L", seq_len(n_lyr))
 
       ex <- suppressWarnings(exactextractr::exact_extract(
         r,
@@ -432,52 +431,41 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         progress = FALSE
       ))
 
-      ex$ID <- seq_len(nrow(ex))
-
-      # Reshape extracted stats into long format
-      # If processing batches in parallel, we don't further parallelize within a batch
-      # to avoid nested parallelism overhead.
-      inner_apply_fn <- if (parallel) lapply else (if (isTRUE(getOption("wapor.parallel_inner", FALSE))) future.apply::future_lapply else lapply)
+      # ex has columns: mean.L1, min.L1, max.L1, mean.L2, ...
+      # Vectorize wide-to-long reshaping using matrix operations
+      n_polys <- nrow(ex)
       
-      out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
-        lyr_name <- paste0("L", i)
+      # exactextract naming logic
+      get_stat_cols <- function(stat, n) {
+        c1 <- paste0(stat, ".L", seq_len(n))
+        if (all(c1 %in% names(ex))) return(c1)
+        c2 <- paste0("L", seq_len(n), ".", stat)
+        if (all(c2 %in% names(ex))) return(c2)
+        if (n == 1 && stat %in% names(ex)) return(stat)
+        stop(sprintf("Could not find expected columns for stat '%s'.", stat), call. = FALSE)
+      }
 
-        col_mean <- paste0("mean.", lyr_name)
-        col_min <- paste0("min.", lyr_name)
-        col_max <- paste0("max.", lyr_name)
+      mean_cols <- get_stat_cols("mean", n_lyr)
+      min_cols  <- get_stat_cols("min", n_lyr)
+      max_cols  <- get_stat_cols("max", n_lyr)
 
-        if (!col_mean %in% names(ex)) {
-          if (paste0(lyr_name, ".mean") %in% names(ex)) {
-            col_mean <- paste0(lyr_name, ".mean")
-            col_min <- paste0(lyr_name, ".min")
-            col_max <- paste0(lyr_name, ".max")
-          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
-            col_mean <- "mean"
-            col_min <- "min"
-            col_max <- "max"
-          } else {
-            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
-                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
-          }
-        }
+      # Reshape using column-major matrix flattening
+      res_long <- data.frame(
+        mean = as.vector(as.matrix(ex[, mean_cols, drop = FALSE])),
+        min  = as.vector(as.matrix(ex[, min_cols, drop = FALSE])),
+        max  = as.vector(as.matrix(ex[, max_cols, drop = FALSE]))
+      )
 
-        cols <- c(col_mean, col_min, col_max)
-        sub_df <- ex[, cols, drop = FALSE]
-        colnames(sub_df) <- c("mean", "min", "max")
+      # Expand identifiers
+      res_long$ID <- rep(ids, n_lyr)
+      if (!is.null(identifier) && identifier %in% names(vect)) {
+        res_long[[identifier]] <- rep(ids, n_lyr)
+      }
 
-        sub_df$ID <- ids[ex$ID]
-        
-        # Add custom identifier column if specified
-        if (!is.null(identifier) && identifier %in% names(vect)) {
-          sub_df[[identifier]] <- ids[ex$ID]
-        }
+      # Expand metadata: repeat each layer's metadata for each polygon
+      m_long <- chunk_meta[rep(seq_len(n_lyr), each = n_polys), , drop = FALSE]
 
-        m <- chunk_meta[i, ]
-        m_rep <- m[rep(1, nrow(sub_df)), ]
-        cbind(sub_df, m_rep)
-      })
-
-      return(do.call(rbind, out_list))
+      return(cbind(res_long, m_long))
     } else {
       # Global statistics for bbox or L3 code regions
       ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
