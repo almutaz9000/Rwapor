@@ -477,8 +477,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     # --- Validation ---
     iv <- shinyvalidate::InputValidator$new()
-    iv$add_rule("an_ref_year", shinyvalidate::sv_required())
-    iv$add_rule("an_ref_year", shinyvalidate::sv_between(2000, 2030))
     iv$add_rule("an_period", function(value) {
       if (length(value) != 2 || any(is.na(value))) return("Select a valid date range.")
       if (value[2] < value[1]) return("End date must be after start date.")
@@ -611,7 +609,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           end = period[2],
           stringsAsFactors = FALSE
         )
-        ref_year <- input$an_ref_year
+        ref_year <- as.integer(format(as.Date(period[1]), "%Y"))
       }
 
       folder <- project_folder()
@@ -1277,7 +1275,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       s_start <- an_start_rast()
       s_end <- an_end_rast()
       shiny::req(s_start, s_end)
-      shiny::req(input$an_ref_year)
+      shiny::req(input$an_period)
 
       tryCatch({
         vals_start <- terra::values(s_start, na.rm = TRUE)
@@ -1286,7 +1284,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           min_doy <- min(vals_start)
           max_doy <- max(vals_end)
 
-          ref_year <- input$an_ref_year
+          ref_year <- as.integer(format(as.Date(input$an_period[1]), "%Y"))
           year_length <- ifelse(lubridate::leap_year(ref_year), 366L, 365L)
 
           # Handle cross-year seasons properly
@@ -1642,8 +1640,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     })
 
     output$an_season_summary <- shiny::renderPrint({
+      ref_year <- if (length(input$an_period) == 2 && all(!is.na(input$an_period))) {
+        as.integer(format(as.Date(input$an_period[1]), "%Y"))
+      } else {
+        NA_integer_
+      }
       cat("Season:", input$an_season_label, "\n")
-      cat("Reference Year:", input$an_ref_year, "\n")
+      cat("Reference Year:", ref_year, "\n")
       cat("Analysis Period:", as.character(input$an_period[1]), "to", as.character(input$an_period[2]), "\n")
 
       # Data source mode
@@ -2241,7 +2244,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             out <- merge(out, res$seasonal_ret$by_class, by = "class_value", all = TRUE)
           }
           out$season <- input$an_season_label
-          out$ref_year <- input$an_ref_year
+          out$ref_year <- as.integer(format(as.Date(input$an_period[1]), "%Y"))
           utils::write.csv(out, file, row.names = FALSE)
         }
       }

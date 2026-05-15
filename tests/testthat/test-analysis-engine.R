@@ -131,3 +131,114 @@ test_that("seasonal analysis engine computes the exposed indicator set from loca
   expect_equal(cwp_only$cwp, expected_cwp_bwp)
   expect_equal(cwp_only$bwp, expected_cwp_bwp)
 })
+
+test_that("seasonal analysis engine masks indicator rasters outside crop mask", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("rwapor-analysis-mask-")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  dates <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  template <- terra::rast(nrows = 8, ncols = 8, xmin = 0, xmax = 8, ymin = 0, ymax = 8)
+
+  crop_vals <- c(rep(1L, 32), rep(NA_integer_, 32))
+  crop_mask <- terra::setValues(template, crop_vals)
+  season_start <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_end <- terra::setValues(template, rep(31L, terra::ncell(template)))
+
+  write_stack <- function(variable, layer_values) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE)
+    for (i in seq_along(dates)) {
+      r <- terra::setValues(template, rep(layer_values[i], terra::ncell(template)))
+      terra::writeRaster(
+        r,
+        file.path(var_dir, sprintf("WAPOR-3.%s.%s.tif", variable, dates[i])),
+        overwrite = TRUE
+      )
+    }
+  }
+
+  write_stack("L1-AETI-D", c(2, 3, 4))
+  write_stack("L1-RET-D", c(1, 1, 1))
+  write_stack("L1-PCP-D", c(1, 1, 1))
+  write_stack("L1-NPP-D", c(1, 1, 1))
+  write_stack("L1-T-D", c(0.5, 0.5, 0.5))
+
+  crop_params <- data.frame(
+    class_value = 1L,
+    crop_label = "Class 1",
+    kc_ini = 1,
+    kc_mid = 1,
+    kc_end = 1,
+    l_ini_days = 10L,
+    l_mid_days = 10L,
+    l_late_days = 11L,
+    HI = 1,
+    MC = 0,
+    fc = 1,
+    AOT = 1,
+    stringsAsFactors = FALSE
+  )
+
+  config <- list(
+    period = c("2023-01-01", "2023-01-31"),
+    ref_year = 2023,
+    aeti_var = "L1-AETI-D",
+    ret_var = "L1-RET-D",
+    precip_var = "L1-PCP-D",
+    npp_var = "L1-NPP-D",
+    t_var = "L1-T-D",
+    data_source = "local",
+    folder = analysis_dir,
+    indicators = c(
+      "agg_aeti", "agg_ret", "agg_pcp", "agg_peff", "agg_t",
+      "beneficial_fraction", "green_water", "blue_water",
+      "agg_biomass_kg", "agg_biomass_t", "yield_npp"
+    ),
+    use_crop_mask = TRUE,
+    use_season_rasters = TRUE,
+    incremental = FALSE
+  )
+
+  results <- wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(
+      crop_mask = crop_mask,
+      season_start = season_start,
+      season_end = season_end
+    )
+  )
+
+  mask_vals <- as.vector(terra::values(results$valid_crop_mask))
+  outside_mask <- is.na(mask_vals)
+
+  expect_masked <- function(r) {
+    vals <- as.vector(terra::values(r))
+    expect_true(all(is.na(vals[outside_mask])))
+    expect_true(any(!is.na(vals[!outside_mask])))
+  }
+
+  expect_masked(results$seasonal_aeti$raster)
+  expect_masked(results$seasonal_ret$raster)
+  expect_masked(results$seasonal_pcp)
+  expect_masked(results$seasonal_peff)
+  expect_masked(results$seasonal_t$raster)
+  expect_masked(results$beneficial_fraction)
+  expect_masked(results$green_water)
+  expect_masked(results$blue_water)
+  expect_masked(results$seasonal_biomass_kg)
+  expect_masked(results$seasonal_biomass_t)
+  expect_masked(results$yield_raster)
+
+  expect_true(length(results$monthly_aeti$rasters) > 0)
+  expect_masked(results$monthly_aeti$rasters[[1]])
+  expect_masked(results$monthly_ret$rasters[[1]])
+  expect_masked(results$monthly_t$rasters[[1]])
+
+  expect_true(length(results$monthly_precip_peff$monthly_pcp) > 0)
+  expect_masked(results$monthly_precip_peff$monthly_pcp[[1]])
+  expect_masked(results$monthly_precip_peff$monthly_peff[[1]])
+})

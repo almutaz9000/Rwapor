@@ -64,8 +64,8 @@ wapor_analysis_pipeline <- function(config,
   }
   
   # Extract config
-  ref_year <- config$ref_year
   period <- config$period
+  ref_year <- as.integer(format(as.Date(period[1]), "%Y"))
   aeti_var <- config$aeti_var
   ret_var <- config$ret_var
   precip_var <- config$precip_var %||% NULL
