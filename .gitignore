@@ -33,9 +33,6 @@ nul
 # Agent/AI Configuration (local development only)
 .github/
 .claude/
-.agents/
-.agent/
-CLAUDE.md
 memories/
 
 # Development artifacts

@@ -320,6 +320,16 @@ For advanced features, see:
 - **[Shiny Dashboard Guide](vignettes/shiny-dashboard.Rmd)**: Dashboard usage and features
 - **Function References**: Type `?function_name` in R (e.g., `?wapor_ts`)
 
+### 🤖 Developer & AI Workflow
+
+This repository uses a structured workflow to coordinate work between human contributors and AI agents (like Claude, Gemini, or Codex).
+
+- **`agent-workflow/`**: The canonical source of truth for task status, issue logging, and project memory.
+- **`START-HERE.md`**: The entry point for any AI agent session.
+- **`session-brief.md`**: A concise summary of the active focus and pending work.
+
+If you are an AI agent, please follow the instructions in [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md).
+
 ### Repository Structure (Production vs Development)
 
 The repository is organized to keep package runtime code easy to navigate:

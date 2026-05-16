@@ -38,8 +38,7 @@ _Last updated: 2026-05-13_
 
 ## Pending Tasks
 
-- [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
-- [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
+- [x] Used the shared workflow for documentation and configuration tasks and surfaced it in `README.md` (2026-05-14).
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.

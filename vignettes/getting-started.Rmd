@@ -117,6 +117,8 @@ names(AGERA5_VARS)
 get_variable_metadata("AGERA5-ET0-E")
 ```
 
+**Note on Temperature**: AGERA5 temperature indicators (like `TMIN` and `TMAX`) are stored in Kelvin (K). Rwapor **automatically converts** these to Celsius (°C) during download.
+
 ## Downloading Raster Maps
 
 Use `wapor_map()` to download and save raster data for a region:
@@ -244,8 +246,9 @@ attr(df, "long_name")
 
 ## Unit Conversion
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor **automatically converts**
+them to dekadal totals (`mm/dekad`) by default. Use the `unit_conversion`
+parameter to choose the output:
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
