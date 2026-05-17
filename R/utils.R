@@ -729,16 +729,23 @@ wapor_guess_region <- function(variable, reg_info, period) {
   extracted_codes <- character()
   unique_urls <- character()
 
-  # Extract distinct L3 codes from the filenames
-  for (u in urls) {
-    fname <- tools::file_path_sans_ext(basename(u))
-    parts <- strsplit(fname, "\\.")[[1]]
-    if (length(parts) >= 4) {
-      code <- parts[3]
-      if (!code %in% extracted_codes && nchar(code) == 3 && toupper(code) == code) {
-        extracted_codes <- c(extracted_codes, code)
-        unique_urls <- c(unique_urls, u)
-      }
+  # Extract distinct L3 codes from the filenames (vectorized)
+  bases <- tools::file_path_sans_ext(basename(urls))
+  parts_list <- strsplit(bases, ".", fixed = TRUE)
+
+  has_min_parts <- vapply(parts_list, length, integer(1)) >= 4
+  if (any(has_min_parts)) {
+    codes <- vapply(parts_list[has_min_parts], `[`, character(1), 3)
+    # Restore original flexibility: 3 chars and uppercase
+    is_valid <- nchar(codes) == 3 & toupper(codes) == codes
+
+    if (any(is_valid)) {
+      all_valid_codes <- codes[is_valid]
+      all_valid_urls <- urls[has_min_parts][is_valid]
+
+      first_idx <- which(!duplicated(all_valid_codes))
+      extracted_codes <- all_valid_codes[first_idx]
+      unique_urls <- all_valid_urls[first_idx]
     }
   }
 
