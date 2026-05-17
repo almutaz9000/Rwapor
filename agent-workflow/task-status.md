@@ -4,9 +4,7 @@ _Last updated: 2026-05-13_
 
 ## Active
 
-- [ ] Manually verify dashboard startup + shutdown behavior in an interactive Shiny session.
-  - Scope: confirm module-source failures are explicit and async runtime state is restored after app close.
-  - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
+- [ ] Refer to `.jules/bolt.md` for Jules-specific active tasks.
 
 ## Recently Completed
 
@@ -21,20 +19,13 @@ _Last updated: 2026-05-13_
 
 ## Pending
 
-- [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
-- [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that use `beneficial_fraction`.
-- [ ] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
-- [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
-- [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
-- [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
-- [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
-- [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
-- [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
+- [ ] Refer to `.jules/bolt.md` for Jules-specific pending tasks.
 
 ## Completed Recently
 
+- [x] Surfaced the shared workflow in `README.md` (2026-05-14).
+- [x] Relaxed `.gitignore` for shared agent adapter files (2026-05-14).
+- [x] Updated `vignettes/getting-started.Rmd` with automatic temperature conversion and dekadal default documentation (2026-05-14).
 - [x] Approved the shared agent workflow design.
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.
 - [x] Wrote the Shiny batch-analysis implementation plan at `dev-archive/2026-05-production-cleanup/improvements/P4_shiny_batch_analysis.md`.

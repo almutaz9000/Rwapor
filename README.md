@@ -348,6 +348,16 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 Developer & AI Workflow
+
+This repository uses a structured coordination workflow for both human contributors and AI agents. If you are developing, debugging, or using an AI agent (like Claude, Gemini, or Copilot) with this codebase:
+
+1.  **Start Here**: Read [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md) for the canonical project status, pending tasks, and coordination rules.
+2.  **Shared State**: All live task progress, known issues, and durable project memory are stored in the `agent-workflow/` directory.
+3.  **Validation**: Before submitting changes, ensure you follow the validation steps described in the session briefing.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

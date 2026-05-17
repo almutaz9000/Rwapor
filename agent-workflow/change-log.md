@@ -13,6 +13,10 @@
 
 ## 2026-05-14
 
+- Migrated active tasks from `agent-workflow/task-status.md` to `.jules/bolt.md` as the primary entry point for Jules.
+- Surfaced the shared agent workflow in `README.md` with a new 'Developer & AI Workflow' section.
+- Refined `.gitignore` with selective un-ignores for agent adapter files (`CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`) while maintaining base directory protection.
+- Updated `vignettes/getting-started.Rmd` to document automatic temperature conversion (Kelvin to Celsius) and dekadal-default behavior.
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.

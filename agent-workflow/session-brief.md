@@ -4,6 +4,9 @@ _Last updated: 2026-05-13_
 
 ## Active Focus
 
+- Migrated active tasks to `.jules/bolt.md` to honor the user's direct request.
+- Surfaced the shared agent workflow in `README.md` and refined `.gitignore` for selective agent adapter sharing.
+- Documented automatic temperature conversion and dekadal defaults in `vignettes/getting-started.Rmd`.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.

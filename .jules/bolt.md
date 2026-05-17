@@ -16,14 +16,26 @@ Before making changes:
 
 ## Online Work Queue
 
-- Use unchecked items in `agent-workflow/task-status.md` as the default pending work queue.
-- Prefer tasks that already have clear scope and validation steps.
+- **Primary Entry Point**: Use the **Active Tasks** section below for Jules-specific pending work.
 - Check `agent-workflow/issues-log.md` for open regressions and unresolved root causes before starting.
-- Do not create a parallel Jules task list or separate repo memory.
+
+## Active Tasks
+
+- [ ] Manually verify dashboard startup + shutdown behavior in an interactive Shiny session.
+  - Scope: confirm module-source failures are explicit and async runtime state is restored after app close.
+  - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
+- [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
+- [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that use `beneficial_fraction`.
+- [ ] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
+- [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
+- [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
+- [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
+- [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
+- [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
 
 ## Update Rules
 
-- Use `agent-workflow/task-status.md` for live task progress.
+- Update the **Active Tasks** section here for live progress.
 - Log confirmed root causes, regressions, and resolutions in `agent-workflow/issues-log.md`.
 - Update `agent-workflow/session-brief.md` after validated work so later sessions can pick up quickly.
 - Update `agent-workflow/change-log.md` when repo-visible workflow or behavior changes are confirmed.

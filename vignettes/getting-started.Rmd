@@ -244,8 +244,19 @@ attr(df, "long_name")
 
 ## Unit Conversion
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+Rwapor automatically handles common unit conversions for you.
+
+### Automatic Conversions
+
+-   **Temperature (AgERA5)**: Indicators like `TMIN` and `TMAX` are automatically
+    converted from Kelvin to Celsius during download.
+-   **WaPOR Dekadal Variables**: Variables stored as daily rates (e.g., `mm/day`)
+    are converted to **dekadal totals** by default when using `wapor_ts()` or
+    `wapor_map()`.
+
+### Manual Overrides
+
+Use the `unit_conversion` parameter to choose a specific output format:
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
