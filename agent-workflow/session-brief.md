@@ -31,7 +31,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
-- `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
+- `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`. Surfaced in `README.md` and relaxed `.gitignore` for shared coordination.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
 - `ISS-20260513-013`: app/module startup now fails explicitly on source errors and restores async global state on shutdown.

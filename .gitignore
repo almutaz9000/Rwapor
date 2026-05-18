@@ -30,13 +30,31 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
+# Agent/AI Configuration
 .github/
 .claude/
 .agents/
 .agent/
 CLAUDE.md
 memories/
+
+# Un-ignore shared coordination files
+!.github/
+!.github/agents/
+!.agents/
+!.agent/
+!.jules/
+!CLAUDE.md
+
+# Re-ignore other .github content if needed
+.github/*
+!.github/agents/
+
+# Keep session-specific memory ignored
+.agents/sessions/
+.agent/sessions/
+.agent/memory/
+.github/agents/sessions/
 
 # Development artifacts
 archived_reports/

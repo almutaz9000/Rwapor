@@ -295,6 +295,18 @@ For complex analysis, multi-year monitoring, and seasonal productivity modeling,
 
 ---
 
+## 🛠️ Developer & AI Workflow
+
+This repository uses a structured workflow for human contributors and AI agents to coordinate tasks, track issues, and maintain project memory.
+
+If you are contributing to the package or using AI assistance:
+- **Canonical Truth**: All task status, issue logs, and project memory reside in the [`agent-workflow/`](agent-workflow/) directory.
+- **Start Here**: Always read [`agent-workflow/START-HERE.md`](agent-workflow/START-HERE.md) before starting a new session.
+- **Model Configs**: AI agents should also check model-specific adapter files (e.g., [`.jules/bolt.md`](.jules/bolt.md) for Jules) for session-specific runtime guidance.
+- **Tools**: Use the scripts in `dev-tools/scripts/` for common development tasks.
+
+---
+
 ## 📚 Learn More
 
 ### Available Data
