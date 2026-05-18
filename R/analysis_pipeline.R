@@ -410,7 +410,8 @@ wapor_analysis_pipeline <- function(config,
   if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
     etc_results <- .compute_etc_by_class(
       ret_stack, season_weights, h_mask, h_start, h_end,
-      crop_params, ref_year, dekad_table, ret_var
+      crop_params, ref_year, dekad_table, ret_var,
+      incremental = incremental
     )
     results$kc_by_class <- etc_results$kc_by_class
     results$etc_by_class <- etc_results$etc_by_class
@@ -458,7 +459,8 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
-                                  crop_params, ref_year, dekad_table, ret_var) {
+                                  crop_params, ref_year, dekad_table, ret_var,
+                                  incremental = FALSE) {
   
   analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
@@ -504,7 +506,8 @@ wapor_analysis_pipeline <- function(config,
   for (key in names(kc_profiles)) {
     unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
       ret_stack, season_weights, kc_profiles[[key]],
-      layer_multipliers = ret_layer_multipliers
+      layer_multipliers = ret_layer_multipliers,
+      incremental = incremental
     )
   }
   
@@ -550,36 +553,55 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab to extract unique combinations and counts.
+  # This avoids loading all raster values into R memory with terra::values(),
+  # preventing OOM errors for large regions.
   
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
+  stack <- c(crop_mask, start_raster, end_raster)
+  names(stack) <- c("class_value", "start_jd", "end_jd")
   
-  if (!any(valid)) {
+  # crosstab with long=TRUE returns a data frame of combinations that exist
+  profile_df <- tryCatch({
+    as.data.frame(terra::crosstab(stack, long = TRUE))
+  }, error = function(e) {
+    # Fallback for very large/complex rasters if crosstab fails
+    data.frame(class_value = integer(0), start_jd = integer(0), end_jd = integer(0), Freq = integer(0))
+  })
+
+  if (nrow(profile_df) == 0) {
     return(data.frame(
       class_value = integer(0), start_jd = integer(0), 
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
   
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
+  # Filter for valid classes and non-NA values
+  profile_df <- profile_df[
+    !is.na(profile_df$class_value) &
+    !is.na(profile_df$start_jd) &
+    !is.na(profile_df$end_jd) &
+    profile_df$class_value %in% class_values &
+    profile_df$Freq > 0,
+  ]
+
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # Format the table
+  profile_df$class_value <- as.integer(profile_df$class_value)
+  profile_df$start_jd <- as.integer(round(profile_df$start_jd))
+  profile_df$end_jd <- as.integer(round(profile_df$end_jd))
+  profile_df$pixel_count <- as.integer(profile_df$Freq)
   profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+  
+  # Only keep valid growing seasons
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
   
-  if (nrow(profile_df) == 0) return(profile_df)
-  
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
-  )
+  profile_df[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {
