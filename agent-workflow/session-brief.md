@@ -1,9 +1,11 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-20_
 
 ## Active Focus
 
+- Relaxed `.gitignore` to allow shared AI agent configuration files (`CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`) to be tracked in the repository, facilitating cross-environment coordination.
+- Surfaced the "Shared Agent Workflow" in `README.md` to guide AI agents and human contributors to the canonical task state in `agent-workflow/`.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
@@ -31,6 +33,8 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260520-001`: Relaxed `.gitignore` to allow shared AI agent configuration files.
+- `ISS-20260520-002`: Surfaced the shared agent workflow in `README.md`.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
@@ -39,7 +43,6 @@ _Last updated: 2026-05-13_
 ## Pending Tasks
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
-- [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.

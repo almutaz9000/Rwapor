@@ -295,6 +295,16 @@ For complex analysis, multi-year monitoring, and seasonal productivity modeling,
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a structured workflow for AI agents (Claude, Gemini, etc.) and human contributors to coordinate tasks and maintain project memory.
+
+- **Source of Truth**: All task states, session briefs, and project memory are stored in the [`agent-workflow/`](agent-workflow/) directory.
+- **Coordination**: Agents are instructed to read `agent-workflow/START-HERE.md` at the beginning of every session to align on the current status and pending work.
+- **Persistence**: Using this workflow ensures that context is preserved across different AI models and development environments.
+
+---
+
 ## 📚 Learn More
 
 ### Available Data

@@ -1,5 +1,10 @@
 # Agent Workflow Change Log
 
+## 2026-05-20
+
+- Relaxed `.gitignore` to allow tracking of shared agent configuration files (`CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`).
+- Added "Shared Agent Workflow" section to `README.md` to improve contributor and AI agent coordination.
+
 ## 2026-05-13
 
 - Added `.wapor_dashboard_required_pkgs()` and extended `run_wapor()` dependency precheck to include async runtime packages (`future`, `promises`).
