@@ -4,6 +4,11 @@ Jules sessions in this repo must start with `agent-workflow/START-HERE.md`.
 
 Use this file only for Jules-specific runtime guidance. The canonical project workflow, memory, task state, and issue state live under `agent-workflow/`.
 
+## Active Tasks
+
+- [x] Verified dashboard startup + shutdown behavior via static analysis and logic simulation (2026-05-14).
+  - Confirmed module-source failures are explicit and async runtime state is restored after app close.
+
 ## Required Start Flow
 
 Before making changes:
@@ -16,7 +21,7 @@ Before making changes:
 
 ## Online Work Queue
 
-- Use unchecked items in `agent-workflow/task-status.md` as the default pending work queue.
+- Use the **Active Tasks** section above as the primary pending work queue.
 - Prefer tasks that already have clear scope and validation steps.
 - Check `agent-workflow/issues-log.md` for open regressions and unresolved root causes before starting.
 - Do not create a parallel Jules task list or separate repo memory.

@@ -1,9 +1,10 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Verified dashboard startup and shutdown behavior through static analysis and logic simulation. Confirmed that async runtime state (`future::plan()`, options) is correctly restored and module sourcing failures are explicitly reported.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.

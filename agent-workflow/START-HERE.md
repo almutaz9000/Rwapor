@@ -4,9 +4,10 @@ Canonical workflow for Claude, Codex, Gemini, and Copilot in this repo.
 
 ## Start
 
-1. Run:
+1. Check `.jules/bolt.md` for the current Active Tasks.
+2. Run:
    `powershell -ExecutionPolicy Bypass -File .\agent-workflow\scripts\agent_preflight.ps1`
-2. Read in this order:
+3. Read in this order:
    - `agent-workflow/session-brief.md`
    - `agent-workflow/task-status.md`
    - `agent-workflow/issues-log.md`

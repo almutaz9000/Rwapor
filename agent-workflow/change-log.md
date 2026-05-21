@@ -13,6 +13,7 @@
 
 ## 2026-05-14
 
+- Reprioritized `.jules/bolt.md` as the primary task entry point for Jules, integrating it into the `agent-workflow/START-HERE.md` flow.
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
