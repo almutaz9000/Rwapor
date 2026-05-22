@@ -110,43 +110,47 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab(..., long = TRUE) to efficiently extract unique
+  # combinations of crop class and start/end dates. This avoids high memory overhead
+  # and OOM risks associated with terra::values() on large spatial extents.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure Julian day rasters are rounded to integers before stacking
+  s_round <- terra::round(start_raster)
+  e_round <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Stack rasters for cross-tabulation
+  stk <- terra::rast(list(crop_mask, s_round, e_round))
+  names(stk) <- c("class_value", "start_jd", "end_jd")
+
+  # Perform memory-efficient cross-tabulation using C++ backend
+  ct <- terra::crosstab(stk, long = TRUE, useNA = FALSE)
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  # Standardize names and types
+  names(ct) <- c("class_value", "start_jd", "end_jd", "pixel_count")
+  ct$class_value <- as.integer(as.character(ct$class_value))
+  ct$start_jd <- as.integer(as.character(ct$start_jd))
+  ct$end_jd <- as.integer(as.character(ct$end_jd))
+
+  # Filter to requested classes and valid seasons
+  res <- ct[ct$class_value %in% class_values, , drop = FALSE]
+  res$total_days <- res$end_jd - res$start_jd + 1L
+  res <- res[res$total_days > 0, , drop = FALSE]
+
+  if (nrow(res) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
   }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  res[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis

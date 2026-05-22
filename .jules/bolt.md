@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Optimization of Grouped Quantiles and Frequency Counting]
+**Learning:** Using built-in string identifiers in `terra::zonal` and `terra::global` (e.g., 'quantile', 'notNA', 'mean') is significantly faster than custom R closures as it uses the C++ backend. For multi-raster frequency counting (like season profiles), `terra::crosstab(..., long = TRUE)` is far more memory-efficient than `terra::values()` as it avoids loading the entire raster into R's memory.
+**Action:** Prefer built-in `terra` functions and `crosstab` for grouped operations and frequency counting to improve speed and avoid OOM risks on large extents.
