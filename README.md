@@ -348,6 +348,16 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a **Shared Agent Workflow** to coordinate work between different AI assistants (Claude, Gemini, Copilot, etc.) and human contributors.
+
+- **Canonical Truth**: All task states, issue logs, and project memory live in the `agent-workflow/` directory.
+- **Getting Started**: AI agents should start by reading `agent-workflow/START-HERE.md`.
+- **Session Continuity**: We use standardized session briefs and task status files to ensure seamless handovers between sessions.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

@@ -18,6 +18,8 @@
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
 - Updated the FAO crop-data refresh script to resolve repo-root output paths even after relocation.
 - Added repository structure documentation for agents and contributors at `docs/REPOSITORY_STRUCTURE.md`.
+- Surfaced the Shared Agent Workflow in `README.md` to guide both human and AI contributors to the canonical `agent-workflow/` directory.
+- Relaxed `.gitignore` to allow tracking of shared AI agent adapters (`.github/agents/`, `CLAUDE.md`, `.agent/`, and `.agents/`), ensuring cross-environment consistency for agent-based development.
 
 ## 2026-05-12
 
