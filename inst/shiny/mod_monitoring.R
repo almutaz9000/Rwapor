@@ -4,7 +4,32 @@
 # agronomic stress visualisations.
 
 # ── Load helper functions ──────────────────────────────────────────────────────
-source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local = TRUE)
+.wapor_source_monitoring_helpers <- function() {
+  # 1. Try system file (standard for installed package)
+  path <- system.file("shiny", "monitoring_helpers.R", package = "Rwapor")
+
+  # 2. Fallback for local development
+  if (path == "" || !file.exists(path)) {
+    path <- "monitoring_helpers.R"
+  }
+
+  if (!file.exists(path)) {
+    path <- file.path("inst", "shiny", "monitoring_helpers.R")
+  }
+
+  if (!file.exists(path)) {
+    stop("Missing Monitoring helper file: monitoring_helpers.R", call. = FALSE)
+  }
+
+  tryCatch(
+    source(path, local = TRUE),
+    error = function(e) {
+      stop(sprintf("Failed to source Monitoring helpers '%s': %s", path, e$message), call. = FALSE)
+    }
+  )
+}
+
+.wapor_source_monitoring_helpers()
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 

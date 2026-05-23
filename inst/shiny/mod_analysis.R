@@ -2,8 +2,33 @@
 # Seasonal analysis workflow.
 
 # Source sub-UI components (assuming they are in the same directory)
-source("mod_analysis_ui_sidebar.R", local = TRUE)
-source("mod_analysis_ui_body.R", local = TRUE)
+.wapor_source_analysis_component <- function(filename) {
+  # 1. Try system file (standard for installed package)
+  path <- system.file("shiny", filename, package = "Rwapor")
+
+  # 2. Fallback for local development
+  if (path == "" || !file.exists(path)) {
+    path <- filename
+  }
+
+  if (!file.exists(path)) {
+    path <- file.path("inst", "shiny", filename)
+  }
+
+  if (!file.exists(path)) {
+    stop(sprintf("Missing Analysis UI component file: %s", filename), call. = FALSE)
+  }
+
+  tryCatch(
+    source(path, local = TRUE),
+    error = function(e) {
+      stop(sprintf("Failed to source Analysis UI component '%s': %s", path, e$message), call. = FALSE)
+    }
+  )
+}
+
+.wapor_source_analysis_component("mod_analysis_ui_sidebar.R")
+.wapor_source_analysis_component("mod_analysis_ui_body.R")
 
 mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
   ns <- shiny::NS(id)
