@@ -214,34 +214,36 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimized grouped quantile and valid pixel count.
+  # Using built-in string identifiers is significantly faster than R closures.
+  # We use two passes because terra::zonal doesn't support "quantile" in a vector of functions.
+  
+  # Pass 1: Grouped 95th Percentile
+  p95_df <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile",
+                         probs = 0.95, na.rm = TRUE)
+  p95_df <- as.data.frame(p95_df)
+  names(p95_df)[1:2] <- c("class_value", "p95_aeti")
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
-  
+  # Pass 2: Count valid pixels (C++ optimized "notNA")
+  # This replaces the expensive terra::ifel(is.na(x), 0, 1) + terra::zonal("sum") pass.
+  count_df <- terra::zonal(aeti_seasonal, crop_mask, fun = "notNA")
+  count_df <- as.data.frame(count_df)
+  names(count_df)[1:2] <- c("class_value", "n_pixels")
+
   # Merge results
-  result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
-    stringsAsFactors = FALSE
-  )
-  
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
-  result$n_pixels <- as.integer(result$n_pixels)
-  result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
-  
-  result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
+  res_df <- merge(p95_df, count_df, by = "class_value", all = TRUE)
+
+  # Post-aggregation thresholding for min_pixels to maintain original logic
+  res_df$valid <- !is.na(res_df$p95_aeti) & res_df$n_pixels >= min_pixels
+
+  # Apply thresholding: if n_pixels < min_pixels, set p95 to NA
+  res_df$p95_aeti[!res_df$valid] <- NA_real_
+
+  # Ensure types for consistency
+  res_df$class_value <- as.integer(res_df$class_value)
+  res_df$n_pixels <- as.integer(res_df$n_pixels)
+
+  res_df[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
 
 #' Compute P95-Based Adequacy
