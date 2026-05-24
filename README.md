@@ -348,6 +348,17 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a shared workflow for AI agents (Jules, Claude, Gemini, etc.) to ensure coordination and consistency. All active task states, issue logs, and project-specific memories are stored in the `agent-workflow/` directory.
+
+If you are an AI agent or a contributor working with one:
+1. Start with `bolt.md` or `agent-workflow/START-HERE.md`.
+2. Check `agent-workflow/task-status.md` for the current work queue.
+3. Use `agent-workflow/issues-log.md` to report or track regressions.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

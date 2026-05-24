@@ -18,6 +18,9 @@
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
 - Updated the FAO crop-data refresh script to resolve repo-root output paths even after relocation.
 - Added repository structure documentation for agents and contributors at `docs/REPOSITORY_STRUCTURE.md`.
+- Surfaced the shared agent workflow in `README.md` to direct contributors to `agent-workflow/`.
+- Created root `bolt.md` as an entry point for agents, redirecting to the shared workflow.
+- Relaxed `.gitignore` to allow tracking of shared AI adapter files (`bolt.md`, `CLAUDE.md`, `.agent/`, `.agents/`, and `.github/agents/`) and `.claude/settings.json`.
 
 ## 2026-05-12
 
