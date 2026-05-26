@@ -17,11 +17,11 @@ test_that("wapor_parse_batch_periods parses valid batch input", {
 })
 
 test_that("analysis preview plots avoid full par restore to prevent pin errors", {
-  mod_analysis_path <- normalizePath(
-    file.path(test_path("..", "..", "inst", "shiny", "mod_analysis.R")),
-    winslash = "/",
-    mustWork = TRUE
-  )
+  mod_analysis_path <- system.file("shiny", "mod_analysis.R", package = "Rwapor")
+  if (!nzchar(mod_analysis_path)) {
+    mod_analysis_path <- file.path("inst", "shiny", "mod_analysis.R")
+  }
+  mod_analysis_path <- normalizePath(mod_analysis_path, winslash = "/", mustWork = TRUE)
   lines <- readLines(mod_analysis_path, warn = FALSE)
 
   has_no_readonly_restore <- any(grepl("par\\(no\\.readonly\\s*=\\s*TRUE\\)", lines))
@@ -113,6 +113,7 @@ test_that("wapor_generate_shiny_script emits parseable single-season and batch s
   )
 
   expect_match(single_script, "period <- c\\(")
+  expect_match(single_script, "ref_year <- as.integer\\(format\\(as.Date\\(period\\[1\\]\\), \"%Y\"\\)\\)")
   expect_match(single_script, "season_label <- \"Winter 2023\"")
   expect_false(grepl("periods <- list\\(", single_script, fixed = FALSE))
   expect_match(single_script, "wapor_run_seasonal_analysis\\(")

@@ -596,6 +596,71 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
      }
   }
 
+  # Ensure all indicator rasters honor the active crop mask before export/plotting.
+  .mask_result_raster <- function(r) {
+    if (is.null(r) || !inherits(r, "SpatRaster")) return(r)
+    terra::mask(r, results$valid_crop_mask)
+  }
+
+  .mask_monthly_series <- function(series) {
+    if (is.null(series) || is.null(series$rasters) || !is.list(series$rasters)) return(series)
+    series$rasters <- lapply(series$rasters, .mask_result_raster)
+    series
+  }
+
+  if (!is.null(results$seasonal_aeti) && !is.null(results$seasonal_aeti$raster)) {
+    results$seasonal_aeti$raster <- .mask_result_raster(results$seasonal_aeti$raster)
+  }
+  if (!is.null(results$seasonal_ret) && !is.null(results$seasonal_ret$raster)) {
+    results$seasonal_ret$raster <- .mask_result_raster(results$seasonal_ret$raster)
+  }
+  if (!is.null(results$seasonal_t) && !is.null(results$seasonal_t$raster)) {
+    results$seasonal_t$raster <- .mask_result_raster(results$seasonal_t$raster)
+  }
+
+  results$seasonal_pcp <- .mask_result_raster(results$seasonal_pcp)
+  results$seasonal_peff <- .mask_result_raster(results$seasonal_peff)
+  results$beneficial_fraction <- .mask_result_raster(results$beneficial_fraction)
+  results$green_water <- .mask_result_raster(results$green_water)
+  results$blue_water <- .mask_result_raster(results$blue_water)
+  results$adequacy_etc <- .mask_result_raster(results$adequacy_etc)
+  results$adequacy_p95 <- .mask_result_raster(results$adequacy_p95)
+  results$seasonal_biomass_kg <- .mask_result_raster(results$seasonal_biomass_kg)
+  results$seasonal_biomass_t <- .mask_result_raster(results$seasonal_biomass_t)
+  results$seasonal_biomass <- .mask_result_raster(results$seasonal_biomass)
+  results$yield_raster <- .mask_result_raster(results$yield_raster)
+
+  if (!is.null(results$etc_by_class) && is.list(results$etc_by_class)) {
+    for (cls in names(results$etc_by_class)) {
+      if (!is.null(results$etc_by_class[[cls]]$etc_seasonal)) {
+        results$etc_by_class[[cls]]$etc_seasonal <- .mask_result_raster(results$etc_by_class[[cls]]$etc_seasonal)
+      }
+    }
+  }
+
+  results$monthly_aeti <- .mask_monthly_series(results$monthly_aeti)
+  results$monthly_ret <- .mask_monthly_series(results$monthly_ret)
+  results$monthly_t <- .mask_monthly_series(results$monthly_t)
+  results$monthly_etc <- .mask_monthly_series(results$monthly_etc)
+  results$monthly_green_water <- .mask_monthly_series(results$monthly_green_water)
+  results$monthly_blue_water <- .mask_monthly_series(results$monthly_blue_water)
+
+  if (!is.null(results$monthly_precip_peff)) {
+    if (!is.null(results$monthly_precip_peff$monthly_pcp)) {
+      results$monthly_precip_peff$monthly_pcp <- lapply(results$monthly_precip_peff$monthly_pcp, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$monthly_peff)) {
+      results$monthly_precip_peff$monthly_peff <- lapply(results$monthly_precip_peff$monthly_peff, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$rasters$pcp)) {
+      results$monthly_precip_peff$rasters$pcp <- lapply(results$monthly_precip_peff$rasters$pcp, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$rasters$peff)) {
+      results$monthly_precip_peff$rasters$peff <- lapply(results$monthly_precip_peff$rasters$peff, .mask_result_raster)
+    }
+    results$monthly_precip_peff$seasonal_peff <- .mask_result_raster(results$monthly_precip_peff$seasonal_peff)
+  }
+
   # 6. Cleanup & Return
   progress_callback(0.95, "Finalizing...")
   results$crop_params <- crop_params

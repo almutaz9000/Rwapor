@@ -18,9 +18,7 @@ wapor_validate_analysis_config <- function(config, crop_mask = NULL,
   errors <- character()
   
   # Check required fields
-  if (is.null(config$ref_year)) {
-    errors <- c(errors, "Reference year is required")
-  } else if (config$ref_year < 2000 || config$ref_year > 2030) {
+  if (!is.null(config$ref_year) && (config$ref_year < 2000 || config$ref_year > 2030)) {
     errors <- c(errors, "Reference year must be between 2000 and 2030")
   }
   
