@@ -1,9 +1,10 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Relaxed `.gitignore` for agent adapter files and surfaced the shared workflow in `README.md`.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.

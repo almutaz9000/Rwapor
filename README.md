@@ -331,6 +331,16 @@ The repository is organized to keep package runtime code easy to navigate:
 
 For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
+### Shared Agent Workflow
+
+This repository uses a shared workflow for AI agents (Claude, Gemini, etc.) to coordinate tasks and maintain session state. If you are an AI agent or a developer working with one, please refer to the **[agent-workflow/](agent-workflow/)** directory as the canonical source of truth for:
+- 📋 `task-status.md`: Active and pending work items.
+- 🐞 `issues-log.md`: Confirmed bugs and their resolution status.
+- 📝 `session-brief.md`: Latest activity and focus areas.
+- 🧠 `project-memory.md`: Durable lessons and patterns.
+
+Coordination always starts from **[agent-workflow/START-HERE.md](agent-workflow/START-HERE.md)**.
+
 ### Key Functions
 
 | Function | Purpose |
