@@ -110,16 +110,32 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab instead of pulling all values into R.
+  # Crosstab handles the grouping and counting in the C++ backend, which is
+  # significantly faster and more memory-efficient than manifesting an O(N)
+  # data frame in R for large analysis areas.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure Julian days are integers by rounding before cross-tabulation
+  s_int <- terra::round(start_raster)
+  e_int <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Stack layers for multi-way frequency calculation
+  s <- terra::rast(list(crop_mask, s_int, e_int))
+  names(s) <- c("class_value", "start_jd", "end_jd")
+
+  # Compute unique combinations and their counts
+  # Using long = TRUE returns a data frame with layer names as columns and 'Freq' as counts
+  profile_df <- terra::crosstab(s, long = TRUE)
+
+  # Filter to active classes and remove NAs
+  profile_df <- profile_df[
+    !is.na(profile_df$class_value) &
+    !is.na(profile_df$start_jd) &
+    !is.na(profile_df$end_jd) &
+    profile_df$class_value %in% class_values, , drop = FALSE
+  ]
+
+  if (nrow(profile_df) == 0) {
     return(data.frame(
       class_value = integer(0),
       start_jd = integer(0),
@@ -129,24 +145,20 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
+  # Finalize table with integer types and standard column names
+  profile_df$class_value <- as.integer(profile_df$class_value)
+  profile_df$start_jd    <- as.integer(profile_df$start_jd)
+  profile_df$end_jd      <- as.integer(profile_df$end_jd)
+  profile_df$pixel_count <- as.integer(profile_df$Freq)
+  profile_df$Freq        <- NULL
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  # Filter out invalid seasons (duration must be positive)
+  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+
+  # Return columns in standard order for downstream processing
+  profile_df[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis
