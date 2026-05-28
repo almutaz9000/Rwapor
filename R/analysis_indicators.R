@@ -214,33 +214,40 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimization: Using built-in string identifiers in terra::zonal is
+  # significantly faster than R closures. Since 'quantile' cannot be combined
+  # with other functions in a single zonal call, we use two separate passes.
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
-  
+  # 1. Fast grouped quantile calculation
+  p95_df <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile", probs = 0.95, na.rm = TRUE)
+  p95_df <- as.data.frame(p95_df)
+  names(p95_df)[1:2] <- c("class_value", "p95_aeti")
+
+  # 2. Count valid (non-NA) analysis pixels per class
+  count_df <- terra::zonal(aeti_seasonal, crop_mask, fun = "notNA")
+  count_df <- as.data.frame(count_df)
+  names(count_df)[1:2] <- c("class_value", "n_pixels")
+
   # Merge results
-  result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
-    stringsAsFactors = FALSE
-  )
-  
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
+  result <- merge(p95_df, count_df, by = "class_value", all = TRUE)
+
+  # Standardize counts and compute validity. Base R is used for NA replacement
+  # to ensure robust vectorized behavior.
+  if (any(is.na(result$n_pixels))) {
+    result$n_pixels[is.na(result$n_pixels)] <- 0
+  }
   result$n_pixels <- as.integer(result$n_pixels)
-  result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
   
+  # Ensure valid column is logical and handles NA p95 correctly
+  result$valid <- !is.na(result$p95_aeti) & (result$n_pixels >= min_pixels)
+
+  # If below threshold, set p95 to NA to match previous behavior.
+  # which() is used to avoid issues with potential NA in logical indexing.
+  invalid_idx <- which(!result$valid)
+  if (length(invalid_idx) > 0) {
+    result$p95_aeti[invalid_idx] <- NA_real_
+  }
+
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
 

@@ -110,43 +110,57 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab(..., long = TRUE) instead of terra::values()
+  # to avoid Out-of-Memory (OOM) errors on large spatial extents. This keeps
+  # aggregation in the C++ backend.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Round julian days to ensure they group correctly as integers in crosstab
+  s_round <- terra::round(start_raster)
+  e_round <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Create a stack for crosstabulation
+  s <- terra::rast(list(class_value = crop_mask, start_jd = s_round, end_jd = e_round))
+
+  # crosstab with long=TRUE returns a data frame of unique combinations and counts
+  # suppressing warnings about factors or large tables
+  ct <- tryCatch({
+    suppressWarnings(terra::crosstab(s, long = TRUE))
+  }, error = function(e) {
+    # Fallback to values() if crosstab fails (e.g. extremely fragmented data)
+    cv <- terra::values(crop_mask, mat = FALSE)
+    sv <- terra::values(s_round, mat = FALSE)
+    ev <- terra::values(e_round, mat = FALSE)
+    df <- data.frame(class_value = cv, start_jd = sv, end_jd = ev)
+    df <- df[!is.na(df$class_value) & !is.na(df$start_jd) & !is.na(df$end_jd), ]
+    if (nrow(df) == 0) return(NULL)
+    stats::aggregate(list(Freq = rep(1L, nrow(df))), df, length)
+  })
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0), end_jd = integer(0),
+      total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  # Filter to selected classes and valid combinations
+  names(ct)[names(ct) == "Freq"] <- "pixel_count"
+  ct$class_value <- as.integer(as.character(ct$class_value))
+  ct$start_jd <- as.integer(as.character(ct$start_jd))
+  ct$end_jd   <- as.integer(as.character(ct$end_jd))
+
+  ct <- ct[ct$class_value %in% class_values & ct$pixel_count > 0, , drop = FALSE]
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
+  ct <- ct[ct$total_days > 0, , drop = FALSE]
+
+  if (nrow(ct) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0), end_jd = integer(0),
+      total_days = integer(0), pixel_count = integer(0)
+    ))
   }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  ct[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis
