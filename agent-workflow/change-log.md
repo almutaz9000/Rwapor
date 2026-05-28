@@ -18,6 +18,9 @@
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
 - Updated the FAO crop-data refresh script to resolve repo-root output paths even after relocation.
 - Added repository structure documentation for agents and contributors at `docs/REPOSITORY_STRUCTURE.md`.
+- Updated `vignettes/getting-started.Rmd` with a new "Automatic Unit Conversions" section.
+- Hardened `inst/shiny/mod_analysis.R` by adding package namespace `Rwapor::` to `wapor_shiny_save_analysis_rasters`.
+- Updated `.gitignore` to un-ignore shared agent adapter files (`CLAUDE.md`, `.agent/`, `.agents/`, `.claude/`, and `.github/agents/`) to facilitate cross-environment coordination.
 
 ## 2026-05-12
 

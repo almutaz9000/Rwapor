@@ -278,6 +278,17 @@ attr(df_monthly, "units")  # "mm/month"
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
 
+### Automatic Unit Conversions
+
+Rwapor handles common scientific unit conversions automatically during download
+or extraction to ensure data is analysis-ready:
+
+1.  **AgERA5 Temperatures**: Original data in Kelvin (K) is automatically converted
+    to **Celsius (°C)** for `AGERA5-TMIN-E` and `AGERA5-TMAX-E`.
+2.  **WaPOR Dekadal Variables**: Original data stored as daily rates (e.g., `mm/day`)
+    is automatically scaled to **totals per dekad** (e.g., `mm/dekad`) by default.
+    This applies to AETI, T, E, I, and PCP.
+
 ## Working with URLs Directly
 
 For advanced use cases, generate download URLs without saving to disk:

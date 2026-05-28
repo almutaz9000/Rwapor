@@ -31,7 +31,7 @@ _Last updated: 2026-05-13_
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
+- [x] Update user-facing docs for automatic temperature conversion and dekadal defaults (2026-05-14).
 
 ## Completed Recently
 
