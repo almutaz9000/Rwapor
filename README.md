@@ -348,6 +348,16 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a shared workflow for AI agents (Claude, Gemini, etc.) to ensure coordination and avoid memory drift.
+
+The canonical source of truth for **task status**, **active issues**, and **project memory** is located in the [**agent-workflow/**](agent-workflow/) directory.
+
+If you are an AI agent or a contributor working alongside one, please start by reading [**agent-workflow/START-HERE.md**](agent-workflow/START-HERE.md).
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

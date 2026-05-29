@@ -18,6 +18,9 @@
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
 - Updated the FAO crop-data refresh script to resolve repo-root output paths even after relocation.
 - Added repository structure documentation for agents and contributors at `docs/REPOSITORY_STRUCTURE.md`.
+- Implemented vectorized `wapor_parse_dates` in `R/utils.R` for high-performance batch filename parsing.
+- Refactored `wapor_local_rasters` and `wapor_check_local` in `R/analysis.R` to use vectorized logic and matrix-based candidate checks.
+- Surfaced Shared Agent Workflow in `README.md` and relaxed `.gitignore` rules to allow tracking of AI agent adapters across environments.
 
 ## 2026-05-12
 

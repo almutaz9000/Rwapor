@@ -1,9 +1,11 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Optimized local file checks and date parsing across the analysis engine using vectorized R logic.
+- Surfaced the Shared Agent Workflow in the root `README.md` and relaxed `.gitignore` for adapter tracking.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
@@ -31,6 +33,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260514-016`: vectorized `wapor_parse_dates` implemented and applied to `wapor_check_local` and `wapor_local_rasters` for significant performance gains.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
@@ -39,7 +42,7 @@ _Last updated: 2026-05-13_
 ## Pending Tasks
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
-- [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
+- [x] Surface the shared workflow in `README.md`.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.
