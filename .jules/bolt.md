@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2026-05-31 - [terra::zonal built-in function constraints]
+**Learning:** In the `terra` R package, `terra::zonal()` fails to use its optimized C++ backend when "quantile" (or its alias "median") is passed inside a character vector along with other functions (e.g., `fun = c("mean", "quantile")`). To maintain peak performance, these must be executed in separate `zonal()` calls.
+**Action:** Always call "quantile" or "median" in a dedicated `terra::zonal()` pass, and combine other compatible statistics (mean, sd, sum, notNA) in a single separate pass to minimize raster traversals.

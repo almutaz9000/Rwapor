@@ -214,32 +214,34 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimization: Use separate built-in calls for quantile and notNA.
+  # terra::zonal is significantly faster with built-in strings than with R closures.
+  # We use separate calls because 'quantile' cannot be combined with other
+  # built-in functions in a single vector for the C++ backend.
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile",
+                           probs = 0.95, na.rm = TRUE)
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
+  # Use 'notNA' directly on the analysis raster instead of ifel + sum
+  count_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "notNA")
+
+  # Standardize column names before merge
+  p95_vals <- as.data.frame(p95_vals)
+  names(p95_vals)[1:2] <- c("class_value", "p95_aeti")
+
   count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
+  names(count_vals)[1:2] <- c("class_value", "n_pixels")
   
   # Merge results
-  result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
-    stringsAsFactors = FALSE
-  )
+  result <- merge(p95_vals, count_vals, by = "class_value", all = TRUE)
   
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
+  # Type casting and threshold application
+  result$class_value <- as.integer(result$class_value)
+  result$p95_aeti    <- as.numeric(result$p95_aeti)
+  result$n_pixels    <- as.integer(result$n_pixels)
   
-  result$n_pixels <- as.integer(result$n_pixels)
+  # Apply min_pixels threshold: if count is too low, P95 is invalid
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
+  result$p95_aeti[which(!result$valid)] <- NA_real_
   
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
