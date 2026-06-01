@@ -93,6 +93,16 @@ run_wapor()
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a **Shared Agent Workflow** to coordinate tasks between human contributors and AI agents (Claude, Gemini, Copilot).
+
+If you are an AI agent or a developer looking for the current task status, unresolved issues, or project memory, please refer to the `agent-workflow/` directory.
+
+> **Getting Started**: Read [**`agent-workflow/START-HERE.md`**](agent-workflow/START-HERE.md) for the canonical session protocol.
+
+---
+
 ## 🎯 Seasonal Analysis Scenarios
 
 Choose the analysis workflow that matches your data availability. Rwapor scales from simple regional studies to high-precision farm monitoring.

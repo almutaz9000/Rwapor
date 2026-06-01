@@ -38,6 +38,15 @@ nul
 CLAUDE.md
 memories/
 
+# Un-ignore shared agent pointers
+!.agent/
+!.agents/
+!.github/
+.github/*
+!.github/agents/
+!CLAUDE.md
+!bolt.md
+
 # Development artifacts
 archived_reports/
 check_db_summary.R
