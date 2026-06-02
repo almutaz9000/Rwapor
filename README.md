@@ -28,6 +28,7 @@
 ✅ **Extract time-series** for crop fields and administrative boundaries  
 ✅ **Run seasonal crop analysis** with crop masks and growing season dates  
 ✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
+✅ **Automatic unit conversion** (AgERA5 Kelvin to Celsius, WaPOR dekadal totals)
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
 ## 🚀 Recent Highlights: High-Precision Batch Analysis
@@ -325,7 +326,7 @@ For advanced features, see:
 The repository is organized to keep package runtime code easy to navigate:
 
 - Production package paths: `R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`
-- Agent workflow state: `agent-workflow/`
+- Agent workflow state: `agent-workflow/` (canonical source of truth; follow `bolt.md` for active tasks)
 - Reusable developer scripts: `dev-tools/scripts/`
 - Archived development artifacts: `dev-archive/2026-05-production-cleanup/`
 

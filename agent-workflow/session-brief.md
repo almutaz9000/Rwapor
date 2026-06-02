@@ -24,6 +24,9 @@ _Last updated: 2026-05-13_
 - Added regression tests in `tests/testthat/test-dashboard-validation.R` for dashboard dependencies and date-validation behavior.
 - Fixed Shiny preview plotting to avoid restoring full `par()` state (prevents device-size-dependent `pin` errors on resize).
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` to guard against reintroducing full `par(no.readonly=TRUE)` restore patterns.
+- Relaxed `.gitignore` to allow tracking of agent adapter files (`CLAUDE.md`, `.agent/`, `.github/agents/`, etc.).
+- Updated `vignettes/getting-started.Rmd` and `README.md` to document automatic unit conversion for AgERA5 temperature (Kelvin to Celsius) and WaPOR dekadal variables.
+- Adopted `bolt.md` as the primary task entry point per user directive and updated `README.md` and `.gitignore` to reflect this.
 
 ## Top Open Issues
 
