@@ -64,12 +64,15 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
     1L, 0L
   )
   
-  # Mask out classes with insufficient data
+  # Optimization: Vectorized masking of invalid classes.
+  # Instead of an iterative loop with terra::ifel (which creates many intermediate rasters),
+  # we build a reclassification matrix to invalidate pixels in a single pass.
   invalid_classes <- stats$class_value[!stats$valid]
   if (length(invalid_classes) > 0) {
-    for (cls in invalid_classes) {
-      anomaly_map <- terra::ifel(crop_mask == cls, NA, anomaly_map)
-    }
+    # Reclassify invalid classes to NA and others to 1, then multiply
+    mask_rcl <- cbind(stats$class_value, ifelse(stats$valid, 1, NA))
+    invalid_mask <- terra::classify(crop_mask, rcl = mask_rcl)
+    anomaly_map <- anomaly_map * invalid_mask
   }
   
   # Compute anomaly statistics per class
@@ -193,14 +196,11 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
 wapor_detect_zscore_anomalies <- function(value_raster, crop_mask, 
                                           z_threshold = 2, direction = "below") {
   
-  # Compute per-class mean and SD
-  class_means <- terra::zonal(value_raster, crop_mask, fun = "mean", na.rm = TRUE)
-  names(class_means) <- c("class_value", "mean_value")
-  
-  class_sds <- terra::zonal(value_raster, crop_mask, fun = "sd", na.rm = TRUE)
-  names(class_sds) <- c("class_value", "sd_value")
-  
-  stats <- merge(class_means, class_sds, by = "class_value")
+  # Optimization: Combined mean and SD calculation in a single terra::zonal call.
+  # This reduces the number of full raster traversals from two to one.
+  stats <- terra::zonal(value_raster, crop_mask, fun = c("mean", "sd"), na.rm = TRUE)
+  stats <- as.data.frame(stats)
+  names(stats)[1:3] <- c("class_value", "mean_value", "sd_value")
   
   # Build mean and SD rasters
   mean_raster <- terra::classify(crop_mask, cbind(stats$class_value, stats$mean_value))
