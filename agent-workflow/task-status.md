@@ -7,6 +7,9 @@ _Last updated: 2026-05-13_
 - [ ] Manually verify dashboard startup + shutdown behavior in an interactive Shiny session.
   - Scope: confirm module-source failures are explicit and async runtime state is restored after app close.
   - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
+- [x] Hardened internal helper resolution in Shiny modules to prevent resolution failures when sourced directly (2026-05-14).
+- [x] Set explicit pixel heights for Analysis preview plots to prevent graphics device collapse and "figure margins too large" errors (2026-05-14).
+- [x] Updated `.gitignore` to preserve shared agent configuration files across sessions (2026-05-14).
 
 ## Recently Completed
 

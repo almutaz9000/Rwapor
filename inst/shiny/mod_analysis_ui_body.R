@@ -68,13 +68,13 @@ mod_analysis_ui_body <- function(ns) {
           gap = "0.75rem",
           bslib::navset_card_tab(
             title = "Spatial Data",
-            bslib::nav_panel("Crop Mask", bslib::card_body(fillable = TRUE, padding = 0, shiny::plotOutput(ns("an_crop_mask_plot"), height = "100%"))),
+            bslib::nav_panel("Crop Mask", bslib::card_body(fillable = TRUE, padding = 0, shiny::plotOutput(ns("an_crop_mask_plot"), height = "400px"))),
             bslib::nav_panel("Season", bslib::card_body(fillable = TRUE, shiny::verbatimTextOutput(ns("an_season_raster_info")))),
             bslib::nav_panel("Classes", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_crop_class_table"))))
           ),
           bslib::card(
             bslib::card_header(shiny::icon("chart-line"), " Kc Profiles"),
-            bslib::card_body(padding = 0, fillable = TRUE, shiny::plotOutput(ns("an_kc_plot"), height = "100%"))
+            bslib::card_body(padding = 0, fillable = TRUE, shiny::plotOutput(ns("an_kc_plot"), height = "400px"))
           )
         )
       )

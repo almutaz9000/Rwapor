@@ -4,7 +4,10 @@ _Last updated: 2026-05-13_
 
 ## Active Focus
 
-- Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
+- Shared agent coordination now starts from `bolt.md` or `.jules/bolt.md`, pointing to `agent-workflow/START-HERE.md`.
+- Hardened internal helper resolution in Shiny modules (`mod_analysis.R`, `mod_monitoring.R`, `monitoring_helpers.R`) using explicit `Rwapor::` and `Rwapor:::` prefixes.
+- Fixed graphics device stability by setting explicit 400px heights for Analysis preview plots in `mod_analysis_ui_body.R`.
+- Updated `.gitignore` to preserve shared agent configuration files (`bolt.md`, `.jules/bolt.md`, `.github/agents/`) across sessions.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).

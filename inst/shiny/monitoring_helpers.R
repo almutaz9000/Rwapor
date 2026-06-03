@@ -326,7 +326,7 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
                      as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
 
   r_list <- lapply(seq_len(nrow(df)), function(i) {
-    r_full <- wapor_raster_from_blob(df$raster_blob[[i]])
+    r_full <- Rwapor::wapor_raster_from_blob(df$raster_blob[[i]])
     if (is.null(r_full)) return(NULL)
     terra::crop(r_full, f_ext)
   })
@@ -335,7 +335,7 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   
   # Collect rasters
   r_list <- lapply(seq_len(nrow(df)), function(i) {
-    wapor_raster_from_blob(df$raster_blob[[i]])
+    Rwapor::wapor_raster_from_blob(df$raster_blob[[i]])
   })
   
   # Stack rasters
@@ -780,14 +780,14 @@ wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshol
   # Process each raster
   updated_stats <- lapply(seq_len(nrow(rasters)), function(i) {
     row <- rasters[i, ]
-    r_full <- wapor_raster_from_blob(row$raster_blob[[1]])
+    r_full <- Rwapor::wapor_raster_from_blob(row$raster_blob[[1]])
     if (is.null(r_full)) return(NULL)
     
     # Crop if global
     r_farm <- terra::crop(r_full, f_ext)
     
     # Calculate enhanced stats
-    stats <- wapor_enhanced_zonal_stats(r_farm, polygon, threshold_pct)
+    stats <- Rwapor::wapor_enhanced_zonal_stats(r_farm, polygon, threshold_pct)
     
     # Add metadata
     data.frame(
@@ -893,7 +893,7 @@ wapor_extract_stats_from_folder <- function(folder, polygons, variables = NULL, 
     r <- terra::rast(row$path)
     
     # Extract stats for all polygons at once
-    stats <- wapor_enhanced_zonal_stats(r, polygons, threshold_pct)
+    stats <- Rwapor::wapor_enhanced_zonal_stats(r, polygons, threshold_pct)
     
     # Prepare result row
     res <- data.frame(

@@ -609,7 +609,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         shiny::req(rv$farms_sf, pdir)
         
         shiny::withProgress(message = "Scanning folder & extracting stats...", value = 0, {
-          rv$ts_data <- wapor_extract_stats_from_folder(
+          rv$ts_data <- Rwapor:::wapor_extract_stats_from_folder(
             folder = pdir,
             polygons = rv$farms_sf,
             variables = input$mon_vars,
@@ -1333,7 +1333,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           farm_geom <- rv$farms_sf[i, ]
           
           updated_df <- tryCatch(
-            wapor_recalculate_stats_from_rasters(
+            Rwapor::wapor_recalculate_stats_from_rasters(
               con, farm_id, farm_geom, input$threshold_pct
             ),
             error = function(e) {
@@ -1582,7 +1582,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       if (is.null(con)) return()
       
       extent <- tryCatch(
-        wapor_get_farms_extent(con),
+        Rwapor:::wapor_get_farms_extent(con),
         error = function(e) {
           shiny::showNotification(paste("Extent error:", e$message), type = "warning")
           NULL
@@ -1665,7 +1665,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           
           for (var in vars_to_agg) {
             # Generate aggregate
-            agg_rast <- wapor_generate_seasonal_raster(con, farm_id, farm, var, start_date, end_date)
+            agg_rast <- Rwapor::wapor_generate_seasonal_raster(con, farm_id, farm, var, start_date, end_date)
             
             if (!is.null(agg_rast)) {
               # Save to DB
@@ -2244,7 +2244,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         }
 
         # Load Raster
-        r_full <- wapor_raster_from_blob(blob_row$raster_blob[[1]])
+        r_full <- Rwapor::wapor_raster_from_blob(blob_row$raster_blob[[1]])
         if (is.null(r_full)) return(m)
         
         # DYNAMIC CLIP if it's a global raster

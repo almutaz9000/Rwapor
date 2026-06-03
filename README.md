@@ -331,6 +331,15 @@ The repository is organized to keep package runtime code easy to navigate:
 
 For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
+### Shared Agent Workflow
+
+This repository uses a structured workflow for AI agents (Claude, Gemini, etc.) to ensure coordination and state tracking. All agents start by reading `bolt.md` (root) or `.jules/bolt.md`, which point to the canonical workflow starting at `agent-workflow/START-HERE.md`.
+
+*   **Configuration**: `bolt.md`, `.jules/bolt.md`
+*   **Task Status**: `agent-workflow/task-status.md`
+*   **Issues Log**: `agent-workflow/issues-log.md`
+*   **Project Memory**: `agent-workflow/project-memory.md`
+
 ### Key Functions
 
 | Function | Purpose |

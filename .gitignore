@@ -30,13 +30,19 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
-.github/
+# Agent/AI Configuration (un-ignore shared configs)
+!.github/
+.github/*
+!.github/agents/
 .claude/
 .agents/
 .agent/
 CLAUDE.md
 memories/
+!bolt.md
+!.jules/
+.jules/*
+!.jules/bolt.md
 
 # Development artifacts
 archived_reports/
