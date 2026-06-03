@@ -42,10 +42,9 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   class_medians <- terra::zonal(aeti_seasonal, crop_mask, fun = "median", na.rm = TRUE)
   names(class_medians) <- c("class_value", "median_aeti")
   
-  # Count valid pixels per class
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  class_counts <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  names(class_counts) <- c("class_value", "pixel_count")
+  # Count valid pixels per class using built-in "notNA"
+  class_counts <- terra::zonal(aeti_seasonal, crop_mask, fun = "notNA")
+  names(class_counts)[1:2] <- c("class_value", "pixel_count")
   
   # Filter classes with sufficient data
   stats <- merge(class_medians, class_counts, by = "class_value")
@@ -67,9 +66,9 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   # Mask out classes with insufficient data
   invalid_classes <- stats$class_value[!stats$valid]
   if (length(invalid_classes) > 0) {
-    for (cls in invalid_classes) {
-      anomaly_map <- terra::ifel(crop_mask == cls, NA, anomaly_map)
-    }
+    # Optimization: Use classify + mask instead of iterative ifel
+    valid_mask <- terra::classify(crop_mask, rcl = cbind(invalid_classes, NA), others = 1)
+    anomaly_map <- terra::mask(anomaly_map, valid_mask)
   }
   
   # Compute anomaly statistics per class
@@ -161,13 +160,11 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
   
   # Compute statistics
   anomaly_counts <- terra::zonal(compound_anomaly, crop_mask, fun = "sum", na.rm = TRUE)
-  names(anomaly_counts) <- c("class_value", "compound_anomaly_pixels")
+  names(anomaly_counts)[1:2] <- c("class_value", "compound_anomaly_pixels")
   
-  class_counts <- terra::zonal(
-    terra::ifel(is.na(compound_anomaly), 0L, 1L),
-    crop_mask, fun = "sum", na.rm = TRUE
-  )
-  names(class_counts) <- c("class_value", "total_pixels")
+  # Optimization: Use built-in "notNA" instead of creating intermediate ifel raster
+  class_counts <- terra::zonal(compound_anomaly, crop_mask, fun = "notNA")
+  names(class_counts)[1:2] <- c("class_value", "total_pixels")
   
   stats <- merge(anomaly_counts, class_counts, by = "class_value")
   stats$compound_anomaly_fraction <- stats$compound_anomaly_pixels / stats$total_pixels
@@ -193,14 +190,9 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
 wapor_detect_zscore_anomalies <- function(value_raster, crop_mask, 
                                           z_threshold = 2, direction = "below") {
   
-  # Compute per-class mean and SD
-  class_means <- terra::zonal(value_raster, crop_mask, fun = "mean", na.rm = TRUE)
-  names(class_means) <- c("class_value", "mean_value")
-  
-  class_sds <- terra::zonal(value_raster, crop_mask, fun = "sd", na.rm = TRUE)
-  names(class_sds) <- c("class_value", "sd_value")
-  
-  stats <- merge(class_means, class_sds, by = "class_value")
+  # Compute per-class mean and SD in a single pass
+  stats <- terra::zonal(value_raster, crop_mask, fun = c("mean", "sd"), na.rm = TRUE)
+  names(stats)[1:3] <- c("class_value", "mean_value", "sd_value")
   
   # Build mean and SD rasters
   mean_raster <- terra::classify(crop_mask, cbind(stats$class_value, stats$mean_value))
