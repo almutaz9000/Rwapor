@@ -41,8 +41,9 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   # Compute per-class medians
   class_medians <- terra::zonal(aeti_seasonal, crop_mask, fun = "median", na.rm = TRUE)
   names(class_medians) <- c("class_value", "median_aeti")
-  
+
   # Count valid pixels per class
+  # Note: terra::zonal does not support 'notNA', so we use ifel + sum.
   valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
   class_counts <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
   names(class_counts) <- c("class_value", "pixel_count")
@@ -65,11 +66,11 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   )
   
   # Mask out classes with insufficient data
+  # Optimization: Use terra::mask with multiple values instead of iterative ifel loops
+  # for significantly better performance on maps with many crop classes.
   invalid_classes <- stats$class_value[!stats$valid]
   if (length(invalid_classes) > 0) {
-    for (cls in invalid_classes) {
-      anomaly_map <- terra::ifel(crop_mask == cls, NA, anomaly_map)
-    }
+    anomaly_map <- terra::mask(anomaly_map, crop_mask, maskvalue = invalid_classes)
   }
   
   # Compute anomaly statistics per class

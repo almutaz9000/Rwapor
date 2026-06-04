@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2024-05-18 - [Incompatibility of 'notNA' in terra::zonal]
+**Learning:** While `terra::global()` supports the built-in string identifier "notNA" for high-performance counting of valid pixels, `terra::zonal()` does not. Passing "notNA" to `zonal()` results in a runtime error or fallback to slow R evaluation if such a function exists in the global environment.
+**Action:** Use `terra::ifel(is.na(x), 0L, 1L)` followed by `terra::zonal(..., fun = "sum")` to count valid pixels per zone efficiently.
