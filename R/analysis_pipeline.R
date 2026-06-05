@@ -550,36 +550,44 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab instead of terra::values() to avoid
+  # high memory overhead. This performs counting in the C++ backend.
   
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
+  stk <- terra::c(crop_mask, terra::round(start_raster), terra::round(end_raster))
   
-  if (!any(valid)) {
+  # Crosstab returns a data.frame with counts of unique combinations
+  ct <- terra::crosstab(stk, long = TRUE, useNA = FALSE)
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
       class_value = integer(0), start_jd = integer(0), 
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
   
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+  # Standardize names
+  names(ct) <- c("class_value", "start_jd", "end_jd", "pixel_count")
   
-  if (nrow(profile_df) == 0) return(profile_df)
+  # Cast to integer and filter
+  ct$class_value <- as.integer(ct$class_value)
+  ct$start_jd <- as.integer(ct$start_jd)
+  ct$end_jd <- as.integer(ct$end_jd)
+  ct$pixel_count <- as.integer(ct$pixel_count)
   
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
-  )
+  ct <- ct[ct$class_value %in% as.integer(class_values), , drop = FALSE]
+
+  if (nrow(ct) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # Compute duration and filter
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
+  ct <- ct[ct$total_days > 0, , drop = FALSE]
+
+  ct[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {
