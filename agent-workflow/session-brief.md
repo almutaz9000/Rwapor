@@ -1,6 +1,6 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active Focus
 
@@ -17,6 +17,7 @@ _Last updated: 2026-05-13_
 - Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
 - Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
 - Added a Jules adapter in `.jules/bolt.md` that points online Jules work to `agent-workflow/` for startup, pending tasks, issue logging, and validated commits.
+- Surfaced the shared agent workflow in `README.md` and relaxed `.gitignore` to track shared adapter files (`CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`).
 - Hardened dashboard startup dependency checks to include async runtime packages (`future`, `promises`).
 - Made `wapor_validate_analysis_config()` robust to malformed period dates (returns validation errors instead of throwing).
 - Replaced silent Analysis UI sourcing with explicit error messages if module files fail to load.

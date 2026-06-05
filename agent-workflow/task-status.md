@@ -28,8 +28,8 @@ _Last updated: 2026-05-13_
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
-- [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
+- [x] Surface the shared workflow in human-facing contributor docs such as `README.md` (2026-05-14).
+- [x] Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) to share pointers through Git (2026-05-14).
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
 - [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 

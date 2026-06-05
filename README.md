@@ -356,6 +356,14 @@ Contributions are welcome! Please:
 
 ---
 
+## 🤖 Shared Agent Workflow
+
+This repository uses a standardized workflow for AI agents and human contributors to maintain shared memory and task state. If you are an AI assistant or a new contributor, please start by reading:
+
+👉 **[agent-workflow/START-HERE.md](agent-workflow/START-HERE.md)**
+
+---
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
