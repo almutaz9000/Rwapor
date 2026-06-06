@@ -10,10 +10,6 @@ log_msg <- function(...) {
 
 null_default <- function(x, default) if (!is.null(x)) x else default
 
-is_l3_code <- function(x) {
-  is.character(x) && length(x) == 1 && nchar(x) == 3 && grepl("^[A-Z]{3}$", x)
-}
-
 crop_to_region_shiny <- function(r, reg_info, do_mask = FALSE) {
   getFromNamespace("wapor_crop_to_region", "Rwapor")(r, reg_info, do_mask = do_mask)
 }

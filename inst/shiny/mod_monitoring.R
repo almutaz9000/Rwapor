@@ -609,7 +609,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         shiny::req(rv$farms_sf, pdir)
         
         shiny::withProgress(message = "Scanning folder & extracting stats...", value = 0, {
-          rv$ts_data <- wapor_extract_stats_from_folder(
+          rv$ts_data <- Rwapor::wapor_extract_stats_from_folder(
             folder = pdir,
             polygons = rv$farms_sf,
             variables = input$mon_vars,
@@ -1019,7 +1019,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         return(list(codes = NULL, status = "no_aoi", message = "No farm layer or shared AOI defined"))
       }
 
-      if (is_l3_code(reg)) {
+      if (Rwapor::is_l3_code(reg)) {
         return(list(codes = reg, status = "success", message = NULL))
       }
 
@@ -1180,7 +1180,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       
       period <- as.character(c(input$sowing_date, input$harvest_date))
 
-      if (has_l3_vars && !is_l3_code(l3_region)) {
+      if (has_l3_vars && !Rwapor::is_l3_code(l3_region)) {
         shiny::showNotification("Select an L3 region before monitoring with L3 variables.", type = "error")
         return()
       }
@@ -1333,7 +1333,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           farm_geom <- rv$farms_sf[i, ]
           
           updated_df <- tryCatch(
-            wapor_recalculate_stats_from_rasters(
+            Rwapor::wapor_recalculate_stats_from_rasters(
               con, farm_id, farm_geom, input$threshold_pct
             ),
             error = function(e) {
@@ -1381,7 +1381,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       if (is.null(con)) return()
       
       # Get available data
-      available <- wapor_get_available_raster_data(con)
+      available <- Rwapor::wapor_get_available_raster_data(con)
       DBI::dbDisconnect(con, shutdown = TRUE)
       
       # Check if any data available
@@ -1462,7 +1462,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           error = function(e) NULL
         )
         if (!is.null(con)) {
-          available <- wapor_get_available_raster_data(con)
+          available <- Rwapor::wapor_get_available_raster_data(con)
           DBI::dbDisconnect(con, shutdown = TRUE)
           shiny::updateCheckboxGroupInput(session, "plot_farms", selected = available$farms)
         }
@@ -1514,7 +1514,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       
       # Generate plot
       p <- tryCatch(
-        wapor_plot_raster_timeseries_multi(
+        Rwapor::wapor_plot_raster_timeseries_multi(
           con, 
           input$plot_farms, 
           input$plot_variables,
@@ -1582,7 +1582,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       if (is.null(con)) return()
       
       extent <- tryCatch(
-        wapor_get_farms_extent(con),
+        Rwapor::wapor_get_farms_extent(con),
         error = function(e) {
           shiny::showNotification(paste("Extent error:", e$message), type = "warning")
           NULL
@@ -1636,7 +1636,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       
       # Determine variables to aggregate
       # We aggregate everything currently in the database for these farms
-      avail <- wapor_get_available_raster_data(con)
+      avail <- Rwapor::wapor_get_available_raster_data(con)
       vars_to_agg <- avail$variables
       
       if (length(vars_to_agg) == 0) {
@@ -1665,11 +1665,11 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
           
           for (var in vars_to_agg) {
             # Generate aggregate
-            agg_rast <- wapor_generate_seasonal_raster(con, farm_id, farm, var, start_date, end_date)
+            agg_rast <- Rwapor::wapor_generate_seasonal_raster(con, farm_id, farm, var, start_date, end_date)
             
             if (!is.null(agg_rast)) {
               # Save to DB
-              wapor_save_seasonal_raster_to_db(con, farm_id, var, season_id, agg_rast)
+              Rwapor::wapor_save_seasonal_raster_to_db(con, farm_id, var, season_id, agg_rast)
               success_count <- success_count + 1
             }
           }
@@ -2244,7 +2244,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         }
 
         # Load Raster
-        r_full <- wapor_raster_from_blob(blob_row$raster_blob[[1]])
+        r_full <- Rwapor::wapor_raster_from_blob(blob_row$raster_blob[[1]])
         if (is.null(r_full)) return(m)
         
         # DYNAMIC CLIP if it's a global raster

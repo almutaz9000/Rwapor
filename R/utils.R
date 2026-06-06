@@ -9,6 +9,15 @@
   if (is.null(x)) y else x
 }
 
+#' Check if a String is a Valid L3 Region Code
+#'
+#' @param x Character.
+#' @return Logical. TRUE if `x` is a 3-letter uppercase string.
+#' @export
+is_l3_code <- function(x) {
+  is.character(x) && length(x) == 1 && nchar(x) == 3 && grepl("^[A-Z]{3}$", x)
+}
+
 #' Load the Rwapor Agent Skills Reference
 #'
 #' Returns the path to (or content of) the canonical agent skills markdown file

@@ -561,14 +561,446 @@ wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0
       sqrt(stats::weighted.mean((rast_vals - mean_val)^2, weights, na.rm = TRUE))
     } else 0
 
+    # Percentiles
+    p05_val <- stats::quantile(rast_vals, probs = 0.05, na.rm = TRUE)
+    p95_val <- stats::quantile(rast_vals, probs = 0.95, na.rm = TRUE)
+
     data.frame(
       mean_val = mean_val, min_val = min_val, max_val = max_val,
-      std_val = std_val, threshold_pct = threshold_percentile,
+      std_val = std_val,
+      p05_val = as.numeric(p05_val),
+      p95_val = as.numeric(p95_val),
+      threshold_pct = threshold_percentile,
       pixels_used = pixels_used, pixels_total = pixels_total
     )
   })
 
   do.call(rbind, results)
+}
+
+#' Save raster to DuckDB with metadata
+#'
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param variable WaPOR variable name
+#' @param date_key Date of the raster
+#' @param raster terra SpatRaster object
+#' @param resolution_x Pixel width in degrees (optional, derived from raster if NULL)
+#' @param resolution_y Pixel height in degrees (optional, derived from raster if NULL)
+#' @param units Variable units string (optional)
+#' @return Number of rows inserted/updated (should be 1)
+#' @export
+wapor_save_raster_to_db <- function(con, farm_id, variable, date_key, raster,
+                                    resolution_x = NULL, resolution_y = NULL,
+                                    units = NA_character_) {
+  if (is.null(raster) || is.null(con)) {
+    return(0L)
+  }
+
+  # Save raster to temporary file
+  temp_file <- tempfile(fileext = ".tif")
+  on.exit(unlink(temp_file), add = TRUE)
+
+  terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
+
+  # Read as BLOB
+  raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+
+  # Get extent and dimensions
+  ext  <- terra::ext(raster)
+  dims <- dim(raster)
+
+  # Resolution: derive from raster if not supplied
+  if (is.null(resolution_x) || is.null(resolution_y)) {
+    res_xy       <- terra::res(raster)
+    resolution_x <- res_xy[1]
+    resolution_y <- res_xy[2]
+  }
+
+  # CRS EPSG code (best-effort)
+  crs_epsg <- tryCatch({
+    epsg <- terra::crs(raster, describe = TRUE)$code
+    if (!is.null(epsg) && !is.na(epsg) && nzchar(epsg)) as.integer(epsg) else 4326L
+  }, error = function(e) 4326L)
+
+  # Insert into database (upsert)
+  insert_sql <- "
+    INSERT INTO farm_rasters (
+      farm_id, variable, date_key, raster_blob,
+      xmin, xmax, ymin, ymax, nrow, ncol,
+      resolution_x, resolution_y, units, crs_epsg
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (farm_id, variable, date_key)
+    DO UPDATE SET
+      raster_blob  = EXCLUDED.raster_blob,
+      xmin         = EXCLUDED.xmin,
+      xmax         = EXCLUDED.xmax,
+      ymin         = EXCLUDED.ymin,
+      ymax         = EXCLUDED.ymax,
+      nrow         = EXCLUDED.nrow,
+      ncol         = EXCLUDED.ncol,
+      resolution_x = EXCLUDED.resolution_x,
+      resolution_y = EXCLUDED.resolution_y,
+      units        = EXCLUDED.units,
+      crs_epsg     = EXCLUDED.crs_epsg
+  "
+
+  DBI::dbExecute(con, insert_sql, params = list(
+    farm_id,
+    variable,
+    as.character(date_key),
+    list(raster_blob),
+    ext$xmin,
+    ext$xmax,
+    ext$ymin,
+    ext$ymax,
+    dims[1],       # nrow
+    dims[2],       # ncol
+    resolution_x,
+    resolution_y,
+    as.character(units %||% NA_character_),
+    crs_epsg
+  ))
+}
+
+#' Save seasonal aggregate raster to DuckDB
+#'
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param variable WaPOR variable name
+#' @param season_id Identifier for the season (e.g. "2023_MAIN")
+#' @param raster terra SpatRaster aggregate object
+#' @return Number of rows inserted
+#' @export
+wapor_save_seasonal_raster_to_db <- function(con, farm_id, variable, season_id, raster) {
+  if (is.null(raster) || is.null(con)) {
+    return(0L)
+  }
+
+  # Save raster to temporary file
+  temp_file <- tempfile(fileext = ".tif")
+  on.exit(unlink(temp_file), add = TRUE)
+
+  terra::writeRaster(raster, temp_file, overwrite = TRUE, gdal = c("COMPRESS=LZW"))
+
+  # Read as BLOB
+  raster_blob <- readBin(temp_file, "raw", n = file.info(temp_file)$size)
+
+  # Get extent and dimensions
+  ext <- terra::ext(raster)
+  dims <- dim(raster)
+
+  # Insert into database
+  insert_sql <- "
+    INSERT INTO farm_seasonal_rasters (farm_id, variable, season_id, raster_blob, xmin, xmax, ymin, ymax, nrow, ncol)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (farm_id, variable, season_id)
+    DO UPDATE SET
+      raster_blob = EXCLUDED.raster_blob,
+      xmin = EXCLUDED.xmin,
+      xmax = EXCLUDED.xmax,
+      ymin = EXCLUDED.ymin,
+      ymax = EXCLUDED.ymax,
+      nrow = EXCLUDED.nrow,
+      ncol = EXCLUDED.ncol
+  "
+
+  DBI::dbExecute(con, insert_sql, params = list(
+    farm_id,
+    variable,
+    as.character(season_id),
+    list(raster_blob),
+    ext$xmin,
+    ext$xmax,
+    ext$ymin,
+    ext$ymax,
+    dims[1],  # nrow
+    dims[2]   # ncol
+  ))
+}
+
+#' Get combined extent of all farms from database
+#'
+#' @param con DuckDB connection
+#' @return Numeric vector c(xmin, xmax, ymin, ymax) or NULL
+#' @export
+wapor_get_farms_extent <- function(con) {
+  if (is.null(con)) return(NULL)
+
+  # 1. Try to get extent from monitoring_metadata (Best)
+  meta_q <- "SELECT xmin, xmax, ymin, ymax FROM monitoring_metadata LIMIT 1"
+  extent_df <- tryCatch(DBI::dbGetQuery(con, meta_q), error = function(e) NULL)
+
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(xmin = extent_df$xmin[1], xmax = extent_df$xmax[1],
+             ymin = extent_df$ymin[1], ymax = extent_df$ymax[1]))
+  }
+
+  # 2. Try to get extent from monitoring_rasters
+  rast_q <- "SELECT MIN(xmin) as xmin, MAX(xmax) as xmax, MIN(ymin) as ymin, MAX(ymax) as ymax FROM monitoring_rasters"
+  extent_df <- tryCatch(DBI::dbGetQuery(con, rast_q), error = function(e) NULL)
+
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(xmin = extent_df$xmin[1], xmax = extent_df$xmax[1],
+             ymin = extent_df$ymin[1], ymax = extent_df$ymax[1]))
+  }
+
+  # 3. Fallback to farm_rasters (Legacy)
+  extent_query <- "
+    SELECT
+      MIN(xmin) as xmin,
+      MAX(xmax) as xmax,
+      MIN(ymin) as ymin,
+      MAX(ymax) as ymax
+    FROM farm_rasters
+    WHERE xmin IS NOT NULL
+  "
+
+  extent_df <- tryCatch(
+    DBI::dbGetQuery(con, extent_query),
+    error = function(e) NULL
+  )
+
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(
+      xmin = extent_df$xmin[1],
+      xmax = extent_df$xmax[1],
+      ymin = extent_df$ymin[1],
+      ymax = extent_df$ymax[1]
+    ))
+  }
+
+  # Fallback to farm_metadata if available
+  meta_query <- "
+    SELECT
+      MIN(xmin) as xmin,
+      MAX(xmax) as xmax,
+      MIN(ymin) as ymin,
+      MAX(ymax) as ymax
+    FROM farm_metadata
+    WHERE xmin IS NOT NULL
+  "
+
+  extent_df <- tryCatch(
+    DBI::dbGetQuery(con, meta_query),
+    error = function(e) NULL
+  )
+
+  if (!is.null(extent_df) && nrow(extent_df) > 0 && !is.na(extent_df$xmin[1])) {
+    return(c(
+      xmin = extent_df$xmin[1],
+      xmax = extent_df$xmax[1],
+      ymin = extent_df$ymin[1],
+      ymax = extent_df$ymax[1]
+    ))
+  }
+
+  NULL
+}
+
+#' Update farm metadata extent and area from polygon
+#'
+#' @param con DuckDB connection
+#' @param farm_id Farm identifier
+#' @param polygon sf object (single feature)
+#' @return Number of rows updated
+#' @export
+wapor_update_farm_metadata <- function(con, farm_id, polygon) {
+  if (is.null(con) || is.null(polygon)) {
+    return(0L)
+  }
+
+  # Get extent
+  bbox <- sf::st_bbox(polygon)
+
+  # Calculate area in hectares
+  # Transform to equal-area projection for accurate area calculation
+  polygon_aea <- sf::st_transform(polygon, crs = "+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=0")
+  area_m2 <- as.numeric(sf::st_area(polygon_aea))
+  area_ha <- area_m2 / 10000
+
+  update_sql <- "
+    UPDATE farm_metadata
+    SET
+      xmin = ?,
+      xmax = ?,
+      ymin = ?,
+      ymax = ?,
+      area_ha = ?
+    WHERE farm_id = ?
+  "
+
+  DBI::dbExecute(con, update_sql, params = list(
+    bbox$xmin,
+    bbox$xmax,
+    bbox$ymin,
+    bbox$ymax,
+    area_ha,
+    farm_id
+  ))
+}
+
+#' Get available raster data summary
+#'
+#' @param con DuckDB connection
+#' @return List with farms, variables, and date range
+#' @export
+wapor_get_available_raster_data <- function(con) {
+  if (is.null(con)) {
+    return(list(farms = character(0), variables = character(0), date_range = NULL))
+  }
+
+  # Variables from both global and legacy
+  variables <- tryCatch({
+    v1 <- DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM monitoring_rasters")$variable
+    v2 <- DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM farm_rasters")$variable
+    sort(unique(c(v1, v2)))
+  }, error = function(e) character(0))
+
+  # Farms (always check polygons or timeseries as global table doesn't have farm_id)
+  farms <- tryCatch({
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_polygons")$farm_id
+  }, error = function(e) {
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_timeseries")$farm_id
+  })
+
+  # Date range
+  date_range <- tryCatch({
+    d1 <- DBI::dbGetQuery(con, "SELECT MIN(date_key) as mn, MAX(date_key) as mx FROM monitoring_rasters")
+    d2 <- DBI::dbGetQuery(con, "SELECT MIN(date_key) as mn, MAX(date_key) as mx FROM farm_rasters")
+    mn <- min(as.Date(c(d1$mn, d2$mn)), na.rm = TRUE)
+    mx <- max(as.Date(c(d1$mx, d2$mx)), na.rm = TRUE)
+    c(mn, mx)
+  }, error = function(e) NULL)
+
+  list(
+    farms = farms,
+    variables = variables,
+    date_range = date_range
+  )
+}
+
+#' Get available seasonal raster data summary
+#'
+#' @param con DuckDB connection
+#' @return List with farms, variables, and seasons
+#' @export
+wapor_get_available_seasonal_data <- function(con) {
+  if (is.null(con)) {
+    return(list(farms = character(0), variables = character(0), seasons = character(0)))
+  }
+
+  # Get unique farms
+  farms <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT farm_id FROM farm_seasonal_rasters ORDER BY farm_id")$farm_id,
+    error = function(e) character(0)
+  )
+
+  # Get unique variables
+  variables <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT variable FROM farm_seasonal_rasters ORDER BY variable")$variable,
+    error = function(e) character(0)
+  )
+
+  # Get seasons
+  seasons <- tryCatch(
+    DBI::dbGetQuery(con, "SELECT DISTINCT season_id FROM farm_seasonal_rasters ORDER BY season_id")$season_id,
+    error = function(e) character(0)
+  )
+
+  list(
+    farms = farms,
+    variables = variables,
+    seasons = seasons
+  )
+}
+
+#' Extract time series statistics from a local folder of rasters
+#'
+#' @param folder Path to folder containing .tif files
+#' @param polygons sf object with farm boundaries
+#' @param variables Vector of variable codes to include (e.g. "L3-AETI-D")
+#' @param threshold_pct Percentile threshold for zonal stats
+#' @return data.frame in the same format as farm_timeseries table
+#' @export
+wapor_extract_stats_from_folder <- function(folder, polygons, variables = NULL, threshold_pct = 5) {
+  if (!dir.exists(folder)) return(NULL)
+
+  # 1. Scan folder
+  files <- list.files(folder, pattern = "\\.tif$", full.names = TRUE, recursive = TRUE)
+  if (length(files) == 0) return(NULL)
+
+  # 2. Parse filenames
+  meta_list <- lapply(files, function(f) {
+    bname <- basename(f)
+    p <- wapor_parse_monitoring_filename(bname)
+    if (is.null(p)) return(NULL)
+    p$path <- f
+    p
+  })
+  valid_meta <- meta_list[!sapply(meta_list, is.null)]
+  if (length(valid_meta) == 0) return(NULL)
+
+  meta_df <- do.call(rbind, lapply(valid_meta, as.data.frame))
+
+  # Filter by variables if requested
+  if (!is.null(variables)) {
+    meta_df <- meta_df[meta_df$variable %in% variables, ]
+  }
+
+  if (nrow(meta_df) == 0) return(NULL)
+
+  # 3. Extract stats for each file
+  all_stats <- list()
+
+  # Process each file
+  for (i in seq_len(nrow(meta_df))) {
+    row <- meta_df[i, ]
+    r <- terra::rast(row$path)
+
+    # Extract stats for all polygons at once
+    stats <- wapor_enhanced_zonal_stats(r, polygons, threshold_pct)
+
+    # Prepare result row
+    res <- data.frame(
+      farm_id = polygons$farm_id,
+      variable = row$variable,
+      start_date = as.Date(row$date),
+      end_date = as.Date(row$date) + 9, # Assume dekadal
+      stats,
+      stringsAsFactors = FALSE
+    )
+    all_stats[[i]] <- res
+  }
+
+  do.call(rbind, all_stats)
+}
+
+#' Internal helper to parse monitoring filename
+#' @param filename Character.
+#' @return List with variable and date or NULL.
+#' @export
+wapor_parse_monitoring_filename <- function(filename) {
+  # Pattern 1: WaPOR standard (e.g. L3.AETI.D.2024-01-01.tif)
+  parts <- strsplit(filename, "\\.")[[1]]
+  if (length(parts) >= 4) {
+    date_part <- parts[4]
+    if (grepl("^\\d{4}-\\d{2}-\\d{2}", date_part)) {
+      var_code <- paste(parts[1], parts[2], parts[3], sep = "-")
+      return(list(variable = var_code, date = substr(date_part, 1, 10)))
+    }
+  }
+
+  # Pattern 2: Seasonal Map (e.g. L3-AETI-D_2024-01-01_2024-05-31.tif)
+  if (grepl("_\\d{4}-\\d{2}-\\d{2}_", filename)) {
+    p2 <- strsplit(filename, "_")[[1]]
+    if (length(p2) >= 3) {
+      return(list(variable = p2[1], date = p2[2]))
+    }
+  }
+
+  NULL
 }
 
 #' Recalculate Statistics from Saved Rasters

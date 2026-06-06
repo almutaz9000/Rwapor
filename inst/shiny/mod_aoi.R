@@ -139,7 +139,7 @@ mod_aoi_server <- function(id,
       if (!is.null(user_roi())) return(user_roi())
 
       reg <- l3_region()
-      if (is_l3_code(reg)) return(reg)
+      if (Rwapor::is_l3_code(reg)) return(reg)
       NULL
     })
 
@@ -565,7 +565,7 @@ mod_aoi_server <- function(id,
       reg <- current_region()
       if (is.null(reg)) {
         cat("No AOI selected.")
-      } else if (is_l3_code(reg)) {
+      } else if (Rwapor::is_l3_code(reg)) {
         r_meta <- l3_regions_meta[[reg]]
         if (!is.null(r_meta)) {
           cat(sprintf("L3 Region: %s - %s (%s)", r_meta$country, r_meta$name, reg))

@@ -462,7 +462,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       reg <- aoi$region()
       
       # Only attempt detection if AOI is set and it's NOT already an L3 code
-      if (is.null(reg) || is_l3_code(reg)) {
+      if (is.null(reg) || Rwapor::is_l3_code(reg)) {
         return(list(codes = NULL, status = "no_aoi", message = "No AOI defined"))
       }
       
@@ -582,7 +582,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       }
       
       # If AOI is already an L3 code
-      if (is_l3_code(reg)) {
+      if (Rwapor::is_l3_code(reg)) {
         return(NULL)
       }
       
@@ -811,7 +811,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       
       if (is.null(reg)) {
         reg_str <- "NULL  # Please select an AOI on the map or upload a file"
-      } else if (is_l3_code(reg)) {
+      } else if (Rwapor::is_l3_code(reg)) {
         reg_str <- sprintf("\"%s\"", reg)
       } else if (is.character(reg)) {
         reg_str <- sprintf("\"%s\"", normalizePath(reg, winslash = "/", mustWork = FALSE))
