@@ -156,10 +156,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   )
   
   # Multipliers
-  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
-  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::analysis_layer_multipliers(ret_var, dekad_table)    else NULL
-  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::analysis_layer_multipliers(precip_var, dekad_table) else NULL
-  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::analysis_layer_multipliers(npp_var, dekad_table)    else NULL
+  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::get_analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
+  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::get_analysis_layer_multipliers(ret_var, dekad_table)    else NULL
+  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::get_analysis_layer_multipliers(precip_var, dekad_table) else NULL
+  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::get_analysis_layer_multipliers(npp_var, dekad_table)    else NULL
 
   # Aggregates
   if (!is.null(stacks$aeti)) {
