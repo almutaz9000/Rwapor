@@ -117,6 +117,8 @@ names(AGERA5_VARS)
 get_variable_metadata("AGERA5-ET0-E")
 ```
 
+> **Note**: AgERA5 temperature variables (e.g., `AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are automatically converted from Kelvin to Celsius during download.
+
 ## Downloading Raster Maps
 
 Use `wapor_map()` to download and save raster data for a region:
@@ -277,6 +279,19 @@ attr(df_monthly, "units")  # "mm/month"
 ```
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
+
+### Automatic Defaults
+
+Rwapor applies sensible defaults for unit conversion to ensure data is
+analysis-ready:
+
+- **Dekadal Variables**: Variables ending in `-D` (like `L1-AETI-D`) are
+  automatically converted from daily rates (`mm/day`) to dekadal totals
+  (`mm/dekad`).
+- **Temperature**: AgERA5 temperature variables are converted from Kelvin to
+  Celsius.
+- **Scale Factors**: All variables are automatically scaled using their
+  embedded metadata (no manual multiplication required).
 
 ## Working with URLs Directly
 

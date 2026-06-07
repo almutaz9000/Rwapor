@@ -348,6 +348,20 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤝 Shared Agent Workflow
+
+This repository uses a structured workflow to coordinate tasks and project memory between human contributors and multiple AI agents (Claude, Gemini, etc.).
+
+The **primary entry point** for AI agents is the `bolt.md` file (or `.jules/bolt.md`), which directs agents to the canonical project state in the `agent-workflow/` directory.
+
+- **`agent-workflow/task-status.md`**: Active work queue and recently completed items.
+- **`agent-workflow/issues-log.md`**: Confirmed bugs, root causes, and resolution status.
+- **`agent-workflow/session-brief.md`**: Short summary of the latest project state for quick context.
+
+If you are an AI agent, always start by checking `bolt.md` and then reading `agent-workflow/START-HERE.md`.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
