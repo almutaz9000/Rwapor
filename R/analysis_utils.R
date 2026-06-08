@@ -110,16 +110,25 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab(..., long = TRUE) instead of terra::values()
+  # to avoid loading all pixels into memory (OOM risk for large AOIs).
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure integer values for grouping by rounding start/end
+  s_round <- terra::round(start_raster)
+  e_round <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Create a stack for crosstab
+  stk <- terra::c(crop_mask, s_round, e_round)
+
+  # crosstab with long=TRUE returns a data frame of unique combinations and counts
+  # It automatically ignores NAs if any layer is NA.
+  ct <- tryCatch({
+    terra::crosstab(stk, long = TRUE)
+  }, error = function(e) {
+    return(NULL)
+  })
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
       class_value = integer(0),
       start_jd = integer(0),
@@ -129,22 +138,33 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  # Standardize column names (crosstab returns [layer1, layer2, layer3, n])
+  names(ct)[1:4] <- c("class_value", "start_jd", "end_jd", "pixel_count")
+
+  # Cast to integer and filter
+  ct$class_value <- as.integer(ct$class_value)
+  ct$start_jd    <- as.integer(ct$start_jd)
+  ct$end_jd      <- as.integer(ct$end_jd)
+  ct$pixel_count <- as.integer(ct$pixel_count)
+
+  ct <- ct[ct$class_value %in% as.integer(class_values), , drop = FALSE]
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
+  ct <- ct[ct$total_days > 0L, , drop = FALSE]
+
+  if (nrow(ct) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
   }
 
+  # Aggregate counts in case multiple combinations map to same integer JD
   stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
+    data = ct,
     FUN = sum
   )
 }
