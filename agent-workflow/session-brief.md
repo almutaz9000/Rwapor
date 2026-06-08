@@ -1,10 +1,11 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-06-08_
 
 ## Active Focus
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
+- Hardened download unit conversion to two safe public modes so mixed monthly/dekadal runs no longer let monthly products be forced into dekadal scaling.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).
@@ -31,6 +32,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260608-016`: public download unit conversion now only exposes safe `unit_conversion` / `none` modes; monthly products stay monthly in mixed runs.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.

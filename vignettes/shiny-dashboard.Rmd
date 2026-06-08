@@ -238,15 +238,16 @@ Select the date range for data download:
 
 ### Unit Conversion
 
-Convert temporal resolution of flux variables (ET, precipitation, NPP):
+The Download tab now exposes only the two safe public modes:
 
-- **No conversion**: Keep original units (mm/day, mm/dekad, etc.)
-- **Per day**: Convert to mm/day or gC/m²/day
-- **Per dekad**: Convert to mm/dekad (10-day total)
-- **Per month**: Convert to mm/month
-- **Per year**: Convert to mm/year or gC/m²/year
+- **Match variable temporal unit**: use variable-specific behavior
+  - dekadal daily-rate products are converted to dekadal totals
+  - monthly products stay monthly
+  - annual products stay annual
+- **No conversion (raw API values)**: keep the original API values without temporal conversion
 
-**Note**: Intensive properties (temperature, LCC) cannot be converted.
+This avoids mixed-download mistakes such as forcing monthly products into
+dekadal scaling.
 
 ---
 
@@ -299,7 +300,7 @@ map_paths <- wapor_map(
   variable = variable,
   period = period,
   folder = folder,
-  unit_conversion = NULL,
+  unit_conversion = "unit_conversion",
   seasonal = FALSE,
   separate_files = TRUE,
   mask = FALSE

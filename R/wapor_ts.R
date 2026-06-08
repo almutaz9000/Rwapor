@@ -14,11 +14,12 @@
 #'   named or unnamed list of such vectors for multiple seasons.
 #' @param identifier Character. Optional column name in vector file to identify
 #'   polygons in output. If NULL, numeric IDs are used.
-#' @param unit_conversion Character. Target temporal unit for conversion.
-#'   One of: "none", "day", "dekad", "month", "year".
-#'   Default is NULL, which dynamically sets the default based on variable type:
-#'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
-#'   * "none" for others
+#' @param unit_conversion Character. Public unit-conversion mode.
+#'   One of: `"unit_conversion"` or `"none"`.
+#'   Default is `NULL`, which dynamically matches the variable behavior:
+#'   * Dekadal daily-rate products are returned as dekadal totals
+#'   * Monthly products remain monthly totals
+#'   * `"none"` preserves raw API values without temporal conversion
 #' @param seasonal Logical. If `TRUE`, calculates a single seasonal aggregate
 #'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
@@ -64,20 +65,20 @@
 #' @examples
 #' \dontrun{
 #' # Extract time series for a bounding box
-#' # For dekadal variables, defaults to mm/dekad (unit_conversion="dekad")
+#' # For dekadal variables, defaults to mm/dekad behavior
 #' df <- wapor_ts(
 #'   region = c(35.0, 33.0, 36.0, 34.0),
 #'   variable = "L1-AETI-D",
 #'   period = c("2023-01-01", "2023-03-31")
 #' )
 #'
-#' # Extract with explicit daily units
+#' # Preserve raw API values without temporal conversion
 #' df <- wapor_ts(
 #'   region = "fields.geojson",
 #'   variable = "L1-AETI-D",
 #'   period = c("2023-01-01", "2023-12-31"),
 #'   identifier = "field_name",
-#'   unit_conversion = "day"
+#'   unit_conversion = "none"
 #' )
 #'
 #' # Parallel extraction for memory efficiency
@@ -124,27 +125,15 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
   }
   
-  # Determine default unit_conversion if NULL
-  if (is.null(unit_conversion)) {
-    if (grepl("-D$", variable)) {
-      unit_conversion <- "dekad"
-      message("Variable is Dekadal (stored as mm/day). Defaulting unit_conversion to 'dekad' (mm/dekad).")
-    } else {
-      unit_conversion <- "none"
-    }
+  resolved_unit_conversion <- resolve_output_unit_conversion(variable, unit_conversion)
+  if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
+      identical(resolved_unit_conversion, "dekad")) {
+    message("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
   }
   
   # Inform user about automatic temperature conversion
   if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
     message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
-  }
-
-  valid_conversions <- c("none", "day", "dekad", "month", "year")
-  if (!unit_conversion %in% valid_conversions) {
-    stop(
-      sprintf("'unit_conversion' must be one of: %s", paste(valid_conversions, collapse = ", ")),
-      call. = FALSE
-    )
   }
 
   # Parse region
@@ -511,7 +500,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Apply unit conversion
-  final_df <- wapor_convert_units(final_df, unit_conversion)
+  final_df <- wapor_convert_units(final_df, resolved_unit_conversion)
 
   message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)

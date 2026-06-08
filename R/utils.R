@@ -284,7 +284,19 @@ extract_temporal_unit <- function(units) {
 #' @noRd
 resolve_output_unit_conversion <- function(variable, unit_conversion = NULL) {
   if (!is.null(unit_conversion)) {
-    return(unit_conversion)
+    valid_public_modes <- c("none", "unit_conversion")
+    if (!unit_conversion %in% valid_public_modes) {
+      stop(
+        sprintf(
+          "'unit_conversion' must be one of: %s",
+          paste(c("none", "unit_conversion"), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+    if (identical(unit_conversion, "none")) {
+      return("none")
+    }
   }
 
   parts <- strsplit(variable, "-", fixed = TRUE)[[1]]

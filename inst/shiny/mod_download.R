@@ -169,12 +169,11 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::tags$span("Unit Conversion", class = "ctrl-group-label"),
             shiny::selectInput(
               ns("unit_conversion"), NULL,
-              choices  = c("No conversion" = "none",
-                           "Per day"       = "day",
-                           "Per dekad"     = "dekad",
-                           "Per month"     = "month",
-                           "Per year"      = "year"),
-              selected = "none"
+              choices  = c(
+                "Match variable temporal unit" = "unit_conversion",
+                "No conversion (raw API values)" = "none"
+              ),
+              selected = "unit_conversion"
             ),
 
             shiny::tags$hr(class = "ctrl-divider")
@@ -833,7 +832,7 @@ mod_download_server <- function(id, l3_regions_meta) {
         sprintf("c(\"%s\", \"%s\")", input$period[1], input$period[2])
       }
       
-      unit_conv <- if (input$unit_conversion == "none") "NULL" else sprintf("\"%s\"", input$unit_conversion)
+      unit_conv <- sprintf("\"%s\"", input$unit_conversion)
       mask_str <- if (isTRUE(aoi$mask())) "TRUE" else "FALSE"
 
       var_list_str <- if (length(input$dn_variables) > 1) {
@@ -935,7 +934,7 @@ mod_download_server <- function(id, l3_regions_meta) {
       shiny::withProgress(message = "Downloading Data", value = 0, {
         tryCatch({
           n_vars <- length(vars)
-          unit_conv <- if (input$unit_conversion == "none") NULL else input$unit_conversion
+          unit_conv <- input$unit_conversion
           all_out_paths <- list()
 
           for (i in seq_along(vars)) {
