@@ -244,11 +244,17 @@ attr(df, "long_name")
 
 ## Unit Conversion
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+Public download/extraction functions now expose only two `unit_conversion`
+behaviors:
+
+- `"unit_conversion"`: match each variable's own temporal behavior
+  - dekadal daily-rate products are converted to dekadal totals
+  - monthly products stay monthly
+  - annual products stay annual
+- `"none"`: preserve raw API values without temporal conversion
 
 ```{r unit-conversion}
-# Default: mm/dekad (dekadal total)
+# Default behavior: dekadal daily-rate products become mm/dekad
 df_dekad <- wapor_ts(
   region   = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
@@ -256,27 +262,24 @@ df_dekad <- wapor_ts(
 )
 attr(df_dekad, "units")  # "mm/dekad"
 
-# Daily rate
-df_day <- wapor_ts(
+# Raw API values
+df_raw <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
   period          = c("2023-01-01", "2023-03-31"),
-  unit_conversion = "day"
+  unit_conversion = "none"
 )
-attr(df_day, "units")          # "mm/day"
-attr(df_day, "original_units") # "mm/day"
+attr(df_raw, "units")          # "mm/day"
 
-# Monthly total
+# Monthly products remain monthly under the safe mode
 df_monthly <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
-  variable        = "L1-AETI-D",
+  variable        = "L3-AETI-M",
   period          = c("2023-01-01", "2023-03-31"),
-  unit_conversion = "month"
+  unit_conversion = "unit_conversion"
 )
 attr(df_monthly, "units")  # "mm/month"
 ```
-
-Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
 
 ## Working with URLs Directly
 
@@ -350,10 +353,9 @@ parse_region(c(36, 33, 35, 34))
    - Monthly (M): Seasonal analysis
    - Annual (A): Long-term trends
 
-4. **Use `unit_conversion`** to get the right aggregation level:
-   - `"dekad"` — 10-day total (default for dekadal variables)
-   - `"month"` — monthly total
-   - `"day"`  — daily rate
+4. **Use `unit_conversion` intentionally**:
+   - default / `"unit_conversion"` keeps variable-specific safe behavior
+   - `"none"` keeps raw API values
 
 5. **Use `separate_files = TRUE`** in `wapor_map()` when you need one file
    per time step, for example to feed into external processing pipelines.

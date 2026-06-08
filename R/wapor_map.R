@@ -15,11 +15,12 @@
 #' @param folder Character. Output directory path. Will be created if needed.
 #' @param filename Character. Optional output filename. If NULL, a default
 #'   name is generated based on region and variable.
-#' @param unit_conversion Character. Target temporal unit for conversion.
-#'   One of: "none", "day", "dekad", "month", "year".
-#'   Default is NULL, which dynamically sets the default based on variable type:
-#'   * "dekad" for Dekadal variables (files end in "D" but contain daily rates)
-#'   * "none" for others
+#' @param unit_conversion Character. Public unit-conversion mode.
+#'   One of: `"unit_conversion"` or `"none"`.
+#'   Default is `NULL`, which dynamically matches the variable behavior:
+#'   * Dekadal daily-rate products are saved as dekadal totals
+#'   * Monthly products remain monthly totals
+#'   * `"none"` preserves raw API values without temporal conversion
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
@@ -47,7 +48,7 @@
 #' 1. Generates download URLs for the specified variable and period
 #' 2. Streams raster data using GDAL virtual file system (/vsicurl/)
 #' 3. Crops to bounding box or masks to vector geometry
-#' 4. Converts units if requested (e.g., mm/day -> mm/dekad)
+#' 4. Applies temporal-resolution conversion when requested
 #' 5. Writes output as a multi-band GeoTIFF (one band per time step) or separate files
 #'
 #' @export
@@ -66,13 +67,13 @@
 #'   folder = "output"
 #' )
 #'
-#' # Download daily rates (mm/day)
+#' # Preserve raw API values without temporal conversion
 #' output_file <- wapor_map(
 #'   region = c(35.0, 33.0, 36.0, 34.0),
 #'   variable = "L1-AETI-D",
 #'   period = c("2023-01-01", "2023-01-31"),
 #'   folder = "output",
-#'   unit_conversion = "day"
+#'   unit_conversion = "none"
 #' )
 #'
 #' # Download with parallel batching for long periods
@@ -335,8 +336,12 @@ wapor_map <- function(
     }
 
     current_unit_conv <- get_current_unit_conv(var, unit_conversion)
-    if (is.null(unit_conversion) && identical(current_unit_conv, "dekad")) {
-       log_msg(sprintf("Variable %s is Dekadal. Defaulting unit_conversion to 'dekad'.", var))
+    if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
+        identical(current_unit_conv, "dekad")) {
+       log_msg(sprintf(
+         "Variable %s is Dekadal (stored as mm/day). Saving with temporal conversion as mm/dekad.",
+         var
+       ))
     }
     
     # Inform user about automatic temperature conversion

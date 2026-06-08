@@ -276,8 +276,10 @@ test_that("seasonal helper semantics use metadata rather than suffix alone", {
   plan <- wapor_plan_time_slices("2023-01-03", "2023-01-08", avail = c("D"))
 
   expect_equal(resolve_output_unit_conversion("L1-AETI-D"), "dekad")
+  expect_equal(resolve_output_unit_conversion("L1-AETI-D", "unit_conversion"), "dekad")
   expect_equal(resolve_output_unit_conversion("AGERA5-ET0-D"), "none")
   expect_equal(resolve_output_unit_conversion("L3-RSM-D"), "none")
+  expect_equal(resolve_output_unit_conversion("L3-AETI-M", "unit_conversion"), "none")
 
   expect_equal(get_seasonal_aggregation_rule("L1-AETI-D"), "weighted_sum")
   expect_equal(get_seasonal_aggregation_rule("AGERA5-ET0-D"), "weighted_sum")
@@ -419,8 +421,36 @@ test_that("wapor_ts seasonal argument is accepted (no 'unused argument' error)",
       unit_conversion = "invalid_unit",
       seasonal        = FALSE
     ),
-    "unit_conversion.*must be one of"
+    "unit_conversion.*none, unit_conversion"
   )
+})
+
+test_that("public download functions reject old explicit target units", {
+  expect_error(
+    wapor_ts(
+      region = c(35.0, 33.0, 36.0, 34.0),
+      variable = "L1-AETI-D",
+      period = c("2023-01-01", "2023-03-31"),
+      unit_conversion = "dekad"
+    ),
+    "unit_conversion.*none, unit_conversion"
+  )
+
+  expect_error(
+    wapor_map(
+      region = c(35.0, 33.0, 36.0, 34.0),
+      variable = "L1-AETI-D",
+      period = c("2023-01-01", "2023-03-31"),
+      folder = tempdir(),
+      unit_conversion = "month"
+    ),
+    "unit_conversion.*none, unit_conversion"
+  )
+})
+
+test_that("safe public unit_conversion mode preserves monthly values", {
+  expect_equal(resolve_output_unit_conversion("L3-AETI-M", "unit_conversion"), "none")
+  expect_equal(calculate_conversion_factor("month", "month", 30, 30), 1)
 })
 
 test_that("wapor_map seasonal separate_files isolates seasonal components", {

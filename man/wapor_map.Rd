@@ -44,12 +44,13 @@ GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
 seasonal-plan component rasters into
 \verb{<folder>/<variable>_seasonal/components/}. Default is \code{FALSE}.}
 
-\item{unit_conversion}{Character. Target temporal unit for conversion.
-One of: "none", "day", "dekad", "month", "year".
-Default is NULL, which dynamically sets the default based on variable type:
+\item{unit_conversion}{Character. Public unit-conversion mode.
+One of: \code{"unit_conversion"} or \code{"none"}.
+Default is \code{NULL}, which dynamically matches the variable behavior:
 \itemize{
-\item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
-\item "none" for others
+\item Dekadal daily-rate products are saved as dekadal totals
+\item Monthly products remain monthly totals
+\item \code{"none"} preserves raw API values without temporal conversion
 }}
 
 \item{seasonal}{Logical. If \code{TRUE}, downloads and aggregates data for the
@@ -85,7 +86,7 @@ The function performs the following steps:
 \item Generates download URLs for the specified variable and period
 \item Streams raster data using GDAL virtual file system (/vsicurl/)
 \item Crops to bounding box or masks to vector geometry
-\item Converts units if requested (e.g., mm/day -> mm/dekad)
+\item Applies temporal-resolution conversion when requested
 \item Writes output as a multi-band GeoTIFF (one band per time step) or separate files
 }
 }
@@ -99,13 +100,13 @@ output_file <- wapor_map(
   folder = "output"
 )
 
-# Download daily rates (mm/day)
+# Preserve raw API values without temporal conversion
 output_file <- wapor_map(
   region = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
   period = c("2023-01-01", "2023-01-31"),
   folder = "output",
-  unit_conversion = "day"
+  unit_conversion = "none"
 )
 
 # Download with parallel batching for long periods

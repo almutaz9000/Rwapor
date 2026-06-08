@@ -36,12 +36,13 @@ named or unnamed list of such vectors for multiple seasons.}
 \item{identifier}{Character. Optional column name in vector file to identify
 polygons in output. If NULL, numeric IDs are used.}
 
-\item{unit_conversion}{Character. Target temporal unit for conversion.
-One of: "none", "day", "dekad", "month", "year".
-Default is NULL, which dynamically sets the default based on variable type:
+\item{unit_conversion}{Character. Public unit-conversion mode.
+One of: \code{"unit_conversion"} or \code{"none"}.
+Default is \code{NULL}, which dynamically matches the variable behavior:
 \itemize{
-\item "dekad" for Dekadal variables (files end in "D" but contain daily rates)
-\item "none" for others
+\item Dekadal daily-rate products are returned as dekadal totals
+\item Monthly products remain monthly totals
+\item \code{"none"} preserves raw API values without temporal conversion
 }}
 
 \item{seasonal}{Logical. If \code{TRUE}, calculates a single seasonal aggregate
@@ -93,20 +94,20 @@ statistics that properly handle partial pixel coverage at polygon boundaries.
 \examples{
 \dontrun{
 # Extract time series for a bounding box
-# For dekadal variables, defaults to mm/dekad (unit_conversion="dekad")
+# For dekadal variables, defaults to mm/dekad behavior
 df <- wapor_ts(
   region = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
   period = c("2023-01-01", "2023-03-31")
 )
 
-# Extract with explicit daily units
+# Preserve raw API values without temporal conversion
 df <- wapor_ts(
   region = "fields.geojson",
   variable = "L1-AETI-D",
   period = c("2023-01-01", "2023-12-31"),
   identifier = "field_name",
-  unit_conversion = "day"
+  unit_conversion = "none"
 )
 
 # Parallel extraction for memory efficiency

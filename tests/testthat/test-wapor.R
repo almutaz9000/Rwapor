@@ -301,6 +301,19 @@ test_that("calculate_conversion_factor returns correct values", {
   expect_equal(calculate_conversion_factor("month", "year", 30, 30), 12)
 })
 
+test_that("resolve_output_unit_conversion uses safe public modes", {
+  expect_equal(resolve_output_unit_conversion("L1-AETI-D", NULL), "dekad")
+  expect_equal(resolve_output_unit_conversion("L1-AETI-D", "unit_conversion"), "dekad")
+  expect_equal(resolve_output_unit_conversion("L3-AETI-M", NULL), "none")
+  expect_equal(resolve_output_unit_conversion("L3-AETI-M", "unit_conversion"), "none")
+  expect_equal(resolve_output_unit_conversion("L3-AETI-M", "none"), "none")
+
+  expect_error(
+    resolve_output_unit_conversion("L3-AETI-M", "dekad"),
+    "must be one of: none, unit_conversion"
+  )
+})
+
 test_that("calculate_conversion_factor handles leap years correctly", {
   # Day to year in a leap year
   expect_equal(
@@ -409,7 +422,7 @@ test_that("Zonal Statistics works with exactextractr", {
     variable,
     period,
     identifier     = "name",
-    unit_conversion = "dekad"
+    unit_conversion = "unit_conversion"
   )
 
   expect_s3_class(df, "data.frame")

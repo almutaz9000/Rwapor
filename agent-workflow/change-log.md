@@ -1,5 +1,13 @@
 # Agent Workflow Change Log
 
+## 2026-06-08
+
+- Narrowed the public download `unit_conversion` interface in `wapor_map()` and `wapor_ts()` to two safe modes: `"unit_conversion"` and `"none"`.
+- Kept dynamic default behavior so dekadal daily-rate products save/extract as dekadal totals while monthly products remain monthly totals.
+- Updated the Shiny Download tab to expose only the two safe unit-conversion choices and to generate matching script code.
+- Added regression coverage for monthly preservation in mixed monthly/dekadal workflows and for rejection of the old explicit target-unit values.
+- Regenerated package documentation and reran `devtools::test()` successfully (`FAIL 0 | WARN 0 | SKIP 5 | PASS 521`).
+
 ## 2026-05-13
 
 - Added `.wapor_dashboard_required_pkgs()` and extended `run_wapor()` dependency precheck to include async runtime packages (`future`, `promises`).

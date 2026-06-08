@@ -204,8 +204,7 @@ df <- wapor_ts(
   region          = crop_fields,
   variable        = "L2-AETI-D",           # Dekadal AETI (Level 2, ~100m)
   period          = c("2023-04-01", "2023-11-30"),
-  identifier      = "field_id",            # Column in your data with unique IDs
-  unit_conversion = "dekad"                # Keep as mm/dekad
+  identifier      = "field_id"             # Column in your data with unique IDs
 )
 
 # View results
@@ -219,6 +218,14 @@ head(df)
 # Save to CSV
 write.csv(df, "aeti_timeseries.csv", row.names = FALSE)
 ```
+
+`wapor_map()` and `wapor_ts()` now use two public `unit_conversion` modes only:
+
+- `"unit_conversion"`: match each variable's own temporal behavior
+  - dekadal daily-rate products are converted to dekadal totals
+  - monthly products stay monthly
+  - annual products stay annual
+- `"none"`: keep raw API values without temporal conversion
 
 ### Example 2: Download Raster Maps
 

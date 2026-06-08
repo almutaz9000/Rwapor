@@ -1,6 +1,6 @@
 # Issues Log
 
-_Last updated: 2026-05-14_
+_Last updated: 2026-06-08_
 
 ## Open Issues
 
@@ -75,6 +75,14 @@ _Last updated: 2026-05-14_
   - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
 
 ## Resolved Improvements
+
+- [x] Mixed monthly and dekadal downloads could corrupt monthly outputs when users chose an explicit target unit.
+  - ID: ISS-20260608-016
+  - Resolved: 2026-06-08
+  - Root cause: the public `wapor_map()` / `wapor_ts()` interface and Shiny Download tab exposed free-form target units (`day`, `dekad`, `month`, `year`), so selecting `dekad` for a mixed run divided monthly products like `L3-AETI-M` by 3.
+  - Fix applied: narrowed the public download interface to `unit_conversion = "unit_conversion"` or `"none"`, kept the dynamic default behavior (dekadal daily-rate products save as dekadal totals; monthly products remain monthly totals), updated the Download tab to expose only the two safe choices, and added regression coverage for monthly preservation plus rejection of old explicit target-unit values.
+  - Files: `R/utils.R`, `R/wapor_map.R`, `R/wapor_ts.R`, `inst/shiny/mod_download.R`, `tests/testthat/test-wapor.R`, `tests/testthat/test-plan_wapor_time_slices.R`, `man/wapor_map.Rd`, `man/wapor_ts.Rd`, `NAMESPACE`
+  - Validation: `devtools::test()` passed on 2026-06-08 (`FAIL 0 | WARN 0 | SKIP 5 | PASS 521`).
 
 - [x] Repository root contained mixed production and development artifacts, increasing agent/context noise.
   - ID: ISS-20260514-015
