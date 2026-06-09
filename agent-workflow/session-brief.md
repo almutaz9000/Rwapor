@@ -16,6 +16,8 @@ _Last updated: 2026-05-13_
 - Added `wapor_export_analysis_outputs()` for structured seasonal/dekadal/monthly exports.
 - Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
 - Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
+- Relaxed `.gitignore` for shared agent configuration files (`bolt.md`, `.jules/`, `CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`) to allow cross-environment coordination via Git.
+- Added an "AI Agent Workflow" section to `README.md` to surface the structured coordination layer and highlight `bolt.md`.
 - Added a Jules adapter in `.jules/bolt.md` that points online Jules work to `agent-workflow/` for startup, pending tasks, issue logging, and validated commits.
 - Hardened dashboard startup dependency checks to include async runtime packages (`future`, `promises`).
 - Made `wapor_validate_analysis_config()` robust to malformed period dates (returns validation errors instead of throwing).
@@ -53,4 +55,3 @@ _Last updated: 2026-05-13_
 - Use `agent-workflow/` as the only canonical project-state location.
 - Keep `session-brief.md` and status files concise to reduce token load.
 - Use `inst/agent_skills/RWAPOR_AGENT_SKILLS.md` for package behavior, not session memory.
-- Some runtime adapter files are still local-only because `.gitignore` excludes their parent paths.

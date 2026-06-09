@@ -13,6 +13,8 @@
 
 ## 2026-05-14
 
+- Relaxed `.gitignore` rules for shared agent configuration files (`bolt.md`, `.jules/`, `CLAUDE.md`, `.agent/`, `.agents/`, `.github/agents/`) to allow cross-environment coordination via Git.
+- Added an "AI Agent Workflow" section to `README.md` to surface the structured coordination layer and highlight `bolt.md`.
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.

@@ -348,6 +348,19 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 AI Agent Workflow
+
+This repository uses a structured workflow for AI agents (Claude, Gemini, etc.) to ensure coordination and persistent project memory.
+
+- **Primary Tasks**: [`bolt.md`](bolt.md) (or [`.jules/bolt.md`](.jules/bolt.md))
+- **Agent Entrypoint**: [`AGENTS.md`](AGENTS.md)
+- **Workflow & Task State**: [`agent-workflow/`](agent-workflow/)
+- **Developer Documentation**: [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md)
+
+Agents should always check [`agent-workflow/START-HERE.md`](agent-workflow/START-HERE.md) at the beginning of a session.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
