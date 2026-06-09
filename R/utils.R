@@ -404,10 +404,9 @@ wapor_parse_dates <- function(urls, tres) {
   filenames <- basename(urls)
   bases <- tools::file_path_sans_ext(filenames)
 
-  # Extract date component (last dot-separated part)
+  # Optimization: Extract date component (last dot-separated part) using vectorized sub
   # This works for both "product.YYYY-MM-DX" and "product.YYYYMMDD"
-  parts_list <- strsplit(bases, ".", fixed = TRUE)
-  date_components <- vapply(parts_list, function(p) p[length(p)], character(1))
+  date_components <- sub("^.*\\.", "", bases)
 
   # Default placeholders
   start_dates <- character(length(urls))
@@ -448,10 +447,11 @@ wapor_parse_dates <- function(urls, tres) {
 
       if (any(valid_idx)) {
         v_idx <- idx[valid_idx]
-        v_parts <- dash_parts[valid_idx]
-        y <- vapply(v_parts, `[`, character(1), 1)
-        m <- vapply(v_parts, `[`, character(1), 2)
-        d_str <- vapply(v_parts, `[`, character(1), 3)
+        # Optimization: Use matrix for faster column extraction instead of multiple vapply calls
+        v_parts_mat <- matrix(unlist(dash_parts[valid_idx]), ncol = 3, byrow = TRUE)
+        y <- v_parts_mat[, 1]
+        m <- v_parts_mat[, 2]
+        d_str <- v_parts_mat[, 3]
 
         dekad_map <- c("D1" = "01", "D2" = "11", "D3" = "21", "1" = "01", "2" = "11", "3" = "21")
         start_day <- dekad_map[d_str]
@@ -487,8 +487,10 @@ wapor_parse_dates <- function(urls, tres) {
     dash_parts <- strsplit(date_components, "-")
     valid_idx <- vapply(dash_parts, length, integer(1)) == 2
     if (any(valid_idx)) {
-      y <- vapply(dash_parts[valid_idx], `[`, character(1), 1)
-      m <- vapply(dash_parts[valid_idx], `[`, character(1), 2)
+      # Optimization: Use matrix for faster column extraction
+      v_parts_mat <- matrix(unlist(dash_parts[valid_idx]), ncol = 2, byrow = TRUE)
+      y <- v_parts_mat[, 1]
+      m <- v_parts_mat[, 2]
       start_dates[valid_idx] <- paste(y, m, "01", sep = "-")
       s_obj <- lubridate::ymd(start_dates[valid_idx])
       end_dates[valid_idx] <- paste(y, m, lubridate::days_in_month(s_obj), sep = "-")
