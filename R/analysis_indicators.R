@@ -214,32 +214,42 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
-
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
+  # Optimization: Using built-in 'quantile' in terra::zonal is significantly
+  # faster than an R closure. We compute it first, then apply min_pixels
+  # thresholding in a vectorized way using zonal counts.
+  # Use index-based access ([1] and [2]) for robustness against varying layer names.
+  p95_vals_df <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile", probs = 0.95, na.rm = TRUE)
   
-  # Merge results
+  # Result data frame initialization with standardized names
   result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
+    class_value = as.integer(p95_vals_df[[1]]),
+    p95_aeti    = as.numeric(p95_vals_df[[2]]),
     stringsAsFactors = FALSE
   )
+
+  # Count valid analysis pixels (non-NA in analysis raster) per zone.
+  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
+  count_vals_df <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
   
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
+  # Standardize count names
+  names(count_vals_df)[seq_len(min(2, ncol(count_vals_df)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals_df)))]
   
+  # Merge stats and counts
+  result <- merge(result, count_vals_df[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
+
+  # Ensure types and finalize validity
   result$n_pixels <- as.integer(result$n_pixels)
-  result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
+  result$p95_aeti <- as.numeric(result$p95_aeti)
+
+  # Vectorized thresholding: zones with insufficient pixels get NA for p95_aeti
+  # Use which() to handle potential NAs in the logical vector robustly
+  valid_mask <- !is.na(result$p95_aeti) & (result$n_pixels >= min_pixels)
+  result$valid <- valid_mask
+
+  invalid_idx <- which(!valid_mask)
+  if (length(invalid_idx) > 0) {
+    result$p95_aeti[invalid_idx] <- NA_real_
+  }
   
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
