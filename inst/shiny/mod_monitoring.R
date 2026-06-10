@@ -1019,7 +1019,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         return(list(codes = NULL, status = "no_aoi", message = "No farm layer or shared AOI defined"))
       }
 
-      if (is_l3_code(reg)) {
+      if (Rwapor::is_l3_code(reg)) {
         return(list(codes = reg, status = "success", message = NULL))
       }
 
@@ -1180,7 +1180,7 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       
       period <- as.character(c(input$sowing_date, input$harvest_date))
 
-      if (has_l3_vars && !is_l3_code(l3_region)) {
+      if (has_l3_vars && !Rwapor::is_l3_code(l3_region)) {
         shiny::showNotification("Select an L3 region before monitoring with L3 variables.", type = "error")
         return()
       }

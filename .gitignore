@@ -30,13 +30,23 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
+# Agent/AI Configuration (allow shared config pointers)
 .github/
 .claude/
 .agents/
 .agent/
 CLAUDE.md
 memories/
+
+!.jules/
+!.jules/bolt.md
+!bolt.md
+!CLAUDE.md
+!.agent/
+!.agents/
+!.github/
+.github/*
+!.github/agents/
 
 # Development artifacts
 archived_reports/

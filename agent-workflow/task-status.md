@@ -10,6 +10,9 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Fixed namespace resolution for internal functions in Shiny modules and migrated `is_l3_code` to the package core (2026-05-14).
+- [x] Relaxed `.gitignore` to allow tracking of shared agent configuration pointers (2026-05-14).
+- [x] Created root `bolt.md` as the primary agent entry point (2026-05-14).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).

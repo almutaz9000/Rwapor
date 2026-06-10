@@ -916,3 +916,18 @@ assign_raster_metadata <- function(r, variable, unit_conversion = "none", units_
   
   return(r)
 }
+
+#' Validate L3 Region Code
+#'
+#' Checks if a string is a valid WaPOR Level 3 region code (3 uppercase letters).
+#'
+#' @param x Character. The code to validate.
+#' @return Logical. `TRUE` if `x` is a valid 3-letter uppercase code, `FALSE` otherwise.
+#' @export
+#'
+#' @examples
+#' is_l3_code("AWA") # TRUE
+#' is_l3_code("ET")  # FALSE
+is_l3_code <- function(x) {
+  is.character(x) && length(x) == 1 && nchar(x) == 3 && grepl("^[A-Z]{3}$", x)
+}

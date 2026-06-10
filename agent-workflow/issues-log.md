@@ -9,9 +9,9 @@ _Last updated: 2026-05-14_
   - First noted: 2026-05-12
   - Symptoms: launching the app can raise `Error in wapor_shiny_safe_rast: could not find function "wapor_shiny_safe_rast"` when the Analysis run observer validates rasters.
   - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
-  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly so the standalone Shiny source path resolves the helper from the package namespace.
-  - Files changed: `inst/shiny/mod_analysis.R`
-  - Remaining validation: reopen the app from a clean R session and confirm the Analysis run button no longer errors during raster reference validation.
+  - Fix applied: Applied `Rwapor:::` or `Rwapor::` prefixes to internal and exported functions (`wapor_shiny_save_analysis_rasters`, `is_l3_code`) in Shiny modules and migrated `is_l3_code` to the package core for robust resolution.
+  - Files changed: `inst/shiny/mod_analysis.R`, `inst/shiny/mod_aoi.R`, `inst/shiny/mod_download.R`, `inst/shiny/mod_monitoring.R`, `inst/shiny/utils_shiny.R`, `R/utils.R`
+  - Remaining validation: reopen the app from a clean R session and confirm the Analysis run button and region selectors no longer error during standalone execution.
 
 - [ ] Analysis-tab plot previews can fail with `figure margins too large` and leave the graphics device in an invalid state.
   - ID: ISS-20260511-007
