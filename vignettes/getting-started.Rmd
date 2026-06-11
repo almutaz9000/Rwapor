@@ -278,6 +278,27 @@ attr(df_monthly, "units")  # "mm/month"
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
 
+### Automatic Temperature Conversion
+
+AgERA5 temperature variables (`AGERA5-TMIN-E` and `AGERA5-TMAX-E`) are stored on the server in Kelvin. Rwapor automatically converts these to **degrees Celsius** during download and time-series extraction:
+
+```r
+# Download TMIN - result is automatically in Celsius
+output_file <- wapor_map(
+  region   = region,
+  variable = "AGERA5-TMIN-E",
+  period   = c("2023-01-01", "2023-01-01")
+)
+
+# Time series also returns Celsius
+df_temp <- wapor_ts(
+  region   = region,
+  variable = "AGERA5-TMIN-E",
+  period   = c("2023-01-01", "2023-01-31")
+)
+attr(df_temp, "units") # "degC"
+```
+
 ## Working with URLs Directly
 
 For advanced use cases, generate download URLs without saving to disk:

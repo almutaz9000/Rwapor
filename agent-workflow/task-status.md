@@ -1,6 +1,6 @@
 # Task Status
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active
 
@@ -10,6 +10,9 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Updated user-facing docs for automatic temperature conversion (2026-05-14).
+- [x] Verified Shiny namespace resolution, plot margins, batch workflow stability, and folder detection via static analysis (2026-05-14).
+- [x] Documented verified state in `.jules/bolt.md` (2026-05-14).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).
@@ -31,7 +34,6 @@ _Last updated: 2026-05-13_
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
 ## Completed Recently
 

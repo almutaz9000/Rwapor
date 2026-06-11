@@ -24,13 +24,17 @@ _Last updated: 2026-05-13_
 - Added regression tests in `tests/testthat/test-dashboard-validation.R` for dashboard dependencies and date-validation behavior.
 - Fixed Shiny preview plotting to avoid restoring full `par()` state (prevents device-size-dependent `pin` errors on resize).
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` to guard against reintroducing full `par(no.readonly=TRUE)` restore patterns.
+- Verified Shiny namespace resolution, plot margins, batch workflow stability, and folder detection via static analysis.
+- Validated `wapor_date_info` parsing logic for all temporal resolutions via Python simulation.
+- Updated `vignettes/getting-started.Rmd` to include automatic temperature conversion documentation.
 
 ## Top Open Issues
 
-- `ISS-20260511-002`: code fix is in place, but manual Shiny verification is still pending for the multi-season local session-disconnect scenario.
+- `ISS-20260511-002`: code fix is in place; static analysis confirms batch parsing and local checks are implemented. Manual Shiny verification still pending for the multi-season local session-disconnect scenario.
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: standalone Shiny namespace resolution fixed by adding explicit `Rwapor:::` prefixes.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.

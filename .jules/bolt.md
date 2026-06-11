@@ -16,6 +16,7 @@ Before making changes:
 
 ## Online Work Queue
 
+- Last update: 2026-05-14 (Verified Shiny stability, namespace resolution, and updated documentation).
 - Use unchecked items in `agent-workflow/task-status.md` as the default pending work queue.
 - Prefer tasks that already have clear scope and validation steps.
 - Check `agent-workflow/issues-log.md` for open regressions and unresolved root causes before starting.

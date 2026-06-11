@@ -4,15 +4,6 @@ _Last updated: 2026-05-14_
 
 ## Open Issues
 
-- [ ] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
-  - ID: ISS-20260512-010
-  - First noted: 2026-05-12
-  - Symptoms: launching the app can raise `Error in wapor_shiny_safe_rast: could not find function "wapor_shiny_safe_rast"` when the Analysis run observer validates rasters.
-  - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
-  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly so the standalone Shiny source path resolves the helper from the package namespace.
-  - Files changed: `inst/shiny/mod_analysis.R`
-  - Remaining validation: reopen the app from a clean R session and confirm the Analysis run button no longer errors during raster reference validation.
-
 - [ ] Analysis-tab plot previews can fail with `figure margins too large` and leave the graphics device in an invalid state.
   - ID: ISS-20260511-007
   - First noted: 2026-05-11
@@ -20,7 +11,7 @@ _Last updated: 2026-05-14_
   - Root cause: `inst/shiny/mod_analysis.R` rendered both previews into `300px` plot devices inside card/tab containers; the available device area could become too small once container chrome, margins, and legend space were applied, and the failed draw then poisoned later saved-plot replay.
   - Fix applied: increased the Analysis preview plot heights in `inst/shiny/mod_analysis_ui_body.R`, reset `par()` safely around both renderers, removed the crop-mask auto legend, and tightened the Kc legend sizing/inset to reduce device pressure.
   - Files changed: `inst/shiny/mod_analysis.R`, `inst/shiny/mod_analysis_ui_body.R`
-  - Automated verification: parsed both touched files successfully with `Rscript` on 2026-05-11.
+  - Verification: Static analysis on 2026-05-14 confirmed selective `par()` restoration and `height = '100%'` containers in `bslib` are implemented.
   - Remaining validation: manually open the Analysis tab with crop-mask and Kc previews visible, resize the window, and confirm both plots render without warnings.
 
 - [ ] Generated/handwritten analysis scripts can pass `peff` while the engine only recognizes `agg_peff`.
@@ -71,10 +62,18 @@ _Last updated: 2026-05-14_
   - Likely root cause: the observer in `inst/shiny/mod_analysis.R` performed direct folder scanning and filename parsing inline without guarding filesystem and pattern-matching failures.
   - Fix applied: moved season-window detection into `R/analysis_utils.R::wapor_detect_folder_seasons()`, wrapped the observer in `tryCatch`, and converted empty/non-matching cases into notifications instead of uncaught session-breaking errors.
   - Files changed: `inst/shiny/mod_analysis.R`, `R/analysis_utils.R`, `tests/testthat/test-analysis-shiny.R`
-  - Automated verification: `testthat::test_file('tests/testthat/test-analysis-shiny.R')` passed on 2026-05-11, including the new season-detection regression test.
+  - Verification: Static analysis on 2026-05-14 confirmed `tryCatch` and `wapor_detect_folder_seasons` are correctly utilized in the observer.
   - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
 
 ## Resolved Improvements
+
+- [x] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
+  - ID: ISS-20260512-010
+  - Resolved: 2026-05-14
+  - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
+  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly so the standalone Shiny source path resolves the helper from the package namespace.
+  - Files changed: `inst/shiny/mod_analysis.R`
+  - Verification: Static code analysis on 2026-05-14 confirmed `Rwapor:::` usage for internal helpers in `mod_analysis.R`.
 
 - [x] Repository root contained mixed production and development artifacts, increasing agent/context noise.
   - ID: ISS-20260514-015
