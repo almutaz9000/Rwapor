@@ -143,10 +143,12 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -164,19 +166,15 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Optimization: Use wapor_masked_sum which uses specialized terra::sum()
+  # or a managed incremental path. This is significantly faster than
+  # an R-level accumulation loop.
+  wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = kc_dekad * layer_multipliers,
+    incremental = incremental
+  )
 }
 
 
@@ -214,15 +212,12 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimization: Using built-in "quantile" in terra::zonal is significantly
+  # faster than an R closure as it uses the C++ backend.
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile", probs = 0.95, na.rm = TRUE)
 
   # Count valid analysis pixels, not just mask pixels.
+  # terra::zonal does not support 'notNA', so we use a binary indicator.
   valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
   count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
   count_vals <- as.data.frame(count_vals)
@@ -235,10 +230,20 @@ wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
     stringsAsFactors = FALSE
   )
   
-  # Add counts and valid flag
+  # Add counts
   result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
   
+  # Handle NA from merge and ensure integer type
+  result$n_pixels[is.na(result$n_pixels)] <- 0
   result$n_pixels <- as.integer(result$n_pixels)
+
+  # Apply min_pixels threshold post-aggregation.
+  # Use which() to ensure robust subsetting when p95_aeti might contain NAs.
+  invalid_idx <- which(result$n_pixels < min_pixels)
+  if (length(invalid_idx) > 0) {
+    result$p95_aeti[invalid_idx] <- NA_real_
+  }
+
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
   
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]

@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Built-in Zonal Quantiles and NA Handling]
+**Learning:** `terra::zonal(..., fun = "quantile")` leverages C++ for orders-of-magnitude better performance than R closures. However, built-in "quantile" cannot be mixed with other functions in the same `zonal` call. Additionally, `merge(..., all.x = TRUE)` in R results in `NA` for missing matches; standard null-coalescing helpers like `%||%` often only handle `NULL`, so explicit `is.na()` checks are required for robust post-aggregation thresholding (e.g., `min_pixels`).
+**Action:** Use built-in string identifiers in `zonal` in separate passes if needed, and always handle `NA` explicitly after merging results.
