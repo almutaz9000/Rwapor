@@ -24,3 +24,4 @@ automatically: pixels where \code{end_raster < start_raster} (e.g. a
 Nov-to-May season stored as raw day-of-year values) have the
 reference-year length added to \code{end_raster} before the subtraction.
 }
+\keyword{internal}

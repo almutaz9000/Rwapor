@@ -24,3 +24,4 @@ A list with data.frames: aeti_ts, ret_ts, precip_ts.
 Uses the existing wapor_ts() function to fetch AETI, RET, and precipitation
 time series for the analysis AOI.
 }
+\keyword{internal}

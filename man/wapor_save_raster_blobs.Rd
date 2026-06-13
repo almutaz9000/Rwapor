@@ -32,3 +32,4 @@ NULL (invisibly).
 \description{
 Save clipped WaPOR raster blobs to a monitoring database
 }
+\keyword{internal}

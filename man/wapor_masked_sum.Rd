@@ -24,3 +24,4 @@ A single-layer SpatRaster of weighted sums.
 \description{
 Computes weighted sum of a raster time series using per-dekad season weights.
 }
+\keyword{internal}

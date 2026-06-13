@@ -14,7 +14,7 @@
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #'   Recommended for very long seasons or low RAM. Default FALSE.
 #' @return A single-layer SpatRaster of weighted sums.
-#' @export
+#' @keywords internal
 wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
   if (terra::nlyr(x) != terra::nlyr(weights)) {
     stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
@@ -666,7 +666,7 @@ wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
 #' @param precip_var Character. Precipitation variable name (e.g., "L1-PCP-D").
 #' @param period Character vector of length 2: c(start_date, end_date).
 #' @return A list with data.frames: aeti_ts, ret_ts, precip_ts.
-#' @export
+#' @keywords internal
 wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
                                        period) {
   aeti_ts <- wapor_ts(region = region, variable = aeti_var, period = period,
@@ -686,7 +686,7 @@ wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
 #' @param ret_ts data.frame from wapor_ts().
 #' @param precip_ts data.frame from wapor_ts().
 #' @return A merged data.frame.
-#' @export
+#' @keywords internal
 wapor_merge_ts <- function(aeti_ts, ret_ts, precip_ts) {
   # Rename value columns to avoid collision
   aeti_sub <- data.frame(

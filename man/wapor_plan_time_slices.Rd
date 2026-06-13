@@ -75,3 +75,4 @@ print(plan)
 plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
 print(plan)
 }
+\keyword{internal}

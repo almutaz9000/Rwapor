@@ -165,7 +165,7 @@ wapor_harmonize_raster <- function(x, template, method = "near") {
 #' @param crop_mask SpatRaster. The crop mask raster (integer class values).
 #' @param target_raster SpatRaster. The AETI raster defining the target geometry.
 #' @return A harmonized SpatRaster.
-#' @export
+#' @keywords internal
 wapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
   result <- wapor_harmonize_raster(crop_mask, target_raster, method = "near")
 
@@ -491,7 +491,7 @@ wapor_build_season_weights <- function(start_date, end_date,
 #' @param reference_year Integer or NULL. When supplied, corrects
 #'   cross-year seasons where `end_raster` DOY < `start_raster` DOY.
 #' @return A SpatRaster of total season days per pixel.
-#' @export
+#' @keywords internal
 wapor_season_days <- function(start_raster, end_raster, reference_year = NULL) {
   if (!is.null(reference_year)) {
     ref_days <- ifelse(lubridate::leap_year(as.integer(reference_year)), 366L, 365L)
@@ -510,7 +510,7 @@ wapor_season_days <- function(start_raster, end_raster, reference_year = NULL) {
 #' @param l_mid_days Integer. Length of mid-season stage.
 #' @param l_late_days Integer. Length of late-season stage.
 #' @return A SpatRaster of development stage days per pixel.
-#' @export
+#' @keywords internal
 wapor_season_ldev <- function(total_days_raster, l_ini_days,
                                        l_mid_days, l_late_days) {
   fixed_sum <- as.integer(l_ini_days) + as.integer(l_mid_days) + as.integer(l_late_days)
@@ -819,7 +819,7 @@ wapor_compare_geom <- function(r1, r2) {
 #' @param start_date Character or Date. Start of date range.
 #' @param end_date Character or Date. End of date range.
 #' @return Character vector of full file paths, sorted by date.
-#' @export
+#' @keywords internal
 wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   # Check both the standard folder and the seasonal folder
   var_folders <- c(file.path(folder, variable), file.path(folder, paste0(variable, "_seasonal")))

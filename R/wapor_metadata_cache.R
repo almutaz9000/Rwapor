@@ -168,7 +168,7 @@ wapor_fetch_metadata <- function(level) {
 #' Pagination is handled automatically via the `links[rel="next"]` field in
 #' each response.
 #'
-#' @export
+#' @keywords internal
 #'
 #' @importFrom httr2 request req_perform resp_body_json req_timeout req_retry
 #' @importFrom jsonlite toJSON

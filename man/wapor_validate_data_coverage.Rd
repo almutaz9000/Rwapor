@@ -21,3 +21,4 @@ A list with \code{complete} (logical) and \code{missing} (list of missing dates 
 \description{
 Checks if local data covers the requested analysis period.
 }
+\keyword{internal}

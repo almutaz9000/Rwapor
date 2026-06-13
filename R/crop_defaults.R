@@ -84,7 +84,7 @@ wapor_crop_defaults <- function(crop_name) {
 #'
 #' @param df A data.frame with crop parameters (same columns as FAO_CROP_DEFAULTS).
 #' @return TRUE invisibly if valid; stops with an error otherwise.
-#' @export
+#' @keywords internal
 #' @examples
 #' wapor_validate_crop_defaults(FAO_CROP_DEFAULTS)
 wapor_validate_crop_defaults <- function(df) {

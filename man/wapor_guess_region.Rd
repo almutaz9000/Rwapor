@@ -19,4 +19,3 @@ Character vector of intersecting L3 regions, or NULL
 \description{
 Guess L3 Region from Spatial Intersection
 }
-\keyword{internal}

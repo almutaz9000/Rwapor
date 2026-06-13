@@ -23,3 +23,4 @@ Returns file paths for locally available rasters matching a variable
 and date range. For dekadal/monthly data, includes any time step that
 overlaps with the analysis period (not just those starting within it).
 }
+\keyword{internal}

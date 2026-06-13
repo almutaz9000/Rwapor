@@ -503,7 +503,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
 #' @param season_label Character label for the season.
 #' @param indicators Character vector of indicators to save.
 #' @param include_monthly Logical. Include monthly rasters and summaries.
-#' @export
+#' @keywords internal
 wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, indicators,
                                               include_monthly = FALSE) {
   wapor_export_analysis_outputs(

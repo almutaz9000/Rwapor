@@ -21,4 +21,3 @@ Internal helper that handles CRS alignment, cropping, and optional masking
 for vector or bounding-box regions. Eliminates duplicated crop/mask logic
 across wapor_map, wapor_ts, and seasonal_download.
 }
-\keyword{internal}

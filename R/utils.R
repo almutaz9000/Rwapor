@@ -12,22 +12,31 @@
 #' Load the Rwapor Agent Skills Reference
 #'
 #' Returns the path to (or content of) the canonical agent skills markdown file
-#' that guides AI agents through available workflows, data sources, and
-#' preprocessing requirements for the Rwapor package.
+#' that describes available workflows, data sources, and preprocessing steps for
+#' the Rwapor package. Intended for use with AI coding assistants (e.g., Claude
+#' Code, GitHub Copilot) — load this text into the assistant's context to enable
+#' package-aware suggestions.
 #'
 #' @param as_text Logical. If `TRUE` (default), returns the file content as a
 #'   single character string. If `FALSE`, returns only the file path.
 #'
-#' @return Character. Either the full markdown text or the file path, depending
-#'   on `as_text`.
+#' @return Character. The full markdown text (`as_text = TRUE`) or the file
+#'   path (`as_text = FALSE`).
+#'
+#' @section AI assistant usage:
+#' Pass the returned text as context to an LLM:
+#' ```r
+#' skills_text <- wapor_agent_skills()
+#' # paste skills_text into your AI assistant's context window
+#' ```
 #'
 #' @examples
-#' # Get the file path (for passing to an LLM context loader)
+#' # Get path (e.g., to pass to an LLM context loader)
 #' path <- wapor_agent_skills(as_text = FALSE)
 #'
 #' # Read content directly
 #' skills_text <- wapor_agent_skills()
-#' cat(substr(skills_text, 1, 500))
+#' cat(substr(skills_text, 1, 300))
 #'
 #' @export
 wapor_agent_skills <- function(as_text = TRUE) {
@@ -54,8 +63,6 @@ wapor_agent_skills <- function(as_text = TRUE) {
 #' @export
 #'
 #' @importFrom sf st_read st_bbox st_crs st_transform
-#' @importFrom stats coef lm
-#' @importFrom utils capture.output getFromNamespace
 #'
 #' @examples
 #' # Parse a bounding box (xmin, ymin, xmax, ymax)
@@ -576,7 +583,6 @@ wapor_date_info <- function(url, tres) {
 #' @param y target CRS
 #' @return SpatVector or SpatRaster
 #' @export
-#' @keywords internal
 wapor_safe_project <- function(x, y) {
   y_crs <- y
   if (is.character(y) && grepl("ID\\[\"EPSG\"", y)) {
@@ -659,7 +665,6 @@ save_l3_extent_cache <- function(cache) {
 #' @return A SpatVector polygon in EPSG:4326, or NULL on failure.
 #' @importFrom terra rast ext as.polygons crs
 #' @export
-#' @keywords internal
 wapor_l3_extent <- function(url, code) {
   # Check persistent cache first
   cache <- load_l3_extent_cache()
@@ -702,7 +707,6 @@ wapor_l3_extent <- function(url, code) {
 #' @return Character vector of intersecting L3 regions, or NULL
 #' @importFrom terra rast ext as.polygons is.related crs project vect
 #' @export
-#' @keywords internal
 wapor_guess_region <- function(variable, reg_info, period) {
   # Temporarily suppress the warning from wapor_generate_urls
   urls <- suppressWarnings(wapor_generate_urls(variable, period = c(period[1], period[1])))
@@ -783,7 +787,6 @@ wapor_guess_region <- function(variable, reg_info, period) {
 #' @param reg_info List from \code{wapor_parse_region()} with \code{$type} and \code{$value}.
 #' @param do_mask Logical. If TRUE, also mask to vector geometry (not just crop).
 #' @return Cropped (and optionally masked) SpatRaster.
-#' @keywords internal
 #' @export
 wapor_crop_to_region <- function(r, reg_info, do_mask = FALSE) {
   r_crs <- terra::crs(r)

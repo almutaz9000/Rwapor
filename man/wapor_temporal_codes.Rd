@@ -25,3 +25,4 @@ wapor_temporal_codes("L1-AETI-D")
 wapor_temporal_codes("L2-NPP-D")
 # [1] "M" "D"
 }
+\keyword{internal}

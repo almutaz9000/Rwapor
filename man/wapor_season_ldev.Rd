@@ -21,3 +21,4 @@ A SpatRaster of development stage days per pixel.
 \description{
 Derives l_dev dynamically: l_dev = total_days - (l_ini + l_mid + l_late).
 }
+\keyword{internal}

@@ -42,3 +42,4 @@ wapor_update_metadata()
 wapor_update_metadata("L1", dest = tempdir())
 }
 }
+\keyword{internal}

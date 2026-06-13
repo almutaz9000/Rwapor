@@ -18,3 +18,4 @@ Checks that a crop defaults data.frame has valid structure and values.
 \examples{
 wapor_validate_crop_defaults(FAO_CROP_DEFAULTS)
 }
+\keyword{internal}

@@ -1,3 +1,35 @@
+# Rwapor 0.9.9
+
+## Fixes and Documentation
+
+* Fixed broken code-fence in README Example 2 that caused Example 3 to render
+  incorrectly on GitHub.
+* Corrected README Example 3 to use `wapor_analysis_pipeline()` — the function
+  `wapor_run_seasonal_analysis()` referenced previously does not exist.
+* Removed two dead internal links in README (`.github/L3-AUTO-DETECTION.md` and
+  `docs/REPOSITORY_STRUCTURE.md`).
+* Removed stale `importFrom` directives for `stats::coef`, `stats::lm`,
+  `utils::capture.output`, and `utils::getFromNamespace` that produced
+  `R CMD CHECK` notes.
+* Fixed `wapor_analysis_pipeline()` to respect `config$ref_year` instead of
+  silently deriving it from the start date.
+* Added `on.exit()` guard for temp-file cleanup in `wapor_map()` to prevent
+  orphaned files when an error occurs mid-processing.
+* Fixed duplicate `ID` / identifier column in `wapor_ts()` output.
+* Added `.Deprecated()` call for the `download_locally` parameter in `wapor_ts()`.
+* Resolved `@export` + `@keywords internal` contradiction on internal helpers.
+
+---
+
+# Rwapor 0.9.8
+
+## Download and Unit Conversion
+
+* Hardened unit-conversion behavior for `wapor_map()` and `wapor_ts()` to
+  correctly handle dekadal, monthly, and annual products without double-scaling.
+
+---
+
 # Rwapor 0.9.7
 
 ## Major Synchronization and Optimization

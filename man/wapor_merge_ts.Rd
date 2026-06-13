@@ -19,3 +19,4 @@ A merged data.frame.
 \description{
 Joins AETI, RET, and precipitation data.frames on their start_date column.
 }
+\keyword{internal}

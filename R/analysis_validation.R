@@ -175,7 +175,7 @@ wapor_validate_crop_params <- function(crop_params) {
 #' @param period Character vector c(start_date, end_date).
 #' @param l3_code Character. L3 region code (optional).
 #' @return A list with `complete` (logical) and `missing` (list of missing dates per variable).
-#' @export
+#' @keywords internal
 wapor_validate_data_coverage <- function(folder, variables, period, l3_code = NULL) {
   if (!dir.exists(folder)) {
     return(list(complete = FALSE, missing = list(), 

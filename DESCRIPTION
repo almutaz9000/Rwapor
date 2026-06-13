@@ -1,6 +1,6 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
-Version: 0.9.8
+Version: 0.9.9
 Authors@R: c(
     person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
     person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
@@ -19,6 +19,7 @@ BugReports: https://github.com/almutaz9000/Rwapor/issues
 Depends: R (>= 4.1.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
 Imports:
     httr2,
     terra,

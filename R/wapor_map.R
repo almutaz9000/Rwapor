@@ -481,13 +481,14 @@ wapor_map <- function(
     } else {
       # Combine temporary files into a single stack
       temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
+      on.exit(unlink(temp_files), add = TRUE)  # ensure cleanup even if merge errors
       all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
-      
+
       log_msg("  Merging chunks into final multi-band stack...")
       # Load all temp files logically
       r_all <- suppressWarnings(terra::rast(temp_files))
       names(r_all) <- all_names
-      
+
       current_filename <- filename
       if (is.null(current_filename)) {
         start_date <- names(r_all)[1]
@@ -495,17 +496,13 @@ wapor_map <- function(
         date_part <- if (terra::nlyr(r_all) == 1) start_date else paste0(start_date, "_", end_date)
         current_filename <- paste0(prefix, product_base, ".", date_part, ".tif")
       }
-      
+
       out_path <- file.path(var_folder, current_filename)
-      # Finalize raster with metadata AFTER all transformations (like classify)
       r_out <- terra::classify(r_all, cbind(NA, -9999))
       r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
-      
+
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-      
-      # Clean up temp files
-      unlink(temp_files)
-      
+
       output_paths <- out_path
     }
     
