@@ -109,7 +109,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     stop("'download_locally' must be a single logical value", call. = FALSE)
   }
   if (isTRUE(download_locally)) {
-    warning("'download_locally' is deprecated and ignored; data are streamed with /vsicurl/.", call. = FALSE)
+    .Deprecated(
+      msg = paste0(
+        "'download_locally' is deprecated and will be removed in a future release. ",
+        "Data are always streamed via /vsicurl/ and this argument has no effect."
+      )
+    )
   }
   if (!is.logical(batching) || length(batching) != 1) {
     stop("'batching' must be a single logical value", call. = FALSE)
@@ -423,10 +428,18 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
       ex$ID <- seq_len(nrow(ex))
 
-      # Reshape extracted stats into long format
-      # If processing batches in parallel, we don't further parallelize within a batch
-      # to avoid nested parallelism overhead.
-      inner_apply_fn <- if (parallel) lapply else (if (isTRUE(getOption("wapor.parallel_inner", FALSE))) future.apply::future_lapply else lapply)
+      # Reshape extracted stats into long format.
+      # When outer batches are already running in parallel (parallel = TRUE), force
+      # the inner per-layer loop to be serial (lapply) to avoid nested parallelism.
+      # Only use future_lapply for the inner loop when the outer loop is serial and
+      # the developer opt-in option "wapor.parallel_inner" is set.
+      inner_apply_fn <- if (parallel) {
+        lapply  # outer is parallel — keep inner serial
+      } else if (isTRUE(getOption("wapor.parallel_inner", FALSE))) {
+        future.apply::future_lapply
+      } else {
+        lapply
+      }
       
       out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
         lyr_name <- paste0("L", i)
@@ -454,9 +467,10 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         sub_df <- ex[, cols, drop = FALSE]
         colnames(sub_df) <- c("mean", "min", "max")
 
-        sub_df$ID <- ids[ex$ID]
-        
-        # Add custom identifier column if specified
+        # ID = numeric row index into the vector layer (stable, always present)
+        sub_df$ID <- ex$ID
+
+        # Named identifier column carries the user-supplied attribute values
         if (!is.null(identifier) && identifier %in% names(vect)) {
           sub_df[[identifier]] <- ids[ex$ID]
         }

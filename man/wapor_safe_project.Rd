@@ -18,4 +18,3 @@ SpatVector or SpatRaster
 Eliminates PROJ database collisions on some Windows environments
 when projecting between WGS84 and UTM.
 }
-\keyword{internal}

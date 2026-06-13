@@ -15,3 +15,4 @@ terra SpatRaster object
 \description{
 Extract Raster from DuckDB BLOB
 }
+\keyword{internal}

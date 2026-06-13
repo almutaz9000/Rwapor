@@ -41,3 +41,4 @@ wapor_res_key("L2-AETI-D")   # "L2_100m"
 wapor_res_key("L3-AETI-D")   # "L3_30m"
 wapor_res_key("AGERA5-ET0-E") # "AGERA5_11000m"
 }
+\keyword{internal}

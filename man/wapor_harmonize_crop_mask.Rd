@@ -18,3 +18,4 @@ A harmonized SpatRaster.
 Convenience wrapper that harmonizes a crop mask raster to match
 the AETI raster geometry using nearest-neighbor resampling.
 }
+\keyword{internal}

@@ -287,7 +287,7 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
 #' @param log_fn Function for logging.
 #' @param l3_region Optional L3 region code.
 #' @return NULL (invisibly).
-#' @export
+#' @keywords internal
 wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = message, l3_region = NULL) {
   if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
 
@@ -475,7 +475,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
 #'
 #' @param blob_data Raw vector containing raster BLOB
 #' @return terra SpatRaster object
-#' @export
+#' @keywords internal
 wapor_raster_from_blob <- function(blob_data) {
   if (is.null(blob_data) || length(blob_data) == 0) {
     return(NULL)
@@ -582,7 +582,7 @@ wapor_enhanced_zonal_stats <- function(raster, polygon, threshold_percentile = 0
 #' @param polygon sf object with farm boundary
 #' @param threshold_pct New threshold percentile (0-50)
 #' @return data.frame with updated statistics
-#' @export
+#' @keywords internal
 wapor_recalculate_stats_from_rasters <- function(con, farm_id, polygon, threshold_pct = 5) {
   if (is.null(con) || is.null(polygon)) return(NULL)
 

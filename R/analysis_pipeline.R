@@ -65,7 +65,9 @@ wapor_analysis_pipeline <- function(config,
   
   # Extract config
   period <- config$period
-  ref_year <- as.integer(format(as.Date(period[1]), "%Y"))
+  # Use explicit ref_year from config when provided (important for cross-year seasons
+  # such as winter wheat where harvest year != sowing year).
+  ref_year <- config$ref_year %||% as.integer(format(as.Date(period[1]), "%Y"))
   aeti_var <- config$aeti_var
   ret_var <- config$ret_var
   precip_var <- config$precip_var %||% NULL

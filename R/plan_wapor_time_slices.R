@@ -42,7 +42,7 @@
 #'     \item{overlap_days}{Integer. Days of overlap with the requested range.}
 #'   }
 #'
-#' @export
+#' @keywords internal
 #'
 #' @examples
 #' # Plan for L2 AETI (no daily data) over a partial season
@@ -321,7 +321,7 @@ wapor_plan_time_slices <- function(start_date, end_date,
 #' @return Character vector of available temporal codes (e.g., `c("A", "M", "D")`),
 #'   ordered from coarsest to finest.
 #'
-#' @export
+#' @keywords internal
 #'
 #' @examples
 #' wapor_temporal_codes("L1-AETI-D")

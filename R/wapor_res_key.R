@@ -72,7 +72,7 @@
 #' Grouping L1 variables by level prefix alone would be incorrect because they
 #' cannot be stacked onto the same grid without resampling.
 #'
-#' @export
+#' @keywords internal
 #' @examples
 #' wapor_res_key("L1-AETI-D")   # "L1_300m"
 #' wapor_res_key("L1-PCP-D")    # "L1_5000m"

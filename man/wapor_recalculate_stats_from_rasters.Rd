@@ -23,3 +23,4 @@ Queries all saved raster blobs for a farm from DuckDB and recalculates
 zonal statistics using a new percentile threshold. Updates the
 farm_timeseries table.
 }
+\keyword{internal}

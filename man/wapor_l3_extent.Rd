@@ -19,4 +19,3 @@ Fetches the extent of a remote raster and returns it as a WGS84 polygon.
 Results are cached to disk so they persist across R sessions, eliminating
 expensive remote raster opens on subsequent calls.
 }
-\keyword{internal}

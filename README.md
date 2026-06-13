@@ -7,39 +7,23 @@
 
 **Rwapor** is an R package for downloading and analyzing [**FAO WaPOR**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) satellite data and [**AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) climate data for water productivity analysis.
 
-> **Quick Start**: Jump to [Installation](#installation) → [Shiny Dashboard](#-option-1-interactive-shiny-dashboard-recommended) to get started in minutes!
+**What you can do**:
+- Download satellite imagery (AETI, NPP, Precipitation) for any region
+- Extract time-series for crop fields and administrative boundaries
+- Run seasonal crop analysis with crop masks and growing season dates
+- Calculate water productivity indicators (CWP, NBWP, ETc, adequacy, transpiration)
+- Use the interactive Shiny dashboard for point-and-click workflows
 
----
-
-## About WaPOR
-
-[**WaPOR**](https://wapor.apps.fao.org/) is FAO's open-access portal providing remote sensing data on water productivity, evapotranspiration, and biomass across Africa and the Near East at multiple spatial resolutions (250m to 30m) and temporal frequencies (dekadal, monthly, annual).
-
-**Key Resources**:
-- 🌐 [WaPOR Portal](https://wapor.apps.fao.org/)
-- 📖 [Technical Documentation](https://www.fao.org/3/ca9564en/CA9564EN.pdf)
-- 📊 [Data Catalog](https://wapor.apps.fao.org/catalog/WAPOR_2/1)
-
----
-
-## What Can You Do?
-
-✅ **Download satellite imagery** (AETI, NPP, Precipitation) for any region  
-✅ **Extract time-series** for crop fields and administrative boundaries  
-✅ **Run seasonal crop analysis** with crop masks and growing season dates  
-✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
-✅ **Use the interactive Shiny dashboard** for point-and-click workflows
-
-## 🚀 Recent Highlights: High-Precision Batch Analysis
+## Recent Highlights
 
 The latest version introduces powerful tools for large-scale agricultural research:
 
 *   🔄 **Batch Multi-Year Analysis**: Process 10+ years of crop seasons in a single run with automated season detection and historical anchor support.
 *   📍 **Plot-Level Precision**: Define unique planting/harvest dates for every single farm plot using a Vector file and CSV lookup table.
 
-## 🛠️ One-Time Setup
+## Installation
 
-You only need to perform these steps once on your computer (or when updating the package).
+Install once per machine (or after major updates).
 
 ### Step 1: Install Required Dependencies
 
@@ -76,24 +60,7 @@ remotes::install_github("almutaz9000/Rwapor")
 
 ---
 
-## 🚀 Everyday Usage
-
-Whenever you start RStudio and want to work with WaPOR data, just run:
-
-```r
-library(Rwapor)
-
-# Option A: Launch the point-and-click dashboard
-run_wapor()
-
-# Option B: Use R commands for analysis
-# results <- wapor_run_seasonal_analysis(...) followed by
-# wapor_export_analysis_outputs(results, folder = "analysis_output")
-```
-
----
-
-## 🎯 Seasonal Analysis Scenarios
+## Seasonal Analysis Scenarios
 
 Choose the analysis workflow that matches your data availability. Rwapor scales from simple regional studies to high-precision farm monitoring.
 
@@ -124,18 +91,9 @@ Choose the analysis workflow that matches your data availability. Rwapor scales 
 
 ---
 
-## Getting Started
+## Option 1: Interactive Shiny Dashboard
 
-You have **two options** to use Rwapor:
-
-1. **Interactive Shiny Dashboard** *(recommended for beginners)*
-2. **R Scripts** *(for automation and advanced workflows)*
-
----
-
-## 🖥️ Option 1: Interactive Shiny Dashboard (Recommended)
-
-The **easiest way** to use Rwapor is through the built-in Shiny dashboard — no coding required!
+The easiest way to use Rwapor. No coding required.
 
 ### Launch the Dashboard
 
@@ -157,7 +115,7 @@ run_wapor(data_folder = "C:/WaPOR_Data")
   - Auto-filters L3 regions to show only those intersecting your AOI
   - Auto-selects when exactly one region overlaps
   - Shows status messages for guidance
-  - See [L3 Auto-Detection Guide](.github/L3-AUTO-DETECTION.md) for details
+  - See the [Shiny Dashboard Guide](vignettes/shiny-dashboard.Rmd) for details
 - Upload your own polygons (Shapefile, GeoJSON, KML, GeoPackage)
 - Select variables (AETI, NPP, Precipitation, etc.)
 - Choose date range and download data
@@ -181,7 +139,7 @@ run_wapor(data_folder = "C:/WaPOR_Data")
 
 ---
 
-## 💻 Option 2: R Scripts
+## Option 2: R Scripts
 
 For automation and custom workflows, use the programmatic interface.
 
@@ -247,6 +205,7 @@ map_path <- wapor_map(
 library(terra)
 r <- rast(map_path)
 plot(r[[1]], main = "AETI - 2023-06-01")
+```
 
 ### Example 3: Seasonal Analysis + Structured Export
 
@@ -261,38 +220,34 @@ periods <- list(
 )
 
 config <- list(
-  period = periods,
-  ref_year = 1970,
-  aeti_var = "L1-AETI-D",
-  ret_var = "L1-RET-D",
+  period     = periods,
+  aeti_var   = "L1-AETI-D",
+  ret_var    = "L1-RET-D",
   precip_var = "L1-PCP-D",
-  npp_var = "L1-NPP-D",
-  t_var = "L1-T-D",
-  data_source = "local",
-  folder = "multi_season_results",
+  npp_var    = "L1-NPP-D",
+  t_var      = "L1-T-D",
   indicators = c("agg_aeti", "peff", "etc", "beneficial_fraction", "yield_npp")
 )
 
 crop_params <- wapor_crop_defaults("Winter Wheat")
-rasters <- list(crop_mask = terra::rast("wheat_mask.tif"))
+rasters     <- list(crop_mask = terra::rast("wheat_mask.tif"))
 
 results <- wapor_run_seasonal_analysis(
-  config = config,
+  config      = config,
   crop_params = crop_params,
-  rasters = rasters
+  rasters     = rasters
 )
 
 wapor_export_analysis_outputs(
-  results = results,
-  folder = "analysis_outputs",
-  indicators = config$indicators,
-  season_label = NULL
+  results    = results,
+  folder     = "analysis_outputs",
+  indicators = config$indicators
 )
 ```
 
 ---
 
-## 🚀 Advanced Workflows
+## Advanced Workflows
 
 For complex analysis, multi-year monitoring, and seasonal productivity modeling, please refer to the dedicated guides:
 
@@ -302,7 +257,7 @@ For complex analysis, multi-year monitoring, and seasonal productivity modeling,
 
 ---
 
-## 📚 Learn More
+## Learn More
 
 ### Available Data
 
@@ -327,53 +282,71 @@ For advanced features, see:
 - **[Shiny Dashboard Guide](vignettes/shiny-dashboard.Rmd)**: Dashboard usage and features
 - **Function References**: Type `?function_name` in R (e.g., `?wapor_ts`)
 
-### Repository Structure (Production vs Development)
-
-The repository is organized to keep package runtime code easy to navigate:
-
-- Production package paths: `R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`
-- Agent workflow state: `agent-workflow/`
-- Reusable developer scripts: `dev-tools/scripts/`
-- Archived development artifacts: `dev-archive/2026-05-production-cleanup/`
-
-For details, see `docs/REPOSITORY_STRUCTURE.md`.
-
 ### Key Functions
 
-| Function | Purpose |
-|----------|---------|
-| `run_wapor()` | Launch interactive Shiny dashboard |
-| `wapor_ts()` | Download time-series for polygons |
-| `wapor_map()` | Download raster maps for a region |
-| `wapor_build_season_weights()` | Build pixel-wise dekadal season weights |
-| `wapor_calc_seasonal_aeti()` | Calculate seasonal actual ET |
-| `wapor_calc_seasonal_etc()` | Calculate seasonal crop water requirement |
-| `wapor_calc_bwp()` | Calculate biomass water productivity |
-| `wapor_calc_cwp()` | Calculate crop water productivity |
-| `wapor_crop_defaults()` | Get FAO-56 crop parameters |
-| `wapor_harmonize_raster()` | Reproject/resample raster to a target grid |
+| Category | Function | Purpose |
+|----------|----------|---------|
+| **Dashboard** | `run_wapor()` | Launch interactive Shiny dashboard |
+| **Download** | `wapor_ts()` | Time-series zonal statistics for polygons |
+| **Download** | `wapor_map()` | Download raster maps to GeoTIFF |
+| **Download** | `wapor_generate_urls()` | Generate API download URLs |
+| **Analysis** | `wapor_run_seasonal_analysis()` | Full seasonal crop water productivity analysis |
+| **Analysis** | `wapor_analysis_pipeline()` | Modular analysis pipeline with progress callbacks |
+| **Analysis** | `wapor_export_analysis_outputs()` | Export structured rasters and CSV summaries |
+| **Analysis** | `wapor_compare_seasons()` | Compare indicators across multiple seasons |
+| **Indicators** | `wapor_calc_seasonal_aeti()` | Seasonal actual evapotranspiration |
+| **Indicators** | `wapor_calc_seasonal_etc()` | Seasonal crop water requirement (ETc) |
+| **Indicators** | `wapor_calc_bwp()` | Biomass water productivity |
+| **Indicators** | `wapor_calc_cwp()` | Crop water productivity |
+| **Indicators** | `wapor_calc_peff()` | Effective precipitation |
+| **Validation** | `wapor_preflight_check()` | Pre-analysis diagnostic and validation |
+| **Monitoring** | `wapor_detect_aeti_anomalies()` | Spatial water stress anomaly detection |
+| **Utilities** | `wapor_crop_defaults()` | FAO-56 crop parameters by crop name |
+| **Utilities** | `wapor_build_season_weights()` | Pixel-wise dekadal season weights |
+| **Utilities** | `wapor_parse_region()` | Parse bbox / vector file / L3 code |
 
 ---
 
-## 🤝 Contributing
+## Background
 
-Contributions are welcome! Please:
+[**WaPOR**](https://wapor.apps.fao.org/) (Water Productivity Open-access Portal) is FAO's satellite-based dataset for water productivity, evapotranspiration, and biomass production across Africa and the Near East. Data are available at multiple spatial resolutions (250 m, 100 m, 30 m) and temporal frequencies (dekadal, monthly, annual).
+
+**Key resources**:
+- [WaPOR Portal](https://wapor.apps.fao.org/)
+- [Technical Documentation](https://www.fao.org/3/ca9564en/CA9564EN.pdf)
+- [Data Catalog](https://wapor.apps.fao.org/catalog/WAPOR_2/1)
+
+---
+
+## Contributing
+
+Contributions are welcome. Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
 
 ---
 
-## 📄 License
+## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 📧 Citation
+## Citation
 
 If you use Rwapor in your research, please cite:
 
+```bibtex
+@misc{rwapor2024,
+  title  = {{Rwapor}: An {R} Package for Downloading and Analyzing {FAO WaPOR} Data},
+  author = {Mohammed, Almutaz},
+  year   = {2024},
+  url    = {https://github.com/almutaz9000/Rwapor},
+  note   = {R package version 0.9.9}
+}
 ```
-FAO WaPOR Database: https://wapor.apps.fao.org/
-Rwapor R Package: https://github.com/almutaz9000/Rwapor
-```
+
+Data source:
+
+> FAO. (2024). *WaPOR — FAO's portal to monitor Water Productivity through Open access of Remotely sensed derived data*.
+> Food and Agriculture Organization of the United Nations. <https://wapor.apps.fao.org/>
