@@ -110,16 +110,20 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Using terra::crosstab(..., long = TRUE) is significantly more
+  # memory-efficient than extracting all values into R via terra::values().
+  # It executes the grouping and counting in the C++ backend.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure we only process selected classes by masking first
+  # and rounding DOY rasters to integers for consistent grouping
+  m <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
+  s <- terra::round(start_raster)
+  e <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Compute unique combinations and counts
+  ct <- terra::crosstab(terra::c(m, s, e), long = TRUE)
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
       class_value = integer(0),
       start_jd = integer(0),
@@ -129,24 +133,21 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
+  # Rename columns (names come from the raster layers)
+  names(ct) <- c("class_value", "start_jd", "end_jd", "pixel_count")
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  # Convert to proper types and calculate duration
+  ct$class_value <- as.integer(ct$class_value)
+  ct$start_jd <- as.integer(ct$start_jd)
+  ct$end_jd <- as.integer(ct$end_jd)
+  ct$pixel_count <- as.integer(ct$pixel_count)
+
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
+
+  # Filter out invalid durations and return
+  ct <- ct[ct$total_days > 0, , drop = FALSE]
+
+  ct[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis

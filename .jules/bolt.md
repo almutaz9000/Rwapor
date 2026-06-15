@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2025-05-18 - [Optimized Seasonal Profile Generation]
+**Learning:** For generating unique combinations of values from multiple rasters (e.g., seasonal profiles), using `terra::crosstab(..., long = TRUE)` is significantly more memory-efficient and faster than extracting all pixels into R via `terra::values()` and using `stats::aggregate()`. The `crosstab` approach executes the grouping and counting in the C++ backend.
+**Action:** Always prefer `terra::crosstab(..., long = TRUE)` for counting unique pixel combinations across multiple layers instead of R-level aggregations on `values()`.
