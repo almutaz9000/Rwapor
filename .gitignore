@@ -30,13 +30,23 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
-.github/
+# Agent/AI Configuration
+# Standard adapter files are un-ignored to allow shared workflow across environments
+.github/*
+!.github/agents/
 .claude/
-.agents/
-.agent/
+.agents/*
+!.agents/bolt.md
+!.agents/memory.md
+.agent/*
+!.agent/PROJECT.md
 CLAUDE.md
+!CLAUDE.md
 memories/
+bolt.md
+!bolt.md
+.jules/*
+!.jules/bolt.md
 
 # Development artifacts
 archived_reports/

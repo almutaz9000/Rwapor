@@ -295,6 +295,19 @@ For complex analysis, multi-year monitoring, and seasonal productivity modeling,
 
 ---
 
+## 📚 Shared Agent Workflow
+
+This repository uses a **Shared Agent Workflow** to coordinate tasks between different AI agents (Claude, Gemini, Jules, etc.) and human contributors.
+
+- **Primary Task Queue**: All active tasks, issues, and session briefs are maintained in the `agent-workflow/` directory.
+- **Entry Points**:
+  - `bolt.md` (root): Primary entry point for performance and automation tasks.
+  - `.jules/bolt.md`: Adapter for Jules-specific sessions.
+  - `agent-workflow/START-HERE.md`: Canonical instructions for any agent starting a new session.
+- **State Tracking**: `task-status.md` and `issues-log.md` provide a live view of project progress and known regressions.
+
+---
+
 ## 📚 Learn More
 
 ### Available Data
