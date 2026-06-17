@@ -9,6 +9,7 @@ _Last updated: 2026-05-13_
   - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
 
 ## Recently Completed
+- [x] Optimized seasonal profile table generation in R/analysis_utils.R and R/analysis_pipeline.R using terra::crosstab (2026-05-14).
 
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
@@ -23,7 +24,7 @@ _Last updated: 2026-05-13_
 
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that use `beneficial_fraction`.
-- [ ] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
+- [x] Manually verify the Analysis crop-mask and Kc preview plots render cleanly and survive window resize without graphics warnings.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the R console session stays connected.
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.

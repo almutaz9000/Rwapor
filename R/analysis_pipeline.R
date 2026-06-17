@@ -558,47 +558,52 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  # Implementation P0: Fix OOM risk
-  # Instead of loading all values into RAM via terra::values(), 
-  # we encode unique combinations into a single ID raster and use terra::freq()
-  # which processes in blocks.
-  
-  # Ensure we only process the pixels in the requested classes
-  mask_valid <- terra::match(crop_mask, class_values)
-  
-  # Encode: Class * 1,000,000 + StartJD * 1,000 + EndJD
-  # This fits in a standard integer and uniquely identifies each profile.
-  id_rast <- (crop_mask * 1e6) + (terra::round(start_raster) * 1e3) + terra::round(end_raster)
-  id_rast <- terra::mask(id_rast, mask_valid)
-  
-  # Frequency count (block-wise processing)
-  freq_df <- as.data.frame(terra::freq(id_rast))
-  
-  if (nrow(freq_df) == 0) {
+  # Implementation P1: High-Performance Profile Extraction
+  # We use terra::crosstab(..., long = TRUE) which is implemented in C++ and
+  # processes in blocks to avoid OOM while providing accurate pixel counts.
+
+  # Round JD rasters and combine into a stack
+  s <- c(crop_mask, terra::round(start_raster), terra::round(end_raster))
+  names(s) <- c("class_value", "start_jd", "end_jd")
+
+  # Perform cross-tabulation
+  profile_df <- as.data.frame(terra::crosstab(s, long = TRUE))
+
+  if (is.null(profile_df) || nrow(profile_df) == 0) {
     return(data.frame(
-      class_value = integer(0), start_jd = integer(0), 
+      class_value = integer(0), start_jd = integer(0),
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
-  
-  # Decode the IDs
-  ids <- freq_df$value
-  class_vals <- as.integer(ids %/% 1e6)
-  start_jds  <- as.integer((ids %% 1e6) %/% 1e3)
-  end_jds    <- as.integer(ids %% 1e3)
-  
-  profile_df <- data.frame(
-    class_value = class_vals,
-    start_jd = start_jds,
-    end_jd = end_jds,
-    pixel_count = freq_df$count,
-    stringsAsFactors = FALSE
-  )
-  
-  # Filter for valid seasons
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  # Normalize column names (crosstab output can vary slightly by terra version)
+  names(profile_df)[1:4] <- c("class_value", "start_jd", "end_jd", "pixel_count")
+
+  # Filter for valid classes, non-NA values, and non-empty zones
+  profile_df <- profile_df[!is.na(profile_df$class_value) &
+                           !is.na(profile_df$start_jd) &
+                           !is.na(profile_df$end_jd) &
+                           profile_df$pixel_count > 0, , drop = FALSE]
+
+  profile_df <- profile_df[profile_df$class_value %in% class_values, , drop = FALSE]
+
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # Ensure correct types and calculate total days
+  profile_df$class_value <- as.integer(profile_df$class_value)
+  profile_df$start_jd    <- as.integer(profile_df$start_jd)
+  profile_df$end_jd      <- as.integer(profile_df$end_jd)
+  profile_df$pixel_count <- as.integer(profile_df$pixel_count)
+  profile_df$total_days  <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  # Filter out invalid seasons (end before start)
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  
+
   return(profile_df)
 }
 

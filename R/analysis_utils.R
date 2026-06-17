@@ -127,13 +127,14 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  # Combine rasters into a stack to find unique combinations efficiently
-  s <- c(crop_mask, start_raster, end_raster)
+  # Round JD rasters to ensure efficient integer grouping in crosstab
+  # and combine into a stack
+  s <- c(crop_mask, terra::round(start_raster), terra::round(end_raster))
   names(s) <- c("class_value", "start_jd", "end_jd")
 
-  # terra::unique() is implemented in C++ and handles large rasters via block processing,
-  # avoiding the memory crash associated with terra::values().
-  profile_df <- terra::unique(s)
+  # terra::crosstab(..., long = TRUE) is implemented in C++ and handles large rasters via block processing,
+  # providing both unique combinations and accurate pixel counts.
+  profile_df <- as.data.frame(terra::crosstab(s, long = TRUE))
 
   if (is.null(profile_df) || nrow(profile_df) == 0) {
     return(data.frame(
@@ -145,34 +146,36 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
+  # Rename columns to ensure consistency (crosstab can sometimes vary names based on input)
+  names(profile_df)[1:4] <- c("class_value", "start_jd", "end_jd", "pixel_count")
+
   # Filter by requested classes and handle NAs
   profile_df <- profile_df[!is.na(profile_df$class_value) &
                            !is.na(profile_df$start_jd) &
-                           !is.na(profile_df$end_jd), , drop = FALSE]
-  
+                           !is.na(profile_df$end_jd) &
+                           profile_df$pixel_count > 0, , drop = FALSE]
+
   profile_df <- profile_df[profile_df$class_value %in% class_values, , drop = FALSE]
 
   if (nrow(profile_df) == 0) {
-    return(profile_df)
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
   }
 
-  # Convert JD values to integers
+  # Ensure correct types and calculate total days
   profile_df$class_value <- as.integer(profile_df$class_value)
-  profile_df$start_jd    <- as.integer(round(profile_df$start_jd))
-  profile_df$end_jd      <- as.integer(round(profile_df$end_jd))
+  profile_df$start_jd    <- as.integer(profile_df$start_jd)
+  profile_df$end_jd      <- as.integer(profile_df$end_jd)
+  profile_df$pixel_count <- as.integer(profile_df$pixel_count)
   profile_df$total_days  <- profile_df$end_jd - profile_df$start_jd + 1L
-  
+
   # Filter out invalid seasons (end before start)
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
-
-  # For the calculation, we don't strictly need accurate pixel counts per profile
-  # as long as we have the unique triples. However, to maintain backward compatibility 
-  # with the return schema, we set a placeholder.
-  profile_df$pixel_count <- 1L
 
   return(profile_df)
 }

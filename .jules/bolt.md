@@ -46,3 +46,7 @@ Before making changes:
 - Treat `agent-workflow/` as the only canonical source of truth.
 - Use `inst/agent_skills/RWAPOR_AGENT_SKILLS.md` for package and WaPOR behavior.
 - Do not store lasting project learnings in `.jules/`.
+
+## 2026-06-17 - Optimized Seasonal Profile Generation
+**Learning:** For generating unique combinations of values from multiple rasters (e.g., seasonal profiles), using `terra::crosstab(..., long = TRUE)` is significantly more memory-efficient than `terra::unique()` or manual encoding with `terra::freq()`. It executes the grouping and counting in the C++ backend and processes the raster in blocks.
+**Action:** Always prefer `terra::crosstab(long = TRUE)` for frequency tables of multiple raster layers. Ensure input rasters are rounded (`terra::round()`) if they contain continuous/float values that should be treated as discrete categories (like Julian days).
