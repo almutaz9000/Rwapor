@@ -38,14 +38,9 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
 wapor_build_class_mask <- function(mask_rast, class_values) {
   if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
 
-  match_rast <- mask_rast == as.integer(class_values[1])
-  if (length(class_values) > 1) {
-    for (cls in class_values[-1]) {
-      match_rast <- match_rast | (mask_rast == as.integer(cls))
-    }
-  }
-
-  terra::ifel(match_rast, 1L, NA)
+  # terra::classify is significantly faster for multi-class masking
+  rcl <- cbind(as.integer(class_values), 1L)
+  terra::classify(mask_rast, rcl, others = NA)
 }
 
 #' Filter class stats to match active crop parameters
@@ -127,13 +122,15 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  # Combine rasters into a stack to find unique combinations efficiently
+  # Ensure start/end are integers for cleaner crosstab
+  start_raster <- terra::round(start_raster)
+  end_raster   <- terra::round(end_raster)
+
+  # terra::crosstab(..., long = TRUE) is efficient and provides accurate pixel counts
   s <- c(crop_mask, start_raster, end_raster)
   names(s) <- c("class_value", "start_jd", "end_jd")
 
-  # terra::unique() is implemented in C++ and handles large rasters via block processing,
-  # avoiding the memory crash associated with terra::values().
-  profile_df <- terra::unique(s)
+  profile_df <- as.data.frame(terra::crosstab(s, long = TRUE))
 
   if (is.null(profile_df) || nrow(profile_df) == 0) {
     return(data.frame(
@@ -145,10 +142,19 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
+  # terra::crosstab returns a 'Freq' column; rename to pixel_count
+  names(profile_df)[names(profile_df) == "Freq"] <- "pixel_count"
+
+  # Convert JD values to integers (crosstab returns them as factors or numeric)
+  profile_df$class_value <- as.integer(as.character(profile_df$class_value))
+  profile_df$start_jd    <- as.integer(as.character(profile_df$start_jd))
+  profile_df$end_jd      <- as.integer(as.character(profile_df$end_jd))
+
   # Filter by requested classes and handle NAs
   profile_df <- profile_df[!is.na(profile_df$class_value) &
                            !is.na(profile_df$start_jd) &
-                           !is.na(profile_df$end_jd), , drop = FALSE]
+                           !is.na(profile_df$end_jd) &
+                           profile_df$pixel_count > 0, , drop = FALSE]
   
   profile_df <- profile_df[profile_df$class_value %in% class_values, , drop = FALSE]
 
@@ -156,23 +162,10 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     return(profile_df)
   }
 
-  # Convert JD values to integers
-  profile_df$class_value <- as.integer(profile_df$class_value)
-  profile_df$start_jd    <- as.integer(round(profile_df$start_jd))
-  profile_df$end_jd      <- as.integer(round(profile_df$end_jd))
   profile_df$total_days  <- profile_df$end_jd - profile_df$start_jd + 1L
   
   # Filter out invalid seasons (end before start)
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
-
-  # For the calculation, we don't strictly need accurate pixel counts per profile
-  # as long as we have the unique triples. However, to maintain backward compatibility 
-  # with the return schema, we set a placeholder.
-  profile_df$pixel_count <- 1L
 
   return(profile_df)
 }

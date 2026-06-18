@@ -5,6 +5,9 @@ _Last updated: 2026-05-13_
 ## Active Focus
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
+- Optimized core seasonal analysis logic: vectorized `wapor_calc_seasonal_etc` and migrated class-masking to `terra::classify` and profile-generation to `terra::crosstab(..., long=TRUE)`.
+- Deduplicated analysis logic by having `R/analysis_pipeline.R` delegate to optimized helpers in `R/analysis_utils.R`.
+- Standardized internal package calls and removed redundant `getFromNamespace` references for `get_analysis_layer_multipliers`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).

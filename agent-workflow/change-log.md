@@ -13,6 +13,10 @@
 
 ## 2026-05-14
 
+- Optimized core analysis logic: vectorized `wapor_calc_seasonal_etc` to use `wapor_masked_sum` (C++ `terra::sum`) instead of iterative R loops.
+- Migrated multi-class masking to high-performance `terra::classify` and season-profile generation to memory-efficient `terra::crosstab(..., long = TRUE)`.
+- Deduplicated core analysis logic by refactoring `R/analysis_pipeline.R` internal helpers to delegate to optimized functions in `R/analysis_utils.R`.
+- Standardized internal package namespace calls and removed redundant `getFromNamespace` references for `get_analysis_layer_multipliers`.
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
