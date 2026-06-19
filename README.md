@@ -331,6 +331,10 @@ The repository is organized to keep package runtime code easy to navigate:
 
 For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
+### AI Agent Workflow
+
+This repository uses a shared workflow for AI agents (Claude, Gemini, etc.). If you are an AI assistant working on this codebase, please start by reading **[agent-workflow/START-HERE.md](agent-workflow/START-HERE.md)**.
+
 ### Key Functions
 
 | Function | Purpose |
@@ -345,6 +349,19 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 | `wapor_calc_cwp()` | Calculate crop water productivity |
 | `wapor_crop_defaults()` | Get FAO-56 crop parameters |
 | `wapor_harmonize_raster()` | Reproject/resample raster to a target grid |
+
+---
+
+## 📏 Unit Conversion
+
+Rwapor handles common unit and scale conversions automatically to ensure data is ready for analysis:
+
+*   **Dekadal Totals**: WaPOR dekadal variables (e.g., AETI, Precipitation) are stored as daily rates (`mm/day`). Rwapor automatically converts these to **dekadal totals** (`mm/dekad`) by default during download and extraction.
+*   **Temperature**: AgERA5 temperature variables (`TMIN`, `TMAX`) are provided in Kelvin. Rwapor automatically converts these to **degrees Celsius** (°C) by subtracting 273.15.
+*   **Scale Factors**: WaPOR and AgERA5 scale factors (e.g., 0.1 for AETI) are applied automatically by the underlying `terra` engine.
+
+You can customize temporal aggregation using the `unit_conversion` parameter in `wapor_ts()`:
+`"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`.
 
 ---
 

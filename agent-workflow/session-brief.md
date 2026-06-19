@@ -24,6 +24,9 @@ _Last updated: 2026-05-13_
 - Added regression tests in `tests/testthat/test-dashboard-validation.R` for dashboard dependencies and date-validation behavior.
 - Fixed Shiny preview plotting to avoid restoring full `par()` state (prevents device-size-dependent `pin` errors on resize).
 - Added regression coverage in `tests/testthat/test-analysis-shiny.R` to guard against reintroducing full `par(no.readonly=TRUE)` restore patterns.
+- Updated `README.md` and `vignettes/getting-started.Rmd` with explicit details on automatic AgERA5 temperature conversion and WaPOR dekadal defaults.
+- Surfaced the AI Agent Workflow in `README.md` to direct contributors to `agent-workflow/START-HERE.md`.
+- Added `tests/testthat/test-unit_convertor.R` with test coverage for temperature conversion logic.
 
 ## Top Open Issues
 

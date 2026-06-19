@@ -244,8 +244,20 @@ attr(df, "long_name")
 
 ## Unit Conversion
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+Rwapor handles common unit and scale conversions automatically to ensure data is
+ready for analysis:
+
+*   **Dekadal Totals**: WaPOR dekadal variables (e.g., AETI, Precipitation) are
+    stored as daily rates (`mm/day`). Rwapor automatically converts these to
+    **dekadal totals** (`mm/dekad`) by default.
+*   **Temperature**: AgERA5 temperature variables (`TMIN`, `TMAX`) are
+    provided in Kelvin. Rwapor automatically converts these to
+    **degrees Celsius** (°C) by subtracting 273.15.
+*   **Scale Factors**: WaPOR and AgERA5 scale factors (e.g., 0.1 for AETI)
+    are applied automatically by the underlying `terra` engine.
+
+Use the `unit_conversion` parameter in `wapor_ts()` to choose the temporal
+output resolution:
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
