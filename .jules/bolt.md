@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2026-06-19 - [Vectorized Date Parsing from Filenames]
+**Learning:** Parsing dates from a large vector of URLs/filenames using R-level loops (like `lapply` or `vapply` calling `wapor_date_info`) is inefficient. Using vectorized regex (`sub`) to extract components and matrix transformations (`matrix(unlist(strsplit(...)))`) to parse hyphenated date strings is significantly faster.
+**Action:** Always prefer `wapor_parse_dates` over iterative `wapor_date_info` calls for vectors of filenames. Use matrix transformations for splitting fixed-length date strings.
