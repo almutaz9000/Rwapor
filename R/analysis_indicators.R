@@ -143,40 +143,34 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
                  length(kc_dekad), n_layers), call. = FALSE)
   }
-  if (terra::nlyr(season_weights) != n_layers) {
-    stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
-                 terra::nlyr(season_weights), n_layers), call. = FALSE)
-  }
+
+  # Optimization: Delegate summation to wapor_masked_sum.
+  # This provides a vectorized path for performance and an incremental path
+  # for memory efficiency while deduplicating aggregation logic.
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, n_layers)
   }
-  if (length(layer_multipliers) != n_layers) {
-    stop(sprintf("layer_multipliers length (%d) must match ret_dekad layers (%d)",
-                 length(layer_multipliers), n_layers), call. = FALSE)
-  }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Combine Kc values with temporal multipliers (e.g., n_days)
+  combined_multipliers <- kc_dekad * layer_multipliers
+
+  wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = combined_multipliers,
+    incremental = incremental
+  )
 }
 
 
@@ -214,32 +208,33 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Optimization: Use built-in "quantile" string identifier in terra::zonal.
+  # This executes the quantile calculation in the C++ backend, which is
+  # significantly faster than passing an R closure.
+  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = "quantile",
+                          probs = 0.95, na.rm = TRUE)
 
-  # Count valid analysis pixels, not just mask pixels.
+  # Count valid analysis pixels per zone.
+  # terra::zonal does not support "notNA" string identifier, so we use a binary mask.
   valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
   count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
+
+  # Standardize result column names
+  p95_vals <- as.data.frame(p95_vals)
   count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
+  names(p95_vals)[1:2] <- c("class_value", "p95_aeti")
+  names(count_vals)[1:2] <- c("class_value", "n_pixels")
   
   # Merge results
-  result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
-    stringsAsFactors = FALSE
-  )
+  result <- merge(p95_vals, count_vals, by = "class_value", all.x = TRUE)
   
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
+  # Post-process: Enforce the min_pixels threshold and ensure integer types.
+  # Using logical indexing for efficiency on merged results.
   result$n_pixels <- as.integer(result$n_pixels)
+  result$p95_aeti <- ifelse(result$n_pixels < min_pixels, NA_real_, as.numeric(result$p95_aeti))
+
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
+  result$class_value <- as.integer(result$class_value)
   
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
 }
