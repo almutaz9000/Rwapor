@@ -1,0 +1,542 @@
+{
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\.vscode\\settings.json": {
+    "mtime": 1777403213.1378424,
+    "ast_hash": "ed37baf978f6134f8645e39d07f86100",
+    "semantic_hash": "ed37baf978f6134f8645e39d07f86100"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis.R": {
+    "mtime": 1781267486.7827444,
+    "ast_hash": "aea2a5d26ad487be743929a3bee57b06",
+    "semantic_hash": "aea2a5d26ad487be743929a3bee57b06"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_anomaly.R": {
+    "mtime": 1777403213.1449125,
+    "ast_hash": "ecb145820b6b5f760d25fd91ebbb8e79",
+    "semantic_hash": "ecb145820b6b5f760d25fd91ebbb8e79"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_comparison.R": {
+    "mtime": 1778525491.0661771,
+    "ast_hash": "87cc3b66e64939a8b6560ea587c87b55",
+    "semantic_hash": "87cc3b66e64939a8b6560ea587c87b55"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_engine.R": {
+    "mtime": 1781363206.319959,
+    "ast_hash": "6e769b7b76e255119d73564cfee74dc8",
+    "semantic_hash": "6e769b7b76e255119d73564cfee74dc8"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_indicators.R": {
+    "mtime": 1781267486.6931863,
+    "ast_hash": "5c23eb5795582a5abdb5b84480312bc8",
+    "semantic_hash": "5c23eb5795582a5abdb5b84480312bc8"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_pipeline.R": {
+    "mtime": 1781956012.2849717,
+    "ast_hash": "de05055a51da7e2c78c69ae6d87df685",
+    "semantic_hash": "de05055a51da7e2c78c69ae6d87df685"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_utils.R": {
+    "mtime": 1781267486.7203135,
+    "ast_hash": "709ce8121132d3fb888928d4002b00e4",
+    "semantic_hash": "709ce8121132d3fb888928d4002b00e4"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\analysis_validation.R": {
+    "mtime": 1781956016.6126587,
+    "ast_hash": "8b321245a29fbd7b290c0a70c24cebff",
+    "semantic_hash": "8b321245a29fbd7b290c0a70c24cebff"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\api_client.R": {
+    "mtime": 1777403213.1551988,
+    "ast_hash": "650895c40f796f7d270ba43f5c290b6a",
+    "semantic_hash": "650895c40f796f7d270ba43f5c290b6a"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\crop_defaults.R": {
+    "mtime": 1781267486.7952907,
+    "ast_hash": "b95b6f8cff073ad4128726de238634f3",
+    "semantic_hash": "b95b6f8cff073ad4128726de238634f3"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\gdal_config.R": {
+    "mtime": 1774557717.063998,
+    "ast_hash": "3b96c7e1ab550e4f587e05eebe4815ed",
+    "semantic_hash": "3b96c7e1ab550e4f587e05eebe4815ed"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\interval_helpers.R": {
+    "mtime": 1772890673.712244,
+    "ast_hash": "e67d1c3e72ae919ea722d2651d856f2b",
+    "semantic_hash": "e67d1c3e72ae919ea722d2651d856f2b"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\metadata.R": {
+    "mtime": 1777403213.15737,
+    "ast_hash": "3ef97e7c637c73810f973dea8d0025e7",
+    "semantic_hash": "3ef97e7c637c73810f973dea8d0025e7"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\plan_wapor_time_slices.R": {
+    "mtime": 1781267486.8093388,
+    "ast_hash": "4962e1428e79919e19ea474040c4c8db",
+    "semantic_hash": "4962e1428e79919e19ea474040c4c8db"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\run_dashboard.R": {
+    "mtime": 1780919490.0141337,
+    "ast_hash": "749764f46cf5fa716d82fc01929d2a5e",
+    "semantic_hash": "749764f46cf5fa716d82fc01929d2a5e"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\rwapor_favorites.R": {
+    "mtime": 1774557691.1680863,
+    "ast_hash": "d77a81288f22dbcb7ed74cd6ea5fc9d9",
+    "semantic_hash": "d77a81288f22dbcb7ed74cd6ea5fc9d9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\seasonal_download.R": {
+    "mtime": 1777403213.1601098,
+    "ast_hash": "f40ff5cf42fddd1c8c9b185cbd6c57eb",
+    "semantic_hash": "f40ff5cf42fddd1c8c9b185cbd6c57eb"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\unit_convertor.R": {
+    "mtime": 1777403191.4411197,
+    "ast_hash": "630f1c2f8638c4fb7c61236f5ba204bc",
+    "semantic_hash": "630f1c2f8638c4fb7c61236f5ba204bc"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\utils.R": {
+    "mtime": 1781267665.9141831,
+    "ast_hash": "38894182bc07645466f3c18676daae03",
+    "semantic_hash": "38894182bc07645466f3c18676daae03"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\wapor_map.R": {
+    "mtime": 1781266667.423844,
+    "ast_hash": "6f6b217c3a8de85543ee254038a9f28f",
+    "semantic_hash": "6f6b217c3a8de85543ee254038a9f28f"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\wapor_metadata_cache.R": {
+    "mtime": 1781267486.8259976,
+    "ast_hash": "88c086312b50587c6ad51936468e8d55",
+    "semantic_hash": "88c086312b50587c6ad51936468e8d55"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\wapor_monitoring.R": {
+    "mtime": 1781267486.8605275,
+    "ast_hash": "88d3cadecb3297b7b2e3f0aff2e26742",
+    "semantic_hash": "88d3cadecb3297b7b2e3f0aff2e26742"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\wapor_res_key.R": {
+    "mtime": 1781267486.8712044,
+    "ast_hash": "00b1fa7b3fc84d2e559f060868e405a6",
+    "semantic_hash": "00b1fa7b3fc84d2e559f060868e405a6"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\R\\wapor_ts.R": {
+    "mtime": 1781955580.2241893,
+    "ast_hash": "61fd24896a8bf4172cc3fa3f46847dc9",
+    "semantic_hash": "61fd24896a8bf4172cc3fa3f46847dc9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\scripts\\agent_closeout.ps1": {
+    "mtime": 1778525491.0787838,
+    "ast_hash": "dd613ca86de5ea49a74812135bc4ee16",
+    "semantic_hash": "dd613ca86de5ea49a74812135bc4ee16"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\scripts\\agent_digest.ps1": {
+    "mtime": 1778525491.0798461,
+    "ast_hash": "9aa2ff922358caf45e5e7184c7649992",
+    "semantic_hash": "9aa2ff922358caf45e5e7184c7649992"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\scripts\\agent_preflight.ps1": {
+    "mtime": 1778525491.0803719,
+    "ast_hash": "27e0f69055a7e1f5a9fefc468cfd311a",
+    "semantic_hash": "27e0f69055a7e1f5a9fefc468cfd311a"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\dev-tools\\scripts\\get_fao_crop_data.R": {
+    "mtime": 1780322849.2891116,
+    "ast_hash": "31bb1228387e52176667f6df6fe8c563",
+    "semantic_hash": "31bb1228387e52176667f6df6fe8c563"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\metadata\\fetch_metadata.R": {
+    "mtime": 1774572592.1491776,
+    "ast_hash": "f3e2746055a14791f41dda1ccc12ba98",
+    "semantic_hash": "f3e2746055a14791f41dda1ccc12ba98"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\metadata\\wapor_L1.json": {
+    "mtime": 1774572494.9609327,
+    "ast_hash": "664397d9de6e37808f7fa39e82c5fd46",
+    "semantic_hash": "664397d9de6e37808f7fa39e82c5fd46"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\metadata\\wapor_L2.json": {
+    "mtime": 1774572507.1002433,
+    "ast_hash": "23a971c91070684ea5fd1ee09a89aca7",
+    "semantic_hash": "23a971c91070684ea5fd1ee09a89aca7"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\metadata\\wapor_L3.json": {
+    "mtime": 1774572523.6334827,
+    "ast_hash": "c7b113459faaa32619412359474df007",
+    "semantic_hash": "c7b113459faaa32619412359474df007"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\app.R": {
+    "mtime": 1780322849.2974627,
+    "ast_hash": "cd1ec6dc9cfc412f242d8650b3c5b493",
+    "semantic_hash": "cd1ec6dc9cfc412f242d8650b3c5b493"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_analysis.R": {
+    "mtime": 1780322849.2994626,
+    "ast_hash": "6597a08d0d945e2ef62839329d2c81ce",
+    "semantic_hash": "6597a08d0d945e2ef62839329d2c81ce"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_analysis_ui_body.R": {
+    "mtime": 1780322849.3004625,
+    "ast_hash": "34b5ba3ff1fc255b6d7dcc66e76a09ca",
+    "semantic_hash": "34b5ba3ff1fc255b6d7dcc66e76a09ca"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_analysis_ui_sidebar.R": {
+    "mtime": 1780322849.3024633,
+    "ast_hash": "2a7fac33eb95f731afc603c2f8c2216d",
+    "semantic_hash": "2a7fac33eb95f731afc603c2f8c2216d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_aoi.R": {
+    "mtime": 1780322849.304464,
+    "ast_hash": "ff042f8d2af1f2ae849e0fb71bbec9bc",
+    "semantic_hash": "ff042f8d2af1f2ae849e0fb71bbec9bc"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_download.R": {
+    "mtime": 1780917955.8343709,
+    "ast_hash": "777d9f822c8fb2466d6090e38b8d5dee",
+    "semantic_hash": "777d9f822c8fb2466d6090e38b8d5dee"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_monitoring.R": {
+    "mtime": 1777403213.1933897,
+    "ast_hash": "2dcdc291390e2e4d51d4be15cd15730d",
+    "semantic_hash": "2dcdc291390e2e4d51d4be15cd15730d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_timeseries.R": {
+    "mtime": 1780322849.3094628,
+    "ast_hash": "05c4948f75888b11cde70eb6bf374908",
+    "semantic_hash": "05c4948f75888b11cde70eb6bf374908"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\mod_visualisation.R": {
+    "mtime": 1780322849.3114624,
+    "ast_hash": "1a2675a1d1775f1a1a6ac03e1d107161",
+    "semantic_hash": "1a2675a1d1775f1a1a6ac03e1d107161"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\monitoring_helpers.R": {
+    "mtime": 1777403213.199925,
+    "ast_hash": "e99e5620a94672d1a200a5ba7e648fbe",
+    "semantic_hash": "e99e5620a94672d1a200a5ba7e648fbe"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\projects\\Savola.json": {
+    "mtime": 1777403213.2027853,
+    "ast_hash": "1d36ab9a9c99c8c9908ada7158646177",
+    "semantic_hash": "1d36ab9a9c99c8c9908ada7158646177"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\utils_shiny.R": {
+    "mtime": 1781265771.6085904,
+    "ast_hash": "e1f3c9618fd186d463a47b51dfc355e9",
+    "semantic_hash": "e1f3c9618fd186d463a47b51dfc355e9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\detect.ps1": {
+    "mtime": 1782118158.038872,
+    "ast_hash": "5df00b099e651337ec28ecd1cdd060c3",
+    "semantic_hash": "5df00b099e651337ec28ecd1cdd060c3"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\detect.py": {
+    "mtime": 1782118096.2194479,
+    "ast_hash": "76747f3102c0de5c3cd300b533fbbf0f",
+    "semantic_hash": "76747f3102c0de5c3cd300b533fbbf0f"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\setup_graphify.ps1": {
+    "mtime": 1782117997.851666,
+    "ast_hash": "e95c662fd71fab381c0f59ac30076679",
+    "semantic_hash": "e95c662fd71fab381c0f59ac30076679"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat.R": {
+    "mtime": 1778525491.094249,
+    "ast_hash": "7326eae1257d7e016deea5e6544ffa73",
+    "semantic_hash": "7326eae1257d7e016deea5e6544ffa73"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\helper-skip.R": {
+    "mtime": 1774213345.8732562,
+    "ast_hash": "09229390cf578aaf5767657fa7f845a9",
+    "semantic_hash": "09229390cf578aaf5767657fa7f845a9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\setup.R": {
+    "mtime": 1774571194.2234516,
+    "ast_hash": "daa4539857386430f8a2c75d86788ab5",
+    "semantic_hash": "daa4539857386430f8a2c75d86788ab5"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-analysis-engine.R": {
+    "mtime": 1780322849.33147,
+    "ast_hash": "3ff0658a63bad4c738cc7b8b9790f7ca",
+    "semantic_hash": "3ff0658a63bad4c738cc7b8b9790f7ca"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-analysis-indicators.R": {
+    "mtime": 1780322849.33147,
+    "ast_hash": "dafa06bf315a0ae652dfa90b6f262975",
+    "semantic_hash": "dafa06bf315a0ae652dfa90b6f262975"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-analysis-shiny.R": {
+    "mtime": 1780322849.3339887,
+    "ast_hash": "cb488eddbb67b886c85604752ba92b23",
+    "semantic_hash": "cb488eddbb67b886c85604752ba92b23"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-analysis.R": {
+    "mtime": 1780322849.3349922,
+    "ast_hash": "88842368000fef335bab91c239a9a8d1",
+    "semantic_hash": "88842368000fef335bab91c239a9a8d1"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-dashboard-validation.R": {
+    "mtime": 1780322849.3359883,
+    "ast_hash": "73f5cf009d1745e2ca9d1a919b2000fc",
+    "semantic_hash": "73f5cf009d1745e2ca9d1a919b2000fc"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-gdal_config.R": {
+    "mtime": 1774558130.680489,
+    "ast_hash": "15ba166b852eb3176114af5d42d7280d",
+    "semantic_hash": "15ba166b852eb3176114af5d42d7280d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-internal-helpers.R": {
+    "mtime": 1781956021.3827035,
+    "ast_hash": "0a71c5ce336ee93aecbb72badfb1e168",
+    "semantic_hash": "0a71c5ce336ee93aecbb72badfb1e168"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-multi-season.R": {
+    "mtime": 1777403213.263168,
+    "ast_hash": "0bb36f2fcf6939c635512d1c91175dbd",
+    "semantic_hash": "0bb36f2fcf6939c635512d1c91175dbd"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-plan_wapor_time_slices.R": {
+    "mtime": 1780918040.6526062,
+    "ast_hash": "0ef69c8c4b02479c9714986098a1a3b9",
+    "semantic_hash": "0ef69c8c4b02479c9714986098a1a3b9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-wapor.R": {
+    "mtime": 1780917972.048679,
+    "ast_hash": "da132fad549cab34c619613d2f469874",
+    "semantic_hash": "da132fad549cab34c619613d2f469874"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\tests\\testthat\\test-wapor_metadata_cache.R": {
+    "mtime": 1777403213.2641914,
+    "ast_hash": "9826fd7319e92f6b7361a8ad55f25d41",
+    "semantic_hash": "9826fd7319e92f6b7361a8ad55f25d41"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\.jules\\bolt.md": {
+    "mtime": 1780322849.1390443,
+    "ast_hash": "289315cd57649d810b78c3caf1b84c8b",
+    "semantic_hash": "289315cd57649d810b78c3caf1b84c8b"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\AGENTS.md": {
+    "mtime": 1778525491.0645587,
+    "ast_hash": "8b2b7f4b53067d9e1ae0c80468204c65",
+    "semantic_hash": "8b2b7f4b53067d9e1ae0c80468204c65"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\NEWS.md": {
+    "mtime": 1781265595.7796774,
+    "ast_hash": "e803da314a7a77a103b36bf49ab084c6",
+    "semantic_hash": "e803da314a7a77a103b36bf49ab084c6"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\README.md": {
+    "mtime": 1781268312.4406958,
+    "ast_hash": "5ee8946655b331615ae72c71f2e3e71c",
+    "semantic_hash": "5ee8946655b331615ae72c71f2e3e71c"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\START-HERE.md": {
+    "mtime": 1778525491.0747921,
+    "ast_hash": "5903a971eca2e56aeb7b172f565cac7b",
+    "semantic_hash": "5903a971eca2e56aeb7b172f565cac7b"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\change-log.md": {
+    "mtime": 1780918939.4916952,
+    "ast_hash": "ccf5e67fdf86faacc0b5716a45ed3a06",
+    "semantic_hash": "ccf5e67fdf86faacc0b5716a45ed3a06"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\issues-log.md": {
+    "mtime": 1780918860.0266564,
+    "ast_hash": "4925c56b7064855f68a8b64b4172e878",
+    "semantic_hash": "4925c56b7064855f68a8b64b4172e878"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\project-memory.md": {
+    "mtime": 1780322849.1635737,
+    "ast_hash": "844f2aef6bea77c75b709b76c7c790b8",
+    "semantic_hash": "844f2aef6bea77c75b709b76c7c790b8"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\session-brief.md": {
+    "mtime": 1780918928.5207565,
+    "ast_hash": "62a75411e141ab13aaffac89a9e1f19d",
+    "semantic_hash": "62a75411e141ab13aaffac89a9e1f19d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\task-status.md": {
+    "mtime": 1780918870.6139555,
+    "ast_hash": "0cda8d407a8a5841d5ab3f7bdfcd23a1",
+    "semantic_hash": "0cda8d407a8a5841d5ab3f7bdfcd23a1"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\templates\\issue-entry.md": {
+    "mtime": 1778525491.0835383,
+    "ast_hash": "fe729d32c444663a4a9dee1599bffc3e",
+    "semantic_hash": "fe729d32c444663a4a9dee1599bffc3e"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\templates\\memory-entry.md": {
+    "mtime": 1778525491.0840998,
+    "ast_hash": "dffea953c6969dbf81f86f5af80cee4a",
+    "semantic_hash": "dffea953c6969dbf81f86f5af80cee4a"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\templates\\session-brief.md": {
+    "mtime": 1778525491.0846436,
+    "ast_hash": "3491b0ba02f71fb4670fc72b13cabede",
+    "semantic_hash": "3491b0ba02f71fb4670fc72b13cabede"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\templates\\task-entry.md": {
+    "mtime": 1778525491.085153,
+    "ast_hash": "b31fad0a1f87407c06cb280074b188a0",
+    "semantic_hash": "b31fad0a1f87407c06cb280074b188a0"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\docs\\REPOSITORY_STRUCTURE.md": {
+    "mtime": 1780322849.290113,
+    "ast_hash": "ea5e13ff7e8e11a01a4482944ad047ff",
+    "semantic_hash": "ea5e13ff7e8e11a01a4482944ad047ff"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\docs\\debugging\\DEBUGGING_CHECKLIST.md": {
+    "mtime": 1780322849.2921138,
+    "ast_hash": "966ee76fb529ecad64329d0809811a48",
+    "semantic_hash": "966ee76fb529ecad64329d0809811a48"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\docs\\superpowers\\specs\\2026-05-11-agent-workflow-design.md": {
+    "mtime": 1778525491.0878284,
+    "ast_hash": "f8f7805c558dabe051f93ae67952ebce",
+    "semantic_hash": "f8f7805c558dabe051f93ae67952ebce"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\docs\\superpowers\\specs\\2026-05-11-shiny-batch-analysis-design.md": {
+    "mtime": 1778525491.0889604,
+    "ast_hash": "446b28271eb1ab60e2ae4d7f5758575a",
+    "semantic_hash": "446b28271eb1ab60e2ae4d7f5758575a"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\agent_skills\\RWAPOR_AGENT_SKILLS.md": {
+    "mtime": 1780322849.295464,
+    "ast_hash": "a073d81a6e611f67467e2788e0b4ed90",
+    "semantic_hash": "a073d81a6e611f67467e2788e0b4ed90"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\inst\\shiny\\VISUALIZATION_FEATURES.md": {
+    "mtime": 1777403213.1802971,
+    "ast_hash": "4d8f406729fa00be1c52bbdafa1c67e6",
+    "semantic_hash": "4d8f406729fa00be1c52bbdafa1c67e6"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\man\\figures\\dashboard_screenshot.png": {
+    "mtime": 1774554157.7310164,
+    "ast_hash": "59585b8fd49adffd4ef721cce87dabec",
+    "semantic_hash": "59585b8fd49adffd4ef721cce87dabec"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\ast_extract.py": {
+    "mtime": 1782125141.5627687,
+    "ast_hash": "1da635a81ad23fcd8bec798cac1f7cc9",
+    "semantic_hash": "1da635a81ad23fcd8bec798cac1f7cc9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\build_graph.py": {
+    "mtime": 1782120258.1171465,
+    "ast_hash": "7bfc590b1d2219ea63d58b581999c8fe",
+    "semantic_hash": "7bfc590b1d2219ea63d58b581999c8fe"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\check_cache.py": {
+    "mtime": 1782118383.9694293,
+    "ast_hash": "59a8788d5b9a565e4f44b28c8fb47d7e",
+    "semantic_hash": "59a8788d5b9a565e4f44b28c8fb47d7e"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\closeout_graph.py": {
+    "mtime": 1782122416.5513027,
+    "ast_hash": "b919175f21c6ec2e33068e20e7368dcf",
+    "semantic_hash": "b919175f21c6ec2e33068e20e7368dcf"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\detect_incremental.py": {
+    "mtime": 1782125008.3159,
+    "ast_hash": "8d24483b7daf3d10fd8edaf66681aaed",
+    "semantic_hash": "8d24483b7daf3d10fd8edaf66681aaed"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\explore_connections.py": {
+    "mtime": 1782122720.356415,
+    "ast_hash": "ee36a772ee061aa3b634a6f6779bad85",
+    "semantic_hash": "ee36a772ee061aa3b634a6f6779bad85"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\export_html.ps1": {
+    "mtime": 1782122375.701567,
+    "ast_hash": "87d1c54dcf84576f6442299230c665f2",
+    "semantic_hash": "87d1c54dcf84576f6442299230c665f2"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\fix_chunks.py": {
+    "mtime": 1782119821.551787,
+    "ast_hash": "28018fe0ec09eb55ddc616f462f8864f",
+    "semantic_hash": "28018fe0ec09eb55ddc616f462f8864f"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\label_communities.py": {
+    "mtime": 1782125449.0492249,
+    "ast_hash": "2330e53717a1bef806795a767914e9a9",
+    "semantic_hash": "2330e53717a1bef806795a767914e9a9"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\list_nodes.ps1": {
+    "mtime": 1782122915.217874,
+    "ast_hash": "da904cbdfbe1ef0a53e4b101c10f69c3",
+    "semantic_hash": "da904cbdfbe1ef0a53e4b101c10f69c3"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\merge_all.py": {
+    "mtime": 1782119231.1798866,
+    "ast_hash": "ee31a250c0012cdf08fdbb5746bca6fd",
+    "semantic_hash": "ee31a250c0012cdf08fdbb5746bca6fd"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\path.ps1": {
+    "mtime": 1782122700.1851113,
+    "ast_hash": "e54b94330b9e62342c925dcc4da2c265",
+    "semantic_hash": "e54b94330b9e62342c925dcc4da2c265"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\query.ps1": {
+    "mtime": 1782122638.093755,
+    "ast_hash": "923c231c5568d310eb1506253977c276",
+    "semantic_hash": "923c231c5568d310eb1506253977c276"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\query_viz.ps1": {
+    "mtime": 1782122894.7352555,
+    "ast_hash": "c018dfee61d4640fda8281be73c78c0e",
+    "semantic_hash": "c018dfee61d4640fda8281be73c78c0e"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_ast.ps1": {
+    "mtime": 1782118353.7620945,
+    "ast_hash": "325a5c9496e3f5e2983e2ca87a93c85d",
+    "semantic_hash": "325a5c9496e3f5e2983e2ca87a93c85d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_build_graph.ps1": {
+    "mtime": 1782120266.2334957,
+    "ast_hash": "8a107d293b374d455ab9d3e72c9ab7b8",
+    "semantic_hash": "8a107d293b374d455ab9d3e72c9ab7b8"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_check_cache.ps1": {
+    "mtime": 1782118388.401951,
+    "ast_hash": "d93804be0c28bc4ff274c20096544959",
+    "semantic_hash": "d93804be0c28bc4ff274c20096544959"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_closeout_graph.ps1": {
+    "mtime": 1782122452.8494868,
+    "ast_hash": "34b99f0e20c3a735a4c4364a98cbc98d",
+    "semantic_hash": "34b99f0e20c3a735a4c4364a98cbc98d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_detect_incremental.ps1": {
+    "mtime": 1782125011.0002627,
+    "ast_hash": "0b62d1304b55962478f1e7ca664ffe9a",
+    "semantic_hash": "0b62d1304b55962478f1e7ca664ffe9a"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_explore.ps1": {
+    "mtime": 1782122753.4002748,
+    "ast_hash": "0a0b73fa5e7a692c8ccce85f658209e4",
+    "semantic_hash": "0a0b73fa5e7a692c8ccce85f658209e4"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_fix_chunks.ps1": {
+    "mtime": 1782119831.277567,
+    "ast_hash": "bd68bdc443c01f2702ffc5a8fff5b0ea",
+    "semantic_hash": "bd68bdc443c01f2702ffc5a8fff5b0ea"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_label_communities.ps1": {
+    "mtime": 1782120459.807651,
+    "ast_hash": "5db599f39e09c86e38774dc1dd08599c",
+    "semantic_hash": "5db599f39e09c86e38774dc1dd08599c"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\scratch\\run_merge_all.ps1": {
+    "mtime": 1782119232.776381,
+    "ast_hash": "cad73df06f90454398ff6282d9d419b0",
+    "semantic_hash": "cad73df06f90454398ff6282d9d419b0"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\agent-migration-audit-2026-06-22.md": {
+    "mtime": 1782120138.8364217,
+    "ast_hash": "a53f157fffdd31257322f5c55aa2af1d",
+    "semantic_hash": "a53f157fffdd31257322f5c55aa2af1d"
+  },
+  "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\docs\\SHINY_ARCHITECTURE.md": {
+    "mtime": 1782124969.9740179,
+    "ast_hash": "1ccf499e09726943259ccb1366448640",
+    "semantic_hash": "1ccf499e09726943259ccb1366448640"
+  }
+}
