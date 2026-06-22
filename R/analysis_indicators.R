@@ -651,6 +651,164 @@ wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
 }
 
 
+#' Apply Season-Masked Weighted Standard Deviation
+#'
+#' Computes weighted standard deviation of a raster time series using per-dekad season weights.
+#'
+#' @param x SpatRaster. Multi-layer raster.
+#' @param weights SpatRaster. Season weights (0-1), same number of layers as x.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Default FALSE.
+#' @return A single-layer SpatRaster of weighted standard deviations.
+#' @keywords internal
+wapor_masked_std <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
+  if (terra::nlyr(x) != terra::nlyr(weights)) {
+    stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
+                 terra::nlyr(x), terra::nlyr(weights)), call. = FALSE)
+  }
+
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, terra::nlyr(x))
+  }
+  if (length(layer_multipliers) != terra::nlyr(x)) {
+    stop(sprintf("layer_multipliers length (%d) must match x layers (%d)",
+                 length(layer_multipliers), terra::nlyr(x)), call. = FALSE)
+  }
+
+  # Sum of weights
+  sum_weights <- terra::app(weights, fun = "sum", na.rm = TRUE)
+  sum_weights_safe <- terra::ifel(sum_weights == 0, NA, sum_weights)
+
+  # Weighted mean
+  weighted_sum <- wapor_masked_sum(x, weights, layer_multipliers = layer_multipliers, incremental = incremental)
+  weighted_mean <- weighted_sum / sum_weights_safe
+
+  # Weighted sum of squared differences
+  sum_sq_diff <- NULL
+  for (i in seq_len(terra::nlyr(x))) {
+    v_i <- x[[i]] * layer_multipliers[i]
+    diff_sq <- weights[[i]] * ((v_i - weighted_mean) ^ 2)
+    if (is.null(sum_sq_diff)) {
+      sum_sq_diff <- diff_sq
+    } else {
+      sum_sq_diff <- sum_sq_diff + diff_sq
+    }
+  }
+
+  weighted_var <- sum_sq_diff / sum_weights_safe
+  weighted_std <- sqrt(weighted_var)
+  
+  return(weighted_std)
+}
+
+#' Compute Seasonal Standard Deviation (Variability)
+#'
+#' Applies dekadal season weights to compute weighted standard deviation of rasters,
+#' and optionally summarizes by crop class.
+#'
+#' @param x SpatRaster. Dekadal layers of any variable.
+#' @param season_weights SpatRaster. Dekadal season weights (0-1).
+#' @param crop_mask SpatRaster. Optional crop mask for per-class summaries.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#' @return A list with:
+#'   \describe{
+#'     \item{raster}{SpatRaster of seasonal weighted standard deviation per pixel}
+#'     \item{by_class}{data.frame of mean seasonal standard deviation per crop class (if crop_mask provided)}
+#'   }
+#' @export
+wapor_calc_seasonal_std <- function(x, season_weights,
+                                    crop_mask = NULL, layer_multipliers = NULL,
+                                    incremental = FALSE) {
+  seasonal_std <- wapor_masked_std(
+    x,
+    season_weights,
+    layer_multipliers = layer_multipliers,
+    incremental = incremental
+  )
+
+  by_class <- NULL
+  if (!is.null(crop_mask)) {
+    by_class <- terra::zonal(seasonal_std, crop_mask, fun = "mean", na.rm = TRUE)
+    names(by_class) <- c("class_value", "mean_seasonal_std")
+  }
+
+  list(raster = seasonal_std, by_class = by_class)
+}
+
+#' Compute Monthly Weighted Standard Deviation Raster Series
+#'
+#' Aggregates a dekadal raster stack into per-month standard deviations using season weights
+#' and optional per-layer multipliers.
+#'
+#' @param x SpatRaster. Multi-layer raster stack.
+#' @param season_weights SpatRaster. Per-layer season weights.
+#' @param dekad_table data.frame. Must include either `dekad_start` or `dekad_key`.
+#' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer.
+#' @param summary_mask Optional SpatRaster mask for mean summaries.
+#' @param summary_value_name Character. Name of the summary column to create.
+#' @return A list with `rasters` and `summary` entries.
+#' @export
+wapor_calc_monthly_weighted_std_rasters <- function(x, season_weights, dekad_table,
+                                                    layer_multipliers = NULL,
+                                                    incremental = FALSE,
+                                                    summary_mask = NULL,
+                                                    summary_value_name = "std_mm") {
+  n_layers <- terra::nlyr(x)
+  if (terra::nlyr(season_weights) != n_layers) {
+    stop(sprintf("season_weights layers (%d) must match x layers (%d)",
+                 terra::nlyr(season_weights), n_layers), call. = FALSE)
+  }
+  if (!is.data.frame(dekad_table) || nrow(dekad_table) != n_layers) {
+    stop("dekad_table must be a data.frame with one row per raster layer", call. = FALSE)
+  }
+  if (is.null(layer_multipliers)) {
+    layer_multipliers <- rep(1, n_layers)
+  }
+  if (length(layer_multipliers) != n_layers) {
+    stop(sprintf("layer_multipliers length (%d) must match x layers (%d)",
+                 length(layer_multipliers), n_layers), call. = FALSE)
+  }
+
+  layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_start)
+  } else if ("dekad_key" %in% names(dekad_table)) {
+    as.Date(dekad_table$dekad_key)
+  } else {
+    stop("dekad_table must contain either 'dekad_start' or 'dekad_key'", call. = FALSE)
+  }
+
+  month_keys <- format(layer_dates, "%Y-%m")
+  monthly_rasters <- list()
+
+  for (month_key in unique(month_keys)) {
+    idx <- which(month_keys == month_key)
+    monthly_rasters[[month_key]] <- wapor_masked_std(
+      terra::subset(x, idx),
+      terra::subset(season_weights, idx),
+      layer_multipliers = layer_multipliers[idx],
+      incremental = incremental
+    )
+  }
+
+  monthly_summary <- data.frame(
+    month_key = names(monthly_rasters),
+    year = as.integer(substr(names(monthly_rasters), 1, 4)),
+    month = as.integer(substr(names(monthly_rasters), 6, 7)),
+    stringsAsFactors = FALSE
+  )
+  monthly_summary[[summary_value_name]] <- vapply(
+    monthly_rasters,
+    function(r) wapor_masked_global_mean(r, summary_mask),
+    numeric(1)
+  )
+
+  list(rasters = monthly_rasters, summary = monthly_summary)
+}
+
+
 # =============================================================================
 # Analysis Time Series Helpers
 # =============================================================================

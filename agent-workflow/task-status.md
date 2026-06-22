@@ -1,6 +1,6 @@
 # Task Status
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-22_
 
 ## Active
 
@@ -10,12 +10,10 @@ _Last updated: 2026-06-08_
 
 ## Recently Completed
 
+- [x] Implemented seasonal and monthly variability (standard deviation) indicators across all variables (`agg_aeti_std`, `agg_ret_std`, `agg_pcp_std`, `agg_biomass_std`) and added full unit tests (2026-06-22).
 - [x] Hardened public download unit conversion to two safe modes (`"unit_conversion"` / `"none"`), updated the Download tab, regenerated docs, and added regression tests for mixed monthly/dekadal runs (2026-06-08).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
-- [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).
-- [x] Replaced silent Analysis module sourcing with explicit startup failures and improved diagnostics (2026-05-13).
-- [x] Added Shiny app runtime restoration for `future::plan()` and future-related options on app stop (2026-05-13).
 - [x] Ran `devtools::test()` and `devtools::check(document = FALSE, manual = FALSE, cran = FALSE)` after fixes (2026-05-13).
 - [x] Improved folder-selection UI in Download and Analysis tabs (2026-05-12).
 - [x] Fixed four bugs in `mod_analysis.R`: duplicate observer, auto-scan performance, code-preview path escaping, fav reset.

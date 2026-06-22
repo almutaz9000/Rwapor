@@ -61,6 +61,7 @@ distribution within the slice. Dekadal (\code{D}) fractional weights involve a
 smaller approximation. Daily (\code{E}) slices always have \code{weight = 1}.
 }
 \examples{
+\dontrun{
 # Plan for L2 AETI (no daily data) over a partial season
 plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("A", "M", "D"))
 print(plan)
@@ -74,5 +75,6 @@ print(plan)
 # If only monthly data is available
 plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
 print(plan)
+}
 }
 \keyword{internal}

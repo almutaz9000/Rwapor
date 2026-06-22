@@ -1,5 +1,13 @@
 # Agent Workflow Change Log
 
+## 2026-06-22
+
+- Added internal `wapor_masked_std()` using native `terra` raster operations to calculate weighted standard deviations of raster time series based on season weights.
+- Added `wapor_calc_seasonal_std()` and `wapor_calc_monthly_weighted_std_rasters()` for calculating seasonal and monthly standard deviations of any variables (AETI, RET, PCP, NPP, T, E, etc.).
+- Integrated the standard deviation indicators (`agg_aeti_std`, `agg_ret_std`, `agg_pcp_std`, `agg_biomass_std`) into the analysis pipeline `wapor_analysis_pipeline()` and `.compute_seasonal_aggregations()`.
+- Updated the pipeline output saving function to write standard deviation rasters (`_seasonal_aeti_std.tif`, `_seasonal_ret_std.tif`, `_seasonal_biomass_std.tif`, `_seasonal_pcp_std.tif`) to disk.
+- Added unit tests in `tests/testthat/test-variability-indicators.R` and successfully ran the full test suite (`FAIL 0 | WARN 0 | SKIP 5 | PASS 546`).
+
 ## 2026-06-08
 
 - Narrowed the public download `unit_conversion` interface in `wapor_map()` and `wapor_ts()` to two safe modes: `"unit_conversion"` and `"none"`.

@@ -11,20 +11,31 @@ wapor_agent_skills(as_text = TRUE)
 single character string. If \code{FALSE}, returns only the file path.}
 }
 \value{
-Character. Either the full markdown text or the file path, depending
-on \code{as_text}.
+Character. The full markdown text (\code{as_text = TRUE}) or the file
+path (\code{as_text = FALSE}).
 }
 \description{
 Returns the path to (or content of) the canonical agent skills markdown file
-that guides AI agents through available workflows, data sources, and
-preprocessing requirements for the Rwapor package.
+that describes available workflows, data sources, and preprocessing steps for
+the Rwapor package. Intended for use with AI coding assistants (e.g., Claude
+Code, GitHub Copilot) — load this text into the assistant's context to enable
+package-aware suggestions.
 }
+\section{AI assistant usage}{
+
+Pass the returned text as context to an LLM:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{skills_text <- wapor_agent_skills()
+# paste skills_text into your AI assistant's context window
+}\if{html}{\out{</div>}}
+}
+
 \examples{
-# Get the file path (for passing to an LLM context loader)
+# Get path (e.g., to pass to an LLM context loader)
 path <- wapor_agent_skills(as_text = FALSE)
 
 # Read content directly
 skills_text <- wapor_agent_skills()
-cat(substr(skills_text, 1, 500))
+cat(substr(skills_text, 1, 300))
 
 }

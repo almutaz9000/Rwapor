@@ -433,9 +433,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       # the inner per-layer loop to be serial (lapply) to avoid nested parallelism.
       # Only use future_lapply for the inner loop when the outer loop is serial and
       # the developer opt-in option "wapor.parallel_inner" is set.
-      inner_apply_fn <- if (parallel) {
-        lapply  # outer is parallel — keep inner serial
-      } else if (isTRUE(getOption("wapor.parallel_inner", FALSE))) {
+      inner_apply_fn <- if (!parallel && isTRUE(getOption("wapor.parallel_inner", FALSE))) {
         future.apply::future_lapply
       } else {
         lapply
@@ -467,10 +465,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         sub_df <- ex[, cols, drop = FALSE]
         colnames(sub_df) <- c("mean", "min", "max")
 
-        # ID = numeric row index into the vector layer (stable, always present)
         sub_df$ID <- ex$ID
 
-        # Named identifier column carries the user-supplied attribute values
         if (!is.null(identifier) && identifier %in% names(vect)) {
           sub_df[[identifier]] <- ids[ex$ID]
         }

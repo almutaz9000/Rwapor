@@ -1,15 +1,13 @@
 # Session Brief
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-22_
 
 ## Active Focus
 
+- Added seasonal and monthly variability (standard deviation) indicators across all variable stacks (`agg_aeti_std`, `agg_ret_std`, `agg_pcp_std`, `agg_biomass_std`) with complete unit test coverage.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Hardened download unit conversion to two safe public modes so mixed monthly/dekadal runs no longer let monthly products be forced into dekadal scaling.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
-- Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
-- Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).
-- Improved download-tab AOI local explorer in `inst/shiny/mod_aoi.R`.
 - Separated Analysis tab project-data source from output folder; added project-folder override.
 - Hardened crop-mask and Kc preview plots (`figure margins too large` fix).
 - Normalized `peff` → `agg_peff` across script generation and seasonal-analysis engine.

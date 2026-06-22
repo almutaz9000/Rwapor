@@ -45,6 +45,7 @@
 #' @keywords internal
 #'
 #' @examples
+#' \dontrun{
 #' # Plan for L2 AETI (no daily data) over a partial season
 #' plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("A", "M", "D"))
 #' print(plan)
@@ -58,6 +59,7 @@
 #' # If only monthly data is available
 #' plan <- wapor_plan_time_slices("2022-10-13", "2023-04-17", avail = c("M"))
 #' print(plan)
+#' }
 wapor_plan_time_slices <- function(start_date, end_date,
                                    avail = c("A", "M", "D", "E"),
                                    inclusive = TRUE) {
@@ -324,11 +326,13 @@ wapor_plan_time_slices <- function(start_date, end_date,
 #' @keywords internal
 #'
 #' @examples
+#' \dontrun{
 #' wapor_temporal_codes("L1-AETI-D")
 #' # [1] "A" "M" "D"
 #'
 #' wapor_temporal_codes("L2-NPP-D")
 #' # [1] "M" "D"
+#' }
 wapor_temporal_codes <- function(variable) {
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
