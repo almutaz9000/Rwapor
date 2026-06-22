@@ -278,10 +278,10 @@ wapor_analysis_pipeline <- function(config,
                                    period, l3_code, data_source, folder,
                                    template_r, reg_info, dekad_table) {
   
-  need_aeti <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp") %in% indicators)
-  need_ret <- any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)
-  need_precip <- any(c("agg_pcp", "agg_peff") %in% indicators)
-  need_npp <- any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators)
+  need_aeti <- any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "agg_aeti_std") %in% indicators)
+  need_ret <- any(c("agg_ret", "etc", "adequacy_etc", "agg_ret_std") %in% indicators)
+  need_precip <- any(c("agg_pcp", "agg_peff", "agg_pcp_std") %in% indicators)
+  need_npp <- any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp", "agg_biomass_std") %in% indicators)
   
   # Resolve paths/URLs in parallel
   vars_to_resolve <- list()
@@ -362,35 +362,54 @@ wapor_analysis_pipeline <- function(config,
                                            aeti_var, ret_var, precip_var, npp_var) {
   results <- list()
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  
   if (!is.null(stacks$aeti_stack)) {
-    lm <- analysis_layer_multipliers(aeti_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(aeti_var, dekad_table)
     results$seasonal_aeti <- wapor_calc_seasonal_aeti(
+      stacks$aeti_stack, season_weights, h_mask,
+      layer_multipliers = lm, incremental = incremental
+    )
+  }
+  if (!is.null(stacks$aeti_stack) && "agg_aeti_std" %in% indicators) {
+    lm <- get_analysis_layer_multipliers(aeti_var, dekad_table)
+    results$seasonal_aeti_std <- wapor_calc_seasonal_std(
       stacks$aeti_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
     )
   }
   
   if (!is.null(stacks$ret_stack)) {
-    lm <- analysis_layer_multipliers(ret_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(ret_var, dekad_table)
     results$seasonal_ret <- wapor_calc_seasonal_ret(
+      stacks$ret_stack, season_weights, h_mask,
+      layer_multipliers = lm, incremental = incremental
+    )
+  }
+  if (!is.null(stacks$ret_stack) && "agg_ret_std" %in% indicators) {
+    lm <- get_analysis_layer_multipliers(ret_var, dekad_table)
+    results$seasonal_ret_std <- wapor_calc_seasonal_std(
       stacks$ret_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
     )
   }
   
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip_stack)) {
-    lm <- analysis_layer_multipliers(precip_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(precip_var, dekad_table)
     results$seasonal_pcp <- wapor_masked_sum(
       stacks$precip_stack, season_weights,
+      layer_multipliers = lm, incremental = incremental
+    )
+  }
+  if ("agg_pcp_std" %in% indicators && !is.null(stacks$precip_stack)) {
+    lm <- get_analysis_layer_multipliers(precip_var, dekad_table)
+    results$seasonal_pcp_std <- wapor_calc_seasonal_std(
+      stacks$precip_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
     )
   }
   
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && 
       !is.null(stacks$npp_stack)) {
-    lm <- analysis_layer_multipliers(npp_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(npp_var, dekad_table)
     results$seasonal_biomass_kg <- wapor_masked_sum(
       stacks$npp_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
@@ -407,6 +426,17 @@ wapor_analysis_pipeline <- function(config,
       results$seasonal_biomass_by_class$mean_seasonal_biomass_kg / 1000
     results$seasonal_biomass_by_class$mean_seasonal_biomass <-
       results$seasonal_biomass_by_class$mean_seasonal_biomass_kg
+  }
+  if ("agg_biomass_std" %in% indicators && !is.null(stacks$npp_stack)) {
+    lm <- get_analysis_layer_multipliers(npp_var, dekad_table)
+    results$seasonal_biomass_std <- wapor_calc_seasonal_std(
+      stacks$npp_stack, season_weights, h_mask,
+      layer_multipliers = lm, incremental = incremental
+    )
+    results$seasonal_biomass_std$raster <- results$seasonal_biomass_std$raster * 22.222
+    if (!is.null(results$seasonal_biomass_std$by_class)) {
+      results$seasonal_biomass_std$by_class$mean_seasonal_std <- results$seasonal_biomass_std$by_class$mean_seasonal_std * 22.222
+    }
   }
   
   results
@@ -470,8 +500,7 @@ wapor_analysis_pipeline <- function(config,
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
                                   crop_params, ref_year, dekad_table, ret_var) {
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
+  ret_layer_multipliers <- get_analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
   profile_table <- .build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
@@ -615,12 +644,26 @@ wapor_analysis_pipeline <- function(config,
       overwrite = TRUE
     )
   }
+  if (!is.null(results$seasonal_aeti_std)) {
+    terra::writeRaster(
+      results$seasonal_aeti_std$raster,
+      file.path(output_folder, paste0(prefix, "_seasonal_aeti_std.tif")),
+      overwrite = TRUE
+    )
+  }
   
   # Save seasonal RET
   if (!is.null(results$seasonal_ret)) {
     terra::writeRaster(
       results$seasonal_ret$raster,
       file.path(output_folder, paste0(prefix, "_seasonal_ret.tif")),
+      overwrite = TRUE
+    )
+  }
+  if (!is.null(results$seasonal_ret_std)) {
+    terra::writeRaster(
+      results$seasonal_ret_std$raster,
+      file.path(output_folder, paste0(prefix, "_seasonal_ret_std.tif")),
       overwrite = TRUE
     )
   }
@@ -631,6 +674,20 @@ wapor_analysis_pipeline <- function(config,
     terra::writeRaster(
       results$seasonal_biomass_kg,
       file.path(output_folder, paste0(prefix, "_seasonal_biomass_kg_ha.tif")),
+      overwrite = TRUE
+    )
+  }
+  if (!is.null(results$seasonal_biomass_std)) {
+    terra::writeRaster(
+      results$seasonal_biomass_std$raster,
+      file.path(output_folder, paste0(prefix, "_seasonal_biomass_std.tif")),
+      overwrite = TRUE
+    )
+  }
+  if (!is.null(results$seasonal_pcp_std)) {
+    terra::writeRaster(
+      results$seasonal_pcp_std$raster,
+      file.path(output_folder, paste0(prefix, "_seasonal_pcp_std.tif")),
       overwrite = TRUE
     )
   }

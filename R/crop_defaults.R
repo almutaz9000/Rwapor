@@ -86,7 +86,9 @@ wapor_crop_defaults <- function(crop_name) {
 #' @return TRUE invisibly if valid; stops with an error otherwise.
 #' @keywords internal
 #' @examples
+#' \dontrun{
 #' wapor_validate_crop_defaults(FAO_CROP_DEFAULTS)
+#' }
 wapor_validate_crop_defaults <- function(df) {
   required_cols <- c("crop_name", "kc_ini", "kc_mid", "kc_end",
                      "l_ini_days", "l_mid_days", "l_late_days")

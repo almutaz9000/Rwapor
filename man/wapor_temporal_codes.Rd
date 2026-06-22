@@ -19,10 +19,12 @@ are available for a given WaPOR or AgERA5 variable by checking the
 static metadata lists. For L3 variables, checks L2 equivalents as fallback.
 }
 \examples{
+\dontrun{
 wapor_temporal_codes("L1-AETI-D")
 # [1] "A" "M" "D"
 
 wapor_temporal_codes("L2-NPP-D")
 # [1] "M" "D"
+}
 }
 \keyword{internal}

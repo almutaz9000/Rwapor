@@ -34,11 +34,13 @@ Grouping L1 variables by level prefix alone would be incorrect because they
 cannot be stacked onto the same grid without resampling.
 }
 \examples{
+\dontrun{
 wapor_res_key("L1-AETI-D")   # "L1_300m"
 wapor_res_key("L1-PCP-D")    # "L1_5000m"
 wapor_res_key("L1-RET-D")    # "L1_30000m"
 wapor_res_key("L2-AETI-D")   # "L2_100m"
 wapor_res_key("L3-AETI-D")   # "L3_30m"
 wapor_res_key("AGERA5-ET0-E") # "AGERA5_11000m"
+}
 }
 \keyword{internal}

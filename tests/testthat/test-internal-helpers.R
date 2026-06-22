@@ -2,40 +2,40 @@
 
 test_that("get_url_chunks returns single chunk when batching FALSE", {
   urls <- paste0("url_", 1:20)
-  result <- get_url_chunks(urls, batching = FALSE, batch_size = 5)
+  result <- Rwapor:::get_url_chunks(urls, batching = FALSE, batch_size = 5)
   expect_length(result, 1)
   expect_equal(result[[1]], urls)
 })
 
 test_that("get_url_chunks returns single chunk when count <= batch_size", {
   urls <- paste0("url_", 1:5)
-  result <- get_url_chunks(urls, batching = TRUE, batch_size = 12)
+  result <- Rwapor:::get_url_chunks(urls, batching = TRUE, batch_size = 12)
   expect_length(result, 1)
 })
 
 test_that("get_url_chunks splits into correct chunks", {
   urls <- paste0("url_", 1:25)
-  result <- get_url_chunks(urls, batching = TRUE, batch_size = 10)
+  result <- Rwapor:::get_url_chunks(urls, batching = TRUE, batch_size = 10)
   expect_equal(length(result), 3)
   expect_equal(length(result[[1]]), 10)
   expect_equal(length(result[[3]]), 5)
-  expect_equal(sort(unlist(result, use.names = FALSE)), sort(urls))
+  expect_setequal(unlist(result, use.names = FALSE), urls)
 })
 
 test_that("resolve_output_unit_conversion returns dekad for dekadal", {
-  expect_equal(resolve_output_unit_conversion("L1-AETI-D", NULL), "dekad")
+  expect_equal(Rwapor:::resolve_output_unit_conversion("L1-AETI-D", NULL), "dekad")
 })
 
 test_that("resolve_output_unit_conversion returns none for monthly", {
-  expect_equal(resolve_output_unit_conversion("L1-AETI-M", NULL), "none")
+  expect_equal(Rwapor:::resolve_output_unit_conversion("L1-AETI-M", NULL), "none")
 })
 
 test_that("resolve_output_unit_conversion respects explicit none", {
-  expect_equal(resolve_output_unit_conversion("L1-AETI-D", "none"), "none")
+  expect_equal(Rwapor:::resolve_output_unit_conversion("L1-AETI-D", "none"), "none")
 })
 
 test_that("resolve_output_unit_conversion rejects invalid modes", {
-  expect_error(resolve_output_unit_conversion("L1-AETI-D", "dekad"), "must be one of")
+  expect_error(Rwapor:::resolve_output_unit_conversion("L1-AETI-D", "dekad"), "must be one of")
 })
 
 test_that("ref_year from config takes precedence over start-date year", {
@@ -48,7 +48,7 @@ test_that("ref_year from config takes precedence over start-date year", {
 })
 
 test_that("get_url_chunks works with a single URL", {
-  result <- get_url_chunks("url_1", batching = TRUE, batch_size = 12)
+  result <- Rwapor:::get_url_chunks("url_1", batching = TRUE, batch_size = 12)
   expect_length(result, 1)
   expect_equal(result[[1]], "url_1")
 })

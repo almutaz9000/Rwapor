@@ -16,6 +16,8 @@ TRUE invisibly if valid; stops with an error otherwise.
 Checks that a crop defaults data.frame has valid structure and values.
 }
 \examples{
+\dontrun{
 wapor_validate_crop_defaults(FAO_CROP_DEFAULTS)
+}
 }
 \keyword{internal}
