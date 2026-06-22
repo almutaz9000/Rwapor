@@ -1,0 +1,685 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "agent_workflow_coordination_framework",
+        "label": "Agent Workflow Coordination Framework",
+        "nodes": [
+          "agent_workflow_start_here_agent_workflow_start_here",
+          "agent_workflow_project_memory_project_memory",
+          "agent_workflow_task_status_task_status",
+          "agent_workflow_issues_log_issues_log",
+          "agent_workflow_session_brief_session_brief"
+        ],
+        "relation": "form",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\START-HERE.md"
+      },
+      {
+        "id": "raster_visualization_components",
+        "label": "Raster Visualization UI Components",
+        "nodes": [
+          "figures_dashboard_screenshot_color_palette_selection",
+          "figures_dashboard_screenshot_overlay_options",
+          "figures_dashboard_screenshot_leaflet_widget",
+          "figures_dashboard_screenshot_summary_stats"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85,
+        "source_file": "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\man\\figures\\dashboard_screenshot.png"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "agent_closeout.ps1",
+      "file_type": "code",
+      "source_file": "agent-workflow/scripts/agent_closeout.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scripts_agent_closeout",
+      "community": 9,
+      "norm_label": "agent_closeout.ps1"
+    },
+    {
+      "label": "agent_digest.ps1",
+      "file_type": "code",
+      "source_file": "agent-workflow/scripts/agent_digest.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scripts_agent_digest",
+      "community": 5,
+      "norm_label": "agent_digest.ps1"
+    },
+    {
+      "label": "Get-TopOpenIssueId()",
+      "file_type": "code",
+      "source_file": "agent-workflow/scripts/agent_digest.ps1",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "scripts_agent_digest_get_topopenissueid",
+      "community": 5,
+      "norm_label": "get-topopenissueid()"
+    },
+    {
+      "label": "agent_preflight.ps1",
+      "file_type": "code",
+      "source_file": "agent-workflow/scripts/agent_preflight.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scripts_agent_preflight",
+      "community": 6,
+      "norm_label": "agent_preflight.ps1"
+    },
+    {
+      "label": "Get-TopOpenIssueId()",
+      "file_type": "code",
+      "source_file": "agent-workflow/scripts/agent_preflight.ps1",
+      "source_location": "L30",
+      "_origin": "ast",
+      "id": "scripts_agent_preflight_get_topopenissueid",
+      "community": 6,
+      "norm_label": "get-topopenissueid()"
+    },
+    {
+      "label": "detect.ps1",
+      "file_type": "code",
+      "source_file": "scratch/detect.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scratch_detect_ps1_scratch_detect",
+      "community": 7,
+      "norm_label": "detect.ps1"
+    },
+    {
+      "label": "detect.py",
+      "file_type": "code",
+      "source_file": "scratch/detect.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scratch_detect_py_scratch_detect",
+      "community": 8,
+      "norm_label": "detect.py"
+    },
+    {
+      "label": "setup_graphify.ps1",
+      "file_type": "code",
+      "source_file": "scratch/setup_graphify.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scratch_setup_graphify",
+      "community": 4,
+      "norm_label": "setup_graphify.ps1"
+    },
+    {
+      "label": "Find-GraphifyPython()",
+      "file_type": "code",
+      "source_file": "scratch/setup_graphify.ps1",
+      "source_location": "L4",
+      "_origin": "ast",
+      "id": "scratch_setup_graphify_find_graphifypython",
+      "community": 4,
+      "norm_label": "find-graphifypython()"
+    },
+    {
+      "label": "Jules Adapter Guide",
+      "file_type": "document",
+      "source_file": ".jules/bolt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Adapts Jules sessions to start with agent-workflow/START-HERE.md and routes durable learnings back to project-memory.md.",
+      "id": "_jules_bolt_jules_adapter",
+      "community": 0,
+      "norm_label": "jules adapter guide"
+    },
+    {
+      "label": "Agent Entry Point",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agents_agent_entry_point",
+      "community": 0,
+      "norm_label": "agent entry point"
+    },
+    {
+      "label": "Rwapor Release Notes",
+      "file_type": "document",
+      "source_file": "NEWS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "news_rwapor_release_notes",
+      "community": 3,
+      "norm_label": "rwapor release notes"
+    },
+    {
+      "label": "Rwapor Package Readme",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "readme_rwapor_readme",
+      "community": 2,
+      "norm_label": "rwapor package readme"
+    },
+    {
+      "label": "Agent Workflow Start Here",
+      "file_type": "document",
+      "source_file": "agent-workflow/START-HERE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_start_here_agent_workflow_start_here",
+      "community": 0,
+      "norm_label": "agent workflow start here"
+    },
+    {
+      "label": "Agent Workflow Change Log",
+      "file_type": "document",
+      "source_file": "agent-workflow/change-log.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_change_log_change_log",
+      "community": 3,
+      "norm_label": "agent workflow change log"
+    },
+    {
+      "label": "Agent Workflow Issues Log",
+      "file_type": "document",
+      "source_file": "agent-workflow/issues-log.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_issues_log_issues_log",
+      "community": 0,
+      "norm_label": "agent workflow issues log"
+    },
+    {
+      "label": "Project Memory",
+      "file_type": "document",
+      "source_file": "agent-workflow/project-memory.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_project_memory_project_memory",
+      "community": 0,
+      "norm_label": "project memory"
+    },
+    {
+      "label": "Agent Workflow Session Brief",
+      "file_type": "document",
+      "source_file": "agent-workflow/session-brief.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_session_brief_session_brief",
+      "community": 0,
+      "norm_label": "agent workflow session brief"
+    },
+    {
+      "label": "Agent Workflow Task Status",
+      "file_type": "document",
+      "source_file": "agent-workflow/task-status.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_workflow_task_status_task_status",
+      "community": 0,
+      "norm_label": "agent workflow task status"
+    },
+    {
+      "label": "Repository Structure Guide",
+      "file_type": "document",
+      "source_file": "docs/REPOSITORY_STRUCTURE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_repository_structure_repository_structure",
+      "community": 2,
+      "norm_label": "repository structure guide"
+    },
+    {
+      "label": "Debugging Checklist",
+      "file_type": "document",
+      "source_file": "docs/debugging/DEBUGGING_CHECKLIST.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "debugging_debugging_checklist_debugging_checklist",
+      "community": 2,
+      "norm_label": "debugging checklist"
+    },
+    {
+      "label": "Agent Workflow Design Spec",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-05-11-agent-workflow-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Adopted a shared repo-owned coordination layer at agent-workflow/ as the single authoritative source of project state to prevent drift and staleness among overlapping agent configurations.",
+      "id": "specs_2026_05_11_agent_workflow_design_agent_workflow_design",
+      "community": 0,
+      "norm_label": "agent workflow design spec"
+    },
+    {
+      "label": "Shiny Batch Analysis and Script Generation Design",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Establishes batch mode as a first-class citizen across configuration, validation, execution, and script generation. Ensures a canonical configuration object, resolving dashboard session disconnects and script generation drift.",
+      "id": "specs_2026_05_11_shiny_batch_analysis_design_shiny_batch_analysis_design",
+      "community": 2,
+      "norm_label": "shiny batch analysis and script generation design"
+    },
+    {
+      "label": "Rwapor Agent Skills Reference",
+      "file_type": "document",
+      "source_file": "inst/agent_skills/RWAPOR_AGENT_SKILLS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agent_skills_rwapor_agent_skills_rwapor_agent_skills",
+      "community": 2,
+      "norm_label": "rwapor agent skills reference"
+    },
+    {
+      "label": "Enhanced Visualization Features",
+      "file_type": "document",
+      "source_file": "inst/shiny/VISUALIZATION_FEATURES.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "shiny_visualization_features_visualization_features",
+      "community": 2,
+      "norm_label": "enhanced visualization features"
+    },
+    {
+      "label": "Rwapor Dashboard UI Screenshot",
+      "file_type": "image",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_image",
+      "community": 1,
+      "norm_label": "rwapor dashboard ui screenshot"
+    },
+    {
+      "label": "Raster Visualization UI View",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_raster_visualization",
+      "community": 1,
+      "norm_label": "raster visualization ui view"
+    },
+    {
+      "label": "Color Palette Controls",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_color_palette_selection",
+      "community": 1,
+      "norm_label": "color palette controls"
+    },
+    {
+      "label": "Overlay Options and Layer Checklist",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_overlay_options",
+      "community": 1,
+      "norm_label": "overlay options and layer checklist"
+    },
+    {
+      "label": "Crop Mask Filter Layer Toggle",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_crop_mask_control",
+      "community": 1,
+      "norm_label": "crop mask filter layer toggle"
+    },
+    {
+      "label": "Leaflet Map Visualization Pane",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_leaflet_widget",
+      "community": 1,
+      "norm_label": "leaflet map visualization pane"
+    },
+    {
+      "label": "Raster Summary Statistics Table",
+      "file_type": "concept",
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "figures_dashboard_screenshot_summary_stats",
+      "community": 1,
+      "norm_label": "raster summary statistics table"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agent-workflow/scripts/agent_digest.ps1",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "scripts_agent_digest",
+      "target": "scripts_agent_digest_get_topopenissueid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agent-workflow/scripts/agent_preflight.ps1",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "scripts_agent_preflight",
+      "target": "scripts_agent_preflight_get_topopenissueid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scratch/setup_graphify.ps1",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "scratch_setup_graphify",
+      "target": "scratch_setup_graphify_find_graphifypython",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": ".jules/bolt.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "_jules_bolt_jules_adapter",
+      "target": "agent_workflow_start_here_agent_workflow_start_here"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "AGENTS.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_agent_entry_point",
+      "target": "agent_workflow_start_here_agent_workflow_start_here"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "agent-workflow/change-log.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_workflow_change_log_change_log",
+      "target": "news_rwapor_release_notes"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "inst/agent_skills/RWAPOR_AGENT_SKILLS.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_skills_rwapor_agent_skills_rwapor_agent_skills",
+      "target": "readme_rwapor_readme"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/debugging/DEBUGGING_CHECKLIST.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "debugging_debugging_checklist_debugging_checklist",
+      "target": "readme_rwapor_readme"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/REPOSITORY_STRUCTURE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_repository_structure_repository_structure",
+      "target": "readme_rwapor_readme"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "inst/shiny/VISUALIZATION_FEATURES.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "shiny_visualization_features_visualization_features",
+      "target": "readme_rwapor_readme"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agent-workflow/START-HERE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_workflow_start_here_agent_workflow_start_here",
+      "target": "agent_workflow_issues_log_issues_log"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agent-workflow/START-HERE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_workflow_start_here_agent_workflow_start_here",
+      "target": "agent_workflow_project_memory_project_memory"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agent-workflow/START-HERE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_workflow_start_here_agent_workflow_start_here",
+      "target": "agent_workflow_session_brief_session_brief"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agent-workflow/START-HERE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agent_workflow_start_here_agent_workflow_start_here",
+      "target": "agent_workflow_task_status_task_status"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-05-11-agent-workflow-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "specs_2026_05_11_agent_workflow_design_agent_workflow_design",
+      "target": "agent_workflow_start_here_agent_workflow_start_here"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/superpowers/specs/2026-05-11-shiny-batch-analysis-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "specs_2026_05_11_shiny_batch_analysis_design_shiny_batch_analysis_design",
+      "target": "agent_skills_rwapor_agent_skills_rwapor_agent_skills"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_image",
+      "target": "figures_dashboard_screenshot_raster_visualization"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_raster_visualization",
+      "target": "figures_dashboard_screenshot_color_palette_selection"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_raster_visualization",
+      "target": "figures_dashboard_screenshot_leaflet_widget"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_raster_visualization",
+      "target": "figures_dashboard_screenshot_overlay_options"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_raster_visualization",
+      "target": "figures_dashboard_screenshot_summary_stats"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "man/figures/dashboard_screenshot.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "figures_dashboard_screenshot_overlay_options",
+      "target": "figures_dashboard_screenshot_crop_mask_control"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "agent_workflow_coordination_framework",
+      "label": "Agent Workflow Coordination Framework",
+      "nodes": [
+        "agent_workflow_start_here_agent_workflow_start_here",
+        "agent_workflow_project_memory_project_memory",
+        "agent_workflow_task_status_task_status",
+        "agent_workflow_issues_log_issues_log",
+        "agent_workflow_session_brief_session_brief"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\agent-workflow\\START-HERE.md"
+    },
+    {
+      "id": "raster_visualization_components",
+      "label": "Raster Visualization UI Components",
+      "nodes": [
+        "figures_dashboard_screenshot_color_palette_selection",
+        "figures_dashboard_screenshot_overlay_options",
+        "figures_dashboard_screenshot_leaflet_widget",
+        "figures_dashboard_screenshot_summary_stats"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "C:\\Users\\almut\\OneDrive\\Documents\\Bitbucket\\wapordl\\Rwapor\\man\\figures\\dashboard_screenshot.png"
+    }
+  ],
+  "built_at_commit": "9e7b05d91b74cc36f9636c094df1e9adcfe79bcd"
+}
