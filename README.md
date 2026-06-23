@@ -91,6 +91,13 @@ run_wapor()
 # wapor_export_analysis_outputs(results, folder = "analysis_output")
 ```
 
+### 💡 Note on Automatic Conversions
+
+Rwapor handles several unit and parameter conversions automatically to simplify your workflow:
+
+*   🌡️ **AgERA5 Temperature**: Variables like `AGERA5-TMIN-E` and `AGERA5-TMAX-E` are automatically converted from **Kelvin to Celsius** (subtracting 273.15) during download and extraction.
+*   📅 **WaPOR Dekadal Totals**: Variables ending in `-D` (Dekadal) are stored by FAO as daily rates (mm/day). Rwapor automatically converts these to **dekadal totals** (mm/dekad) by default. You can override this using the `unit_conversion` parameter in `wapor_ts()` or `wapor_map()`.
+
 ---
 
 ## 🎯 Seasonal Analysis Scenarios
@@ -330,6 +337,18 @@ The repository is organized to keep package runtime code easy to navigate:
 - Archived development artifacts: `dev-archive/2026-05-production-cleanup/`
 
 For details, see `docs/REPOSITORY_STRUCTURE.md`.
+
+---
+
+## 🤖 AI Agent Workflow
+
+This repository uses a structured workflow to coordinate AI assistants (Claude, Codex, Gemini, Copilot).
+
+- **Canonical State**: The `agent-workflow/` directory is the single source of truth for task status, issue logs, and project memory.
+- **Session Entry**: Agents start every session by reading `agent-workflow/START-HERE.md`.
+- **Adapter**: Jules-specific runtime guidance is located in `.jules/bolt.md`.
+
+If you are an AI assistant working on this repo, please follow the instructions in `agent-workflow/START-HERE.md`.
 
 ### Key Functions
 

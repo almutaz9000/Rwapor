@@ -51,6 +51,12 @@
 #' The function uses `exactextractr::exact_extract()` for accurate zonal
 #' statistics that properly handle partial pixel coverage at polygon boundaries.
 #'
+#' The function also performs several automatic conversions during extraction:
+#' * **Units**: For dekadal variables (ending in "-D"), converts from daily
+#'   rates (mm/day) to dekadal totals (mm/dekad) by default.
+#' * **Temperature**: For AgERA5 temperature variables (TMIN/TMAX), converts
+#'   from Kelvin to Celsius (-273.15).
+#'
 #' @export
 #'
 #' @importFrom terra rast crop extract global nlyr vect

@@ -47,7 +47,9 @@
 #' 1. Generates download URLs for the specified variable and period
 #' 2. Streams raster data using GDAL virtual file system (/vsicurl/)
 #' 3. Crops to bounding box or masks to vector geometry
-#' 4. Converts units if requested (e.g., mm/day -> mm/dekad)
+#' 4. Performs automatic conversions:
+#'    * **Units**: For dekadal variables (ending in "-D"), converts from daily rates (mm/day) to dekadal totals (mm/dekad) by default.
+#'    * **Temperature**: For AgERA5 variables (TMIN/TMAX), converts from Kelvin to Celsius (-273.15).
 #' 5. Writes output as a multi-band GeoTIFF (one band per time step) or separate files
 #'
 #' @export

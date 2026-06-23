@@ -117,6 +117,11 @@ names(AGERA5_VARS)
 get_variable_metadata("AGERA5-ET0-E")
 ```
 
+**Automatic Temperature Conversion:**
+For AgERA5 temperature variables (e.g., `AGERA5-TMIN-E`, `AGERA5-TMAX-E`),
+Rwapor automatically converts the values from **Kelvin to Celsius**
+(subtracting 273.15) during both `wapor_map()` and `wapor_ts()` operations.
+
 ## Downloading Raster Maps
 
 Use `wapor_map()` to download and save raster data for a region:
@@ -245,7 +250,10 @@ attr(df, "long_name")
 ## Unit Conversion
 
 WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+them automatically to dekadal totals by default. It also automatically
+converts AgERA5 temperature variables from Kelvin to Celsius.
+
+Use the `unit_conversion` parameter to choose the temporal output:
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
