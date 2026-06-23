@@ -13,3 +13,7 @@
 ## 2025-05-17 - [Vectorized Seasonal Aggregation]
 **Learning:** In seasonal workflows, R-level loops that iteratively update rasters using `terra::ifel()` or `+` are slow because they trigger multiple read/write passes and overhead for each layer. Vectorizing the operation by multiplying the entire `SpatRaster` stack by a numeric weight vector and then using `terra::sum(..., na.rm=TRUE)` executes the entire operation in the C++ backend in a single pass.
 **Action:** Replace iterative raster accumulation loops with stack-based vectorized operations.
+
+## 2026-06-23 - [Optimization of Grouped Quantiles in wapor_calc_p95_aeti]
+**Learning:** In `terra::zonal()`, passing an R function/closure as the `fun` argument triggers a slow callback loop in R for every zone. Using built-in string identifiers like `"quantile"` allows `terra` to execute the operation entirely in its C++ backend. Additionally, moving threshold logic (like `min_pixels`) from the per-zone callback to a vectorized post-processing step on the resulting data frame further reduces overhead.
+**Action:** Always prefer built-in `terra` string identifiers for aggregation functions and use vectorized post-processing for conditional filters instead of R-level closures.
