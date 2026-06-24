@@ -28,6 +28,7 @@
 ✅ **Extract time-series** for crop fields and administrative boundaries  
 ✅ **Run seasonal crop analysis** with crop masks and growing season dates  
 ✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
+✅ **Automatic Unit Conversions**: AgERA5 temperatures (K to °C) and WaPOR dekadal variables (mm/day to mm/dekad) are handled automatically.
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
 ## 🚀 Recent Highlights: High-Precision Batch Analysis
@@ -353,6 +354,16 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 Contributions are welcome! Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
+
+---
+
+## 🤖 AI Agent Workflow
+
+This repository uses a structured coordination workflow for AI assistants (Claude, Codex, Gemini, etc.).
+
+*   **Entry Point**: Start with `bolt.md` (root) or `.jules/bolt.md`.
+*   **Coordination**: The `agent-workflow/` directory is the single source of truth for task state (`task-status.md`), issue logs (`issues-log.md`), and session briefs.
+*   **Start Here**: All agent sessions must begin by reading `agent-workflow/START-HERE.md`.
 
 ---
 
