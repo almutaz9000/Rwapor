@@ -402,10 +402,8 @@ wapor_map <- function(
       r <- wapor_convert_temperature(r, var)
 
       # Standardize layer names to "YYYY-MM-DD"
-      layer_names <- vapply(chunk_urls, function(u) {
-        wapor_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
-      }, character(1))
-      names(r) <- layer_names
+      # Optimized: Vectorized wapor_parse_dates is faster than vapply + wapor_date_info
+      names(r) <- wapor_parse_dates(sub("^/vsicurl/", "", chunk_urls), tres = tres_code)$start_date
 
       if (separate_files) {
         # Save individual files directly

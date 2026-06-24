@@ -73,9 +73,8 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     }
 
     # Parse each URL to get start_date for matching to plan rows
-    url_start_dates <- vapply(urls, function(u) {
-      wapor_date_info(u, tres = code)$start_date
-    }, character(1))
+    # Optimized: Vectorized wapor_parse_dates is faster than vapply + wapor_date_info
+    url_start_dates <- wapor_parse_dates(urls, tres = code)$start_date
 
     # Match plan rows to URLs and compute multipliers (pre-allocated)
     n_rows <- nrow(code_rows)
