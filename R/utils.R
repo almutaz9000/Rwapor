@@ -406,8 +406,8 @@ wapor_parse_dates <- function(urls, tres) {
 
   # Extract date component (last dot-separated part)
   # This works for both "product.YYYY-MM-DX" and "product.YYYYMMDD"
-  parts_list <- strsplit(bases, ".", fixed = TRUE)
-  date_components <- vapply(parts_list, function(p) p[length(p)], character(1))
+  # Vectorized sub() is faster than strsplit() + vapply()
+  date_components <- sub("^.*\\.", "", bases)
 
   # Default placeholders
   start_dates <- character(length(urls))
@@ -444,14 +444,18 @@ wapor_parse_dates <- function(urls, tres) {
       idx <- which(!is_compact)
       dash_parts <- strsplit(date_components[idx], "-")
       # Filter for valid parts (must have 3 parts for YYYY-MM-DX)
-      valid_idx <- vapply(dash_parts, length, integer(1)) == 3
+      # lengths() is a faster vectorized built-in
+      valid_idx <- lengths(dash_parts) == 3
 
       if (any(valid_idx)) {
         v_idx <- idx[valid_idx]
         v_parts <- dash_parts[valid_idx]
-        y <- vapply(v_parts, `[`, character(1), 1)
-        m <- vapply(v_parts, `[`, character(1), 2)
-        d_str <- vapply(v_parts, `[`, character(1), 3)
+
+        # Matrix transformation is faster than multiple vapply calls
+        v_mat <- matrix(unlist(v_parts), ncol = 3, byrow = TRUE)
+        y <- v_mat[, 1]
+        m <- v_mat[, 2]
+        d_str <- v_mat[, 3]
 
         dekad_map <- c("D1" = "01", "D2" = "11", "D3" = "21", "1" = "01", "2" = "11", "3" = "21")
         start_day <- dekad_map[d_str]
@@ -485,10 +489,11 @@ wapor_parse_dates <- function(urls, tres) {
   } else if (tres == "M") {
     # Monthly format: YYYY-MM
     dash_parts <- strsplit(date_components, "-")
-    valid_idx <- vapply(dash_parts, length, integer(1)) == 2
+    valid_idx <- lengths(dash_parts) == 2
     if (any(valid_idx)) {
-      y <- vapply(dash_parts[valid_idx], `[`, character(1), 1)
-      m <- vapply(dash_parts[valid_idx], `[`, character(1), 2)
+      m_mat <- matrix(unlist(dash_parts[valid_idx]), ncol = 2, byrow = TRUE)
+      y <- m_mat[, 1]
+      m <- m_mat[, 2]
       start_dates[valid_idx] <- paste(y, m, "01", sep = "-")
       s_obj <- lubridate::ymd(start_dates[valid_idx])
       end_dates[valid_idx] <- paste(y, m, lubridate::days_in_month(s_obj), sep = "-")
