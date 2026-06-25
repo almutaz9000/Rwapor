@@ -110,38 +110,61 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab(..., long = TRUE) to perform unique
+  # combination counting in C++ rather than extracting all pixels to R.
+  # This significantly reduces memory overhead for large rasters.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # 1. Prepare masked crop raster (only selected classes)
+  mask_filtered <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
 
-  if (!any(valid)) {
+  # 2. Round Julian dates to ensure clean grouping
+  start_round <- terra::round(start_raster)
+  end_round   <- terra::round(end_raster)
+
+  # 3. Stack layers and run crosstab
+  s <- c(mask_filtered, start_round, end_round)
+  names(s) <- c("class_value", "start_jd", "end_jd")
+
+  profile_df <- tryCatch({
+    terra::crosstab(s, long = TRUE)
+  }, error = function(e) NULL)
+
+  if (is.null(profile_df) || nrow(profile_df) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+  # 4. Clean up results
+  # Filter out combinations that didn't occur (Freq=0) or have NAs
+  profile_df <- profile_df[profile_df$Freq > 0, , drop = FALSE]
+  profile_df <- profile_df[!is.na(profile_df$class_value) &
+                             !is.na(profile_df$start_jd) &
+                             !is.na(profile_df$end_jd), , drop = FALSE]
+
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # 5. Format and calculate total duration
+  names(profile_df)[names(profile_df) == "Freq"] <- "pixel_count"
+  profile_df$class_value <- as.integer(profile_df$class_value)
+  profile_df$start_jd    <- as.integer(profile_df$start_jd)
+  profile_df$end_jd      <- as.integer(profile_df$end_jd)
+  profile_df$total_days  <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  # Filter out invalid seasons
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+
   if (nrow(profile_df) == 0) {
     return(profile_df)
   }
 
+  # Final aggregation in case rounding caused duplicates
   stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
     data = profile_df,

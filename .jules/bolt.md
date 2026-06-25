@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2024-05-18 - [Optimization of Season Profile Aggregation]
+**Learning:** Extracting all values from large rasters into R using `terra::values(..., mat = FALSE)` and then aggregating with `stats::aggregate()` is extremely memory-intensive (O(N) pixels) and slow. Using `terra::crosstab(..., long = TRUE)` allows the aggregation to be performed in the C++ backend, returning only the unique combinations and their counts, which is significantly faster and more memory-efficient.
+**Action:** Prefer `terra::crosstab(..., long = TRUE)` for unique combination counting across multiple raster layers instead of R-level value extraction and aggregation.
