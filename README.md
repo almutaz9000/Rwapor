@@ -331,6 +331,14 @@ The repository is organized to keep package runtime code easy to navigate:
 
 For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
+### 🤖 AI Agent Workflow
+
+This repository uses a structured coordination layer for AI coding assistants (Claude, Codex, Gemini, Copilot).
+
+- **Entry Point**: AI agents must start by reading `bolt.md` (root) or `.jules/bolt.md`.
+- **Coordination**: All task state, session briefs, and project memory are centralized in the `agent-workflow/` directory.
+- **Start Here**: See [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md) for the canonical agent session flow.
+
 ### Key Functions
 
 | Function | Purpose |

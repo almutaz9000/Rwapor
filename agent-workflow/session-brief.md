@@ -16,7 +16,9 @@ _Last updated: 2026-05-13_
 - Added `wapor_export_analysis_outputs()` for structured seasonal/dekadal/monthly exports.
 - Improved folder-selection UX: path-existence badge, Create Folder button, readable favorites, better shinyFiles roots.
 - Fixed four bugs in `mod_analysis.R`: duplicate crop-mask observer, auto-scan on keystroke, Windows path in code preview, silent `an_incremental` FALSE.
-- Added a Jules adapter in `.jules/bolt.md` that points online Jules work to `agent-workflow/` for startup, pending tasks, issue logging, and validated commits.
+- Relocated `bolt.md` to the root as a shared AI agent entry point pointing to `agent-workflow/` for startup and state.
+- Surfaced the AI Agent Workflow in the root `README.md` and relaxed `.gitignore` for shared agent adapters.
+- Verified internal helper resolution in `mod_analysis.R` via static analysis (`ISS-20260512-010`).
 - Hardened dashboard startup dependency checks to include async runtime packages (`future`, `promises`).
 - Made `wapor_validate_analysis_config()` robust to malformed period dates (returns validation errors instead of throwing).
 - Replaced silent Analysis UI sourcing with explicit error messages if module files fail to load.
@@ -31,6 +33,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: verified internal helper resolution in Shiny modules via static analysis (confirmed existing fix).
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.

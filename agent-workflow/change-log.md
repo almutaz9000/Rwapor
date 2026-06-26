@@ -13,6 +13,9 @@
 
 ## 2026-05-14
 
+- Verified internal helper resolution in `inst/shiny/mod_analysis.R` via static analysis and confirmed the fix for `ISS-20260512-010`.
+- Surfaced the 🤖 AI Agent Workflow in the root `README.md` and relocated `bolt.md` to the repository root for better agent discoverability.
+- Updated `.gitignore` to allow tracking of shared AI agent configuration files (`CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) while keeping other local agent artifacts ignored.
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
 - Updated debugging references and graph indexing exclusions to the new script/archive paths.
