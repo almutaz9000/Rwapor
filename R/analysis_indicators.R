@@ -143,10 +143,12 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -164,19 +166,15 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Optimization: Use vectorized wapor_masked_sum instead of R-level loop.
+  # We combine the Kc values with any external layer multipliers (like days-per-dekad)
+  # into a single multiplier vector.
+  wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = kc_dekad * layer_multipliers,
+    incremental = incremental
+  )
 }
 
 
