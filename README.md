@@ -348,6 +348,16 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 AI Agent Workflow
+
+This repository utilizes a structured workflow for AI-assisted development (Claude, Codex, Gemini, etc.). If you are an AI assistant or a developer using one, please start with:
+
+👉 **[agent-workflow/START-HERE.md](agent-workflow/START-HERE.md)**
+
+This directory contains the canonical task state, issue logs, and session coordination protocols.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

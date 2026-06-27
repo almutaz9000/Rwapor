@@ -1,11 +1,12 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active Focus
 
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
+- Relaxed `.gitignore` for agent configuration files (`CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/`) and surfaced the AI agent workflow in the main `README.md`.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).
 - Improved download-tab AOI local explorer in `inst/shiny/mod_aoi.R`.
@@ -39,7 +40,6 @@ _Last updated: 2026-05-13_
 ## Pending Tasks
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
-- [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.

@@ -30,12 +30,14 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
-.github/
+# Agent/AI Configuration (Shared adapters tracked, specific local state ignored)
+.github/*
+!.github/agents/
 .claude/
 .agents/
-.agent/
-CLAUDE.md
+.agent/*
+!.agent/PROJECT.md
+!CLAUDE.md
 memories/
 
 # Development artifacts
