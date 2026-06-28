@@ -410,7 +410,8 @@ wapor_analysis_pipeline <- function(config,
   if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
     etc_results <- .compute_etc_by_class(
       ret_stack, season_weights, h_mask, h_start, h_end,
-      crop_params, ref_year, dekad_table, ret_var
+      crop_params, ref_year, dekad_table, ret_var,
+      incremental = incremental
     )
     results$kc_by_class <- etc_results$kc_by_class
     results$etc_by_class <- etc_results$etc_by_class
@@ -458,7 +459,8 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
-                                  crop_params, ref_year, dekad_table, ret_var) {
+                                  crop_params, ref_year, dekad_table, ret_var,
+                                  incremental = FALSE) {
   
   analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
@@ -504,7 +506,8 @@ wapor_analysis_pipeline <- function(config,
   for (key in names(kc_profiles)) {
     unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
       ret_stack, season_weights, kc_profiles[[key]],
-      layer_multipliers = ret_layer_multipliers
+      layer_multipliers = ret_layer_multipliers,
+      incremental = incremental
     )
   }
   
@@ -550,36 +553,61 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Using terra::crosstab() is significantly faster and more
+  # memory-efficient than terra::values() for counting combinations of pixel
+  # values. It performs the tabulation in C++ without loading all values into R.
   
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
+  # Stack rasters for crosstab
+  s <- c(crop_mask, start_raster, end_raster)
   
-  if (!any(valid)) {
+  # Generate cross-tabulation table (long format)
+  ct <- terra::crosstab(s, long = TRUE)
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
       class_value = integer(0), start_jd = integer(0), 
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
+
+  # Standardize names from crosstab result
+  names(ct) <- c("class_value", "start_jd", "end_jd", "pixel_count")
   
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+  # Cast to correct types
+  ct$class_value <- as.integer(ct$class_value)
+  ct$start_jd    <- as.integer(round(ct$start_jd))
+  ct$end_jd      <- as.integer(round(ct$end_jd))
+  ct$pixel_count <- as.integer(ct$pixel_count)
+
+  # Filter by selected classes and valid combinations
+  ct <- ct[ct$class_value %in% as.integer(class_values) &
+           !is.na(ct$start_jd) & !is.na(ct$end_jd) &
+           ct$pixel_count > 0, , drop = FALSE]
+
+  if (nrow(ct) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # Add total days
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
   
-  if (nrow(profile_df) == 0) return(profile_df)
+  # Filter out invalid seasons
+  ct <- ct[ct$total_days > 0, , drop = FALSE]
   
-  stats::aggregate(
+  # Aggregate by rounded components to handle any floating point precision
+  # issues from terra::crosstab on float-backed rasters.
+  ct <- stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
+    data = ct,
+    FUN = sum
   )
+
+  # Final re-ordering
+  ct[order(ct$class_value, ct$start_jd, ct$end_jd),
+     c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {

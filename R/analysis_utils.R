@@ -110,16 +110,17 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Using terra::crosstab() is significantly faster and more
+  # memory-efficient than terra::values() for counting combinations of pixel
+  # values. It performs the tabulation in C++ without loading all values into R.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Stack rasters for crosstab
+  s <- c(crop_mask, start_raster, end_raster)
 
-  if (!any(valid)) {
+  # Generate cross-tabulation table (long format)
+  ct <- terra::crosstab(s, long = TRUE)
+
+  if (is.null(ct) || nrow(ct) == 0) {
     return(data.frame(
       class_value = integer(0),
       start_jd = integer(0),
@@ -129,24 +130,47 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  # Standardize names from crosstab result
+  names(ct) <- c("class_value", "start_jd", "end_jd", "pixel_count")
+
+  # Cast to correct types
+  ct$class_value <- as.integer(ct$class_value)
+  ct$start_jd    <- as.integer(round(ct$start_jd))
+  ct$end_jd      <- as.integer(round(ct$end_jd))
+  ct$pixel_count <- as.integer(ct$pixel_count)
+
+  # Filter by selected classes and valid combinations
+  ct <- ct[ct$class_value %in% as.integer(class_values) &
+           !is.na(ct$start_jd) & !is.na(ct$end_jd) &
+           ct$pixel_count > 0, , drop = FALSE]
+
+  if (nrow(ct) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
   }
 
-  stats::aggregate(
+  # Add total days
+  ct$total_days <- ct$end_jd - ct$start_jd + 1L
+
+  # Filter out invalid seasons
+  ct <- ct[ct$total_days > 0, , drop = FALSE]
+
+  # Aggregate by rounded components to handle any floating point precision
+  # issues from terra::crosstab on float-backed rasters.
+  ct <- stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
+    data = ct,
     FUN = sum
   )
+
+  # Final re-ordering
+  ct[order(ct$class_value, ct$start_jd, ct$end_jd),
+     c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis
