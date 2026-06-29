@@ -61,7 +61,7 @@ test_that("analysis layer multipliers use dekad day counts for daily-rate D vari
   multiplier_helper <- if (exists("get_analysis_layer_multipliers", mode = "function")) {
     get("get_analysis_layer_multipliers", mode = "function")
   } else {
-    getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+    Rwapor:::get_analysis_layer_multipliers
   }
   period_table <- data.frame(
     dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21")),

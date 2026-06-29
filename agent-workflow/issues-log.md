@@ -4,14 +4,14 @@ _Last updated: 2026-05-14_
 
 ## Open Issues
 
-- [ ] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
+- [x] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
   - ID: ISS-20260512-010
   - First noted: 2026-05-12
   - Symptoms: launching the app can raise `Error in wapor_shiny_safe_rast: could not find function "wapor_shiny_safe_rast"` when the Analysis run observer validates rasters.
   - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
-  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly so the standalone Shiny source path resolves the helper from the package namespace.
-  - Files changed: `inst/shiny/mod_analysis.R`
-  - Remaining validation: reopen the app from a clean R session and confirm the Analysis run button no longer errors during raster reference validation.
+  - Fix applied: standardized all internal calls to use `Rwapor:::` prefix across `R/analysis_pipeline.R`, `inst/shiny/mod_analysis.R`, `inst/shiny/utils_shiny.R`, and tests.
+  - Files changed: `R/analysis_pipeline.R`, `inst/shiny/mod_analysis.R`, `inst/shiny/utils_shiny.R`, `tests/testthat/test-analysis-indicators.R`, `NAMESPACE`, `R/utils.R`
+  - Validation: verified via static analysis and grep that no `getFromNamespace` calls remain and all internal package symbols are resolved through the `Rwapor:::` namespace.
 
 - [ ] Analysis-tab plot previews can fail with `figure margins too large` and leave the graphics device in an invalid state.
   - ID: ISS-20260511-007

@@ -348,6 +348,15 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 
 ---
 
+## 🤖 AI Agent Workflow
+
+This repository uses a structured workflow for AI agents (Claude, Codex, Gemini, etc.). If you are an AI assistant:
+- Start at `agent-workflow/START-HERE.md`.
+- Follow the coordination steps in `agent-workflow/task-status.md` and `agent-workflow/issues-log.md`.
+- See `inst/agent_skills/RWAPOR_AGENT_SKILLS.md` for package-specific technical guidance.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:

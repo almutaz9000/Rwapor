@@ -10,6 +10,9 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Standardized internal function namespace resolution to `Rwapor:::` across the package and dashboard (2026-05-15).
+- [x] Relaxed `.gitignore` to support shared AI agent coordination files (2026-05-15).
+- [x] Surfaced the AI Agent Workflow in the root `README.md` (2026-05-15).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).
