@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2024-05-20 - [Vectorized ETc Calculation]
+**Learning:** Manual R-level loops for accumulating seasonal ETc (RET * weights * Kc) are slow for large stacks. Refactoring these to use `terra::sum()` on a pre-multiplied stack (or via `wapor_masked_sum`) shifts the entire computation to the C++ backend. Adding an `incremental` flag allows switching to a memory-efficient loop when RAM is constrained, while keeping the default path lightning fast.
+**Action:** Consolidate iterative raster summation into `wapor_masked_sum` to leverage vectorized performance by default.
