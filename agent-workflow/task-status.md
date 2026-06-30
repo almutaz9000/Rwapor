@@ -1,6 +1,6 @@
 # Task Status
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-14_
 
 ## Active
 
@@ -29,7 +29,7 @@ _Last updated: 2026-05-13_
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
+- [x] Relaxed `.gitignore` for shared adapter files (`bolt.md`, `CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) and migrated configuration to root `bolt.md` (2026-05-14).
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
 - [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
