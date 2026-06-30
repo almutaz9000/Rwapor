@@ -156,23 +156,23 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   )
   
   # Multipliers
-  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
-  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::analysis_layer_multipliers(ret_var, dekad_table)    else NULL
-  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::analysis_layer_multipliers(precip_var, dekad_table) else NULL
-  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::analysis_layer_multipliers(npp_var, dekad_table)    else NULL
+  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::get_analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
+  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::get_analysis_layer_multipliers(ret_var, dekad_table)    else NULL
+  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::get_analysis_layer_multipliers(precip_var, dekad_table) else NULL
+  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::get_analysis_layer_multipliers(npp_var, dekad_table)    else NULL
 
   # Aggregates
   if (!is.null(stacks$aeti)) {
-    results$seasonal_aeti <- Rwapor::wapor_calc_seasonal_aeti(stacks$aeti, season_weights, h_mask, aeti_mult, incremental = use_incremental)
+    results$seasonal_aeti <- Rwapor:::wapor_calc_seasonal_aeti(stacks$aeti, season_weights, h_mask, aeti_mult, incremental = use_incremental)
   }
   if (!is.null(stacks$ret)) {
-    results$seasonal_ret <- Rwapor::wapor_calc_seasonal_ret(stacks$ret, season_weights, h_mask, ret_mult, incremental = use_incremental)
+    results$seasonal_ret <- Rwapor:::wapor_calc_seasonal_ret(stacks$ret, season_weights, h_mask, ret_mult, incremental = use_incremental)
   }
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip)) {
-    results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
+    results$seasonal_pcp <- Rwapor:::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
   }
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && !is.null(stacks$npp)) {
-    results$seasonal_biomass_kg <- Rwapor::wapor_masked_sum(stacks$npp, season_weights, npp_mult, incremental = use_incremental) * 22.222
+    results$seasonal_biomass_kg <- Rwapor:::wapor_masked_sum(stacks$npp, season_weights, npp_mult, incremental = use_incremental) * 22.222
     results$seasonal_biomass_t  <- results$seasonal_biomass_kg / 1000
     results$seasonal_biomass    <- results$seasonal_biomass_kg
   }
@@ -213,7 +213,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
       unique_etc_rasters <- list()
       for (key in names(kc_profiles)) {
-        unique_etc_rasters[[key]] <- Rwapor::wapor_calc_seasonal_etc(stacks$ret, season_weights, kc_profiles[[key]], layer_multipliers = ret_mult)
+        unique_etc_rasters[[key]] <- Rwapor::wapor_calc_seasonal_etc(
+          stacks$ret, season_weights, kc_profiles[[key]],
+          layer_multipliers = ret_mult,
+          incremental = use_incremental
+        )
       }
 
       etc_by_class <- list()
@@ -243,15 +247,15 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       if (length(all_etc) > 1) {
         for (k in seq_along(all_etc)[-1]) combined_etc <- terra::cover(combined_etc, all_etc[[k]])
       }
-      results$adequacy_etc <- Rwapor::wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
+      results$adequacy_etc <- Rwapor:::wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
     }
   }
 
   # Adequacy P95
   if ("adequacy_p95" %in% indicators && !is.null(results$seasonal_aeti)) {
-    p95_table <- Rwapor::wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
+    p95_table <- Rwapor:::wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
     results$p95_table <- p95_table
-    results$adequacy_p95 <- Rwapor::wapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
+    results$adequacy_p95 <- Rwapor:::wapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
   }
 
   # Peff (simplified seasonal estimate)
@@ -263,11 +267,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # Green/Blue Water
   if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$seasonal_aeti) && !is.null(stacks$precip)) {
      if (is.null(results$seasonal_pcp)) {
-        results$seasonal_pcp <- Rwapor::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
+        results$seasonal_pcp <- Rwapor:::wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
      }
      peff_raster <- terra::ifel(results$seasonal_pcp <= 250, results$seasonal_pcp * (125 - 0.2 * results$seasonal_pcp) / 125, 125 + 0.1 * results$seasonal_pcp)
-     if ("green_water" %in% indicators) results$green_water <- Rwapor::wapor_calc_green_water(results$seasonal_aeti$raster, peff_raster)
-     if ("blue_water" %in% indicators)  results$blue_water <- Rwapor::wapor_calc_blue_water(results$seasonal_aeti$raster, peff_raster)
+     if ("green_water" %in% indicators) results$green_water <- Rwapor:::wapor_calc_green_water(results$seasonal_aeti$raster, peff_raster)
+     if ("blue_water" %in% indicators)  results$blue_water <- Rwapor:::wapor_calc_blue_water(results$seasonal_aeti$raster, peff_raster)
   }
 
   # Yield and CWP/BWP...

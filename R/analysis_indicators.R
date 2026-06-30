@@ -67,7 +67,7 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
 wapor_calc_seasonal_aeti <- function(aeti_dekad, season_weights,
                                              crop_mask = NULL, layer_multipliers = NULL,
                                              incremental = FALSE) {
-  seasonal_aeti <- wapor_masked_sum(
+  seasonal_aeti <- Rwapor:::wapor_masked_sum(
     aeti_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -98,7 +98,7 @@ wapor_calc_seasonal_aeti <- function(aeti_dekad, season_weights,
 wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
                                             crop_mask = NULL, layer_multipliers = NULL,
                                             incremental = FALSE) {
-  seasonal_ret <- wapor_masked_sum(
+  seasonal_ret <- Rwapor:::wapor_masked_sum(
     ret_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -133,20 +133,22 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }
 
-#' Compute Seasonal ETc Incrementally
+#' Compute Seasonal ETc
 #'
-#' Avoids building a full multi-layer ETc stack by accumulating
-#' RET * season_weight * kc layer-by-layer. This is significantly more
-#' memory-efficient for long seasons.
+#' Computes seasonal ETc (weighted sum of RET * Kc * season_weight).
+#' Uses optimized vectorized paths by default.
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Default FALSE.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -156,6 +158,7 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
     stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
                  terra::nlyr(season_weights), n_layers), call. = FALSE)
   }
+
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, n_layers)
   }
@@ -164,19 +167,16 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Combine Kc values with temporal multipliers (e.g., dekad day counts)
+  # to form a single per-layer scaling factor for the weighted sum.
+  combined_multipliers <- kc_dekad * layer_multipliers
+
+  Rwapor:::wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = combined_multipliers,
+    incremental = incremental
+  )
 }
 
 
@@ -510,11 +510,11 @@ wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
 #' @export
 wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
                                        period) {
-  aeti_ts <- wapor_ts(region = region, variable = aeti_var, period = period,
+  aeti_ts <- Rwapor:::wapor_ts(region = region, variable = aeti_var, period = period,
                        unit_conversion = "none")
-  ret_ts <- wapor_ts(region = region, variable = ret_var, period = period,
+  ret_ts <- Rwapor:::wapor_ts(region = region, variable = ret_var, period = period,
                       unit_conversion = "none")
-  precip_ts <- wapor_ts(region = region, variable = precip_var, period = period,
+  precip_ts <- Rwapor:::wapor_ts(region = region, variable = precip_var, period = period,
                          unit_conversion = "none")
   list(aeti_ts = aeti_ts, ret_ts = ret_ts, precip_ts = precip_ts)
 }
