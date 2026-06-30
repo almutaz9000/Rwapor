@@ -1,8 +1,12 @@
-# Jules Adapter
+# Bolt configuration
 
-Jules sessions in this repo must start with `agent-workflow/START-HERE.md`.
+This file is the primary entry point for all AI agent tasks and requests in this repository. Always check this file first at the start of a session.
 
-Use this file only for Jules-specific runtime guidance. The canonical project workflow, memory, task state, and issue state live under `agent-workflow/`.
+## Canonical Project Workflow
+
+All agents must follow the coordination workflow starting from `agent-workflow/START-HERE.md`.
+
+Use this file for repository-wide configuration, runtime guidance, and direct user requests.
 
 ## Required Start Flow
 
@@ -19,7 +23,7 @@ Before making changes:
 - Use unchecked items in `agent-workflow/task-status.md` as the default pending work queue.
 - Prefer tasks that already have clear scope and validation steps.
 - Check `agent-workflow/issues-log.md` for open regressions and unresolved root causes before starting.
-- Do not create a parallel Jules task list or separate repo memory.
+- Do not create a parallel agent task list or separate repo memory.
 
 ## Update Rules
 
@@ -27,7 +31,7 @@ Before making changes:
 - Log confirmed root causes, regressions, and resolutions in `agent-workflow/issues-log.md`.
 - Update `agent-workflow/session-brief.md` after validated work so later sessions can pick up quickly.
 - Update `agent-workflow/change-log.md` when repo-visible workflow or behavior changes are confirmed.
-- Put durable lessons in `agent-workflow/project-memory.md`, not here.
+- Put durable lessons in `agent-workflow/project-memory.md`.
 
 ## Validation And Commits
 
@@ -43,6 +47,6 @@ Before making changes:
 
 ## Guardrails
 
-- Treat `agent-workflow/` as the only canonical source of truth.
+- Treat `agent-workflow/` as the only canonical source of truth for project state.
 - Use `inst/agent_skills/RWAPOR_AGENT_SKILLS.md` for package and WaPOR behavior.
-- Do not store lasting project learnings in `.jules/`.
+- Do not store lasting project learnings in `bolt.md`.
