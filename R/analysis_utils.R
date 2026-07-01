@@ -38,11 +38,10 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
 wapor_build_class_mask <- function(mask_rast, class_values) {
   if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
 
-  # Optimization: Use terra's vectorized %in% operator for much faster
-  # masking when multiple classes are selected.
-  match_rast <- mask_rast %in% as.integer(class_values)
-
-  terra::ifel(match_rast, 1L, NA)
+  # Optimization: Use terra::classify() for a high-performance C++ reclassification path.
+  # This replaces iterative IFEL logic with a single-pass categorical lookup.
+  rcl <- cbind(as.integer(class_values), 1L)
+  terra::classify(mask_rast, rcl, others = NA)
 }
 
 #' Filter class stats to match active crop parameters
@@ -110,42 +109,52 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab(..., long = TRUE) to count unique combinations
+  # of class, start, and end dates without loading all pixel values into R memory.
+  # This provides a massive speedup for large-scale analysis.
+  s <- terra::c(crop_mask, start_raster, end_raster)
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  profile_df <- tryCatch({
+    terra::crosstab(s, long = TRUE)
+  }, error = function(e) NULL)
 
-  if (!any(valid)) {
+  if (is.null(profile_df) || nrow(profile_df) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+  # Standardize names from crosstab
+  names(profile_df) <- c("class_value", "start_jd", "end_jd", "pixel_count")
+
+  # Filter by class and remove NAs
+  profile_df <- profile_df[
+    !is.na(profile_df$class_value) &
+      !is.na(profile_df$start_jd) &
+      !is.na(profile_df$end_jd) &
+      profile_df$class_value %in% class_values, , drop = FALSE
+  ]
+
   if (nrow(profile_df) == 0) {
-    return(profile_df)
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
   }
+
+  # Round Julian days and re-aggregate (handles precision differences from resampling)
+  profile_df$start_jd <- as.integer(round(profile_df$start_jd))
+  profile_df$end_jd   <- as.integer(round(profile_df$end_jd))
+  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+
+  if (nrow(profile_df) == 0) return(profile_df)
 
   stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
+    data = profile_df, FUN = sum
   )
 }
 

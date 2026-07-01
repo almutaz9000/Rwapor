@@ -156,10 +156,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   )
   
   # Multipliers
-  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
-  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::analysis_layer_multipliers(ret_var, dekad_table)    else NULL
-  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::analysis_layer_multipliers(precip_var, dekad_table) else NULL
-  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::analysis_layer_multipliers(npp_var, dekad_table)    else NULL
+  aeti_mult   <- if (!is.null(stacks$aeti))   Rwapor:::get_analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
+  ret_mult    <- if (!is.null(stacks$ret))    Rwapor:::get_analysis_layer_multipliers(ret_var, dekad_table)    else NULL
+  precip_mult <- if (!is.null(stacks$precip)) Rwapor:::get_analysis_layer_multipliers(precip_var, dekad_table) else NULL
+  npp_mult    <- if (!is.null(stacks$npp))    Rwapor:::get_analysis_layer_multipliers(npp_var, dekad_table)    else NULL
 
   # Aggregates
   if (!is.null(stacks$aeti)) {
@@ -184,7 +184,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
     if (is.null(stacks$ret)) stop("RET stack is required for ETc/Adequacy.")
     
-    profile_table <- wapor_build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
+    profile_table <- Rwapor:::wapor_build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
     if (nrow(profile_table) > 0) {
       # This is the complex logic from mod_analysis.R
       # For now, I'll implement the per-profile ETc calculation

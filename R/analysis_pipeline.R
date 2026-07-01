@@ -261,11 +261,7 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_valid_class_mask <- function(mask_rast, class_values) {
-  if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
-  
-  # Optimization: Vectorized class matching
-  match_rast <- mask_rast %in% as.integer(class_values)
-  terra::ifel(match_rast, 1L, NA)
+  Rwapor:::wapor_build_class_mask(mask_rast, class_values)
 }
 
 .load_variable_stacks <- function(indicators, aeti_var, ret_var, precip_var, npp_var,
@@ -352,10 +348,8 @@ wapor_analysis_pipeline <- function(config,
                                            aeti_var, ret_var, precip_var, npp_var) {
   results <- list()
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  
   if (!is.null(stacks$aeti_stack)) {
-    lm <- analysis_layer_multipliers(aeti_var, dekad_table)
+    lm <- Rwapor:::get_analysis_layer_multipliers(aeti_var, dekad_table)
     results$seasonal_aeti <- wapor_calc_seasonal_aeti(
       stacks$aeti_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
@@ -363,7 +357,7 @@ wapor_analysis_pipeline <- function(config,
   }
   
   if (!is.null(stacks$ret_stack)) {
-    lm <- analysis_layer_multipliers(ret_var, dekad_table)
+    lm <- Rwapor:::get_analysis_layer_multipliers(ret_var, dekad_table)
     results$seasonal_ret <- wapor_calc_seasonal_ret(
       stacks$ret_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
@@ -371,7 +365,7 @@ wapor_analysis_pipeline <- function(config,
   }
   
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip_stack)) {
-    lm <- analysis_layer_multipliers(precip_var, dekad_table)
+    lm <- Rwapor:::get_analysis_layer_multipliers(precip_var, dekad_table)
     results$seasonal_pcp <- wapor_masked_sum(
       stacks$precip_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
@@ -380,7 +374,7 @@ wapor_analysis_pipeline <- function(config,
   
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && 
       !is.null(stacks$npp_stack)) {
-    lm <- analysis_layer_multipliers(npp_var, dekad_table)
+    lm <- Rwapor:::get_analysis_layer_multipliers(npp_var, dekad_table)
     results$seasonal_biomass_kg <- wapor_masked_sum(
       stacks$npp_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
@@ -460,8 +454,7 @@ wapor_analysis_pipeline <- function(config,
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
                                   crop_params, ref_year, dekad_table, ret_var) {
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
+  ret_layer_multipliers <- Rwapor:::get_analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
   profile_table <- .build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
@@ -550,36 +543,7 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
-  
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
-  
-  if (!any(valid)) {
-    return(data.frame(
-      class_value = integer(0), start_jd = integer(0), 
-      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
-    ))
-  }
-  
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  
-  if (nrow(profile_df) == 0) return(profile_df)
-  
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
-  )
+  Rwapor:::wapor_build_season_profile_table(crop_mask, start_raster, end_raster, class_values)
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {
@@ -665,11 +629,5 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .crop_to_region <- function(x, reg_info) {
-  if (reg_info$type == "bbox") {
-    terra::crop(x, reg_info$extent)
-  } else if (reg_info$type == "vector") {
-    terra::mask(terra::crop(x, reg_info$extent), reg_info$vector)
-  } else {
-    x
-  }
+  Rwapor:::wapor_crop_to_region(x, reg_info, do_mask = (reg_info$type == "vector"))
 }
