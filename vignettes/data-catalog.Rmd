@@ -20,6 +20,8 @@ This catalog provides a comprehensive overview of the geospatial datasets access
 
 WaPOR provides data at three levels of detail. Most variables follow a standard scaling of **0.1** to convert integer storage to physical units (e.g., mm).
 
+> **Note on Units**: WaPOR dekadal variables (suffix `-D`) are stored by FAO as daily rates (e.g., `mm/day`). `Rwapor` automatically converts these to **dekadal totals** (e.g., `mm/dekad`) during download and extraction. This applies across all levels (L1, L2, L3).
+
 ### Level 1: Continental (300m / 5km)
 Global/Continental coverage for Africa and the Near East.
 
@@ -67,13 +69,14 @@ AgERA5 provides daily agro-meteorological indicators. Data is available globally
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Water** | Reference ET | `AGERA5-ET0` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Water** | Precipitation | `AGERA5-PF` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
-| **Temperature** | Min Temperature | `AGERA5-TMIN` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
-| **Temperature** | Max Temperature | `AGERA5-TMAX` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Min Temperature | `AGERA5-TMIN` | E, A* | °C* | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Max Temperature | `AGERA5-TMAX` | E, A* | °C* | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Energy** | Solar Radiation | `AGERA5-SRF` | E | J/m² | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Atmospheric** | Wind Speed (2m) | `AGERA5-WS` | E | m/s | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Atmospheric** | Rel. Humidity | `AGERA5-RHxx` | E | 0-1 | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 
 *\* Annual Temperature products are provided as average values (`AVG-A`).*
+*°C: Automatically converted by the package from Kelvin (K).*
 
 ### Usage Note: Daily Variables
 For daily AgERA5 variables, use the suffix `-E` (e.g., `AGERA5-ET0-E`). The package internally translates this to the mapset ID `AGERA5-ET0` required by the FAO GISMGR API.

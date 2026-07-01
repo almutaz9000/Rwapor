@@ -124,6 +124,18 @@ Choose the analysis workflow that matches your data availability. Rwapor scales 
 
 ---
 
+## ⚙️ Smart Defaults & Automatic Conversions
+
+Rwapor handles common data transformations automatically during download to ensure results are immediately useful for agricultural analysis:
+
+*   🌡️ **Temperature (AgERA5)**: `TMIN` and `TMAX` variables are automatically converted from Kelvin to **degrees Celsius** (°C = K - 273.15).
+*   💧 **Dekadal Fluxes (WaPOR)**: Variables with `-D` suffix (like `L1-AETI-D`) are stored by FAO as daily rates (mm/day). Rwapor automatically converts these to **dekadal totals** (mm/dekad) during download.
+*   ⚖️ **Scale Factors**: The package automatically applies scale and offset factors embedded in WaPOR metadata.
+
+> **Tip**: You can override the dekadal total conversion by explicitly setting `unit_conversion = "day"` in `wapor_map()` or `wapor_ts()`.
+
+---
+
 ## Getting Started
 
 You have **two options** to use Rwapor:
@@ -157,7 +169,6 @@ run_wapor(data_folder = "C:/WaPOR_Data")
   - Auto-filters L3 regions to show only those intersecting your AOI
   - Auto-selects when exactly one region overlaps
   - Shows status messages for guidance
-  - See [L3 Auto-Detection Guide](.github/L3-AUTO-DETECTION.md) for details
 - Upload your own polygons (Shapefile, GeoJSON, KML, GeoPackage)
 - Select variables (AETI, NPP, Precipitation, etc.)
 - Choose date range and download data

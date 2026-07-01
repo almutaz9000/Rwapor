@@ -242,41 +242,63 @@ attr(df, "long_name")
 # "Actual EvapoTranspiration and Interception"
 ```
 
-## Unit Conversion
+## Smart Defaults & Automatic Conversions
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+Rwapor is designed to minimize manual data cleaning by applying sensible defaults during download and extraction.
+
+### Automatic Temperature Conversion
+
+AgERA5 temperature variables (`TMIN`, `TMAX`) are stored in Kelvin. Rwapor automatically converts these to **degrees Celsius** by subtracting 273.15.
+
+```{r temp-conversion}
+# Automatically converted to Celsius
+df_temp <- wapor_ts(
+  region   = c(35.0, 33.0, 36.0, 34.0),
+  variable = "AGERA5-TMIN-E",
+  period   = c("2023-01-01", "2023-01-05")
+)
+attr(df_temp, "units") # "degC"
+```
+
+### Dekadal Flux Totals
+
+WaPOR dekadal variables (suffix `-D`) are stored by FAO as daily rates (e.g., `mm/day`). To make them immediately useful for seasonal water accounting, Rwapor automatically converts them to **dekadal totals** (e.g., `mm/dekad`) by multiplying by the number of days in the dekad (10 or 11).
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
 df_dekad <- wapor_ts(
   region   = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
-  period   = c("2023-01-01", "2023-03-31")
+  period   = c("2023-01-01", "2023-01-31")
 )
 attr(df_dekad, "units")  # "mm/dekad"
+```
 
-# Daily rate
+### Manual Overrides
+
+You can control these conversions using the `unit_conversion` parameter:
+
+```{r unit-overrides}
+# Keep daily rate (no conversion)
 df_day <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
-  period          = c("2023-01-01", "2023-03-31"),
-  unit_conversion = "day"
+  period          = c("2023-01-01", "2023-01-31"),
+  unit_conversion = "day" # or "none"
 )
-attr(df_day, "units")          # "mm/day"
-attr(df_day, "original_units") # "mm/day"
+attr(df_day, "units") # "mm/day"
 
-# Monthly total
+# Convert to monthly total
 df_monthly <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
-  period          = c("2023-01-01", "2023-03-31"),
+  period          = c("2023-01-01", "2023-01-31"),
   unit_conversion = "month"
 )
 attr(df_monthly, "units")  # "mm/month"
 ```
 
-Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
+Available `unit_conversion` options: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`.
 
 ## Working with URLs Directly
 
