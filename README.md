@@ -76,6 +76,15 @@ remotes::install_github("almutaz9000/Rwapor")
 
 ---
 
+## 🤖 AI Agent Workflow
+
+This repository uses a structured workflow for AI agents (Jules, Claude, etc.).
+
+*   **Entry Point**: Agents should first read `.jules/bolt.md` for session-specific instructions.
+*   **Coordination**: The canonical project state, memory, and task queue are maintained in the `agent-workflow/` directory. Agents must follow the instructions in `agent-workflow/START-HERE.md`.
+
+---
+
 ## 🚀 Everyday Usage
 
 Whenever you start RStudio and want to work with WaPOR data, just run:
