@@ -352,11 +352,11 @@ wapor_analysis_pipeline <- function(config,
                                            aeti_var, ret_var, precip_var, npp_var) {
   results <- list()
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+  analysis_layer_multipliers <- Rwapor:::get_analysis_layer_multipliers
   
   if (!is.null(stacks$aeti_stack)) {
     lm <- analysis_layer_multipliers(aeti_var, dekad_table)
-    results$seasonal_aeti <- wapor_calc_seasonal_aeti(
+    results$seasonal_aeti <- Rwapor:::wapor_calc_seasonal_aeti(
       stacks$aeti_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
     )
@@ -364,7 +364,7 @@ wapor_analysis_pipeline <- function(config,
   
   if (!is.null(stacks$ret_stack)) {
     lm <- analysis_layer_multipliers(ret_var, dekad_table)
-    results$seasonal_ret <- wapor_calc_seasonal_ret(
+    results$seasonal_ret <- Rwapor:::wapor_calc_seasonal_ret(
       stacks$ret_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
     )
@@ -372,7 +372,7 @@ wapor_analysis_pipeline <- function(config,
   
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip_stack)) {
     lm <- analysis_layer_multipliers(precip_var, dekad_table)
-    results$seasonal_pcp <- wapor_masked_sum(
+    results$seasonal_pcp <- Rwapor:::wapor_masked_sum(
       stacks$precip_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
     )
@@ -381,7 +381,7 @@ wapor_analysis_pipeline <- function(config,
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && 
       !is.null(stacks$npp_stack)) {
     lm <- analysis_layer_multipliers(npp_var, dekad_table)
-    results$seasonal_biomass_kg <- wapor_masked_sum(
+    results$seasonal_biomass_kg <- Rwapor:::wapor_masked_sum(
       stacks$npp_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
     ) * 22.222
@@ -410,7 +410,7 @@ wapor_analysis_pipeline <- function(config,
   if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
     etc_results <- .compute_etc_by_class(
       ret_stack, season_weights, h_mask, h_start, h_end,
-      crop_params, ref_year, dekad_table, ret_var
+      crop_params, ref_year, dekad_table, ret_var, incremental
     )
     results$kc_by_class <- etc_results$kc_by_class
     results$etc_by_class <- etc_results$etc_by_class
@@ -427,15 +427,15 @@ wapor_analysis_pipeline <- function(config,
           combined_etc <- terra::cover(combined_etc, all_etc[[k]])
         }
       }
-      results$adequacy_etc <- wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
+      results$adequacy_etc <- Rwapor:::wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
     }
   }
   
   # Adequacy P95
   if ("adequacy_p95" %in% indicators && !is.null(results$seasonal_aeti)) {
-    p95_table <- wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
+    p95_table <- Rwapor:::wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
     results$p95_table <- p95_table
-    results$adequacy_p95 <- wapor_calc_adequacy_p95(
+    results$adequacy_p95 <- Rwapor:::wapor_calc_adequacy_p95(
       results$seasonal_aeti$raster, h_mask, p95_table
     )
   }
@@ -458,9 +458,10 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
-                                  crop_params, ref_year, dekad_table, ret_var) {
+                                  crop_params, ref_year, dekad_table, ret_var,
+                                  incremental = FALSE) {
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+  analysis_layer_multipliers <- Rwapor:::get_analysis_layer_multipliers
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
@@ -483,14 +484,14 @@ wapor_analysis_pipeline <- function(config,
     l_dev <- as.integer(profile_row$total_days - fixed_sum)
     if (l_dev < 0L) l_dev <- 0L
     
-    kc_daily <- wapor_build_kc(
+    kc_daily <- Rwapor:::wapor_build_kc(
       kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
       L_ini = cp$l_ini_days[1], L_dev = l_dev,
       L_mid = cp$l_mid_days[1], L_late = cp$l_late_days[1]
     )
     
     season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + profile_row$start_jd - 1L
-    kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, season_start_date)
+    kc_dekad <- Rwapor:::wapor_aggregate_kc(kc_daily, dekad_table, season_start_date)
     kc_key <- paste(round(kc_dekad, 6), collapse = ",")
     profile_table$kc_key[i] <- kc_key
     
@@ -502,9 +503,10 @@ wapor_analysis_pipeline <- function(config,
   # Compute unique ETc rasters
   unique_etc_rasters <- list()
   for (key in names(kc_profiles)) {
-    unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
+    unique_etc_rasters[[key]] <- Rwapor:::wapor_calc_seasonal_etc(
       ret_stack, season_weights, kc_profiles[[key]],
-      layer_multipliers = ret_layer_multipliers
+      layer_multipliers = ret_layer_multipliers,
+      incremental = incremental
     )
   }
   
