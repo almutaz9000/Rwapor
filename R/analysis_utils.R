@@ -110,42 +110,65 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use terra::crosstab instead of terra::values() to avoid
+  # loading the entire raster into memory. This is much more memory-efficient.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Ensure inputs are rounded to integers to prevent floating-point precision
+  # issues from creating duplicate profiles.
+  s_int <- terra::round(start_raster)
+  e_int <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Stack all three to count unique combinations
+  stk <- c(crop_mask, s_int, e_int)
+
+  # crosstab(..., long = TRUE) returns a data.frame of unique combinations
+  # with a 'Freq' column.
+  profile_df <- tryCatch({
+    res <- terra::crosstab(stk, long = TRUE)
+    # Ensure it's a data frame and rename 'Freq' if present
+    if (is.data.frame(res) && "Freq" %in% names(res)) {
+      names(res)[names(res) == "Freq"] <- "pixel_count"
+    }
+    res
+  }, error = function(e) {
+    # Fallback to values if crosstab fails (though it shouldn't)
+    v <- terra::values(stk, mat = TRUE)
+    v <- v[!is.na(v[, 1]) & !is.na(v[, 2]) & !is.na(v[, 3]), , drop = FALSE]
+    if (nrow(v) == 0) return(data.frame())
+
+    # Manually aggregate unique combinations to mimic crosstab
+    df_v <- as.data.frame(v)
+    names(df_v) <- c("class_value", "start_jd", "end_jd")
+    df_v$pixel_count <- 1L
+    stats::aggregate(pixel_count ~ class_value + start_jd + end_jd, data = df_v, FUN = sum)
+  })
+
+  if (nrow(profile_df) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
+  # Standardize column names
+  names(profile_df) <- c("class_value", "start_jd", "end_jd", "pixel_count")
 
+  # Filter to relevant classes and valid seasons
+  profile_df$class_value <- as.integer(profile_df$class_value)
+  profile_df <- profile_df[profile_df$class_value %in% class_values, , drop = FALSE]
+
+  profile_df$start_jd <- as.integer(profile_df$start_jd)
+  profile_df$end_jd <- as.integer(profile_df$end_jd)
+  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
+
+  profile_df <- profile_df[profile_df$total_days > 0L & profile_df$pixel_count > 0, , drop = FALSE]
+
+  if (nrow(profile_df) == 0) return(profile_df)
+
+  # Re-aggregate in case rounding introduced duplicates in the crosstab
   stats::aggregate(
     pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
+    data = profile_df, FUN = sum
   )
 }
 
