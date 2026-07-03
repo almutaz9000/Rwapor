@@ -55,7 +55,7 @@ wapor_agent_skills <- function(as_text = TRUE) {
 #'
 #' @importFrom sf st_read st_bbox st_crs st_transform
 #' @importFrom stats coef lm
-#' @importFrom utils capture.output getFromNamespace
+#' @importFrom utils capture.output
 #'
 #' @examples
 #' # Parse a bounding box (xmin, ymin, xmax, ymax)

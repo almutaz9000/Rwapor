@@ -296,8 +296,6 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     # ── Analysis running flag ────────────────────────────────────────────────
     .an_running  <- shiny::reactiveVal(FALSE)
 
-    analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-
     # (Internal helpers moved to R/analysis_utils.R)
 
     # --- File Upload Observers ---

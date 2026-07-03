@@ -31,6 +31,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: standardized internal function calls to use explicit `Rwapor:::` prefixes across the package and dashboard, resolving namespace resolution issues for standalone Shiny modules.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
