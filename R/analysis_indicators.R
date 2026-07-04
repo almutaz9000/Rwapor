@@ -133,20 +133,23 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }
 
-#' Compute Seasonal ETc Incrementally
+#' Compute Seasonal ETc
 #'
-#' Avoids building a full multi-layer ETc stack by accumulating
-#' RET * season_weight * kc layer-by-layer. This is significantly more
-#' memory-efficient for long seasons.
+#' Calculates seasonal crop evapotranspiration (ETc) by aggregating dekadal RET
+#' weighted by season-fraction and crop coefficient (Kc). Pixels with partial
+#' temporal coverage are summed ignoring NA values (na.rm = TRUE).
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
+#'   Default FALSE (uses faster vectorized aggregation).
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -164,19 +167,23 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
+  if (incremental) {
+    total <- NULL
+    for (i in seq_len(n_layers)) {
+      # Accumulate: term = RET_i * (weight_i * Kc_i * mult_i)
+      term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
+      if (is.null(total)) total <- term else total <- total + term
     }
+    return(total)
   }
-  total
+
+  # Optimization: Vectorized multiplication and specialized C++ sum is significantly
+  # faster than R-level loops.
+  # term = RET * SeasonWeights * (Kc * Multiplier)
+  combined_mult <- kc_dekad * layer_multipliers
+  weighted <- ret_dekad * (season_weights * combined_mult)
+
+  terra::sum(weighted, na.rm = TRUE)
 }
 
 

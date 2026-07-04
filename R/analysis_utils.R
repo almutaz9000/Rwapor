@@ -110,43 +110,49 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  # Optimization: Use an ID encoding scheme and terra::freq() for memory-efficient
+  # combination counting. This avoids loading entire rasters into R memory
+  # with terra::values(), which causes OOM on large AOIs.
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # 1. Mask to only include pixels within the requested crop classes
+  # class_mask is 1 for pixels in class_values, NA otherwise
+  class_mask <- crop_mask %in% as.integer(class_values)
+  class_mask <- terra::ifel(class_mask, 1L, NA)
 
-  if (!any(valid)) {
+  # 2. Create encoded raster: Class * 1,000,000 + StartJD * 1,000 + EndJD
+  # We use a large multiplier (1000) for Julian days to support cross-year
+  # scenarios where JD can exceed 366.
+  encoded <- (crop_mask * 1000000) + (start_raster * 1000) + end_raster
+
+  # Apply mask (removes non-crop pixels and pixels with NA start/end)
+  encoded <- terra::mask(encoded, class_mask)
+
+  # 3. Get frequencies of unique combinations
+  ft <- terra::freq(encoded)
+
+  if (is.null(ft) || nrow(ft) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
+  # 4. Decode results from the 'value' column
+  # value = Class * 1,000,000 + StartJD * 1,000 + EndJD
+  res <- data.frame(
+    class_value = as.integer(ft$value / 1000000),
+    start_jd    = as.integer((ft$value %% 1000000) / 1000),
+    end_jd      = as.integer(ft$value %% 1000),
+    pixel_count = as.integer(ft$count),
     stringsAsFactors = FALSE
   )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  # 5. Calculate total days and filter out invalid/negative seasons
+  res$total_days <- res$end_jd - res$start_jd + 1L
+  res <- res[!is.na(res$total_days) & res$total_days > 0, , drop = FALSE]
+
+  # 6. Sort for consistency (Class, then StartJD)
+  res[order(res$class_value, res$start_jd), , drop = FALSE]
 }
 
 #' Generate an R script for standalone analysis
