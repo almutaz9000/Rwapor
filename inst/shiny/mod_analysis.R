@@ -296,7 +296,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     # ── Analysis running flag ────────────────────────────────────────────────
     .an_running  <- shiny::reactiveVal(FALSE)
 
-    analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+    analysis_layer_multipliers <- Rwapor:::get_analysis_layer_multipliers
 
     # (Internal helpers moved to R/analysis_utils.R)
 
@@ -1911,7 +1911,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
           if (isTRUE(input$an_save_rasters) && nzchar(state$output_folder %||% "")) {
             season_label <- if (state$batch_mode) NULL else state$config$season_label
-            wapor_shiny_save_analysis_rasters(
+            Rwapor:::wapor_shiny_save_analysis_rasters(
               results,
               state$output_folder,
               season_label,

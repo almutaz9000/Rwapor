@@ -41,6 +41,12 @@ Before making changes:
 	- `agent-workflow/issues-log.md`
 	- `agent-workflow/change-log.md`
 
+## Bolt Performance Journal
+
+## 2024-05-14 - Vectorized Sum Optimization
+**Learning:** `terra::sum(x, na.rm=TRUE)` is significantly faster than `terra::app(x, fun='sum')` for multi-layer SpatRaster stacks because it leverages a direct C++ implementation for summation rather than the more generic (and higher-overhead) R-to-C++ `app` interface.
+**Action:** Always prefer direct `terra` aggregation functions (`sum`, `mean`, `min`, `max`, `range`, `sd`) over `terra::app` with string identifiers when performing global or pixel-wise aggregations across layers.
+
 ## Guardrails
 
 - Treat `agent-workflow/` as the only canonical source of truth.
