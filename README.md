@@ -309,7 +309,7 @@ For advanced features, see:
 
 ## Background
 
-[**WaPOR**](https://wapor.apps.fao.org/) (Water Productivity Open-access Portal) is FAO's satellite-based dataset for water productivity, evapotranspiration, and biomass production across Africa and the Near East. Data are available at multiple spatial resolutions (250 m, 100 m, 30 m) and temporal frequencies (dekadal, monthly, annual).
+[**WaPOR**](https://wapor.apps.fao.org/) (Water Productivity Open-access Portal) is FAO's satellite-based dataset for water productivity, evapotranspiration, and biomass production (global coverage at Level 1, Africa and Near East at Levels 2 and 3). Data are available at multiple spatial resolutions (300 m, 100 m, 30 m) and temporal frequencies (daily, dekadal, monthly, annual).
 
 **Key resources**:
 - [WaPOR Portal](https://wapor.apps.fao.org/)

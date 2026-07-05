@@ -21,7 +21,7 @@ This catalog provides a comprehensive overview of the geospatial datasets access
 WaPOR provides data at three levels of detail. Most variables follow a standard scaling of **0.1** to convert integer storage to physical units (e.g., mm).
 
 ### Level 1: Continental (300m / 5km)
-Global/Continental coverage for Africa and the Near East.
+Global coverage.
 
 | Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

@@ -24,6 +24,7 @@ test_that("wapor_generate_urls handles list of periods", {
 })
 
 test_that("wapor_map seasonal mode with multiple periods creates multiple files", {
+  skip_if_no_live_api()
   # Use a small bbox and short periods to save time/bandwidth
   reg <- c(35.0, 33.0, 35.1, 33.1)
   var <- "L1-AETI-D"

@@ -35,6 +35,8 @@ nul
 .claude/
 .agents/
 .agent/
+agent-workflow/
+.jules/
 CLAUDE.md
 memories/
 
