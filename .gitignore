@@ -39,6 +39,7 @@ agent-workflow/
 .jules/
 CLAUDE.md
 graphify-out/
+.vscode/
 memories/
 
 # Development artifacts
