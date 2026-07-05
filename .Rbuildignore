@@ -20,6 +20,7 @@
 ^tests/manual$
 ^dev-tools$
 ^dev-archive$
+^graphify-out$
 ^fao_crop_coefficients\.csv$
 ^fao_growth_stages\.csv$
 ^memories$
