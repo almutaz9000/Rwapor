@@ -38,6 +38,7 @@ nul
 agent-workflow/
 .jules/
 CLAUDE.md
+graphify-out/
 memories/
 
 # Development artifacts
