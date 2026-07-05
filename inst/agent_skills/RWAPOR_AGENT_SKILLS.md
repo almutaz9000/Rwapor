@@ -13,7 +13,7 @@
 
 ## 1. Package Purpose & Scope
 
-Rwapor downloads and analyzes FAO WaPOR satellite remote sensing data and AgERA5 climate reanalysis data for agricultural water productivity analysis. It operates over Africa and the Near East.
+Rwapor downloads and analyzes FAO WaPOR satellite remote sensing data and AgERA5 climate reanalysis data for agricultural water productivity analysis. It operates globally for Level 1 variables, and over Africa and the Near East for Level 2/3.
 
 **Methodology reference**: WaPOR AETI and component variables (T, E, I) are derived from the **ETLook** surface energy balance model. Agents designing workflows that involve ET disaggregation, interception modelling, or transpiration fractions should consult the ETLook wiki at https://github.com/un-fao/wapor-et-look/wiki for algorithm details and physical assumptions behind each variable.
 
@@ -24,7 +24,7 @@ Compute Indicators (ETc, Adequacy, CWP, Green/Blue Water) → Detect Anomalies �
 ```
 
 **What it cannot do** (do not attempt):
-- Download data outside Africa/Near East coverage (WaPOR L1/L2 limitation)
+- Download data outside Africa/Near East coverage for Level 2 and Level 3 variables
 - Produce crop yield maps without an NPP layer and crop parameters (HI, MC, fc, AOT)
 - Run seasonal analysis without a crop mask AND season start/end rasters
 - Access real-time or near-real-time data (WaPOR data lag is ~6–8 weeks)
@@ -74,8 +74,8 @@ User wants...
 
 | Level | Resolution | Coverage | Use Case |
 |-------|-----------|----------|----------|
-| L1 | **300 m** (ETLook variables); RET ~11 km; PCP ~5 km | All Africa + Near East | Continental / national analysis |
-| L2 | 100 m | FAO-defined regions | Sub-national / irrigation scheme |
+| L1 | **300 m** (ETLook variables); RET ~11 km; PCP ~5 km | Global | Global / continental / national analysis |
+| L2 | 100 m | FAO-defined regions (Africa + Near East) | Sub-national / irrigation scheme |
 | L3 | **20 m** | Named irrigation schemes only (see Section 3.3) | Field-level precision |
 
 > **Resolution note**: L1 ETLook-derived variables (AETI, T, E, I, NPP, RSM, GBWP, NBWP, TBP) are produced at 300 m. Reference Evapotranspiration (RET) is derived from AgERA5/ERA5 climate reanalysis at ~11 km (0.1°). Precipitation (PCP) is from CHIRPS at ~5 km. Both RET and PCP are only available at L1 — there are no L2 or L3 versions.
