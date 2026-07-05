@@ -464,7 +464,7 @@ wapor_analysis_pipeline <- function(config,
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
-  profile_table <- .build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
+  profile_table <- wapor_build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
   
   if (nrow(profile_table) == 0) {
     stop("No valid crop-season profiles found", call. = FALSE)
@@ -547,39 +547,6 @@ wapor_analysis_pipeline <- function(config,
   }
   
   list(kc_by_class = kc_by_class, etc_by_class = etc_by_class)
-}
-
-.build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
-  
-  valid <- !is.na(class_vals) & !is.na(start_vals) & !is.na(end_vals) &
-    class_vals %in% class_values
-  
-  if (!any(valid)) {
-    return(data.frame(
-      class_value = integer(0), start_jd = integer(0), 
-      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
-    ))
-  }
-  
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  
-  if (nrow(profile_df) == 0) return(profile_df)
-  
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df, FUN = sum
-  )
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {

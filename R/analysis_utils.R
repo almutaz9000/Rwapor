@@ -109,44 +109,55 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @param class_values Integer vector.
 #' @return data.frame of profiles.
 #' @keywords internal
+#' @importFrom terra freq round
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
-
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
-
-  if (!any(valid)) {
+  if (is.null(crop_mask) || is.null(start_raster) || is.null(end_raster)) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  # Optimization: ID encoding (Class * 1,000,000 + StartJD * 1,000 + EndJD)
+  # allows using terra::freq() which processes in chunks, avoiding OOM for large rasters.
+  # We round JD rasters to ensure they are treated as integers in the encoding.
+  id_rast <- (crop_mask * 1000000) + (terra::round(start_raster) * 1000) + terra::round(end_raster)
+
+  # Extract frequency of unique combinations
+  ft <- as.data.frame(terra::freq(id_rast))
+  ft <- ft[!is.na(ft$value), , drop = FALSE]
+
+  if (nrow(ft) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
   }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
+  # Decode encoded values back to components
+  # %/% (integer division) and %% (modulus) are vectorized
+  res <- data.frame(
+    class_value = as.integer(ft$value %/% 1000000),
+    pixel_count = as.integer(ft$count),
+    stringsAsFactors = FALSE
   )
+  remainder <- ft$value %% 1000000
+  res$start_jd <- as.integer(remainder %/% 1000)
+  res$end_jd   <- as.integer(remainder %% 1000)
+  res$total_days <- res$end_jd - res$start_jd + 1L
+
+  # Filter to requested classes and valid durations
+  res <- res[res$class_value %in% as.integer(class_values) & !is.na(res$total_days) & res$total_days > 0, , drop = FALSE]
+
+  if (nrow(res) == 0) {
+    return(data.frame(
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+    ))
+  }
+
+  # Ensure columns are in the expected order
+  res[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis

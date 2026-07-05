@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Memory-Efficient Seasonal Profile Extraction]
+**Learning:** Using `terra::values()` to extract pixel combinations from multiple rasters causes OOM crashes on large-scale datasets as it loads all data into R memory. Encoding combinations into a single ID raster (`Class * 10^6 + StartJD * 10^3 + EndJD`) and using `terra::freq()` allows for chunked, disk-backed processing that is both memory-safe and faster.
+**Action:** Use ID encoding and `terra::freq()` instead of `terra::values()` for spatial combination counts and profile extractions.
