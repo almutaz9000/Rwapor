@@ -29,11 +29,13 @@ _Last updated: 2026-05-13_
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
 ## Completed Recently
+
+- [x] Relaxed `.gitignore` to allow tracking of shared AI agent configuration files (2026-05-15).
+- [x] Updated user-facing documentation in `README.md` and Vignettes for automatic temperature conversion and dekadal defaults (2026-05-15).
+- [x] Fixed internal namespace resolution (ISS-20260512-010) by replacing `getFromNamespace` with direct/namespaced calls (2026-05-15).
 
 - [x] Approved the shared agent workflow design.
 - [x] Wrote the design spec at `docs/superpowers/specs/2026-05-11-agent-workflow-design.md`.

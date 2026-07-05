@@ -4,6 +4,9 @@ _Last updated: 2026-05-13_
 
 ## Active Focus
 
+- Fixed internal namespace resolution (ISS-20260512-010) by replacing `getFromNamespace` with direct or namespaced calls in `R/analysis_pipeline.R`, `inst/shiny/mod_analysis.R`, and `inst/shiny/utils_shiny.R`.
+- Updated `README.md`, `vignettes/getting-started.Rmd`, and `vignettes/data-catalog.Rmd` to document automatic AgERA5 temperature conversion and WaPOR dekadal defaults.
+- Relaxed `.gitignore` to allow tracking of shared agent configuration files (`CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/`).
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
@@ -31,6 +34,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: fixed internal namespace resolution in Shiny modules and core pipeline.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.

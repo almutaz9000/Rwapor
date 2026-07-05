@@ -30,6 +30,13 @@
 ✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
+### 💡 Smart Data Transformations
+
+Rwapor handles common data normalization tasks automatically so you can focus on analysis:
+*   🌡️ **Temperature**: AgERA5 `TMIN` and `TMAX` are automatically converted from Kelvin to Celsius (°C).
+*   💧 **Water Totals**: WaPOR dekadal variables (e.g. `AETI-D`, `PCP-D`) are automatically converted from daily rates (`mm/day`) to dekadal totals (`mm/dekad`).
+*   📏 **Scale Factors**: All WaPOR scale and offset factors are applied automatically during download.
+
 ## 🚀 Recent Highlights: High-Precision Batch Analysis
 
 The latest version introduces powerful tools for large-scale agricultural research:

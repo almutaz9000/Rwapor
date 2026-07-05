@@ -63,6 +63,8 @@ High-resolution data for specific irrigation schemes and river basins.
 
 AgERA5 provides daily agro-meteorological indicators. Data is available globally from **1979** to near real-time (~8 day lag).
 
+> **Note on Temperature**: AgERA5 `TMIN` and `TMAX` are stored in Kelvin (K). Rwapor **automatically converts** these to Celsius (°C) during download.
+
 | Category | Variable Name | ID | Resolutions | Units | Scale | Period | Documentation |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Water** | Reference ET | `AGERA5-ET0` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |

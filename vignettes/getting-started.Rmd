@@ -54,6 +54,19 @@ library(Rwapor)
 # This calls wapor_fix_proj() automatically
 ```
 
+### Automatic Unit Conversions
+
+Rwapor simplifies data handling by applying common conversions automatically:
+
+1.  **AgERA5 Temperature**: `TMIN` and `TMAX` are converted from Kelvin to
+    Celsius (°C) during download.
+2.  **WaPOR Dekadal Totals**: Variables stored as daily rates (`mm/day`) are
+    automatically multiplied by the number of days in each dekad to provide
+    dekadal totals (`mm/dekad`) by default.
+3.  **Scale Factors**: Embedded metadata scale and offset factors are applied
+    by the `terra` engine; Rwapor ensures these are handled correctly without
+    double-scaling.
+
 ### Optional Batching & Parallel Processing
 
 For long time series (e.g., 5+ years of dekadal data), loading all rasters at 
