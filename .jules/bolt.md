@@ -17,3 +17,11 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2024-05-18 - [Batched L3 Extent Cache I/O]
+**Learning:**  was triggering $ disk reads and $ disk writes (where $ is the number of intersecting L3 candidate regions) because  re-loaded and saved the entire  cache for every single URL. Refactoring to load the cache once, process the batch in memory, and save once at the end reduces disk I/O from (N)$ to (1)$.
+**Action:** Avoid repeated disk I/O in loops by passing a state/cache object to internal helpers and performing batch persistence at the caller level.
+
+## 2024-05-18 - [Batched L3 Extent Cache I/O]
+**Learning:** `wapor_guess_region` was triggering $N$ disk reads and $N$ disk writes (where $N$ is the number of intersecting L3 candidate regions) because `wapor_l3_extent` re-loaded and saved the entire `.rds` cache for every single URL. Refactoring to load the cache once, process the batch in memory, and save once at the end reduces disk I/O from $O(N)$ to $O(1)$.
+**Action:** Avoid repeated disk I/O in loops by passing a state/cache object to internal helpers and performing batch persistence at the caller level.
