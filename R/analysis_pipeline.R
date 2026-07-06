@@ -360,10 +360,8 @@ wapor_analysis_pipeline <- function(config,
                                            aeti_var, ret_var, precip_var, npp_var) {
   results <- list()
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  
   if (!is.null(stacks$aeti_stack)) {
-    lm <- analysis_layer_multipliers(aeti_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(aeti_var, dekad_table)
     results$seasonal_aeti <- wapor_calc_seasonal_aeti(
       stacks$aeti_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
@@ -371,7 +369,7 @@ wapor_analysis_pipeline <- function(config,
   }
   
   if (!is.null(stacks$ret_stack)) {
-    lm <- analysis_layer_multipliers(ret_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(ret_var, dekad_table)
     results$seasonal_ret <- wapor_calc_seasonal_ret(
       stacks$ret_stack, season_weights, h_mask,
       layer_multipliers = lm, incremental = incremental
@@ -379,7 +377,7 @@ wapor_analysis_pipeline <- function(config,
   }
   
   if ("agg_pcp" %in% indicators && !is.null(stacks$precip_stack)) {
-    lm <- analysis_layer_multipliers(precip_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(precip_var, dekad_table)
     results$seasonal_pcp <- wapor_masked_sum(
       stacks$precip_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
@@ -388,7 +386,7 @@ wapor_analysis_pipeline <- function(config,
   
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% indicators) && 
       !is.null(stacks$npp_stack)) {
-    lm <- analysis_layer_multipliers(npp_var, dekad_table)
+    lm <- get_analysis_layer_multipliers(npp_var, dekad_table)
     results$seasonal_biomass_kg <- wapor_masked_sum(
       stacks$npp_stack, season_weights,
       layer_multipliers = lm, incremental = incremental
@@ -468,8 +466,7 @@ wapor_analysis_pipeline <- function(config,
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
                                   crop_params, ref_year, dekad_table, ret_var) {
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
+  ret_layer_multipliers <- get_analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
   profile_table <- .build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)

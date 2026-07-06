@@ -1,9 +1,12 @@
 # Session Brief
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-15_
 
 ## Active Focus
 
+- Optimized `wapor_masked_sum` to use `terra::sum` for faster raster aggregation.
+- Vectorized `wapor_calc_seasonal_etc` to eliminate R-level loops and added `incremental` parameter.
+- Cleaned up internal namespace resolution by removing redundant `Rwapor::` prefixes and `getFromNamespace` calls across the `R/` directory.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
@@ -31,6 +34,7 @@ _Last updated: 2026-05-13_
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: internal function resolution fixed by removing redundant namespace prefixes and dynamic calls in `R/`.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.

@@ -43,7 +43,7 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
   if (!all(layer_multipliers == 1)) {
     weighted <- weighted * layer_multipliers
   }
-  terra::app(weighted, fun = "sum", na.rm = TRUE)
+  terra::sum(weighted, na.rm = TRUE)
 }
 
 #' Compute Seasonal AETI with Season Mask
@@ -216,40 +216,29 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
                  length(kc_dekad), n_layers), call. = FALSE)
   }
-  if (terra::nlyr(season_weights) != n_layers) {
-    stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
-                 terra::nlyr(season_weights), n_layers), call. = FALSE)
-  }
+
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, n_layers)
   }
-  if (length(layer_multipliers) != n_layers) {
-    stop(sprintf("layer_multipliers length (%d) must match ret_dekad layers (%d)",
-                 length(layer_multipliers), n_layers), call. = FALSE)
-  }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Vectorized aggregation using wapor_masked_sum
+  wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = kc_dekad * layer_multipliers,
+    incremental = incremental
+  )
 }
 
 
