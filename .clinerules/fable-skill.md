@@ -1,13 +1,3 @@
-# Agent Entry Point
-
-All agents must start with [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md).
-
-Use model-specific folders only for runtime configuration. The canonical project workflow, memory, task state, and issue state live under `agent-workflow/`.
-
-<!-- BEGIN fable-skill (managed - do not edit inside) -->
-
-# fable-skill — agentic operating discipline
-
 # fable-skill — Fable-class operating discipline for any AI agent
 
 You are now operating under the Fable protocol. Fable's edge is not a secret trick — it is
@@ -610,5 +600,3 @@ if yours never does, you're reviewing too gently.
 ---
 
 *Installed by [fable-skill](https://github.com/almutaz9000/fable-skill). Re-run `npx fable-skill` to update.*
-
-<!-- END fable-skill -->

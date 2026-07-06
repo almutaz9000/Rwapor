@@ -34,7 +34,7 @@ wapor_diagnose_agent_setup <- function() {
 
   # sf status
   if (requireNamespace("sf", quietly = TRUE)) {
-    sf_version <- as.character(packageVersion("sf"))
+    sf_version <- as.character(utils::packageVersion("sf"))
     deps <- sf::sf_extSoftVersion()
     report <- c(report, sprintf("- **`sf` Package:** Version %s", sf_version))
     report <- c(report, sprintf("  - GDAL: %s", deps["GDAL"]))
@@ -46,7 +46,7 @@ wapor_diagnose_agent_setup <- function() {
   
   # terra status
   if (requireNamespace("terra", quietly = TRUE)) {
-    terra_version <- as.character(packageVersion("terra"))
+    terra_version <- as.character(utils::packageVersion("terra"))
     gdal_info <- terra::gdal(lib="all")
     report <- c(report, sprintf("- **`terra` Package:** Version %s", terra_version))
     report <- c(report, sprintf("  - GDAL: %s", gdal_info["gdal"]))
@@ -57,7 +57,7 @@ wapor_diagnose_agent_setup <- function() {
   
   # check exactextractr
   if (requireNamespace("exactextractr", quietly = TRUE)) {
-    report <- c(report, sprintf("- **`exactextractr` Package:** Version %s", packageVersion("exactextractr")))
+    report <- c(report, sprintf("- **`exactextractr` Package:** Version %s", utils::packageVersion("exactextractr")))
   } else {
     report <- c(report, "- **`exactextractr` Package:** NOT INSTALLED")
   }
@@ -66,7 +66,7 @@ wapor_diagnose_agent_setup <- function() {
   deps <- c("shiny", "bslib", "shinyFiles", "shinyvalidate", "future.apply", "httr2", "duckdb", "DBI")
   for (dep in deps) {
     if (requireNamespace(dep, quietly = TRUE)) {
-      report <- c(report, sprintf("- **`%s`:** Version %s", dep, packageVersion(dep)))
+      report <- c(report, sprintf("- **`%s`:** Version %s", dep, utils::packageVersion(dep)))
     } else {
       report <- c(report, sprintf("- **`%s`:** NOT INSTALLED", dep))
     }

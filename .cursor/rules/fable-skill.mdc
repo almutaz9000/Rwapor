@@ -1,12 +1,7 @@
-# Agent Entry Point
-
-All agents must start with [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md).
-
-Use model-specific folders only for runtime configuration. The canonical project workflow, memory, task state, and issue state live under `agent-workflow/`.
-
-<!-- BEGIN fable-skill (managed - do not edit inside) -->
-
-# fable-skill — agentic operating discipline
+---
+description: Fable-class agentic operating discipline (plan, verify, iterate)
+alwaysApply: true
+---
 
 # fable-skill — Fable-class operating discipline for any AI agent
 
@@ -610,5 +605,3 @@ if yours never does, you're reviewing too gently.
 ---
 
 *Installed by [fable-skill](https://github.com/almutaz9000/fable-skill). Re-run `npx fable-skill` to update.*
-
-<!-- END fable-skill -->
