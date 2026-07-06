@@ -293,15 +293,15 @@ wapor_trend_analysis <- function(season_results, indicator = "AETI", by = "overa
   x <- seq_along(values)
   
   # Linear model
-  fit <- lm(values ~ x)
+  fit <- stats::lm(values ~ x)
   
   list(
     indicator = indicator,
     seasons = comparison$Season,
     values = values,
     trend = "overall",
-    slope = coef(fit)[2],
-    intercept = coef(fit)[1],
+    slope = stats::coef(fit)[2],
+    intercept = stats::coef(fit)[1],
     r_squared = summary(fit)$r.squared,
     p_value = summary(fit)$coefficients[2, 4],
     model = fit
@@ -333,15 +333,15 @@ wapor_trend_analysis <- function(season_results, indicator = "AETI", by = "overa
     
     if (length(values) < 3) next
     
-    fit <- lm(values ~ x)
+    fit <- stats::lm(values ~ x)
     
     trends[[as.character(cls)]] <- list(
       class = cls,
       crop = class_data$Crop[1],
       seasons = class_data$Season,
       values = values,
-      slope = coef(fit)[2],
-      intercept = coef(fit)[1],
+      slope = stats::coef(fit)[2],
+      intercept = stats::coef(fit)[1],
       r_squared = summary(fit)$r.squared,
       p_value = summary(fit)$coefficients[2, 4]
     )

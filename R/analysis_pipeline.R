@@ -735,7 +735,7 @@ wapor_analysis_pipeline <- function(config,
       sprintf("  Indicators: %s", paste(config$indicators, collapse = ", ")),
       "",
       "Traceback:",
-      capture.output(traceback()),
+      utils::capture.output(traceback()),
       ""
     ), log_file, sep = "\n")
   }, error = function(log_err) {
