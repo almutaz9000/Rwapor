@@ -28,6 +28,7 @@
 ✅ **Extract time-series** for crop fields and administrative boundaries  
 ✅ **Run seasonal crop analysis** with crop masks and growing season dates  
 ✅ **Calculate water productivity indicators** (CWP, NBWP, ETc, Adequacy, Transpiration)  
+✅ **Automatic data handling**: AgERA5 Kelvin-to-Celsius and WaPOR Daily-to-Dekadal totals
 ✅ **Use the interactive Shiny dashboard** for point-and-click workflows
 
 ## 🚀 Recent Highlights: High-Precision Batch Analysis
@@ -296,6 +297,10 @@ For complex analysis, multi-year monitoring, and seasonal productivity modeling,
 ---
 
 ## 📚 Learn More
+
+### AI Agent Workflow
+
+If you are using an AI coding assistant (Claude, Codex, Gemini, Copilot), this repository includes a structured agent workflow to ensure consistency across sessions. Please refer to [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md) for coordination.
 
 ### Available Data
 

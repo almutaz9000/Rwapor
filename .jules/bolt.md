@@ -29,6 +29,10 @@ Before making changes:
 - Update `agent-workflow/change-log.md` when repo-visible workflow or behavior changes are confirmed.
 - Put durable lessons in `agent-workflow/project-memory.md`, not here.
 
+## 2026-07-07 - Vectorized wide-to-long transformation in `wapor_ts`
+**Learning:** Iteratively building data frames using `rbind()` inside a loop (like `lapply`) for reshaping zonal statistics is an O(N_layers * N_polygons) operation that causes significant memory overhead and slowdown due to repeated reallocations. Vectorizing the transformation using `as.vector(as.matrix())` for data and `rep(..., each=...)` for metadata is significantly more efficient.
+**Action:** Always prefer matrix-to-vector flattening for reshaping wide data frames to long format in R, especially when dealing with large raster stacks and polygon sets.
+
 ## Validation And Commits
 
 - Validate the touched area before committing.

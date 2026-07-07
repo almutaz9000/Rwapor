@@ -434,50 +434,51 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
       ex$ID <- seq_len(nrow(ex))
 
-      # Reshape extracted stats into long format
-      # If processing batches in parallel, we don't further parallelize within a batch
-      # to avoid nested parallelism overhead.
-      inner_apply_fn <- if (parallel) lapply else (if (isTRUE(getOption("wapor.parallel_inner", FALSE))) future.apply::future_lapply else lapply)
+      # Reshape extracted stats into long format using vectorized matrix operations.
+      # This replaces the O(N_layers * N_polygons) R-level loop with a faster
+      # matrix-to-vector flatten and index replication.
+      lyr_names <- paste0("L", seq_len(n_lyr))
       
-      out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
-        lyr_name <- paste0("L", i)
-
-        col_mean <- paste0("mean.", lyr_name)
-        col_min <- paste0("min.", lyr_name)
-        col_max <- paste0("max.", lyr_name)
-
-        if (!col_mean %in% names(ex)) {
-          if (paste0(lyr_name, ".mean") %in% names(ex)) {
-            col_mean <- paste0(lyr_name, ".mean")
-            col_min <- paste0(lyr_name, ".min")
-            col_max <- paste0(lyr_name, ".max")
-          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
-            col_mean <- "mean"
-            col_min <- "min"
-            col_max <- "max"
-          } else {
-            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
-                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
-          }
+      # Determine column naming pattern (exactextractr version/layer count sensitive)
+      test_col <- paste0("mean.", lyr_names[1])
+      if (!test_col %in% names(ex)) {
+        if (paste0(lyr_names[1], ".mean") %in% names(ex)) {
+          cols_mean <- paste0(lyr_names, ".mean")
+          cols_min  <- paste0(lyr_names, ".min")
+          cols_max  <- paste0(lyr_names, ".max")
+        } else if (n_lyr == 1 && "mean" %in% names(ex)) {
+          cols_mean <- "mean"
+          cols_min  <- "min"
+          cols_max  <- "max"
+        } else {
+          stop("Could not find expected columns in extracted stats.", call. = FALSE)
         }
+      } else {
+        cols_mean <- paste0("mean.", lyr_names)
+        cols_min  <- paste0("min.", lyr_names)
+        cols_max  <- paste0("max.", lyr_names)
+      }
 
-        cols <- c(col_mean, col_min, col_max)
-        sub_df <- ex[, cols, drop = FALSE]
-        colnames(sub_df) <- c("mean", "min", "max")
+      n_zones <- nrow(ex)
 
-        sub_df$ID <- ids[ex$ID]
-        
-        # Add custom identifier column if specified
-        if (!is.null(identifier) && identifier %in% names(vect)) {
-          sub_df[[identifier]] <- ids[ex$ID]
-        }
+      # Vectorized wide-to-long transformation
+      res_long <- data.frame(
+        mean = as.vector(as.matrix(ex[, cols_mean])),
+        min  = as.vector(as.matrix(ex[, cols_min])),
+        max  = as.vector(as.matrix(ex[, cols_max])),
+        ID   = rep(ids[ex$ID], n_lyr),
+        stringsAsFactors = FALSE
+      )
 
-        m <- chunk_meta[i, ]
-        m_rep <- m[rep(1, nrow(sub_df)), ]
-        cbind(sub_df, m_rep)
-      })
+      # Add custom identifier column if specified
+      if (!is.null(identifier) && identifier %in% names(vect)) {
+        res_long[[identifier]] <- res_long$ID
+      }
 
-      return(do.call(rbind, out_list))
+      # Replicate metadata rows: each layer's metadata is repeated for all zones
+      res_meta <- chunk_meta[rep(seq_len(n_lyr), each = n_zones), , drop = FALSE]
+
+      return(cbind(res_long, res_meta))
     } else {
       # Global statistics for bbox or L3 code regions
       ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
