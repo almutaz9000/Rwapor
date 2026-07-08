@@ -110,43 +110,52 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @return data.frame of profiles.
 #' @keywords internal
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+  .wapor_build_season_profile_table_internal(crop_mask, start_raster, end_raster, class_values)
+}
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+#' Internal helper for building season profile tables
+#' @noRd
+#' @keywords internal
+.wapor_build_season_profile_table_internal <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Optimization: Instead of terra::values() which loads millions of pixels into R memory (OOM risk),
+  # we encode the combination into a single integer and use terra::freq() to count in C++.
+  # ID = Class * 1,000,000 + StartJD * 1,000 + EndJD
 
-  if (!any(valid)) {
+  # Filter to requested classes first to reduce processing
+  mask_filtered <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
+
+  # Build encoded raster
+  encoded <- mask_filtered * 1000000 +
+             terra::round(start_raster) * 1000 +
+             terra::round(end_raster)
+
+  # Count unique combinations in C++
+  freq_tbl <- terra::freq(encoded)
+  if (nrow(freq_tbl) == 0) {
     return(data.frame(
-      class_value = integer(0),
-      start_jd = integer(0),
-      end_jd = integer(0),
-      total_days = integer(0),
-      pixel_count = integer(0)
+      class_value = integer(0), start_jd = integer(0),
+      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
+  # Decode back to components
+  ids <- as.numeric(freq_tbl$value)
+  counts <- as.integer(freq_tbl$count)
+
+  res <- data.frame(
+    class_value = as.integer(ids %/% 1000000),
+    start_jd    = as.integer((ids %% 1000000) %/% 1000),
+    end_jd      = as.integer(ids %% 1000),
+    pixel_count = counts,
     stringsAsFactors = FALSE
   )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
-  }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  # Calculate duration and filter invalid seasons
+  res$total_days <- res$end_jd - res$start_jd + 1L
+  res <- res[res$total_days > 0L & !is.na(res$class_value), , drop = FALSE]
+
+  # Ensure result matches expected column order
+  res[, c("class_value", "start_jd", "end_jd", "total_days", "pixel_count")]
 }
 
 #' Generate an R script for standalone analysis
@@ -288,7 +297,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
         "l_dev <- as.integer(mean_days - (crop_params$l_ini_days + crop_params$l_mid_days + crop_params$l_late_days))",
         "kc_daily <- wapor_build_kc(crop_params$kc_ini, crop_params$kc_mid, crop_params$kc_end, crop_params$l_ini_days, l_dev, crop_params$l_mid_days, crop_params$l_late_days)",
         "kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, period[1])",
-        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad)")
+        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad, incremental = FALSE)")
     } else NULL,
     "",
     "# [8] Save Results",
