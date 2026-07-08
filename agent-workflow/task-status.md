@@ -10,6 +10,8 @@ _Last updated: 2026-05-13_
 
 ## Recently Completed
 
+- [x] Updated AgERA5 temperature metadata and Data Catalog vignette to reflect Celsius units (2026-05-14).
+- [x] Documented the AI Agent Workflow in README.md and relaxed .gitignore for shared configuration (2026-05-14).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).
@@ -28,10 +30,10 @@ _Last updated: 2026-05-13_
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
-- [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
+- [x] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
+- [x] Decide whether to relax `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/*`, `.github/agents/*`) if you want those pointers shared through Git instead of local-only.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
+- [ ] Update user-facing docs for dekadal defaults in a future documentation pass.
 
 ## Completed Recently
 

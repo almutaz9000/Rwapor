@@ -149,6 +149,16 @@ run_wapor()
 run_wapor(data_folder = "C:/WaPOR_Data")
 ```
 
+---
+
+## 🤖 AI Agent Workflow
+
+If you are an AI assistant (Claude, Codex, Gemini, Copilot) working in this repository:
+
+1.  **Entry Point**: You must start by reading **[`agent-workflow/START-HERE.md`](agent-workflow/START-HERE.md)**.
+2.  **Coordination**: All task state, issue logs, and project memory are centralized in the `agent-workflow/` directory.
+3.  **State Management**: Follow the 6-line digest protocol at the start of every session to ensure consistency across different models and sessions.
+
 ### What You Can Do in the Dashboard
 
 **📍 Download Tab**:
