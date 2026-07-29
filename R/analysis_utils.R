@@ -109,17 +109,23 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @param class_values Integer vector.
 #' @return data.frame of profiles.
 #' @keywords internal
-wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  class_vals <- terra::values(crop_mask, mat = FALSE)
-  start_vals <- terra::values(start_raster, mat = FALSE)
-  end_vals <- terra::values(end_raster, mat = FALSE)
+.wapor_build_season_profile_table_internal <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Mask crop_mask to the requested class_values using high-performance C++ masking
+  crop_masked <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
 
-  valid <- !is.na(class_vals) &
-    !is.na(start_vals) &
-    !is.na(end_vals) &
-    class_vals %in% class_values
+  # Round the start and end rasters
+  start_round <- terra::round(start_raster)
+  end_round <- terra::round(end_raster)
 
-  if (!any(valid)) {
+  # Encode combinations into a single SpatRaster:
+  # Value = Class * 1,000,000 + StartJD * 1,000 + EndJD
+  # This uses direct SpatRaster algebra computed inside the C++ backend.
+  encoded <- crop_masked * 1000000 + start_round * 1000 + end_round
+
+  # Count combination frequencies using terra's high-performance C++ freq()
+  freq_df <- terra::freq(encoded)
+
+  if (is.null(freq_df) || nrow(freq_df) == 0) {
     return(data.frame(
       class_value = integer(0),
       start_jd = integer(0),
@@ -129,24 +135,60 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
     ))
   }
 
-  profile_df <- data.frame(
-    class_value = as.integer(class_vals[valid]),
-    start_jd = as.integer(round(start_vals[valid])),
-    end_jd = as.integer(round(end_vals[valid])),
-    pixel_count = 1L,
-    stringsAsFactors = FALSE
-  )
-  profile_df$total_days <- profile_df$end_jd - profile_df$start_jd + 1L
-  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
-  if (nrow(profile_df) == 0) {
-    return(profile_df)
+  freq_df <- freq_df[!is.na(freq_df$value), , drop = FALSE]
+
+  if (nrow(freq_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
   }
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
+  # Decode encoded values back into individual components
+  val <- freq_df$value
+  class_value <- as.integer(val %/% 1000000)
+  rem <- val %% 1000000
+  start_jd <- as.integer(rem %/% 1000)
+  end_jd <- as.integer(rem %% 1000)
+  pixel_count <- as.integer(freq_df$count)
+
+  total_days <- end_jd - start_jd + 1L
+
+  profile_df <- data.frame(
+    class_value = class_value,
+    start_jd = start_jd,
+    end_jd = end_jd,
+    total_days = total_days,
+    pixel_count = pixel_count,
+    stringsAsFactors = FALSE
   )
+
+  # Keep only profiles with valid total_days > 0
+  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
+  }
+
+  # Order the output for consistency
+  profile_df <- profile_df[order(profile_df$class_value, profile_df$start_jd, profile_df$end_jd, profile_df$total_days), , drop = FALSE]
+  rownames(profile_df) <- NULL
+
+  profile_df
+}
+
+wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Delegate to optimized internal helper
+  .wapor_build_season_profile_table_internal(crop_mask, start_raster, end_raster, class_values)
 }
 
 #' Generate an R script for standalone analysis
