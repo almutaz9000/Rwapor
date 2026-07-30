@@ -459,3 +459,44 @@ test_that("wapor_map handles multiple variables in seasonal mode", {
   
   unlink(tmp_dir, recursive = TRUE)
 })
+
+# =============================================================================
+# Tests for wapor_convert_temperature()
+# =============================================================================
+
+test_that("wapor_convert_temperature validates input raster", {
+  expect_error(
+    wapor_convert_temperature("not_a_raster", "AGERA5-TMIN-E"),
+    "'r' must be a SpatRaster object"
+  )
+})
+
+test_that("wapor_convert_temperature returns unchanged for non-temperature variable", {
+  skip_if_not_installed("terra")
+
+  # Create a small dummy raster
+  r <- terra::rast(nrows = 5, ncols = 5, vals = 300)
+
+  # Run for non-temperature variable
+  res <- wapor_convert_temperature(r, "L1-AETI-D")
+
+  expect_s4_class(res, "SpatRaster")
+  expect_equal(terra::values(res)[1, 1], 300)
+})
+
+test_that("wapor_convert_temperature converts Kelvin to Celsius for TMIN/TMAX", {
+  skip_if_not_installed("terra")
+
+  # Create a small dummy raster with K values
+  r <- terra::rast(nrows = 5, ncols = 5, vals = 273.15)
+
+  # Run for TMIN
+  res_tmin <- wapor_convert_temperature(r, "AGERA5-TMIN-E")
+  expect_s4_class(res_tmin, "SpatRaster")
+  expect_equal(terra::values(res_tmin)[1, 1], 0)
+
+  # Run for TMAX
+  res_tmax <- wapor_convert_temperature(r, "AGERA5-TMAX-E")
+  expect_s4_class(res_tmax, "SpatRaster")
+  expect_equal(terra::values(res_tmax)[1, 1], 0)
+})
