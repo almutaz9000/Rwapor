@@ -319,3 +319,22 @@ test_that("Yield calculation from NPP works", {
   yield <- wapor_calc_yield_npp(npp, MC, fc, AOT, HI)
   expect_equal(yield, expected_yield)
 })
+
+test_that("vectorized continuous Julian date logic matches scalar logic", {
+  dates <- c("2023-01-01", "2023-12-31", "2024-01-15")
+  res <- wapor_continuous_julian(dates, 2023)
+  expect_equal(res, c(1L, 365L, 380L))
+})
+
+test_that("vectorized wapor_aggregate_kc matches original behavior", {
+  kc_daily <- c(rep(0.5, 30), rep(1.0, 30))
+  dekad_table <- data.frame(
+    dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21")),
+    dekad_end   = as.Date(c("2023-01-10", "2023-01-20", "2023-01-31")),
+    n_days      = c(10L, 10L, 11L),
+    stringsAsFactors = FALSE
+  )
+
+  res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start = "2023-01-01")
+  expect_equal(res, c(0.5, 0.5, 0.5))
+})
