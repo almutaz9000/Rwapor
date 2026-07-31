@@ -1119,8 +1119,8 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
   d[[start_col]] <- parse_robust_date(d[[start_col]])
   d[[end_col]]   <- parse_robust_date(d[[end_col]])
   
-  d$start_jd <- Rwapor::wapor_continuous_julian(d[[start_col]], ref_year)
-  d$end_jd   <- Rwapor::wapor_continuous_julian(d[[end_col]], ref_year)
+  d$start_jd <- wapor_continuous_julian(d[[start_col]], ref_year)
+  d$end_jd   <- wapor_continuous_julian(d[[end_col]], ref_year)
   
   # Join to vector
   v_merged <- terra::merge(v, d, by.x = vector_id_col, by.y = csv_id_col)
