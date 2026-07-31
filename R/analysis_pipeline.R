@@ -504,7 +504,8 @@ wapor_analysis_pipeline <- function(config,
   for (key in names(kc_profiles)) {
     unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
       ret_stack, season_weights, kc_profiles[[key]],
-      layer_multipliers = ret_layer_multipliers
+      layer_multipliers = ret_layer_multipliers,
+      incremental = incremental
     )
   }
   
