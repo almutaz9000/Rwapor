@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Reducing Persistent Cache Disk I/O and Vectorizing Date Offsets]
+**Learning:** Calling `load_l3_extent_cache()` and `save_l3_extent_cache()` inside a loop of URLs / regions triggers redundant slow RDS read/write disk I/O. Passing an in-memory `cache` list to an internal helper and saving it exactly once at the end of the loop reduces disk operations to O(1). Additionally, R-level date arithmetic inside a loop can be fully vectorized upfront using vectorized subtraction and `pmax`/`pmin`.
+**Action:** Use memory-resident lists to batch operations across iterative loops before writing changes to disk, and pre-compute date offsets/clamping as vectorized operations prior to loops.
