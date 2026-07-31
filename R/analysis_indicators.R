@@ -133,20 +133,22 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
   ret_dekad * kc_dekad
 }
 
-#' Compute Seasonal ETc Incrementally
+#' Compute Seasonal ETc
 #'
-#' Avoids building a full multi-layer ETc stack by accumulating
-#' RET * season_weight * kc layer-by-layer. This is significantly more
-#' memory-efficient for long seasons.
+#' Calculates seasonal ETc by accumulating RET * season_weight * kc.
+#' Supports highly optimized vectorized summation or incremental layer-by-layer
+#' accumulation to save memory for long seasons.
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
+#' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
-                                                 layer_multipliers = NULL) {
+                                                 layer_multipliers = NULL,
+                                                 incremental = FALSE) {
   n_layers <- terra::nlyr(ret_dekad)
   if (length(kc_dekad) != n_layers) {
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
@@ -164,19 +166,16 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  total <- NULL
-  for (i in seq_len(n_layers)) {
-    # Accumulate: term = RET_i * (weight_i * Kc_i)
-    # The parentheses ensure we scale the weight (scalar) before multiplying rasters
-    term <- ret_dekad[[i]] * (season_weights[[i]] * kc_dekad[i] * layer_multipliers[i])
-    
-    if (is.null(total)) {
-      total <- term
-    } else {
-      total <- total + term
-    }
-  }
-  total
+  # Combined multipliers per layer: Kc * layer multipliers
+  combined_multipliers <- kc_dekad * layer_multipliers
+
+  # Leverage optimized wapor_masked_sum which provides vectorized C++ accumulation
+  wapor_masked_sum(
+    ret_dekad,
+    season_weights,
+    layer_multipliers = combined_multipliers,
+    incremental = incremental
+  )
 }
 
 
@@ -332,16 +331,15 @@ wapor_calc_peff <- function(peff_monthly, start_date = NULL,
     month_start_s <- lubridate::floor_date(s_date, "month")
     month_start_e <- lubridate::floor_date(e_date, "month")
     
-    peff_monthly$overlap_days <- vapply(seq_len(nrow(peff_monthly)), function(i) {
-      m_start <- peff_monthly$date[i]
-      m_end <- m_start + (peff_monthly$days_in_month[i] - 1)
-      
-      overlap_start <- max(m_start, s_date)
-      overlap_end   <- min(m_end, e_date)
-      
-      diff <- as.integer(overlap_end - overlap_start) + 1L
-      max(0L, diff)
-    }, integer(1))
+    # OPTIMIZATION: Vectorized pmax/pmin of Date vectors avoids R-level loop (vapply)
+    # and processes the date overlap calculations entirely in optimized native C++.
+    m_starts <- peff_monthly$date
+    m_ends   <- m_starts + (peff_monthly$days_in_month - 1)
+
+    overlap_starts <- pmax(m_starts, s_date)
+    overlap_ends   <- pmin(m_ends, e_date)
+
+    peff_monthly$overlap_days <- pmax(0L, as.integer(overlap_ends - overlap_starts) + 1L)
     
     # Pro-rate: seasonal_peff = sum(peff_monthly * (overlap_days / days_in_month))
     subset_df <- peff_monthly[peff_monthly$overlap_days > 0, ]

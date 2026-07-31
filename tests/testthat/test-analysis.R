@@ -338,3 +338,68 @@ test_that("vectorized wapor_aggregate_kc matches original behavior", {
   res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start = "2023-01-01")
   expect_equal(res, c(0.5, 0.5, 0.5))
 })
+
+test_that("vectorized wapor_calc_peff calculates correct effective precipitation", {
+  peff_monthly <- data.frame(
+    year = c(2023, 2023, 2023),
+    month = c(4, 5, 6),
+    peff_mm = c(100, 150, 200),
+    stringsAsFactors = FALSE
+  )
+  # Test with date range overlap
+  # April 15 to May 15
+  # April has 30 days, May 31.
+  # April overlap: April 15 to April 30 = 16 days. Prorated: 100 * 16 / 30 = 53.333
+  # May overlap: May 1 to May 15 = 15 days. Prorated: 150 * 15 / 31 = 72.581
+  # Expected total: 53.333 + 72.581 = 125.914
+  res <- wapor_calc_peff(
+    peff_monthly,
+    start_date = "2023-04-15",
+    end_date = "2023-05-15"
+  )
+  expected <- (100 * 16 / 30) + (150 * 15 / 31)
+  expect_equal(res, expected, tolerance = 1e-4)
+
+  # Test with no overlap (should return 0)
+  res_no_overlap <- wapor_calc_peff(
+    peff_monthly,
+    start_date = "2023-07-01",
+    end_date = "2023-07-31"
+  )
+  expect_equal(res_no_overlap, 0)
+})
+
+test_that("wapor_calc_seasonal_etc supports both incremental and non-incremental paths", {
+  skip_if_not_installed("terra")
+  ret <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 2.0)
+  w <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 0.5)
+  kc <- c(1.1, 1.2, 1.3)
+  mults <- c(1, 1.5, 2)
+
+  # Non-incremental path
+  res_vectorized <- wapor_calc_seasonal_etc(
+    ret,
+    w,
+    kc_dekad = kc,
+    layer_multipliers = mults,
+    incremental = FALSE
+  )
+
+  # Incremental path
+  res_incremental <- wapor_calc_seasonal_etc(
+    ret,
+    w,
+    kc_dekad = kc,
+    layer_multipliers = mults,
+    incremental = TRUE
+  )
+
+  # They must be identical
+  expect_equal(terra::values(res_vectorized), terra::values(res_incremental))
+
+  # Expected: Layer 1: 2.0 * 0.5 * 1.1 * 1.0 = 1.1
+  #           Layer 2: 2.0 * 0.5 * 1.2 * 1.5 = 1.8
+  #           Layer 3: 2.0 * 0.5 * 1.3 * 2.0 = 2.6
+  #           Total: 1.1 + 1.8 + 2.6 = 5.5
+  expect_equal(as.numeric(terra::values(res_vectorized)[1, 1]), 5.5)
+})
