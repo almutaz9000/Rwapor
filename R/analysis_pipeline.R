@@ -360,7 +360,7 @@ wapor_analysis_pipeline <- function(config,
                                            aeti_var, ret_var, precip_var, npp_var) {
   results <- list()
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+  analysis_layer_multipliers <- get_analysis_layer_multipliers
   
   if (!is.null(stacks$aeti_stack)) {
     lm <- analysis_layer_multipliers(aeti_var, dekad_table)
@@ -468,7 +468,7 @@ wapor_analysis_pipeline <- function(config,
 .compute_etc_by_class <- function(ret_stack, season_weights, h_mask, h_start, h_end,
                                   crop_params, ref_year, dekad_table, ret_var) {
   
-  analysis_layer_multipliers <- getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
+  analysis_layer_multipliers <- get_analysis_layer_multipliers
   ret_layer_multipliers <- analysis_layer_multipliers(ret_var, dekad_table)
   
   # Build season profiles
