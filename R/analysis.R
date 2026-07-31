@@ -340,8 +340,10 @@ wapor_build_season_mask <- function(dates, start_raster, end_raster,
   }
   if (is.character(dates)) dates <- as.Date(dates)
 
-  jd_values <- vapply(dates, wapor_continuous_julian,
-                       reference_year = reference_year, FUN.VALUE = integer(1))
+  # OPTIMIZATION: wapor_continuous_julian is naturally vectorized.
+  # Calling it directly on the entire vector of dates at once eliminates
+  # R-level loop (vapply) overhead and date parsing redundancy.
+  jd_values <- wapor_continuous_julian(dates, reference_year = reference_year)
 
   masks <- lapply(jd_values, function(jd) {
     # For each pixel: 1 if start_jd <= jd <= end_jd, else 0
@@ -442,14 +444,18 @@ wapor_build_season_weights <- function(start_date, end_date,
 
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
+  # OPTIMIZATION: wapor_continuous_julian is vectorized. Pre-calculating continuous
+  # Julian days for all dekad starts/ends upfront in a single vectorized operation
+  # completely eliminates 2 * N redundant R-level function calls inside the loop.
+  dekad_tbl$start_jd <- wapor_continuous_julian(dekad_tbl$dekad_start, reference_year)
+  dekad_tbl$end_jd   <- wapor_continuous_julian(dekad_tbl$dekad_end, reference_year)
+
   # Analytical overlap calculation:
   # Overlap = max(0, min(dekad_end, season_end) - max(dekad_start, season_start) + 1)
   layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
-    d <- dekad_tbl[i, ]
-    
-    # Convert dekad boundaries to continuous Julian days
-    d_start_jd <- wapor_continuous_julian(d$dekad_start, reference_year)
-    d_end_jd   <- wapor_continuous_julian(d$dekad_end, reference_year)
+    d_start_jd <- dekad_tbl$start_jd[i]
+    d_end_jd   <- dekad_tbl$end_jd[i]
+    n_days     <- dekad_tbl$n_days[i]
     
     # Calculate overlap using terra::clamp (robust for SpatRaster/scalar)
     o_start <- terra::clamp(start_raster, lower = d_start_jd)
@@ -458,7 +464,7 @@ wapor_build_season_weights <- function(start_date, end_date,
     overlap_days <- terra::clamp(o_end - o_start + 1, lower = 0)
     
     # Weight is fraction of dekad days
-    fraction <- overlap_days / d$n_days
+    fraction <- overlap_days / n_days
     
     list(days = overlap_days, fraction = fraction)
   })
@@ -645,20 +651,25 @@ wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
   if (is.character(season_start)) season_start <- as.Date(season_start)
   total_kc_days <- length(kc_daily)
 
+  # OPTIMIZATION: Date subtraction is vectorized in R. Pre-computing day offsets
+  # for all dekad starts/ends upfront completely eliminates redundant subtraction
+  # and pmax/pmin clamping inside the loop.
+  day_starts <- as.integer(dekad_table$dekad_start - season_start) + 1L
+  day_ends   <- as.integer(dekad_table$dekad_end - season_start) + 1L
+
+  # Vectorized clamping using pmax/pmin
+  day_starts_clamped <- pmax(1L, day_starts)
+  day_ends_clamped   <- pmin(total_kc_days, day_ends)
+
   vapply(seq_len(nrow(dekad_table)), function(i) {
-    d <- dekad_table[i, ]
-    # Days relative to season start (1-indexed)
-    day_start <- as.integer(d$dekad_start - season_start) + 1L
-    day_end   <- as.integer(d$dekad_end - season_start) + 1L
+    ds <- day_starts_clamped[i]
+    de <- day_ends_clamped[i]
 
-    # Clamp to valid range
-    day_start <- max(1L, day_start)
-    day_end   <- min(total_kc_days, day_end)
-
-    if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
+    # Verify boundaries using original pre-computed offsets
+    if (day_starts[i] > total_kc_days || day_ends[i] < 1 || ds > de) {
       return(0)
     }
-    mean(kc_daily[day_start:day_end], na.rm = TRUE)
+    mean(kc_daily[ds:de], na.rm = TRUE)
   }, numeric(1))
 }
 
