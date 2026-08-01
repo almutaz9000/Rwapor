@@ -4,15 +4,6 @@ _Last updated: 2026-05-14_
 
 ## Open Issues
 
-- [ ] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
-  - ID: ISS-20260512-010
-  - First noted: 2026-05-12
-  - Symptoms: launching the app can raise `Error in wapor_shiny_safe_rast: could not find function "wapor_shiny_safe_rast"` when the Analysis run observer validates rasters.
-  - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
-  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly so the standalone Shiny source path resolves the helper from the package namespace.
-  - Files changed: `inst/shiny/mod_analysis.R`
-  - Remaining validation: reopen the app from a clean R session and confirm the Analysis run button no longer errors during raster reference validation.
-
 - [ ] Analysis-tab plot previews can fail with `figure margins too large` and leave the graphics device in an invalid state.
   - ID: ISS-20260511-007
   - First noted: 2026-05-11
@@ -75,6 +66,14 @@ _Last updated: 2026-05-14_
   - Remaining validation: manually click `Detect from Folder` in the dashboard against both valid and invalid project folders and confirm the session stays alive.
 
 ## Resolved Improvements
+
+- [x] Standalone Shiny Analysis can fail to find internal helper functions when modules are sourced directly.
+  - ID: ISS-20260512-010
+  - Resolved: 2026-05-14
+  - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
+  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly. Followed up by replacing all remaining `getFromNamespace` dynamic lookups in `inst/shiny/mod_analysis.R` and `inst/shiny/utils_shiny.R` with standard namespace operators (`Rwapor:::` and `Rwapor::`).
+  - Files: `inst/shiny/mod_analysis.R`, `inst/shiny/utils_shiny.R`
+  - Validation: verified changes via static syntax and parsing analysis.
 
 - [x] Repository root contained mixed production and development artifacts, increasing agent/context noise.
   - ID: ISS-20260514-015
