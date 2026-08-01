@@ -4,6 +4,7 @@ _Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` for cleaner local development and loading.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`.
 - Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
@@ -32,6 +33,7 @@ _Last updated: 2026-05-14_
 
 ## Recently Resolved
 
+- `ISS-20260512-010`: standalone Shiny module can fail to find internal helper functions; fixed by explicit namespace referencing and replacing dynamic `getFromNamespace` resolution.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
 - `ISS-20260513-012`: analysis config validation no longer throws on malformed dates.
