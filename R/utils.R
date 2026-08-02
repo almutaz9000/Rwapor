@@ -666,52 +666,6 @@ save_l3_extent_cache <- function(cache) {
   })
 }
 
-#' Internal L3 Raster Extent Retrieval (with Cache Argument)
-#'
-#' Fetches the extent of a remote raster and returns it as a WGS84 polygon.
-#' Avoids multiple RDS load/save disk operations in batch loops.
-#'
-#' @param url Character. Download URL for the raster.
-#' @param code Character. 3-letter L3 region code used as cache key.
-#' @param cache Named list representing current cache content.
-#' @return A list containing `poly` (SpatVector or NULL), `cache` (the updated list), and `updated` (logical).
-#' @keywords internal
-#' @noRd
-.wapor_l3_extent_internal <- function(url, code, cache) {
-  if (code %in% names(cache)) {
-    ext_vec <- cache[[code]]
-    bb_ext <- terra::ext(ext_vec[1], ext_vec[3], ext_vec[2], ext_vec[4])
-    poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
-    terra::values(poly) <- NULL  # Clear NA attributes
-    return(list(poly = poly, cache = cache, updated = FALSE))
-  }
-
-  # Fetch from remote
-  vsi_url <- paste0("/vsicurl/", url)
-  r <- tryCatch({
-    suppressWarnings(terra::rast(vsi_url))
-  }, error = function(e) NULL)
-  
-  if (is.null(r) || terra::nlyr(r) == 0) {
-    return(list(poly = NULL, cache = cache, updated = FALSE))
-  }
-
-  r_ext <- tryCatch(terra::ext(r), error = function(e) NULL)
-  if (is.null(r_ext)) {
-    return(list(poly = NULL, cache = cache, updated = FALSE))
-  }
-  r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
-  terra::values(r_poly) <- NULL  # Clear NA attributes
-  r_poly_4326 <- wapor_safe_project(r_poly, 4326)
-
-  # Save to memory cache list
-  ext_4326 <- terra::ext(r_poly_4326)
-  cache[[code]] <- c(xmin = ext_4326$xmin, ymin = ext_4326$ymin,
-                     xmax = ext_4326$xmax, ymax = ext_4326$ymax)
-
-  list(poly = r_poly_4326, cache = cache, updated = TRUE)
-}
-
 #' Get L3 Raster Extent (Persistently Cached)
 #'
 #' Fetches the extent of a remote raster and returns it as a WGS84 polygon.
@@ -725,13 +679,37 @@ save_l3_extent_cache <- function(cache) {
 #' @export
 #' @keywords internal
 wapor_l3_extent <- function(url, code) {
-  # OPTIMIZATION: Delegate to internal helper using persistent cache loading/saving.
+  # Check persistent cache first
   cache <- load_l3_extent_cache()
-  res <- .wapor_l3_extent_internal(url = url, code = code, cache = cache)
-  if (res$updated) {
-    save_l3_extent_cache(res$cache)
+  if (code %in% names(cache)) {
+    ext_vec <- cache[[code]]
+    bb_ext <- terra::ext(ext_vec[1], ext_vec[3], ext_vec[2], ext_vec[4])
+    poly <- terra::as.polygons(bb_ext, crs = "EPSG:4326")
+    terra::values(poly) <- NULL  # Clear NA attributes
+    return(poly)
   }
-  res$poly
+
+  # Fetch from remote
+  vsi_url <- paste0("/vsicurl/", url)
+  r <- tryCatch({
+    suppressWarnings(terra::rast(vsi_url))
+  }, error = function(e) NULL)
+  
+  if (is.null(r) || terra::nlyr(r) == 0) return(NULL)
+
+  r_ext <- tryCatch(terra::ext(r), error = function(e) NULL)
+  if (is.null(r_ext)) return(NULL)
+  r_poly <- terra::as.polygons(r_ext, crs = terra::crs(r))
+  terra::values(r_poly) <- NULL  # Clear NA attributes
+  r_poly_4326 <- wapor_safe_project(r_poly, 4326)
+
+  # Save to persistent cache
+  ext_4326 <- terra::ext(r_poly_4326)
+  cache[[code]] <- c(xmin = ext_4326$xmin, ymin = ext_4326$ymin,
+                     xmax = ext_4326$xmax, ymax = ext_4326$ymax)
+  save_l3_extent_cache(cache)
+
+  r_poly_4326
 }
 
 #' Guess L3 Region from Spatial Intersection
@@ -791,32 +769,17 @@ wapor_guess_region <- function(variable, reg_info, period) {
 
   intersecting_codes <- character()
 
-  # OPTIMIZATION: Load persistent cache once upfront, process the entire loop in memory
-  # using .wapor_l3_extent_internal, and save cache to disk exactly once at the end
-  # of the loop if any updates occurred. This replaces O(N) disk RDS read/writes with O(1).
-  cache <- load_l3_extent_cache()
-  cache_updated <- FALSE
-
   for (i in seq_along(unique_urls)) {
     code <- extracted_codes[i]
 
-    res <- tryCatch(.wapor_l3_extent_internal(unique_urls[i], code, cache), error = function(e) NULL)
-    if (is.null(res) || is.null(res$poly)) next
+    # Use persistent disk cache for L3 extents
+    r_poly_4326 <- tryCatch(wapor_l3_extent(unique_urls[i], code), error = function(e) NULL)
+    if (is.null(r_poly_4326)) next
 
-    cache <- res$cache
-    if (res$updated) {
-      cache_updated <- TRUE
-    }
-
-    r_poly_4326 <- res$poly
     if (!is.null(user_poly) &&
         any(suppressWarnings(terra::is.related(r_poly_4326, user_poly, "intersects")))) {
       intersecting_codes <- c(intersecting_codes, code)
     }
-  }
-
-  if (cache_updated) {
-    save_l3_extent_cache(cache)
   }
 
   if (length(intersecting_codes) > 0) {
