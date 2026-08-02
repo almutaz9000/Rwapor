@@ -319,3 +319,137 @@ test_that("Yield calculation from NPP works", {
   yield <- wapor_calc_yield_npp(npp, MC, fc, AOT, HI)
   expect_equal(yield, expected_yield)
 })
+
+test_that("vectorized continuous Julian date logic matches scalar logic", {
+  dates <- c("2023-01-01", "2023-12-31", "2024-01-15")
+  res <- wapor_continuous_julian(dates, 2023)
+  expect_equal(res, c(1L, 365L, 380L))
+})
+
+test_that("vectorized wapor_aggregate_kc matches original behavior", {
+  kc_daily <- c(rep(0.5, 30), rep(1.0, 30))
+  dekad_table <- data.frame(
+    dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21")),
+    dekad_end   = as.Date(c("2023-01-10", "2023-01-20", "2023-01-31")),
+    n_days      = c(10L, 10L, 11L),
+    stringsAsFactors = FALSE
+  )
+
+  res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start = "2023-01-01")
+  expect_equal(res, c(0.5, 0.5, 0.5))
+})
+
+test_that("vectorized wapor_calc_peff calculates correct effective precipitation", {
+  peff_monthly <- data.frame(
+    year = c(2023, 2023, 2023),
+    month = c(4, 5, 6),
+    peff_mm = c(100, 150, 200),
+    stringsAsFactors = FALSE
+  )
+  # Test with date range overlap
+  # April 15 to May 15
+  # April has 30 days, May 31.
+  # April overlap: April 15 to April 30 = 16 days. Prorated: 100 * 16 / 30 = 53.333
+  # May overlap: May 1 to May 15 = 15 days. Prorated: 150 * 15 / 31 = 72.581
+  # Expected total: 53.333 + 72.581 = 125.914
+  res <- wapor_calc_peff(
+    peff_monthly,
+    start_date = "2023-04-15",
+    end_date = "2023-05-15"
+  )
+  expected <- (100 * 16 / 30) + (150 * 15 / 31)
+  expect_equal(res, expected, tolerance = 1e-4)
+
+  # Test with no overlap (should return 0)
+  res_no_overlap <- wapor_calc_peff(
+    peff_monthly,
+    start_date = "2023-07-01",
+    end_date = "2023-07-31"
+  )
+  expect_equal(res_no_overlap, 0)
+})
+
+test_that("wapor_calc_seasonal_etc supports both incremental and non-incremental paths", {
+  skip_if_not_installed("terra")
+  ret <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 2.0)
+  w <- terra::rast(nrows = 2, ncols = 2, nlyrs = 3, vals = 0.5)
+  kc <- c(1.1, 1.2, 1.3)
+  mults <- c(1, 1.5, 2)
+
+  # Non-incremental path
+  res_vectorized <- wapor_calc_seasonal_etc(
+    ret,
+    w,
+    kc_dekad = kc,
+    layer_multipliers = mults,
+    incremental = FALSE
+  )
+
+  # Incremental path
+  res_incremental <- wapor_calc_seasonal_etc(
+    ret,
+    w,
+    kc_dekad = kc,
+    layer_multipliers = mults,
+    incremental = TRUE
+  )
+
+  # They must be identical
+  expect_equal(terra::values(res_vectorized), terra::values(res_incremental))
+
+  # Expected: Layer 1: 2.0 * 0.5 * 1.1 * 1.0 = 1.1
+  #           Layer 2: 2.0 * 0.5 * 1.2 * 1.5 = 1.8
+  #           Layer 3: 2.0 * 0.5 * 1.3 * 2.0 = 2.6
+  #           Total: 1.1 + 1.8 + 2.6 = 5.5
+  expect_equal(as.numeric(terra::values(res_vectorized)[1, 1]), 5.5)
+})
+
+test_that("wapor_detect_aeti_anomalies and vectorized invalid class masking work", {
+  skip_if_not_installed("terra")
+  # Create a 4x4 seasonal AETI raster
+  # Class 1: 12 pixels (with values: median around 100, one anomaly at 20)
+  # Class 2: 4 pixels (with values: median around 200)
+  aeti_vals <- c(
+    100, 100, 100, 20,
+    100, 100, 100, 100,
+    100, 100, 100, 100,
+    200, 200, 200, 200
+  )
+  crop_vals <- c(
+    1, 1, 1, 1,
+    1, 1, 1, 1,
+    1, 1, 1, 1,
+    2, 2, 2, 2
+  )
+  aeti_rast <- terra::rast(nrows = 4, ncols = 4, vals = aeti_vals)
+  crop_mask <- terra::rast(nrows = 4, ncols = 4, vals = crop_vals)
+
+  # Run with min_pixels = 8, so class 2 (4 pixels) is invalid, and class 1 (12 pixels) is valid
+  res <- wapor_detect_aeti_anomalies(aeti_rast, crop_mask, threshold = 0.5, min_pixels = 8)
+
+  expect_true(inherits(res$anomaly_map, "SpatRaster"))
+  expect_true(inherits(res$threshold_raster, "SpatRaster"))
+  expect_true(is.data.frame(res$anomaly_stats))
+
+  # Class 1 stats check
+  c1_stats <- res$anomaly_stats[res$anomaly_stats$class_value == 1, ]
+  expect_equal(c1_stats$pixel_count, 12L)
+  expect_equal(c1_stats$median_aeti, 100)
+  expect_equal(c1_stats$threshold_value, 50)
+  expect_equal(c1_stats$anomaly_pixels, 1L)
+  expect_true(c1_stats$valid)
+
+  # Class 2 stats check (should be invalid due to min_pixels)
+  c2_stats <- res$anomaly_stats[res$anomaly_stats$class_value == 2, ]
+  expect_equal(c2_stats$pixel_count, 4L)
+  expect_false(c2_stats$valid)
+
+  # Check anomaly map values
+  # Class 2 pixels must be NA
+  anomaly_vals <- terra::values(res$anomaly_map)
+  expect_true(all(is.na(anomaly_vals[13:16]))) # last row is class 2
+
+  # Class 1 normal pixels must be 0, and the anomaly (20 < 50) must be 1
+  expect_equal(as.integer(anomaly_vals[4]), 1L) # 20 is at index 4
+  expect_equal(as.integer(anomaly_vals[1]), 0L) # 100 is at index 1
+})
