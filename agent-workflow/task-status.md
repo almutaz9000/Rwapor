@@ -10,6 +10,8 @@ _Last updated: 2026-05-14_
 
 ## Recently Completed
 
+- [x] Replaced dynamic function resolution via `getFromNamespace` with standard namespace operators (`Rwapor::` and `Rwapor:::`) in `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` (2026-05-14).
+- [x] Ran the package test follow-up by adding comprehensive unit test coverage for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R` (2026-05-14).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
 - [x] Made `wapor_validate_analysis_config()` non-throwing for malformed period dates and added regression tests (2026-05-13).

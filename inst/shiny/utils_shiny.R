@@ -15,7 +15,7 @@ is_l3_code <- function(x) {
 }
 
 crop_to_region_shiny <- function(r, reg_info, do_mask = FALSE) {
-  getFromNamespace("wapor_crop_to_region", "Rwapor")(r, reg_info, do_mask = do_mask)
+  Rwapor::wapor_crop_to_region(r, reg_info, do_mask = do_mask)
 }
 
 # --- AOI Helper Functions ---

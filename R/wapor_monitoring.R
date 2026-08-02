@@ -211,7 +211,7 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
       } else {
         log_fn(sprintf("  Fetching TS from %s to %s...", effective_start, period[2]))
         
-        ts_df <- Rwapor::wapor_ts(
+        ts_df <- wapor_ts(
           region          = farms_sf,
           variable        = var,
           period          = c(effective_start, period[2]),
@@ -297,7 +297,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
 
     # Look up final harmonized units
     var_units <- tryCatch({
-      m <- Rwapor::wapor_variable_metadata(variable)
+      m <- wapor_variable_metadata(variable)
       if (is.null(m)) return(NA_character_)
       res_u <- m$units %||% NA_character_
       if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) res_u <- sub("^K$", "degC", res_u)
@@ -313,7 +313,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     aoi_ext <- terra::ext(bb["xmin"], bb["xmax"], bb["ymin"], bb["ymax"])
 
     urls <- tryCatch(
-      Rwapor::wapor_generate_urls(
+      wapor_generate_urls(
         variable,
         l3_region = if (grepl("^L3-", variable)) l3_region else NULL,
         period    = period
@@ -341,7 +341,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     for (i in seq_along(urls_vs)) {
       # Date Key extraction
       date_key <- tryCatch({
-        di <- Rwapor::wapor_date_info(urls[i], sub(".*-([A-Z])$", "\\1", variable))
+        di <- wapor_date_info(urls[i], sub(".*-([A-Z])$", "\\1", variable))
         as.character(di$start_date)
       }, error = function(e) {
          m <- regmatches(basename(urls[i]), regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", basename(urls[i])))
@@ -388,8 +388,8 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       if (is.null(r_crop)) next
 
       # 4. UNIT CONVERSIONS & METADATA
-      r_crop <- Rwapor::wapor_convert_raster(r_crop, variable, urls[i], unit_conv)
-      r_crop <- Rwapor::wapor_convert_temperature(r_crop, variable)
+      r_crop <- wapor_convert_raster(r_crop, variable, urls[i], unit_conv)
+      r_crop <- wapor_convert_temperature(r_crop, variable)
       r_crop <- assign_raster_metadata(r_crop, variable, unit_conv, var_units)
 
       # 5. RE-PROJECT TO WGS84: Store all blobs in a standard geographic CRS for the dashboard
