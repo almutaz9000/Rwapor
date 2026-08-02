@@ -21,3 +21,7 @@
 ## 2026-06-23 - [Reducing Persistent Cache Disk I/O and Vectorizing Date Offsets]
 **Learning:** Calling `load_l3_extent_cache()` and `save_l3_extent_cache()` inside a loop of URLs / regions triggers redundant slow RDS read/write disk I/O. Passing an in-memory `cache` list to an internal helper and saving it exactly once at the end of the loop reduces disk operations to O(1). Additionally, R-level date arithmetic inside a loop can be fully vectorized upfront using vectorized subtraction and `pmax`/`pmin`.
 **Action:** Use memory-resident lists to batch operations across iterative loops before writing changes to disk, and pre-compute date offsets/clamping as vectorized operations prior to loops.
+
+## 2026-08-01 - [Vectorizing Class Masking and Avoiding Iterative ifel Loops]
+**Learning:** Performing spatial masking or filtering of multiple crop/land-cover classes iteratively using R-level `for` loops that repeatedly call `terra::ifel()` on a `SpatRaster` causes severe memory allocation overhead and redundant read/write operations. Vectorizing class-membership checks using `%in%` or `terra::classify()` evaluates the entire condition in the C++ backend in a single optimized pass.
+**Action:** Always prefer using `%in%` or `terra::classify()` to perform multi-class membership operations or conditional masking instead of R-level iterative `for` loops with `ifel()`.
