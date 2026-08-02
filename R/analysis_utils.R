@@ -109,51 +109,86 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @param class_values Integer vector.
 #' @return data.frame of profiles.
 #' @keywords internal
-wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-  # Optimization: Rounding and using crosstab is much more memory efficient
-  # than extracting all values into R memory.
-  s_round <- terra::round(start_raster)
-  e_round <- terra::round(end_raster)
+.wapor_build_season_profile_table_internal <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Mask crop_mask to the requested class_values using high-performance C++ masking
+  crop_masked <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
 
-  # crosstab with long=TRUE gives us unique combinations and their counts
-  # as a data.frame directly from the C++ backend.
-  combined <- terra::crosstab(c(crop_mask, s_round, e_round), long = TRUE)
-  names(combined) <- c("class_value", "start_jd", "end_jd", "pixel_count")
+  # Round the start and end rasters
+  start_round <- terra::round(start_raster)
+  end_round <- terra::round(end_raster)
 
-  # Filter for requested classes and valid ranges
-  profile_df <- combined[
-    !is.na(combined$class_value) &
-      combined$class_value %in% class_values &
-      !is.na(combined$start_jd) &
-      !is.na(combined$end_jd),
-    ,
-    drop = FALSE
-  ]
+  # Encode combinations into a single SpatRaster:
+  # Value = Class * 1,000,000 + StartJD * 1,000 + EndJD
+  # This uses direct SpatRaster algebra computed inside the C++ backend.
+  encoded <- crop_masked * 1000000 + start_round * 1000 + end_round
 
-  if (nrow(profile_df) == 0) {
+  # Count combination frequencies using terra's high-performance C++ freq()
+  freq_df <- terra::freq(encoded)
+
+  if (is.null(freq_df) || nrow(freq_df) == 0) {
     return(data.frame(
-      class_value = integer(0), start_jd = integer(0),
-      end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
     ))
   }
 
-  profile_df$total_days <- as.integer(profile_df$end_jd - profile_df$start_jd + 1L)
+  freq_df <- freq_df[!is.na(freq_df$value), , drop = FALSE]
+
+  if (nrow(freq_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
+  }
+
+  # Decode encoded values back into individual components
+  val <- freq_df$value
+  class_value <- as.integer(val %/% 1000000)
+  rem <- val %% 1000000
+  start_jd <- as.integer(rem %/% 1000)
+  end_jd <- as.integer(rem %% 1000)
+  pixel_count <- as.integer(freq_df$count)
+
+  total_days <- end_jd - start_jd + 1L
+
+  profile_df <- data.frame(
+    class_value = class_value,
+    start_jd = start_jd,
+    end_jd = end_jd,
+    total_days = total_days,
+    pixel_count = pixel_count,
+    stringsAsFactors = FALSE
+  )
+
+  # Keep only profiles with valid total_days > 0
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
 
-  if (nrow(profile_df) == 0) return(profile_df)
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
+  }
 
-  # Robustness: crosstab can produce multiple rows for the same integer
-  # combination if there were floating point noise issues. We aggregate
-  # one more time in R to be safe, but on a tiny data.frame.
-  profile_df$class_value <- as.integer(profile_df$class_value)
-  profile_df$start_jd <- as.integer(profile_df$start_jd)
-  profile_df$end_jd <- as.integer(profile_df$end_jd)
+  # Order the output for consistency
+  profile_df <- profile_df[order(profile_df$class_value, profile_df$start_jd, profile_df$end_jd, profile_df$total_days), , drop = FALSE]
+  rownames(profile_df) <- NULL
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
-  )
+  profile_df
+}
+
+wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Delegate to optimized internal helper
+  .wapor_build_season_profile_table_internal(crop_mask, start_raster, end_raster, class_values)
 }
 
 #' Generate an R script for standalone analysis
