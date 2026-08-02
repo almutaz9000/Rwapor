@@ -38,11 +38,14 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
     return(total)
   }
 
-  # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
-  weighted <- x * weights
+  # Optimization: Pre-multiplying weights by layer_multipliers upfront (raster-numeric multiplication)
+  # is faster than multiplying x by weights and then by layer_multipliers (raster-raster then raster-numeric).
+  # This reduces the number of full multi-layer SpatRaster-to-SpatRaster operations from two to one.
   if (!all(layer_multipliers == 1)) {
-    weighted <- weighted * layer_multipliers
+    weights <- weights * layer_multipliers
   }
+  weighted <- x * weights
+
   # Optimization: terra::sum() is significantly faster than terra::app(..., fun="sum")
   # as it uses a dedicated C++ implementation for layer-wise summation.
   terra::sum(weighted, na.rm = TRUE)
@@ -222,7 +225,9 @@ wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
   })
 
   # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
+  # Optimization: Using unary logical operator `!is.na()` is significantly faster
+  # than `terra::ifel(is.na(...))` as it avoids conditional branch evaluation overhead.
+  valid_count_rast <- !is.na(aeti_seasonal)
   count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
   count_vals <- as.data.frame(count_vals)
   names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
