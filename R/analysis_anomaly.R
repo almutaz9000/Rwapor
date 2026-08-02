@@ -67,9 +67,9 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   # Mask out classes with insufficient data
   invalid_classes <- stats$class_value[!stats$valid]
   if (length(invalid_classes) > 0) {
-    for (cls in invalid_classes) {
-      anomaly_map <- terra::ifel(crop_mask == cls, NA, anomaly_map)
-    }
+    # OPTIMIZATION: Use terra's vectorized %in% operator to replace the iterative
+    # R-level loop of ifel(). This executes the entire class masking in a single C++ pass.
+    anomaly_map <- terra::ifel(crop_mask %in% as.integer(invalid_classes), NA, anomaly_map)
   }
   
   # Compute anomaly statistics per class

@@ -403,3 +403,53 @@ test_that("wapor_calc_seasonal_etc supports both incremental and non-incremental
   #           Total: 1.1 + 1.8 + 2.6 = 5.5
   expect_equal(as.numeric(terra::values(res_vectorized)[1, 1]), 5.5)
 })
+
+test_that("wapor_detect_aeti_anomalies and vectorized invalid class masking work", {
+  skip_if_not_installed("terra")
+  # Create a 4x4 seasonal AETI raster
+  # Class 1: 12 pixels (with values: median around 100, one anomaly at 20)
+  # Class 2: 4 pixels (with values: median around 200)
+  aeti_vals <- c(
+    100, 100, 100, 20,
+    100, 100, 100, 100,
+    100, 100, 100, 100,
+    200, 200, 200, 200
+  )
+  crop_vals <- c(
+    1, 1, 1, 1,
+    1, 1, 1, 1,
+    1, 1, 1, 1,
+    2, 2, 2, 2
+  )
+  aeti_rast <- terra::rast(nrows = 4, ncols = 4, vals = aeti_vals)
+  crop_mask <- terra::rast(nrows = 4, ncols = 4, vals = crop_vals)
+
+  # Run with min_pixels = 8, so class 2 (4 pixels) is invalid, and class 1 (12 pixels) is valid
+  res <- wapor_detect_aeti_anomalies(aeti_rast, crop_mask, threshold = 0.5, min_pixels = 8)
+
+  expect_true(inherits(res$anomaly_map, "SpatRaster"))
+  expect_true(inherits(res$threshold_raster, "SpatRaster"))
+  expect_true(is.data.frame(res$anomaly_stats))
+
+  # Class 1 stats check
+  c1_stats <- res$anomaly_stats[res$anomaly_stats$class_value == 1, ]
+  expect_equal(c1_stats$pixel_count, 12L)
+  expect_equal(c1_stats$median_aeti, 100)
+  expect_equal(c1_stats$threshold_value, 50)
+  expect_equal(c1_stats$anomaly_pixels, 1L)
+  expect_true(c1_stats$valid)
+
+  # Class 2 stats check (should be invalid due to min_pixels)
+  c2_stats <- res$anomaly_stats[res$anomaly_stats$class_value == 2, ]
+  expect_equal(c2_stats$pixel_count, 4L)
+  expect_false(c2_stats$valid)
+
+  # Check anomaly map values
+  # Class 2 pixels must be NA
+  anomaly_vals <- terra::values(res$anomaly_map)
+  expect_true(all(is.na(anomaly_vals[13:16]))) # last row is class 2
+
+  # Class 1 normal pixels must be 0, and the anomaly (20 < 50) must be 1
+  expect_equal(as.integer(anomaly_vals[4]), 1L) # 20 is at index 4
+  expect_equal(as.integer(anomaly_vals[1]), 0L) # 100 is at index 1
+})
