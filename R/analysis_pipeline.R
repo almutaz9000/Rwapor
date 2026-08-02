@@ -550,13 +550,8 @@ wapor_analysis_pipeline <- function(config,
 }
 
 .build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
-<<<<<<< HEAD
   # Delegate to the shared utility function to avoid duplication.
   Rwapor:::wapor_build_season_profile_table(crop_mask, start_raster, end_raster, class_values)
-=======
-  # Delegate to optimized internal helper in analysis_utils.R
-  .wapor_build_season_profile_table_internal(crop_mask, start_raster, end_raster, class_values)
->>>>>>> origin/version-0.9.6
 }
 
 .save_analysis_outputs <- function(results, output_folder, prefix, indicators) {
