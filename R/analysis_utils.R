@@ -109,6 +109,7 @@ wapor_masked_global_mean <- function(r, mask_rast = NULL) {
 #' @param class_values Integer vector.
 #' @return data.frame of profiles.
 #' @keywords internal
+<<<<<<< HEAD
 wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
   # Optimization: Rounding and using crosstab is much more memory efficient
   # than extracting all values into R memory.
@@ -131,12 +132,32 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
   ]
 
   if (nrow(profile_df) == 0) {
+=======
+.wapor_build_season_profile_table_internal <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Mask crop_mask to the requested class_values using high-performance C++ masking
+  crop_masked <- terra::ifel(crop_mask %in% as.integer(class_values), crop_mask, NA)
+
+  # Round the start and end rasters
+  start_round <- terra::round(start_raster)
+  end_round <- terra::round(end_raster)
+
+  # Encode combinations into a single SpatRaster:
+  # Value = Class * 1,000,000 + StartJD * 1,000 + EndJD
+  # This uses direct SpatRaster algebra computed inside the C++ backend.
+  encoded <- crop_masked * 1000000 + start_round * 1000 + end_round
+
+  # Count combination frequencies using terra's high-performance C++ freq()
+  freq_df <- terra::freq(encoded)
+
+  if (is.null(freq_df) || nrow(freq_df) == 0) {
+>>>>>>> origin/version-0.9.6
     return(data.frame(
       class_value = integer(0), start_jd = integer(0),
       end_jd = integer(0), total_days = integer(0), pixel_count = integer(0)
     ))
   }
 
+<<<<<<< HEAD
   profile_df$total_days <- as.integer(profile_df$end_jd - profile_df$start_jd + 1L)
   profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
 
@@ -148,12 +169,62 @@ wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster
   profile_df$class_value <- as.integer(profile_df$class_value)
   profile_df$start_jd <- as.integer(profile_df$start_jd)
   profile_df$end_jd <- as.integer(profile_df$end_jd)
+=======
+  freq_df <- freq_df[!is.na(freq_df$value), , drop = FALSE]
 
-  stats::aggregate(
-    pixel_count ~ class_value + start_jd + end_jd + total_days,
-    data = profile_df,
-    FUN = sum
+  if (nrow(freq_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
+  }
+>>>>>>> origin/version-0.9.6
+
+  # Decode encoded values back into individual components
+  val <- freq_df$value
+  class_value <- as.integer(val %/% 1000000)
+  rem <- val %% 1000000
+  start_jd <- as.integer(rem %/% 1000)
+  end_jd <- as.integer(rem %% 1000)
+  pixel_count <- as.integer(freq_df$count)
+
+  total_days <- end_jd - start_jd + 1L
+
+  profile_df <- data.frame(
+    class_value = class_value,
+    start_jd = start_jd,
+    end_jd = end_jd,
+    total_days = total_days,
+    pixel_count = pixel_count,
+    stringsAsFactors = FALSE
   )
+
+  # Keep only profiles with valid total_days > 0
+  profile_df <- profile_df[profile_df$total_days > 0L, , drop = FALSE]
+
+  if (nrow(profile_df) == 0) {
+    return(data.frame(
+      class_value = integer(0),
+      start_jd = integer(0),
+      end_jd = integer(0),
+      total_days = integer(0),
+      pixel_count = integer(0)
+    ))
+  }
+
+  # Order the output for consistency
+  profile_df <- profile_df[order(profile_df$class_value, profile_df$start_jd, profile_df$end_jd, profile_df$total_days), , drop = FALSE]
+  rownames(profile_df) <- NULL
+
+  profile_df
+}
+
+wapor_build_season_profile_table <- function(crop_mask, start_raster, end_raster, class_values) {
+  # Delegate to optimized internal helper
+  .wapor_build_season_profile_table_internal(crop_mask, start_raster, end_raster, class_values)
 }
 
 #' Generate an R script for standalone analysis
@@ -295,7 +366,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
         "l_dev <- as.integer(mean_days - (crop_params$l_ini_days + crop_params$l_mid_days + crop_params$l_late_days))",
         "kc_daily <- wapor_build_kc(crop_params$kc_ini, crop_params$kc_mid, crop_params$kc_end, crop_params$l_ini_days, l_dev, crop_params$l_mid_days, crop_params$l_late_days)",
         "kc_dekad <- wapor_aggregate_kc(kc_daily, dekad_table, period[1])",
-        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad)")
+        "results$etc <- wapor_calc_seasonal_etc(ret_stack, season_weights, kc_dekad, incremental = FALSE)")
     } else NULL,
     "",
     "# [8] Save Results",

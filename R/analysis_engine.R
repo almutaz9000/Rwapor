@@ -213,7 +213,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
       unique_etc_rasters <- list()
       for (key in names(kc_profiles)) {
+<<<<<<< HEAD
         unique_etc_rasters[[key]] <- Rwapor::wapor_calc_seasonal_etc(
+=======
+        unique_etc_rasters[[key]] <- wapor_calc_seasonal_etc(
+>>>>>>> origin/version-0.9.6
           stacks$ret, season_weights, kc_profiles[[key]],
           layer_multipliers = ret_mult,
           incremental = use_incremental
