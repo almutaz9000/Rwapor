@@ -67,7 +67,7 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
 wapor_calc_seasonal_aeti <- function(aeti_dekad, season_weights,
                                              crop_mask = NULL, layer_multipliers = NULL,
                                              incremental = FALSE) {
-  seasonal_aeti <- Rwapor:::wapor_masked_sum(
+  seasonal_aeti <- wapor_masked_sum(
     aeti_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -98,7 +98,7 @@ wapor_calc_seasonal_aeti <- function(aeti_dekad, season_weights,
 wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
                                             crop_mask = NULL, layer_multipliers = NULL,
                                             incremental = FALSE) {
-  seasonal_ret <- Rwapor:::wapor_masked_sum(
+  seasonal_ret <- wapor_masked_sum(
     ret_dekad,
     season_weights,
     layer_multipliers = layer_multipliers,
@@ -135,15 +135,15 @@ wapor_calc_etc <- function(ret_dekad, kc_dekad) {
 
 #' Compute Seasonal ETc
 #'
-#' Computes seasonal ETc (weighted sum of RET * Kc * season_weight).
-#' Uses optimized vectorized paths by default.
+#' Calculates seasonal ETc by accumulating RET * season_weight * kc.
+#' Supports highly optimized vectorized summation or incremental layer-by-layer
+#' accumulation to save memory for long seasons.
 #'
 #' @param ret_dekad SpatRaster. Dekadal RET layers.
 #' @param season_weights SpatRaster. Dekadal season weights (0-1).
 #' @param kc_dekad Numeric vector. Dekadal Kc values.
 #' @param layer_multipliers Optional numeric vector of per-layer multipliers.
 #' @param incremental Logical. If TRUE, performs aggregation layer-by-layer to save memory.
-#'   Default FALSE.
 #' @return A single-layer SpatRaster of seasonal ETc (weighted sum).
 #' @export
 wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
@@ -167,11 +167,11 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
                  length(layer_multipliers), n_layers), call. = FALSE)
   }
 
-  # Combine Kc values with temporal multipliers (e.g., dekad day counts)
-  # to form a single per-layer scaling factor for the weighted sum.
+  # Combined multipliers per layer: Kc * layer multipliers
   combined_multipliers <- kc_dekad * layer_multipliers
 
-  Rwapor:::wapor_masked_sum(
+  # Leverage optimized wapor_masked_sum which provides vectorized C++ accumulation
+  wapor_masked_sum(
     ret_dekad,
     season_weights,
     layer_multipliers = combined_multipliers,
