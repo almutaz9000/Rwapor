@@ -6,7 +6,9 @@ _Last updated: 2026-05-14_
 
 - Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` for cleaner local development and loading.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`.
-- Shared agent coordination now starts from `agent-workflow/START-HERE.md`.
+- Relaxed `.gitignore` for shared agent configuration files (`bolt.md`, `CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) to support Git-tracked coordination pointers.
+- Migrated primary configuration from `.jules/bolt.md` to root `bolt.md` as requested.
+- Shared agent coordination now starts from `bolt.md` which points to `agent-workflow/START-HERE.md`.
 - Reorganized development-only repository assets into `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` for a cleaner production-facing root.
 - Implemented batch-analysis patch; added regression coverage in `tests/testthat/test-analysis-shiny.R`.
 - Patched Windows-safe script serialization (`’\U’ used without hex digits` follow-up).

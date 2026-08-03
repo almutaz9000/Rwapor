@@ -39,6 +39,7 @@ nul
 .agent/*
 !.agent/PROJECT.md
 !CLAUDE.md
+!bolt.md
 memories/
 
 # Development artifacts
