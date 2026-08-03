@@ -161,6 +161,7 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
     stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
                  terra::nlyr(season_weights), n_layers), call. = FALSE)
   }
+
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, n_layers)
   }
@@ -336,15 +337,16 @@ wapor_calc_peff <- function(peff_monthly, start_date = NULL,
     month_start_s <- lubridate::floor_date(s_date, "month")
     month_start_e <- lubridate::floor_date(e_date, "month")
     
-    # OPTIMIZATION: Vectorized pmax/pmin of Date vectors avoids R-level loop (vapply)
-    # and processes the date overlap calculations entirely in optimized native C++.
-    m_starts <- peff_monthly$date
-    m_ends   <- m_starts + (peff_monthly$days_in_month - 1)
+    peff_monthly$overlap_days <- vapply(seq_len(nrow(peff_monthly)), function(i) {
+      m_start <- peff_monthly$date[i]
+      m_end <- m_start + (peff_monthly$days_in_month[i] - 1)
 
-    overlap_starts <- pmax(m_starts, s_date)
-    overlap_ends   <- pmin(m_ends, e_date)
+      overlap_start <- max(m_start, s_date)
+      overlap_end   <- min(m_end, e_date)
 
-    peff_monthly$overlap_days <- pmax(0L, as.integer(overlap_ends - overlap_starts) + 1L)
+      diff <- as.integer(overlap_end - overlap_start) + 1L
+      max(0L, diff)
+    }, integer(1))
     
     # Pro-rate: seasonal_peff = sum(peff_monthly * (overlap_days / days_in_month))
     subset_df <- peff_monthly[peff_monthly$overlap_days > 0, ]
@@ -513,11 +515,11 @@ wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
 #' @export
 wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
                                        period) {
-  aeti_ts <- wapor_ts(region = region, variable = aeti_var, period = period,
+  aeti_ts <- Rwapor:::wapor_ts(region = region, variable = aeti_var, period = period,
                        unit_conversion = "none")
-  ret_ts <- wapor_ts(region = region, variable = ret_var, period = period,
+  ret_ts <- Rwapor:::wapor_ts(region = region, variable = ret_var, period = period,
                       unit_conversion = "none")
-  precip_ts <- wapor_ts(region = region, variable = precip_var, period = period,
+  precip_ts <- Rwapor:::wapor_ts(region = region, variable = precip_var, period = period,
                          unit_conversion = "none")
   list(aeti_ts = aeti_ts, ret_ts = ret_ts, precip_ts = precip_ts)
 }
