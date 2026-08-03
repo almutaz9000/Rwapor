@@ -31,11 +31,14 @@ libs/
 nul
 
 # Agent/AI Configuration (local development only)
-.github/
-.claude/
+.github/*
+!.github/agents/
+.claude/*
+!.claude/settings.json
 .agents/
-.agent/
-CLAUDE.md
+.agent/*
+!.agent/PROJECT.md
+!CLAUDE.md
 memories/
 
 # Development artifacts
