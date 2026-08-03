@@ -33,6 +33,7 @@ _Last updated: 2026-05-14_
 
 ## Recently Resolved
 
+- `ISS-20260514-016`: .gitignore fully excluded shared agent adapter and config files; relaxed ignore rules with selective un-ignores (`!`) to support Git tracking of `CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`.
 - `ISS-20260512-010`: standalone Shiny module can fail to find internal helper functions; fixed by explicit namespace referencing and replacing dynamic `getFromNamespace` resolution.
 - `ISS-20260511-001`: workflow drift fixed by centralizing memory, task state, and issue state under `agent-workflow/`.
 - `ISS-20260513-011`: dashboard startup precheck now includes async runtime dependencies.
