@@ -43,7 +43,9 @@ wapor_detect_aeti_anomalies <- function(aeti_seasonal, crop_mask,
   names(class_medians) <- c("class_value", "median_aeti")
   
   # Count valid pixels per class
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
+  # Optimization: Using unary logical operator `!is.na()` is significantly faster
+  # than `terra::ifel(is.na(...))` as it avoids conditional branch evaluation overhead.
+  valid_count_rast <- !is.na(aeti_seasonal)
   class_counts <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
   names(class_counts) <- c("class_value", "pixel_count")
   
@@ -163,8 +165,10 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
   anomaly_counts <- terra::zonal(compound_anomaly, crop_mask, fun = "sum", na.rm = TRUE)
   names(anomaly_counts) <- c("class_value", "compound_anomaly_pixels")
   
+  # Optimization: Using unary logical operator `!is.na()` is significantly faster
+  # than `terra::ifel(is.na(...))` as it avoids conditional branch evaluation overhead.
   class_counts <- terra::zonal(
-    terra::ifel(is.na(compound_anomaly), 0L, 1L),
+    !is.na(compound_anomaly),
     crop_mask, fun = "sum", na.rm = TRUE
   )
   names(class_counts) <- c("class_value", "total_pixels")
