@@ -319,3 +319,27 @@ test_that("Yield calculation from NPP works", {
   yield <- wapor_calc_yield_npp(npp, MC, fc, AOT, HI)
   expect_equal(yield, expected_yield)
 })
+
+test_that("wapor_calc_peff works with vectorized date overlap calculation", {
+  peff_monthly <- data.frame(
+    year = c(2023L, 2023L, 2023L),
+    month = c(5L, 6L, 7L),
+    peff_mm = c(50, 100, 80),
+    stringsAsFactors = FALSE
+  )
+
+  # Standard overlap: full season is May 1 to July 31 (all 3 months fully overlap)
+  total_peff_full <- wapor_calc_peff(peff_monthly, start_date = "2023-05-01", end_date = "2023-07-31")
+  expect_equal(total_peff_full, 230) # 50 + 100 + 80
+
+  # Partial overlap: season is May 16 to June 15
+  # May has 31 days. May 16 to May 31 is 16 days. Overlap fraction: 16/31
+  # June has 30 days. June 1 to June 15 is 15 days. Overlap fraction: 15/30 = 0.5
+  total_peff_partial <- wapor_calc_peff(peff_monthly, start_date = "2023-05-16", end_date = "2023-06-15")
+  expected_val <- 50 * (16 / 31) + 100 * (15 / 30)
+  expect_equal(total_peff_partial, expected_val, tolerance = 1e-6)
+
+  # No overlap: season is August 1 to August 31
+  total_peff_none <- wapor_calc_peff(peff_monthly, start_date = "2023-08-01", end_date = "2023-08-31")
+  expect_equal(total_peff_none, 0)
+})
