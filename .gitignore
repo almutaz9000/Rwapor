@@ -33,7 +33,8 @@ nul
 # Agent/AI Configuration (local development only)
 .github/*
 !.github/agents/
-.claude/
+.claude/*
+!.claude/settings.json
 .agents/
 .agent/*
 !.agent/PROJECT.md
