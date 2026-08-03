@@ -337,16 +337,15 @@ wapor_calc_peff <- function(peff_monthly, start_date = NULL,
     month_start_s <- lubridate::floor_date(s_date, "month")
     month_start_e <- lubridate::floor_date(e_date, "month")
     
-    peff_monthly$overlap_days <- vapply(seq_len(nrow(peff_monthly)), function(i) {
-      m_start <- peff_monthly$date[i]
-      m_end <- m_start + (peff_monthly$days_in_month[i] - 1)
+    # Vectorized date overlap calculation using fast C-level pmax/pmin on R Date vectors
+    m_starts <- peff_monthly$date
+    m_ends   <- m_starts + (peff_monthly$days_in_month - 1)
 
-      overlap_start <- max(m_start, s_date)
-      overlap_end   <- min(m_end, e_date)
+    overlap_starts <- pmax(m_starts, s_date)
+    overlap_ends   <- pmin(m_ends, e_date)
 
-      diff <- as.integer(overlap_end - overlap_start) + 1L
-      max(0L, diff)
-    }, integer(1))
+    diffs <- as.integer(overlap_ends - overlap_starts) + 1L
+    peff_monthly$overlap_days <- pmax(0L, diffs)
     
     # Pro-rate: seasonal_peff = sum(peff_monthly * (overlap_days / days_in_month))
     subset_df <- peff_monthly[peff_monthly$overlap_days > 0, ]
