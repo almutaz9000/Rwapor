@@ -343,3 +343,23 @@ test_that("wapor_calc_peff works with vectorized date overlap calculation", {
   total_peff_none <- wapor_calc_peff(peff_monthly, start_date = "2023-08-01", end_date = "2023-08-31")
   expect_equal(total_peff_none, 0)
 })
+
+test_that("wapor_build_season_mask works with vectorized logic", {
+  skip_if_not_installed("terra")
+  start_r <- terra::rast(nrows = 5, ncols = 5, vals = 100)
+  end_r   <- terra::rast(nrows = 5, ncols = 5, vals = 200)
+  dates <- c("2023-04-15", "2023-06-15", "2023-08-15") # julian days in 2023: 105, 166, 227
+
+  result <- wapor_build_season_mask(dates, start_r, end_r, reference_year = 2023)
+
+  expect_true(inherits(result, "SpatRaster"))
+  expect_equal(terra::nlyr(result), 3)
+  expect_equal(names(result), as.character(as.Date(dates)))
+
+  # Layer 1: jd = 105 (inside 100-200) -> 1
+  # Layer 2: jd = 166 (inside 100-200) -> 1
+  # Layer 3: jd = 227 (outside 100-200) -> 0
+  expect_equal(as.numeric(terra::values(result[[1]])[1]), 1)
+  expect_equal(as.numeric(terra::values(result[[2]])[1]), 1)
+  expect_equal(as.numeric(terra::values(result[[3]])[1]), 0)
+})
