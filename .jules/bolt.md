@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized SpatRaster Mask Generation and Pre-calculation]
+**Learning:** Comparing a single-layer `SpatRaster` directly against a numeric vector of length N in the `terra` package produces an N-layer `SpatRaster` directly in C++. This completely avoids expensive R-level loops (`lapply` or `vapply`) and iterative `terra::ifel` calls. Additionally, pulling utility scalar calls (like `wapor_continuous_julian`) out of loops and processing inputs as a vectorized block upfront eliminates substantial parsing overhead.
+**Action:** Use direct vector-to-SpatRaster comparisons and pre-calculate scalar values upfront as vectors before passing them to loop constructs.

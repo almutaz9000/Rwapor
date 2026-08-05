@@ -338,18 +338,20 @@ wapor_build_season_mask <- function(dates, start_raster, end_raster,
   if (!inherits(start_raster, "SpatRaster") || !inherits(end_raster, "SpatRaster")) {
     stop("start_raster and end_raster must be SpatRaster objects", call. = FALSE)
   }
+  if (length(dates) == 0) {
+    return(terra::rast())
+  }
   if (is.character(dates)) dates <- as.Date(dates)
 
-  jd_values <- vapply(dates, wapor_continuous_julian,
-                       reference_year = reference_year, FUN.VALUE = integer(1))
+  # Optimized: Avoid R-level vapply loop and parse dates as a vector
+  jd_values <- wapor_continuous_julian(dates, reference_year)
 
-  masks <- lapply(jd_values, function(jd) {
-    # For each pixel: 1 if start_jd <= jd <= end_jd, else 0
-    in_season <- (start_raster <= jd) & (end_raster >= jd)
-    terra::ifel(in_season, 1L, 0L)
-  })
-
-  result <- terra::rast(masks)
+  # Optimized: Avoid O(N) iterative R-level lapply loop with terra::ifel().
+  # SpatRaster comparison against a vector returns a multi-layer SpatRaster
+  # directly in C++. Boolean logical results are represented natively,
+  # and multiplication by 1L converts them to integer 0/1 SpatRaster.
+  in_season <- (start_raster <= jd_values) & (end_raster >= jd_values)
+  result <- in_season * 1L
   names(result) <- as.character(dates)
   result
 }
@@ -442,14 +444,19 @@ wapor_build_season_weights <- function(start_date, end_date,
 
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
+  # Optimized: Pre-calculate all dekad boundary continuous Julian days upfront
+  # to avoid redundant scalar wapor_continuous_julian calls inside the loop.
+  d_starts_jd <- wapor_continuous_julian(dekad_tbl$dekad_start, reference_year)
+  d_ends_jd   <- wapor_continuous_julian(dekad_tbl$dekad_end, reference_year)
+
   # Analytical overlap calculation:
   # Overlap = max(0, min(dekad_end, season_end) - max(dekad_start, season_start) + 1)
   layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
     d <- dekad_tbl[i, ]
 
-    # Convert dekad boundaries to continuous Julian days
-    d_start_jd <- wapor_continuous_julian(d$dekad_start, reference_year)
-    d_end_jd   <- wapor_continuous_julian(d$dekad_end, reference_year)
+    # Use pre-calculated continuous Julian days
+    d_start_jd <- d_starts_jd[i]
+    d_end_jd   <- d_ends_jd[i]
     
     # Calculate overlap using terra::clamp (robust for SpatRaster/scalar)
     o_start <- terra::clamp(start_raster, lower = d_start_jd)

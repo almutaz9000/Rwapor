@@ -343,3 +343,60 @@ test_that("wapor_calc_peff works with vectorized date overlap calculation", {
   total_peff_none <- wapor_calc_peff(peff_monthly, start_date = "2023-08-01", end_date = "2023-08-31")
   expect_equal(total_peff_none, 0)
 })
+
+test_that("wapor_build_season_mask works with vectorized computation", {
+  skip_if_not_installed("terra")
+  start_r <- terra::rast(nrows = 2, ncols = 2, vals = 100) # Season starts day 100
+  end_r   <- terra::rast(nrows = 2, ncols = 2, vals = 200) # Season ends day 200
+
+  # Days: 99 (outside), 150 (inside), 201 (outside)
+  dates <- c("2023-04-09", "2023-05-30", "2023-07-20") # wapor_continuous_julian on 2023: 99, 150, 201
+
+  mask_r <- wapor_build_season_mask(dates, start_r, end_r, reference_year = 2023)
+
+  expect_true(inherits(mask_r, "SpatRaster"))
+  expect_equal(terra::nlyr(mask_r), 3)
+  expect_equal(names(mask_r), dates)
+
+  # Layer 1 should be 0 (outside season)
+  expect_equal(as.numeric(terra::values(mask_r[[1]])), c(0, 0, 0, 0))
+  # Layer 2 should be 1 (inside season)
+  expect_equal(as.numeric(terra::values(mask_r[[2]])), c(1, 1, 1, 1))
+  # Layer 3 should be 0 (outside season)
+  expect_equal(as.numeric(terra::values(mask_r[[3]])), c(0, 0, 0, 0))
+})
+
+test_that("wapor_build_season_weights works with pre-calculated continuous Julian days", {
+  skip_if_not_installed("terra")
+  start_r <- terra::rast(nrows = 2, ncols = 2, vals = 100) # starts day 100
+  end_r   <- terra::rast(nrows = 2, ncols = 2, vals = 115) # ends day 115
+
+  # We cover April 2023:
+  # April 1 to April 30: April 1 is day 91. April 30 is day 120.
+  # Dekad 1 (Apr 1-10): days 91-100. Overlap day 100 (1 day) -> fraction 1/10
+  # Dekad 2 (Apr 11-20): days 101-110. Overlap all 10 days -> fraction 10/10 = 1
+  # Dekad 3 (Apr 21-30): days 111-120. Overlap days 111-115 (5 days) -> fraction 5/10 = 0.5
+  out <- wapor_build_season_weights(
+    start_date = "2023-04-01",
+    end_date = "2023-04-30",
+    start_raster = start_r,
+    end_raster = end_r,
+    reference_year = 2023
+  )
+
+  expect_true(is.list(out))
+  expect_true(inherits(out$weights, "SpatRaster"))
+  expect_true(inherits(out$days, "SpatRaster"))
+  expect_equal(terra::nlyr(out$weights), 3)
+  expect_equal(terra::nlyr(out$days), 3)
+
+  # Check days
+  expect_equal(as.numeric(terra::values(out$days[[1]])), c(1, 1, 1, 1))
+  expect_equal(as.numeric(terra::values(out$days[[2]])), c(10, 10, 10, 10))
+  expect_equal(as.numeric(terra::values(out$days[[3]])), c(5, 5, 5, 5))
+
+  # Check weights
+  expect_equal(as.numeric(terra::values(out$weights[[1]])), c(0.1, 0.1, 0.1, 0.1))
+  expect_equal(as.numeric(terra::values(out$weights[[2]])), c(1.0, 1.0, 1.0, 1.0))
+  expect_equal(as.numeric(terra::values(out$weights[[3]])), c(0.5, 0.5, 0.5, 0.5))
+})
