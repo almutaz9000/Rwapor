@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized Class Masking in wapor_detect_aeti_anomalies]
+**Learning:** In spatial workflows using `terra`, iteratively masking multiple categorical classes using an R-level `for` loop and sequential `terra::ifel()` calls is highly inefficient. It triggers $O(N)$ separate raster allocations and C++ boundary crossings. Utilizing `terra`'s native vectorized `%in%` operator on `SpatRaster` completes membership checks and masking in a single high-performance pass, eliminating loop overhead and temporary raster copies.
+**Action:** Always prefer vectorized `%in%` or `classify()` over sequential `ifel()` loops for masking multiple classes or conditions.

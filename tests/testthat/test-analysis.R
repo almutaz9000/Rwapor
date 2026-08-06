@@ -343,3 +343,57 @@ test_that("wapor_calc_peff works with vectorized date overlap calculation", {
   total_peff_none <- wapor_calc_peff(peff_monthly, start_date = "2023-08-01", end_date = "2023-08-31")
   expect_equal(total_peff_none, 0)
 })
+
+test_that("wapor_detect_aeti_anomalies handles invalid classes", {
+  skip_if_not_installed("terra")
+
+  # Create a small 5x5 raster for seasonal AETI
+  aeti <- terra::rast(nrows = 5, ncols = 5, vals = 100)
+  # Modify some values to create anomalies
+  aeti[1] <- 10  # Very low, should be flagged as anomaly
+  aeti[2] <- NA  # Missing value
+
+  # Create a crop mask with 3 classes
+  # Class 1: 10 pixels (valid if min_pixels = 5)
+  # Class 2: 3 pixels (invalid if min_pixels = 5)
+  # Class 3: 12 pixels (valid if min_pixels = 5)
+  mask_vals <- c(
+    rep(1, 10),
+    rep(2, 3),
+    rep(3, 12)
+  )
+  crop_mask <- terra::rast(nrows = 5, ncols = 5, vals = mask_vals)
+
+  # Run anomaly detection with min_pixels = 5
+  result <- wapor_detect_aeti_anomalies(aeti, crop_mask, threshold = 0.5, min_pixels = 5)
+
+  expect_true(inherits(result$anomaly_map, "SpatRaster"))
+  expect_true(inherits(result$threshold_raster, "SpatRaster"))
+
+  # Verify anomaly statistics
+  stats <- result$anomaly_stats
+  expect_equal(nrow(stats), 3)
+
+  # Check validity flags
+  class1_stats <- stats[stats$class_value == 1, ]
+  class2_stats <- stats[stats$class_value == 2, ]
+  class3_stats <- stats[stats$class_value == 3, ]
+
+  expect_true(class1_stats$valid)
+  expect_false(class2_stats$valid)
+  expect_true(class3_stats$valid)
+
+  # Verify that the invalid class (Class 2) is masked to NA in anomaly_map
+  # Extract values of anomaly_map where crop_mask is 2
+  anomaly_vals_class2 <- terra::values(result$anomaly_map)[mask_vals == 2]
+  expect_true(all(is.na(anomaly_vals_class2)))
+
+  # Verify that Class 1 (valid) has correct anomaly mapping
+  # The first pixel of Class 1 was set to 10 (AETI), while class median is 100.
+  # Threshold is 100 * 0.5 = 50. Since 10 < 50, it should be flagged as 1.
+  anomaly_vals_class1 <- terra::values(result$anomaly_map)[mask_vals == 1]
+  # first is 1, second is NA (since aeti was NA), others are 0
+  expect_equal(anomaly_vals_class1[1], 1L)
+  expect_true(is.na(anomaly_vals_class1[2]))
+  expect_true(all(anomaly_vals_class1[3:10] == 0L))
+})
