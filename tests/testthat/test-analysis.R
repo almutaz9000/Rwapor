@@ -343,3 +343,48 @@ test_that("wapor_calc_peff works with vectorized date overlap calculation", {
   total_peff_none <- wapor_calc_peff(peff_monthly, start_date = "2023-08-01", end_date = "2023-08-31")
   expect_equal(total_peff_none, 0)
 })
+
+test_that("wapor_detect_aeti_anomalies works with vectorized class masking", {
+  skip_if_not_installed("terra")
+
+  # 2x2 raster
+  # class 1: 2 pixels. class 2: 2 pixels.
+  # If min_pixels = 2, both are valid.
+  # If min_pixels = 3, both are invalid (should be masked to NA).
+  aeti <- terra::rast(nrows = 2, ncols = 2, vals = c(10, 20, 30, 40))
+  crop_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 1, 2, 2))
+
+  # test with min_pixels = 2 (all valid)
+  res_valid <- wapor_detect_aeti_anomalies(aeti, crop_mask, threshold = 0.5, min_pixels = 2)
+  expect_true(inherits(res_valid$anomaly_map, "SpatRaster"))
+  expect_true(all(res_valid$anomaly_stats$valid))
+
+  # test with min_pixels = 3 (both classes invalid and should be NA)
+  res_invalid <- wapor_detect_aeti_anomalies(aeti, crop_mask, threshold = 0.5, min_pixels = 3)
+  expect_true(all(!res_invalid$anomaly_stats$valid))
+
+  # anomaly_map should have all NA because all classes are invalid (min_pixels = 3)
+  vals <- terra::values(res_invalid$anomaly_map)
+  expect_true(all(is.na(vals)))
+})
+
+test_that("wapor_build_season_mask returns correct mask and layer names", {
+  skip_if_not_installed("terra")
+
+  start_r <- terra::rast(nrows = 2, ncols = 2, vals = 100)
+  end_r   <- terra::rast(nrows = 2, ncols = 2, vals = 200)
+
+  dates <- c("2023-04-15", "2023-06-15", "2023-08-15") # Julian days: 105, 166, 227 (approx)
+
+  mask_res <- wapor_build_season_mask(dates, start_r, end_r, reference_year = 2023)
+
+  expect_true(inherits(mask_res, "SpatRaster"))
+  expect_equal(terra::nlyr(mask_res), 3)
+  expect_equal(names(mask_res), dates)
+
+  vals_lyr1 <- as.numeric(terra::values(mask_res[[1]]))
+  vals_lyr3 <- as.numeric(terra::values(mask_res[[3]]))
+
+  expect_true(all(vals_lyr1 == 1))
+  expect_true(all(vals_lyr3 == 0))
+})

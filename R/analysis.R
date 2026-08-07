@@ -343,13 +343,11 @@ wapor_build_season_mask <- function(dates, start_raster, end_raster,
   jd_values <- vapply(dates, wapor_continuous_julian,
                        reference_year = reference_year, FUN.VALUE = integer(1))
 
-  masks <- lapply(jd_values, function(jd) {
-    # For each pixel: 1 if start_jd <= jd <= end_jd, else 0
-    in_season <- (start_raster <= jd) & (end_raster >= jd)
-    terra::ifel(in_season, 1L, 0L)
-  })
-
-  result <- terra::rast(masks)
+  # Optimization: Fully vectorized multi-layer mask computation.
+  # Performing the SpatRaster-to-vector comparison `(start_raster <= jd_values) & (end_raster >= jd_values)`
+  # and multiplying the boolean result by 1L to convert to integers avoids the R-level lapply loop
+  # and multiple terra::ifel passes.
+  result <- ((start_raster <= jd_values) & (end_raster >= jd_values)) * 1L
   names(result) <- as.character(dates)
   result
 }
