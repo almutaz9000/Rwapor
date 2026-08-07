@@ -107,6 +107,8 @@ Examples: `L1-AETI-D` (L1, Actual ET, Dekadal), `L1-RET-D`, `L3-AETI-E` (Daily)
 
 **AGENT RULE**: Always use `"L1-RET-D"` and `"L1-PCP-D"` regardless of the spatial level you use for AETI. Specifying `"L2-RET-D"` or `"L3-PCP-D"` will fail — these variables do not exist.
 
+> **Automatic Temporal Scaling for Dekadal Data**: To simplify water productivity calculations, whenever you query any WaPOR dekadal (`-D`) variable (e.g., `L1-AETI-D`), the package automatically multiplies the raw daily rates (`mm/day` or `gC/m²/day`) by the exact number of days in each specific dekad (D1 and D2 have 10 days, D3 has 8–11 days depending on the calendar month and leap year status). This produces dekadal totals (`mm/dekad` or `gC/m²/dekad`). If you specifically require daily rates, use `unit_conversion = "day"`.
+
 **Discover all available variables**:
 ```r
 library(Rwapor)
@@ -155,6 +157,8 @@ str(AGERA5_VARS, max.level = 2)
 # Temperature: raw data is in Kelvin, package auto-converts to °C
 # No manual conversion needed when using wapor_ts() or wapor_map()
 ```
+
+> **Automatic Temperature Scale Conversion**: AgERA5 temperature variables (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored in Kelvin (`K`) on the server. The package automatically converts these to Celsius (`°C`) by subtracting `273.15` during raster download or time-series extraction. The returned raster layer values, stats data frames, and units metadata are updated to `degC` / `°C` automatically.
 
 ### 3.3 L3 Irrigation Schemes (Named Regions)
 
