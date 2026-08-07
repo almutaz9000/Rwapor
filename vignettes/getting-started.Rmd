@@ -242,10 +242,17 @@ attr(df, "long_name")
 # "Actual EvapoTranspiration and Interception"
 ```
 
-## Unit Conversion
+## Automatic Data Transformations
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+To streamline agricultural water productivity and crop monitoring, `Rwapor` automatically performs key unit and variable transformations during the download and extraction processes.
+
+### 1. WaPOR Dekadal Defaults (Daily Rates to Dekadal Totals)
+
+WaPOR dekadal (10-day) variables are published on the FAO portal as average daily rates (`mm/day` or `gC/m²/day`). However, crop and water productivity analyses typically require total water depth or biomass produced over each 10-day period.
+
+To eliminate manual date-length calculations:
+* By default, `wapor_ts()` and `wapor_map()` **automatically scale and convert daily rates to dekadal totals** (`mm/dekad` or `gC/m²/dekad`) based on the exact number of days in each specific dekad (either 10, or 11/8/9 depending on the month and leap year).
+* You can customize or disable this conversion using the `unit_conversion` parameter (e.g., set `unit_conversion = "day"` to retrieve daily rates, or `"month"` to aggregate to monthly totals).
 
 ```{r unit-conversion}
 # Default: mm/dekad (dekadal total)
@@ -256,7 +263,7 @@ df_dekad <- wapor_ts(
 )
 attr(df_dekad, "units")  # "mm/dekad"
 
-# Daily rate
+# Retrieve daily rate (mm/day)
 df_day <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
@@ -277,6 +284,12 @@ attr(df_monthly, "units")  # "mm/month"
 ```
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
+
+### 2. Automatic Temperature Conversion (Kelvin to Celsius)
+
+AgERA5 temperature datasets (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored natively on the FAO Copernicus mirrors in Kelvin (`K`). To make the data immediately usable for agricultural and phenological models:
+* Both `wapor_map()` and `wapor_ts()` **automatically convert Kelvin values to degrees Celsius (°C)** by subtracting `273.15` during raster download and extraction.
+* The output SpatRaster layers and extracted statistical data frames are in Celsius, and their units metadata attribute is dynamically updated from `K` to `degC` or `°C` automatically.
 
 ## Working with URLs Directly
 

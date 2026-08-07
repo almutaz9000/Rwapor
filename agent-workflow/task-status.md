@@ -12,6 +12,7 @@ _Last updated: 2026-05-14_
 
 - [x] Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing (2026-05-14).
 - [x] Replaced dynamic function resolution via `getFromNamespace` with standard namespace operators (`Rwapor::` and `Rwapor:::`) in `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` (2026-05-14).
+- [x] Updated user-facing vignettes (`getting-started.Rmd`, `data-catalog.Rmd`) and `inst/agent_skills/RWAPOR_AGENT_SKILLS.md` to document and clarify the automatic temperature conversion (Kelvin to Celsius) and dekadal defaults (daily rates to dekadal totals) (2026-05-14).
 - [x] Ran the package test follow-up by adding comprehensive unit test coverage for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R` (2026-05-14).
 - [x] Archived development-only assets to `dev-archive/2026-05-production-cleanup/` and moved utility scripts to `dev-tools/scripts/` with updated path references (2026-05-14).
 - [x] Hardened dashboard dependency checks to include async runtime packages (2026-05-13).
@@ -32,8 +33,6 @@ _Last updated: 2026-05-14_
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
 - [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
 ## Completed Recently
 
