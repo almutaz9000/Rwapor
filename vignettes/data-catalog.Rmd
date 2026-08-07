@@ -67,8 +67,8 @@ AgERA5 provides daily agro-meteorological indicators. Data is available globally
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Water** | Reference ET | `AGERA5-ET0` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Water** | Precipitation | `AGERA5-PF` | E, D, M, A | mm | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
-| **Temperature** | Min Temperature | `AGERA5-TMIN` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
-| **Temperature** | Max Temperature | `AGERA5-TMAX` | E, A* | K | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Min Temperature | `AGERA5-TMIN` | E, A* | °C (Kelvin converted) | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
+| **Temperature** | Max Temperature | `AGERA5-TMAX` | E, A* | °C (Kelvin converted) | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Energy** | Solar Radiation | `AGERA5-SRF` | E | J/m² | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Atmospheric** | Wind Speed (2m) | `AGERA5-WS` | E | m/s | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
 | **Atmospheric** | Rel. Humidity | `AGERA5-RHxx` | E | 0-1 | 1.0 | 1979+ | [CDS Link](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=overview) |
@@ -77,3 +77,19 @@ AgERA5 provides daily agro-meteorological indicators. Data is available globally
 
 ### Usage Note: Daily Variables
 For daily AgERA5 variables, use the suffix `-E` (e.g., `AGERA5-ET0-E`). The package internally translates this to the mapset ID `AGERA5-ET0` required by the FAO GISMGR API.
+
+---
+
+## Automatic Data Transformations
+
+To keep analysis workflows simple and scientifically correct, the `Rwapor` package performs two primary data transformations automatically during data retrieval (`wapor_ts()` and `wapor_map()`):
+
+### 1. Kelvin to Celsius Conversion
+* **Target Variables**: `AGERA5-TMIN-E`, `AGERA5-TMAX-E`
+* **Details**: AgERA5 temperature variables are archived in Kelvin (`K`) on the server. `Rwapor` automatically subtracts `273.15` from the downloaded rasters and any extracted time series.
+* **Output Units**: The final rasters, metadata, and tables are labeled in degrees Celsius (`degC` / `°C`).
+
+### 2. Daily Rate to Dekadal Totals Conversion
+* **Target Variables**: Any WaPOR `-D` (dekadal) variable (such as `L1-AETI-D`, `L2-AETI-D`, `L3-AETI-D`, `L1-RET-D`, `L1-PCP-D`, etc.)
+* **Details**: WaPOR dekadal variables are archived as daily rates (e.g., `mm/day`). By default, `Rwapor` automatically scales these rates to 10-day totals (`mm/dekad`) based on the exact number of calendar days in each individual dekad (10 days for D1 and D2; 8, 9, 10, or 11 days for D3 depending on the month and leap year).
+* **Output Units**: The final data defaults to `mm/dekad` or `gC/m²/dekad` unless the user explicitly requests another unit (e.g., `unit_conversion = "day"` to keep `mm/day`).
