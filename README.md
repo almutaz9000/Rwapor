@@ -157,6 +157,7 @@ run_wapor(data_folder = "C:/WaPOR_Data")
   - Auto-filters L3 regions to show only those intersecting your AOI
   - Auto-selects when exactly one region overlaps
   - Shows status messages for guidance
+  - See [L3 Auto-Detection Guide](.github/L3-AUTO-DETECTION.md) for details
 - Upload your own polygons (Shapefile, GeoJSON, KML, GeoPackage)
 - Select variables (AETI, NPP, Precipitation, etc.)
 - Choose date range and download data
@@ -352,13 +353,6 @@ For details, see `docs/REPOSITORY_STRUCTURE.md`.
 Contributions are welcome! Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
-
-### 🤖 AI Agent & Contributor Workflow
-
-To maintain clear and predictable coordination across multi-session or multi-agent contributions (both human and AI):
-- **Canonical State**: The `agent-workflow/` directory is the single source of truth for ongoing task state (`task-status.md`), unresolved regressions or issues (`issues-log.md`), and historical context.
-- **Agent Entry Point**: All automated agents must start by reading [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md) and the root [AGENTS.md](AGENTS.md) file.
-- **Task Alignment**: Human developers can use these files to view currently active agent tasks or log discovered bugs to guide subsequent AI assistance.
 
 ---
 
