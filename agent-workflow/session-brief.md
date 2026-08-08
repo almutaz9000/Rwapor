@@ -4,7 +4,7 @@ _Last updated: 2026-05-14_
 
 ## Active Focus
 
-- Added a dedicated "AI Agent & Contributor Workflow" section to the main `README.md` to clearly define how automated and human contributors coordinate via `bolt.md`, `agent-workflow/START-HERE.md`, and `AGENTS.md`.
+- Addressed PR feedback and reverted the addition of the "AI Agent & Contributor Workflow" section to the main `README.md`. Decided to keep all agent coordination private and ignored from release builds to avoid cluttered human-facing files.
 - Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` for cleaner local development and loading.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`.
 - Relaxed `.gitignore` for shared agent configuration files (`bolt.md`, `CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) to support Git-tracked coordination pointers.

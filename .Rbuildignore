@@ -30,6 +30,7 @@
 ^\.gemini$
 ^\.jules$
 ^AGENTS\.md$
+^bolt\.md$
 ^agent-workflow$
 ^improvements$
 ^projects$
