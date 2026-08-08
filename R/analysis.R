@@ -343,14 +343,17 @@ wapor_build_season_mask <- function(dates, start_raster, end_raster,
   }
   if (is.character(dates)) dates <- as.Date(dates)
 
-  # Optimized: Avoid R-level vapply loop and parse dates as a vector
-  jd_values <- wapor_continuous_julian(dates, reference_year)
+  # Optimization: wapor_continuous_julian naturally supports vectors of dates.
+  # Passing the entire vector directly upfront eliminates the R-level vapply loop and redundant date-parsing overhead.
+  jd_values <- wapor_continuous_julian(dates, reference_year = reference_year)
 
-  # Optimized: Avoid O(N) iterative R-level lapply loop with terra::ifel().
-  # SpatRaster comparison against a vector returns a multi-layer SpatRaster
-  # directly in C++. Boolean logical results are represented natively,
-  # and multiplication by 1L converts them to integer 0/1 SpatRaster.
+  # Optimization: SpatRaster compared to numeric vector produces multi-layer SpatRaster.
+  # Doing this in a single vectorized step fully avoids the R-level lapply loop and terra::ifel
+  # overhead, letting the C++ backend do the comparisons in a single pass.
   in_season <- (start_raster <= jd_values) & (end_raster >= jd_values)
+
+  # Casting the boolean SpatRaster to a 0/1 integer SpatRaster efficiently using multiplication.
+  # This avoids the conditional branch evaluation overhead of terra::ifel().
   result <- in_season * 1L
   names(result) <- as.character(dates)
   result
