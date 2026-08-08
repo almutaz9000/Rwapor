@@ -13,6 +13,7 @@
 
 ## 2026-05-14
 
+- Added a dedicated "AI Agent & Contributor Workflow" section to the main `README.md` to document the canonical workflow explicitly and surface pointer/coordination files (`bolt.md`, `agent-workflow/START-HERE.md`, `AGENTS.md`) for human developers and automated assistants.
 - Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing and prevent local-only configuration silos.
 - Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` to support clean local package development and prevent sourcing failures.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`, ensuring robust validation of input SpatRaster objects and correct conversion of Kelvin to Celsius for AgERA5 temperature variables (TMIN/TMAX).

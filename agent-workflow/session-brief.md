@@ -4,6 +4,7 @@ _Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Added a dedicated "AI Agent & Contributor Workflow" section to the main `README.md` to clearly define how automated and human contributors coordinate via `bolt.md`, `agent-workflow/START-HERE.md`, and `AGENTS.md`.
 - Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` for cleaner local development and loading.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`.
 - Relaxed `.gitignore` for shared agent configuration files (`bolt.md`, `CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) to support Git-tracked coordination pointers.
@@ -45,7 +46,6 @@ _Last updated: 2026-05-14_
 ## Pending Tasks
 
 - [ ] Use the shared workflow during the next substantial multi-model task and remove any friction it exposes.
-- [ ] Decide whether to surface the workflow in `README.md` or other human-facing docs.
 - [ ] Manually verify the patched Shiny batch workflow with local multi-season rasters and confirm the session no longer disconnects.
 - [ ] Reinstall or load the updated package code before rerunning standalone analysis scripts generated from the Shiny UI.
 - [ ] Reinstall or load the updated package code before rerunning standalone indicator-by-indicator analysis scripts that include `beneficial_fraction`.

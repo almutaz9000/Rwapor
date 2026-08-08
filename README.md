@@ -354,6 +354,16 @@ Contributions are welcome! Please:
 - Report bugs via [GitHub Issues](https://github.com/almutaz9000/Rwapor/issues)
 - Submit improvements via [Pull Requests](https://github.com/almutaz9000/Rwapor/pulls)
 
+### AI Agent & Contributor Workflow
+
+To support automated assistance and keep human contributors aligned, this repository uses a canonical workflow:
+
+- **Primary Entry Point**: The root [bolt.md](bolt.md) serves as the main session starting point. Always check this file first for active tasks, pending requirements, and guidelines.
+- **Coordination Hub**: AI assistants and developers coordinate their task states, active issues, and session briefings under [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md).
+- **Behavioral Pointers**: The root [AGENTS.md](AGENTS.md) acts as a high-level entry pointer for all automated contributors.
+
+This structured workflow ensures that our testing, verification, and code quality are consistently maintained.
+
 ---
 
 ## 📄 License

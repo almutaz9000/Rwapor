@@ -10,6 +10,7 @@ _Last updated: 2026-05-14_
 
 ## Recently Completed
 
+- [x] Added AI Agent & Contributor Workflow section to human-facing `README.md` to surface the shared workflow explicitly (2026-05-14).
 - [x] Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing (2026-05-14).
 - [x] Replaced dynamic function resolution via `getFromNamespace` with standard namespace operators (`Rwapor::` and `Rwapor:::`) in `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` (2026-05-14).
 - [x] Ran the package test follow-up by adding comprehensive unit test coverage for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R` (2026-05-14).
@@ -31,7 +32,6 @@ _Last updated: 2026-05-14_
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
-- [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
 - [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
 - [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
