@@ -242,13 +242,18 @@ attr(df, "long_name")
 # "Actual EvapoTranspiration and Interception"
 ```
 
-## Unit Conversion
+## Automatic Unit & Temperature Conversions
 
-WaPOR dekadal variables are stored as daily rates (`mm/day`). Rwapor converts
-them automatically. Use the `unit_conversion` parameter to choose the output:
+Rwapor automatically takes care of common transformations to save you time and prevent calculation errors.
+
+### 1. WaPOR Daily-to-Dekadal Totals
+WaPOR dekadal variables (such as actual evapotranspiration, `L1-AETI-D`, precipitation, `L1-PCP-D`, and reference ET, `L1-RET-D`) are originally stored on FAO servers as daily rates (e.g., `mm/day`).
+By default, Rwapor automatically multiplies these rates by the number of days in each specific dekad (which can be 10 or 11 days, or 8/9 days for late February) to produce actual dekadal totals (e.g., `mm/dekad`).
+
+You can customize this behavior using the `unit_conversion` parameter in `wapor_ts()` or `wapor_map()`:
 
 ```{r unit-conversion}
-# Default: mm/dekad (dekadal total)
+# Default: mm/dekad (automatic dekadal totals)
 df_dekad <- wapor_ts(
   region   = c(35.0, 33.0, 36.0, 34.0),
   variable = "L1-AETI-D",
@@ -256,7 +261,7 @@ df_dekad <- wapor_ts(
 )
 attr(df_dekad, "units")  # "mm/dekad"
 
-# Daily rate
+# Daily rate (restores original daily rate)
 df_day <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
@@ -266,7 +271,7 @@ df_day <- wapor_ts(
 attr(df_day, "units")          # "mm/day"
 attr(df_day, "original_units") # "mm/day"
 
-# Monthly total
+# Monthly total (aggregates dekads into monthly totals)
 df_monthly <- wapor_ts(
   region          = c(35.0, 33.0, 36.0, 34.0),
   variable        = "L1-AETI-D",
@@ -277,6 +282,10 @@ attr(df_monthly, "units")  # "mm/month"
 ```
 
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
+
+### 2. AgERA5 Kelvin-to-Celsius Conversion
+AgERA5 air temperature variables (`AGERA5-TMIN-E` and `AGERA5-TMAX-E`) are stored natively in Kelvin (K).
+Since agricultural analysis and models almost universally use Celsius, Rwapor automatically converts these temperatures from Kelvin to Celsius (°C) during download. This is applied to both timeseries extraction and raster maps, and units are automatically documented as `°C` in output metadata.
 
 ## Working with URLs Directly
 
