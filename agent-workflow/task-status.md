@@ -31,9 +31,6 @@ _Last updated: 2026-05-14_
 - [ ] Manually verify the Analysis tab project-folder override and confirm `Re-scan Folder` follows the active source folder instead of the output folder.
 - [ ] Manually verify that Analysis `Detect from Folder` no longer disconnects the session for valid and invalid project folders.
 - [ ] Manually verify the simplified download-tab AOI browser flow with nested folders and representative vector files on Windows.
-- [ ] Decide whether to surface the shared workflow in human-facing contributor docs such as `README.md`.
-- [ ] Run the package test follow-up for the earlier temperature-conversion work when that code path is next touched.
-- [ ] Update user-facing docs for automatic temperature conversion and dekadal defaults in a future documentation pass.
 
 ## Completed Recently
 

@@ -13,6 +13,9 @@
 
 ## 2026-05-14
 
+- Documented automatic transformations (AgERA5 temperature Kelvin-to-Celsius conversion and WaPOR Daily-to-Dekadal totals) in `vignettes/data-catalog.Rmd` and `vignettes/getting-started.Rmd`.
+- Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
+- Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.
 - Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing and prevent local-only configuration silos.
 - Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` to support clean local package development and prevent sourcing failures.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`, ensuring robust validation of input SpatRaster objects and correct conversion of Kelvin to Celsius for AgERA5 temperature variables (TMIN/TMAX).
