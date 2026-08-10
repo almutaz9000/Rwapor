@@ -639,7 +639,7 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
 #' Aggregate Daily Kc to Dekadal Mean Kc
 #'
 #' Takes a daily Kc vector and a dekad table, computes the mean Kc
-#' for each dekad period.
+#' for each dekad period using an optimized vectorized cumulative sum method.
 #'
 #' @param kc_daily Numeric vector of daily Kc values.
 #' @param dekad_table data.frame with columns dekad_start, dekad_end, n_days.
@@ -650,21 +650,52 @@ wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
   if (is.character(season_start)) season_start <- as.Date(season_start)
   total_kc_days <- length(kc_daily)
 
-  vapply(seq_len(nrow(dekad_table)), function(i) {
-    d <- dekad_table[i, ]
-    # Days relative to season start (1-indexed)
-    day_start <- as.integer(d$dekad_start - season_start) + 1L
-    day_end   <- as.integer(d$dekad_end - season_start) + 1L
+  if (total_kc_days == 0 || is.null(dekad_table) || nrow(dekad_table) == 0) {
+    return(numeric(if (is.null(dekad_table)) 0L else nrow(dekad_table)))
+  }
 
-    # Clamp to valid range
-    day_start <- max(1L, day_start)
-    day_end   <- min(total_kc_days, day_end)
+  # Vectorized day offset calculation relative to season start (1-indexed)
+  day_starts_orig <- as.integer(dekad_table$dekad_start - season_start) + 1L
+  day_ends_orig   <- as.integer(dekad_table$dekad_end - season_start) + 1L
 
-    if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
-      return(0)
-    }
-    mean(kc_daily[day_start:day_end], na.rm = TRUE)
-  }, numeric(1))
+  # Vectorized clamping to valid range
+  day_starts <- pmax(1L, day_starts_orig)
+  day_ends   <- pmin(total_kc_days, day_ends_orig)
+
+  # Check validity vectorially
+  invalid <- (day_starts > total_kc_days) | (day_ends < 1L) | (day_starts > day_ends)
+
+  # Handle potential NA values in kc_daily vectorially
+  if (anyNA(kc_daily)) {
+    kc_daily_no_na <- kc_daily
+    kc_daily_no_na[is.na(kc_daily_no_na)] <- 0
+    cumsum_kc <- c(0, cumsum(kc_daily_no_na))
+
+    non_na_indicator <- as.integer(!is.na(kc_daily))
+    cumsum_non_na <- c(0L, cumsum(non_na_indicator))
+
+    # Safe positive index clamping for cumsum indexing to prevent mixing positive/negative subscripts in R
+    idx_starts <- pmax(1L, pmin(total_kc_days + 1L, day_starts))
+    idx_ends   <- pmax(1L, pmin(total_kc_days + 1L, day_ends + 1L))
+
+    sums <- cumsum_kc[idx_ends] - cumsum_kc[idx_starts]
+    counts <- cumsum_non_na[idx_ends] - cumsum_non_na[idx_starts]
+  } else {
+    cumsum_kc <- c(0, cumsum(kc_daily))
+
+    # Safe positive index clamping for cumsum indexing to prevent mixing positive/negative subscripts in R
+    idx_starts <- pmax(1L, pmin(total_kc_days + 1L, day_starts))
+    idx_ends   <- pmax(1L, pmin(total_kc_days + 1L, day_ends + 1L))
+
+    sums <- cumsum_kc[idx_ends] - cumsum_kc[idx_starts]
+    counts <- day_ends - day_starts + 1L
+  }
+
+  # Compute mean and set invalid ranges to 0
+  means <- sums / counts
+  means[invalid] <- 0
+
+  means
 }
 
 #' Scan Local Folder for Available Variables

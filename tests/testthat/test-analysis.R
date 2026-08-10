@@ -406,3 +406,60 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_aggregate_kc works and handles edge cases", {
+  # 1. Standard Case
+  kc_daily <- seq(1.0, 2.0, length.out = 20)
+  dekad_table <- data.frame(
+    dekad_start = as.Date(c("2023-01-01", "2023-01-11")),
+    dekad_end   = as.Date(c("2023-01-10", "2023-01-20")),
+    n_days      = c(10L, 10L),
+    stringsAsFactors = FALSE
+  )
+  season_start <- "2023-01-01"
+
+  res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start)
+  expect_equal(length(res), 2)
+  expect_equal(res[1], mean(kc_daily[1:10]))
+  expect_equal(res[2], mean(kc_daily[11:20]))
+
+  # 2. Clamped Boundaries
+  dekad_table_clamped <- data.frame(
+    dekad_start = as.Date(c("2022-12-25", "2023-01-15")),
+    dekad_end   = as.Date(c("2023-01-05", "2023-01-25")),
+    n_days      = c(12L, 11L),
+    stringsAsFactors = FALSE
+  )
+  res_clamped <- wapor_aggregate_kc(kc_daily, dekad_table_clamped, season_start)
+  # First dekad covers 2022-12-25 to 2023-01-05, should be clamped to 2023-01-01 to 2023-01-05 (days 1-5 of kc_daily)
+  expect_equal(res_clamped[1], mean(kc_daily[1:5]))
+  # Second dekad covers 2023-01-15 to 2023-01-25, should be clamped to 2023-01-15 to 2023-01-20 (days 15-20 of kc_daily)
+  expect_equal(res_clamped[2], mean(kc_daily[15:20]))
+
+  # 3. Completely Out of Bounds
+  dekad_table_oob <- data.frame(
+    dekad_start = as.Date(c("2022-12-01", "2023-02-01")),
+    dekad_end   = as.Date(c("2022-12-10", "2023-02-10")),
+    n_days      = c(10L, 10L),
+    stringsAsFactors = FALSE
+  )
+  res_oob <- wapor_aggregate_kc(kc_daily, dekad_table_oob, season_start)
+  expect_equal(res_oob, c(0, 0))
+
+  # 4. Empty and NULL Inputs
+  expect_equal(length(wapor_aggregate_kc(numeric(0), dekad_table, season_start)), 2)
+  expect_equal(wapor_aggregate_kc(numeric(0), dekad_table, season_start), c(0, 0))
+  expect_equal(length(wapor_aggregate_kc(kc_daily, NULL, season_start)), 0)
+  expect_equal(length(wapor_aggregate_kc(kc_daily, data.frame(), season_start)), 0)
+
+  # 5. Vector with NA values
+  kc_daily_na <- c(1, 2, NA, 4, 5)
+  dekad_table_na <- data.frame(
+    dekad_start = as.Date("2023-01-01"),
+    dekad_end   = as.Date("2023-01-05"),
+    n_days      = 5L,
+    stringsAsFactors = FALSE
+  )
+  res_na <- wapor_aggregate_kc(kc_daily_na, dekad_table_na, season_start)
+  expect_equal(res_na, mean(c(1, 2, 4, 5)))
+})
