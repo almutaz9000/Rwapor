@@ -363,3 +363,46 @@ test_that("wapor_build_season_mask works with vectorized logic", {
   expect_equal(as.numeric(terra::values(result[[2]])[1]), 1)
   expect_equal(as.numeric(terra::values(result[[3]])[1]), 0)
 })
+
+test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks invalid classes", {
+  skip_if_not_installed("terra")
+
+  # Create a mock seasonal AETI raster
+  # Class 1: 40 pixels, median ~10, normal range 8-12, one low pixel at 3
+  # Class 2: 5 pixels, below min_pixels (30), should be masked to NA
+  aeti_vals <- c(
+    rep(10, 39), 3,       # Class 1 (40 pixels)
+    rep(10, 5)            # Class 2 (5 pixels)
+  )
+  crop_vals <- c(
+    rep(1L, 40),
+    rep(2L, 5)
+  )
+
+  aeti_rast <- terra::rast(nrows = 9, ncols = 5, vals = aeti_vals)
+  crop_mask <- terra::rast(nrows = 9, ncols = 5, vals = crop_vals)
+
+  result <- wapor_detect_aeti_anomalies(aeti_rast, crop_mask, threshold = 0.5, min_pixels = 30)
+
+  expect_true(inherits(result$anomaly_map, "SpatRaster"))
+
+  # Verify anomaly counts/stats for Class 1 (valid class)
+  stats <- result$anomaly_stats
+  class1_stats <- stats[stats$class_value == 1, ]
+  expect_true(class1_stats$valid)
+  expect_equal(class1_stats$pixel_count, 40)
+  expect_equal(class1_stats$anomaly_pixels, 1) # only the value 3 is < 10 * 0.5
+
+  # Verify Class 2 is marked invalid
+  class2_stats <- stats[stats$class_value == 2, ]
+  expect_false(class2_stats$valid)
+
+  # Verify anomaly map values
+  # Class 2 pixels should be NA in anomaly_map because Class 2 has < min_pixels (30)
+  anom_vals <- terra::values(result$anomaly_map)
+  expect_true(all(is.na(anom_vals[41:45])))
+
+  # Class 1 normal pixels should be 0, anomaly pixel should be 1
+  expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
+  expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
+})
