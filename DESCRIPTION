@@ -19,7 +19,7 @@ BugReports: https://github.com/almutaz9000/Rwapor/issues
 Depends: R (>= 4.1.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.0.0
+RoxygenNote: 7.3.3
 Imports:
     httr2,
     terra,
@@ -62,4 +62,4 @@ Suggests:
     ggspatial
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 7.3.3
