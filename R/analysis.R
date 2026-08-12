@@ -649,22 +649,53 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
 wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
   if (is.character(season_start)) season_start <- as.Date(season_start)
   total_kc_days <- length(kc_daily)
+  n_dekads <- nrow(dekad_table)
+  if (n_dekads == 0) return(numeric(0))
 
-  vapply(seq_len(nrow(dekad_table)), function(i) {
-    d <- dekad_table[i, ]
-    # Days relative to season start (1-indexed)
-    day_start <- as.integer(d$dekad_start - season_start) + 1L
-    day_end   <- as.integer(d$dekad_end - season_start) + 1L
+  # Optimization: Fully vectorized cumulative sum (cumsum) algorithm.
+  # This replaces the O(N) row-by-row vapply loop with an O(1) interval mean calculation,
+  # leading to substantial performance gains for multi-season/multi-crop runs.
 
-    # Clamp to valid range
-    day_start <- max(1L, day_start)
-    day_end   <- min(total_kc_days, day_end)
+  # Safe fallback to the original vapply loop if kc_daily contains NAs
+  if (anyNA(kc_daily)) {
+    return(vapply(seq_len(n_dekads), function(i) {
+      d <- dekad_table[i, ]
+      day_start <- as.integer(d$dekad_start - season_start) + 1L
+      day_end   <- as.integer(d$dekad_end - season_start) + 1L
+      day_start <- max(1L, day_start)
+      day_end   <- min(total_kc_days, day_end)
+      if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
+        return(0)
+      }
+      mean(kc_daily[day_start:day_end], na.rm = TRUE)
+    }, numeric(1)))
+  }
 
-    if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
-      return(0)
-    }
-    mean(kc_daily[day_start:day_end], na.rm = TRUE)
-  }, numeric(1))
+  day_start_raw <- as.integer(dekad_table$dekad_start - season_start) + 1L
+  day_end_raw   <- as.integer(dekad_table$dekad_end - season_start) + 1L
+
+  # Vectorized detection of invalid or out-of-bounds indices
+  invalid <- is.na(day_start_raw) | is.na(day_end_raw) |
+             (day_start_raw > total_kc_days) | (day_end_raw < 1L) |
+             (day_start_raw > day_end_raw)
+
+  # Vectorized clamp to valid bounds
+  day_start <- pmax(1L, day_start_raw)
+  day_end   <- pmin(total_kc_days, day_end_raw)
+
+  # Prevent out-of-bounds subscripts by setting invalid entries to a safe index (1L)
+  day_start[invalid] <- 1L
+  day_end[invalid]   <- 1L
+
+  # Compute vectorized cumulative sum interval means
+  cumsum_kc <- c(0, cumsum(kc_daily))
+  sum_kc <- cumsum_kc[day_end + 1L] - cumsum_kc[day_start]
+  n_days <- day_end - day_start + 1L
+
+  means <- sum_kc / n_days
+  means[invalid] <- 0
+
+  means
 }
 
 #' Scan Local Folder for Available Variables

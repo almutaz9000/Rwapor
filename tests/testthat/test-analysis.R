@@ -406,3 +406,55 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_aggregate_kc works with vectorized cumulative sum logic", {
+  kc_daily <- c(rep(0.4, 30), rep(0.8, 60), rep(1.2, 40), rep(0.5, 30)) # 160 days
+  season_start <- as.Date("2023-05-01")
+
+  dekad_table <- data.frame(
+    dekad_start = as.Date(c(
+      "2023-04-21", # completely before (out-of-bounds, should return 0)
+      "2023-05-01", # standard overlap
+      "2023-05-11", # standard overlap
+      "2023-06-01", # standard overlap
+      "2023-09-21", # clamped bounds / partially after
+      "2023-10-11"  # completely after (out-of-bounds, should return 0)
+    )),
+    dekad_end = as.Date(c(
+      "2023-04-30",
+      "2023-05-10",
+      "2023-05-20",
+      "2023-06-10",
+      "2023-09-30",
+      "2023-10-20"
+    )),
+    n_days = c(10L, 10L, 10L, 10L, 10L, 10L)
+  )
+
+  result <- wapor_aggregate_kc(kc_daily, dekad_table, season_start)
+
+  expect_equal(length(result), 6)
+  expect_equal(result[1], 0)
+  expect_equal(result[2], 0.4)
+  expect_equal(result[3], 0.4)
+  expect_equal(result[4], 0.8)
+  expect_equal(result[5], 0.5)
+  expect_equal(result[6], 0)
+
+  # Check with empty dekad_table
+  empty_table <- data.frame(
+    dekad_start = as.Date(character(0)),
+    dekad_end = as.Date(character(0)),
+    n_days = integer(0)
+  )
+  expect_equal(length(wapor_aggregate_kc(kc_daily, empty_table, season_start)), 0)
+
+  # Check fallback for NA in kc_daily
+  kc_daily_na <- kc_daily
+  kc_daily_na[5] <- NA
+  result_na <- wapor_aggregate_kc(kc_daily_na, dekad_table, season_start)
+  expect_equal(length(result_na), 6)
+  expect_equal(result_na[1], 0)
+  expect_true(is.na(result_na[2])) # day 5 falls inside this dekad, should propagate NA
+  expect_equal(result_na[3], 0.4)
+})
