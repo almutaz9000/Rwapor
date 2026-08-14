@@ -71,8 +71,8 @@ _Last updated: 2026-05-14_
   - ID: ISS-20260512-010
   - Resolved: 2026-05-14
   - Root cause: `inst/shiny/app.R` sources `mod_analysis.R` directly, and the helper lives in `R/analysis_utils.R` as an internal package function; the app runtime does not attach that symbol on the search path.
-  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly. Followed up by replacing all remaining `getFromNamespace` dynamic lookups in `inst/shiny/mod_analysis.R` and `inst/shiny/utils_shiny.R` with standard namespace operators (`Rwapor:::` and `Rwapor::`).
-  - Files: `inst/shiny/mod_analysis.R`, `inst/shiny/utils_shiny.R`
+  - Fix applied: changed the Analysis observer to call `Rwapor:::wapor_shiny_safe_rast()` explicitly. Followed up by replacing all remaining `getFromNamespace` dynamic lookups in `inst/shiny/mod_analysis.R` and `inst/shiny/utils_shiny.R` with standard namespace operators (`Rwapor:::` and `Rwapor::`). Also refactored the test suite to use explicit `Rwapor:::` namespace operators and cleaned up unused imports from `R/utils.R`.
+  - Files: `inst/shiny/mod_analysis.R`, `inst/shiny/utils_shiny.R`, `tests/testthat/test-analysis-indicators.R`, `R/utils.R`
   - Validation: verified changes via static syntax and parsing analysis.
 
 - [x] Repository root contained mixed production and development artifacts, increasing agent/context noise.
