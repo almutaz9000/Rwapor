@@ -650,21 +650,38 @@ wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
   if (is.character(season_start)) season_start <- as.Date(season_start)
   total_kc_days <- length(kc_daily)
 
-  vapply(seq_len(nrow(dekad_table)), function(i) {
-    d <- dekad_table[i, ]
-    # Days relative to season start (1-indexed)
-    day_start <- as.integer(d$dekad_start - season_start) + 1L
-    day_end   <- as.integer(d$dekad_end - season_start) + 1L
+  if (total_kc_days == 0L || nrow(dekad_table) == 0L) {
+    return(numeric(nrow(dekad_table)))
+  }
 
-    # Clamp to valid range
-    day_start <- max(1L, day_start)
-    day_end   <- min(total_kc_days, day_end)
+  # Vectorized calculation of day offsets relative to season start (1-indexed)
+  raw_starts <- as.integer(as.Date(dekad_table$dekad_start) - season_start) + 1L
+  raw_ends   <- as.integer(as.Date(dekad_table$dekad_end) - season_start) + 1L
 
-    if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
-      return(0)
-    }
-    mean(kc_daily[day_start:day_end], na.rm = TRUE)
-  }, numeric(1))
+  # Identify dekads with valid overlap in day space before clamping
+  valid_overlap <- (raw_starts <= total_kc_days) & (raw_ends >= 1L) & (raw_starts <= raw_ends)
+
+  # Clamp start/end indices safely to valid vector bounds [1, total_kc_days] using positive clamping
+  idx_starts <- pmax(1L, pmin(total_kc_days, raw_starts))
+  idx_ends   <- pmin(total_kc_days, pmax(1L, raw_ends))
+
+  # Optimization: Dual prefix sums (cumsum) for values and non-NA counts allow O(1) interval
+  # mean calculations while properly handling NA values (matching mean(..., na.rm = TRUE)).
+  is_na_kc <- is.na(kc_daily)
+  kc_clean <- ifelse(is_na_kc, 0, kc_daily)
+  kc_valid <- ifelse(is_na_kc, 0L, 1L)
+
+  kc_cum_sums   <- c(0, cumsum(kc_clean))
+  kc_cum_counts <- c(0L, cumsum(kc_valid))
+
+  interval_sums   <- kc_cum_sums[idx_ends + 1L] - kc_cum_sums[idx_starts]
+  interval_counts <- kc_cum_counts[idx_ends + 1L] - kc_cum_counts[idx_starts]
+
+  # Calculate mean for intervals with valid non-NA days
+  has_valid_days <- valid_overlap & (interval_counts > 0L)
+  res <- numeric(nrow(dekad_table))
+  res[has_valid_days] <- interval_sums[has_valid_days] / interval_counts[has_valid_days]
+  res
 }
 
 #' Scan Local Folder for Available Variables

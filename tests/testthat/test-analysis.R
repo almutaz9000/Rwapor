@@ -94,6 +94,41 @@ test_that("Kc by class generation works", {
   expect_equal(length(result[["2"]]), 150)
 })
 
+test_that("wapor_aggregate_kc works accurately with vectorized cumsum calculation", {
+  kc_daily <- c(rep(0.5, 10), rep(1.0, 10), rep(0.8, 10)) # 30 days total
+  season_start <- "2023-01-01"
+
+  dekad_table <- data.frame(
+    dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21", "2023-02-01")),
+    dekad_end   = as.Date(c("2023-01-10", "2023-01-20", "2023-01-31", "2023-02-10")),
+    n_days      = c(10L, 10L, 11L, 10L),
+    stringsAsFactors = FALSE
+  )
+
+  res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start)
+
+  expect_equal(length(res), 4)
+  expect_equal(res[1], 0.5)  # Days 1-10 mean is 0.5
+  expect_equal(res[2], 1.0)  # Days 11-20 mean is 1.0
+  expect_equal(res[3], 0.8)  # Days 21-30 mean is 0.8 (Day 31 clamped to Day 30)
+  expect_equal(res[4], 0.0)  # Out of bounds dekad (Day 32-41) produces 0
+
+  # Handling NA values correctly matching mean(..., na.rm=TRUE)
+  kc_with_na <- c(0.5, NA, 0.5, rep(1.0, 7), rep(NA_real_, 10), rep(0.8, 10))
+  res_na <- wapor_aggregate_kc(kc_with_na, dekad_table, season_start)
+
+  # Dekad 1: 2 valid days with 0.5 and 7 days with 1.0 -> (0.5+0.5+7*1.0)/9 = 8/9
+  expect_equal(res_na[1], 8/9)
+  # Dekad 2: all 10 days are NA -> 0.0
+  expect_equal(res_na[2], 0.0)
+  # Dekad 3: 10 valid days with 0.8 -> 0.8
+  expect_equal(res_na[3], 0.8)
+
+  # Edge case: Empty inputs
+  expect_equal(wapor_aggregate_kc(numeric(0), dekad_table, season_start), c(0, 0, 0, 0))
+  expect_equal(wapor_aggregate_kc(kc_daily, dekad_table[0, ], season_start), numeric(0))
+})
+
 test_that("Peff USDA monthly calculation works", {
   # P <= 250
   expect_equal(wapor_calc_peff_usda(0), 0)
