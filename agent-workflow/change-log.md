@@ -17,7 +17,7 @@
 - Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
 - Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.
 - Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing and prevent local-only configuration silos.
-- Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` to support clean local package development and prevent sourcing failures.
+- Removed all dynamic function resolution via `getFromNamespace` across all package files and test suites (`tests/testthat/test-analysis-indicators.R`, `R/utils.R`, `NAMESPACE`), replacing with explicit namespace operators (`Rwapor:::`).
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`, ensuring robust validation of input SpatRaster objects and correct conversion of Kelvin to Celsius for AgERA5 temperature variables (TMIN/TMAX).
 - Reorganized the repository into a cleaner production layout by moving development-only assets under `dev-archive/2026-05-production-cleanup/`.
 - Moved ad hoc scripts from `scripts/` to `dev-tools/scripts/` to keep package runtime paths focused (`R/`, `inst/`, `man/`, `tests/testthat/`, `vignettes/`).
