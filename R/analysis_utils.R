@@ -29,6 +29,71 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
   r
 }
 
+#' Safely evaluate a limited raster query expression
+#'
+#' Internal helper used by the Shiny analysis module to evaluate user-entered
+#' expressions against two aligned raster value vectors. Only comparison and
+#' logical operators are allowed.
+#'
+#' @param query_expr Character scalar. Expression using `Raster1` and `Raster2`.
+#' @param vals1 Numeric/logical vector for `Raster1`.
+#' @param vals2 Numeric/logical vector for `Raster2`.
+#' @return A logical vector.
+#' @keywords internal
+#' @noRd
+.wapor_safe_eval_query <- function(query_expr, vals1, vals2) {
+  if (!is.character(query_expr) || length(query_expr) != 1L || !nzchar(trimws(query_expr))) {
+    stop("Query expression must be a non-empty character scalar.", call. = FALSE)
+  }
+
+  expr_clean <- gsub("Raster1", "vals1", query_expr, ignore.case = TRUE)
+  expr_clean <- gsub("Raster2", "vals2", expr_clean, ignore.case = TRUE)
+
+  expr <- tryCatch(
+    parse(text = expr_clean)[[1L]],
+    error = function(e) stop(sprintf("Invalid query expression: %s", e$message), call. = FALSE)
+  )
+
+  .wapor_validate_safe_query_ast(expr)
+
+  env <- list2env(list(vals1 = vals1, vals2 = vals2), parent = baseenv())
+  result <- eval(expr, envir = env)
+
+  if (!is.logical(result)) {
+    stop("Query expression must evaluate to a logical vector.", call. = FALSE)
+  }
+
+  result
+}
+
+#' Validate the AST of a safe raster query expression
+#' @keywords internal
+#' @noRd
+.wapor_validate_safe_query_ast <- function(expr) {
+  if (is.atomic(expr)) return(invisible(TRUE))
+  if (is.symbol(expr)) {
+    allowed_symbols <- c("vals1", "vals2", "TRUE", "FALSE", "NA")
+    if (!as.character(expr) %in% allowed_symbols) {
+      stop("Only Raster1, Raster2, logical operators, and constants are allowed.", call. = FALSE)
+    }
+    return(invisible(TRUE))
+  }
+  if (!is.call(expr)) {
+    stop("Only logical and comparison operators are allowed in the query.", call. = FALSE)
+  }
+
+  fn <- as.character(expr[[1L]])
+  allowed_calls <- c("(", "!", "&", "&&", "|", "||", "<", "<=", ">", ">=", "==", "!=")
+  if (!fn %in% allowed_calls) {
+    stop("Only logical and comparison operators are allowed in the query.", call. = FALSE)
+  }
+
+  for (arg in as.list(expr)[-1L]) {
+    .wapor_validate_safe_query_ast(arg)
+  }
+  invisible(TRUE)
+}
+
 #' Build a binary mask for specific crop class values
 #'
 #' @param mask_rast SpatRaster. The crop mask.

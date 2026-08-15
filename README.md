@@ -58,6 +58,12 @@ Install the latest version directly from GitHub:
 remotes::install_github("almutaz9000/Rwapor")
 ```
 
+### Production notes
+
+- Runtime metadata is cached in a writable user cache by default, not in the installed package directory.
+- The Shiny dashboard query builder only allows logical and comparison operators; arbitrary R code is rejected.
+- For production deployments, pin the package version in your project lockfile and run `R CMD check` in CI.
+
 ---
 
 ## Seasonal Analysis Scenarios

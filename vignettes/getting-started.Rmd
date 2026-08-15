@@ -295,8 +295,6 @@ AgERA5 temperature datasets (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored native
 attr(df_monthly, "units")  # "mm/month"
 ```
 
-<<<<<<< HEAD
-=======
 Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
 
 ### 2. Automatic Temperature Conversion (Kelvin to Celsius)
@@ -305,7 +303,6 @@ AgERA5 temperature datasets (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored native
 * Both `wapor_map()` and `wapor_ts()` **automatically convert Kelvin values to degrees Celsius (°C)** by subtracting `273.15` during raster download and extraction.
 * The output SpatRaster layers and extracted statistical data frames are in Celsius, and their units metadata attribute is dynamically updated from `K` to `degC` or `°C` automatically.
 
->>>>>>> 4ff3ea4 (doc: clarify temp conversion and dekadal defaults)
 ## Working with URLs Directly
 
 For advanced use cases, generate download URLs without saving to disk:

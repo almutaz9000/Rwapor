@@ -365,12 +365,9 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         vals2 <- terra::values(r2)
         
         # Replace Raster1 and Raster2 with actual values in the expression
-        # Parse the expression safely
-        expr_clean <- gsub("Raster1", "vals1", query_expr, ignore.case = TRUE)
-        expr_clean <- gsub("Raster2", "vals2", expr_clean, ignore.case = TRUE)
-        
-        # Evaluate the expression
-        mask <- eval(parse(text = expr_clean))
+        # Evaluate the expression with a restricted AST and no access to
+        # arbitrary functions or namespaces.
+        mask <- Rwapor:::.wapor_safe_eval_query(query_expr, vals1, vals2)
         
         # Create result raster
         result <- r1
