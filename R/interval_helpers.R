@@ -18,15 +18,15 @@ subtract_interval <- function(intervals, cover_start, cover_end) {
     b <- iv[2]
     if (cover_end < a || cover_start > b) {
       # No overlap, keep interval as-is
-      result <- c(result, list(c(a, b)))
+      result[[length(result) + 1L]] <- c(a, b)
     } else {
       # Left remainder
       if (a < cover_start) {
-        result <- c(result, list(c(a, cover_start - 1L)))
+        result[[length(result) + 1L]] <- c(a, cover_start - 1L)
       }
       # Right remainder
       if (b > cover_end) {
-        result <- c(result, list(c(cover_end + 1L, b)))
+        result[[length(result) + 1L]] <- c(cover_end + 1L, b)
       }
     }
   }
