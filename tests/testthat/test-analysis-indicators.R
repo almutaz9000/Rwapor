@@ -58,11 +58,7 @@ test_that("apply_masked_sum errors on mismatched layers", {
 })
 
 test_that("analysis layer multipliers use dekad day counts for daily-rate D variables", {
-  multiplier_helper <- if (exists("get_analysis_layer_multipliers", mode = "function")) {
-    get("get_analysis_layer_multipliers", mode = "function")
-  } else {
-    getFromNamespace("get_analysis_layer_multipliers", "Rwapor")
-  }
+  multiplier_helper <- Rwapor:::get_analysis_layer_multipliers
   period_table <- data.frame(
     dekad_start = as.Date(c("2023-01-01", "2023-01-11", "2023-01-21")),
     dekad_end = as.Date(c("2023-01-10", "2023-01-20", "2023-01-31")),
