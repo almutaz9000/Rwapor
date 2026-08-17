@@ -643,7 +643,7 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
 #' Aggregate Daily Kc to Dekadal Mean Kc
 #'
 #' Takes a daily Kc vector and a dekad table, computes the mean Kc
-#' for each dekad period.
+#' for each dekad period using a fast vectorized algorithm.
 #'
 #' @param kc_daily Numeric vector of daily Kc values.
 #' @param dekad_table data.frame with columns dekad_start, dekad_end, n_days.
@@ -651,24 +651,44 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
 #' @return Numeric vector of mean Kc per dekad.
 #' @export
 wapor_aggregate_kc <- function(kc_daily, dekad_table, season_start) {
-  if (is.character(season_start)) season_start <- as.Date(season_start)
+  n_dekads <- nrow(dekad_table)
+  if (n_dekads == 0) return(numeric(0))
+
   total_kc_days <- length(kc_daily)
+  if (total_kc_days == 0) return(numeric(n_dekads))
 
-  vapply(seq_len(nrow(dekad_table)), function(i) {
-    d <- dekad_table[i, ]
-    # Days relative to season start (1-indexed)
-    day_start <- as.integer(d$dekad_start - season_start) + 1L
-    day_end   <- as.integer(d$dekad_end - season_start) + 1L
+  if (is.character(season_start)) season_start <- as.Date(season_start)
 
-    # Clamp to valid range
-    day_start <- max(1L, day_start)
-    day_end   <- min(total_kc_days, day_end)
+  d_start <- as.Date(dekad_table$dekad_start)
+  d_end   <- as.Date(dekad_table$dekad_end)
 
-    if (day_start > total_kc_days || day_end < 1 || day_start > day_end) {
-      return(0)
-    }
-    mean(kc_daily[day_start:day_end], na.rm = TRUE)
-  }, numeric(1))
+  # Days relative to season start (1-indexed)
+  day_starts <- as.integer(d_start - season_start) + 1L
+  day_ends   <- as.integer(d_end - season_start) + 1L
+
+  # Identify out-of-bounds or inverted intervals
+  invalid_mask <- is.na(day_starts) | is.na(day_ends) |
+    (day_starts > total_kc_days) | (day_ends < 1L) | (day_starts > day_ends)
+
+  # Clamp indices to valid range 1..total_kc_days for cumsum lookup
+  idx_starts <- pmax(1L, pmin(total_kc_days, day_starts))
+  idx_ends   <- pmax(1L, pmin(total_kc_days, day_ends))
+
+  # Vectorized O(1) interval sum and count via cumulative sums
+  kc_na <- is.na(kc_daily)
+  kc_clean <- kc_daily
+  kc_clean[kc_na] <- 0
+
+  csum <- c(0, cumsum(kc_clean))
+  counts <- c(0L, cumsum(as.integer(!kc_na)))
+
+  sum_vals <- csum[idx_ends + 1L] - csum[idx_starts]
+  cnt_vals <- counts[idx_ends + 1L] - counts[idx_starts]
+
+  means <- ifelse(cnt_vals == 0L, NaN, sum_vals / cnt_vals)
+  means[invalid_mask] <- 0
+
+  means
 }
 
 #' Scan Local Folder for Available Variables
