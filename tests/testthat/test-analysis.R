@@ -360,6 +360,38 @@ test_that("wapor_build_season_mask works with vectorized logic", {
   expect_equal(as.numeric(terra::values(result[[3]])[1]), 0)
 })
 
+test_that("wapor_aggregate_kc works with vectorized cumulative sum aggregation", {
+  kc_daily <- c(0.4, 0.5, 0.6, NA, 0.8, 0.9, 1.0, 1.1, 1.0, 0.8)
+  dekad_table <- data.frame(
+    dekad_start = c("2023-01-01", "2023-01-05", "2023-01-11", "2023-01-21"),
+    dekad_end   = c("2023-01-04", "2023-01-10", "2023-01-20", "2023-01-31"),
+    n_days      = c(4L, 6L, 10L, 11L),
+    stringsAsFactors = FALSE
+  )
+  season_start <- "2023-01-01"
+
+  res <- wapor_aggregate_kc(kc_daily, dekad_table, season_start)
+  expect_equal(length(res), 4)
+
+  # Dekad 1 (days 1-4: 0.4, 0.5, 0.6, NA) -> mean(c(0.4, 0.5, 0.6)) = 0.5
+  expect_equal(res[1], 0.5)
+
+  # Dekad 2 (days 5-10: 0.8, 0.9, 1.0, 1.1, 1.0, 0.8) -> mean = 0.9333333
+  expect_equal(res[2], mean(c(0.8, 0.9, 1.0, 1.1, 1.0, 0.8)))
+
+  # Dekad 3 (days 11-20: outside 10-day kc_daily range) -> 0
+  expect_equal(res[3], 0)
+
+  # Dekad 4 (days 21-31: completely outside kc_daily range) -> 0
+  expect_equal(res[4], 0)
+
+  # Empty dekad table returns empty vector
+  expect_equal(wapor_aggregate_kc(kc_daily, dekad_table[0, ], season_start), numeric(0))
+
+  # Empty kc_daily returns zeros vector of length nrow(dekad_table)
+  expect_equal(wapor_aggregate_kc(numeric(0), dekad_table, season_start), rep(0, 4))
+})
+
 test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks invalid classes", {
   skip_if_not_installed("terra")
 
