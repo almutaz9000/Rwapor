@@ -103,10 +103,11 @@ wapor_plan_time_slices <- function(start_date, end_date,
       s <- as.Date(paste0(y, "-01-01"))
       e <- as.Date(paste0(y, "-12-31"))
       if (is_fully_within(s, e, start_date, end_date)) {
-        plan_rows <- c(plan_rows, list(list(
+        # Optimization: Direct list assignment avoiding c(list, list) copies
+        plan_rows[[length(plan_rows) + 1L]] <- list(
           code = "A", period_id = as.character(y),
           slice_start = s, slice_end = e
-        )))
+        )
         intervals <- subtract_interval(intervals, s, e)
       }
     }
@@ -124,10 +125,11 @@ wapor_plan_time_slices <- function(start_date, end_date,
         m_start <- cursor
         m_end <- last_day_of_month(yr, mo)
         if (is_fully_within(m_start, m_end, a, b)) {
-          plan_rows <- c(plan_rows, list(list(
+          # Optimization: Direct list assignment avoiding c(list, list) copies
+          plan_rows[[length(plan_rows) + 1L]] <- list(
             code = "M", period_id = format(m_start, "%Y-%m"),
             slice_start = m_start, slice_end = m_end
-          )))
+          )
         }
         # Advance to next month
         if (mo == 12L) {
@@ -167,11 +169,12 @@ wapor_plan_time_slices <- function(start_date, end_date,
         for (dk in dekads) {
           ov <- compute_overlap(dk$s, dk$e, a, b)
           if (ov$overlap_days > 0L) {
-            plan_rows <- c(plan_rows, list(list(
+            # Optimization: Direct list assignment avoiding c(list, list) copies
+            plan_rows[[length(plan_rows) + 1L]] <- list(
               code = "D",
               period_id = sprintf("%04d-%02d-D%d", yr, mo, dk$idx),
               slice_start = dk$s, slice_end = dk$e
-            )))
+            )
             new_intervals <- subtract_interval(new_intervals, dk$s, dk$e)
           }
         }
@@ -193,10 +196,11 @@ wapor_plan_time_slices <- function(start_date, end_date,
       days_seq <- seq.Date(a, b, by = "day")
       for (d in days_seq) {
         d <- as.Date(d, origin = "1970-01-01")
-        plan_rows <- c(plan_rows, list(list(
+        # Optimization: Direct list assignment avoiding c(list, list) copies
+        plan_rows[[length(plan_rows) + 1L]] <- list(
           code = "E", period_id = format(d, "%Y-%m-%d"),
           slice_start = d, slice_end = d
-        )))
+        )
       }
     }
     intervals <- list()  # All covered
@@ -220,10 +224,11 @@ wapor_plan_time_slices <- function(start_date, end_date,
           m_end <- last_day_of_month(yr, mo)
           ov <- compute_overlap(m_start, m_end, a, b)
           if (ov$overlap_days > 0L) {
-            plan_rows <- c(plan_rows, list(list(
+            # Optimization: Direct list assignment avoiding c(list, list) copies
+            plan_rows[[length(plan_rows) + 1L]] <- list(
               code = "M", period_id = format(m_start, "%Y-%m"),
               slice_start = m_start, slice_end = m_end
-            )))
+            )
           }
           if (mo == 12L) {
             cursor <- as.Date(paste0(yr + 1L, "-01-01"))
@@ -240,10 +245,11 @@ wapor_plan_time_slices <- function(start_date, end_date,
           e <- as.Date(paste0(y, "-12-31"))
           ov <- compute_overlap(s, e, a, b)
           if (ov$overlap_days > 0L) {
-            plan_rows <- c(plan_rows, list(list(
+            # Optimization: Direct list assignment avoiding c(list, list) copies
+            plan_rows[[length(plan_rows) + 1L]] <- list(
               code = "A", period_id = as.character(y),
               slice_start = s, slice_end = e
-            )))
+            )
           }
         }
       }
@@ -261,24 +267,47 @@ wapor_plan_time_slices <- function(start_date, end_date,
     ))
   }
 
-  rows <- lapply(plan_rows, function(row) {
-    s_days <- as.integer(row$slice_end - row$slice_start) + 1L
-    ov <- compute_overlap(row$slice_start, row$slice_end, start_date, end_date)
-    data.frame(
-      code = row$code,
-      period_id = row$period_id,
-      slice_start = row$slice_start,
-      slice_end = row$slice_end,
-      overlap_start = ov$overlap_start,
-      overlap_end = ov$overlap_end,
-      weight = ov$overlap_days / s_days,
-      slice_days = s_days,
-      overlap_days = ov$overlap_days,
-      stringsAsFactors = FALSE
-    )
-  })
+  # Optimization: Fully vectorized creation of output data.frame from plan_rows list
+  # Avoids creating single-row data frames and calling do.call(rbind, ...)
+  n_plan <- length(plan_rows)
+  code_vec <- character(n_plan)
+  period_id_vec <- character(n_plan)
+  slice_start_vec <- rep(start_date, n_plan)
+  slice_end_vec <- rep(end_date, n_plan)
 
-  plan <- do.call(rbind, rows)
+  for (i in seq_len(n_plan)) {
+    pr <- plan_rows[[i]]
+    code_vec[i] <- pr$code
+    period_id_vec[i] <- pr$period_id
+    slice_start_vec[i] <- pr$slice_start
+    slice_end_vec[i] <- pr$slice_end
+  }
+
+  s_days <- as.integer(slice_end_vec - slice_start_vec) + 1L
+
+  # Vectorized overlap computation using pmax/pmin
+  os <- pmax(slice_start_vec, start_date)
+  oe <- pmin(slice_end_vec, end_date)
+  no_ov <- os > oe
+
+  os[no_ov] <- as.Date(NA)
+  oe[no_ov] <- as.Date(NA)
+
+  ov_days <- rep(0L, n_plan)
+  ov_days[!no_ov] <- as.integer(oe[!no_ov] - os[!no_ov]) + 1L
+
+  plan <- data.frame(
+    code = code_vec,
+    period_id = period_id_vec,
+    slice_start = slice_start_vec,
+    slice_end = slice_end_vec,
+    overlap_start = os,
+    overlap_end = oe,
+    weight = ov_days / s_days,
+    slice_days = s_days,
+    overlap_days = ov_days,
+    stringsAsFactors = FALSE
+  )
 
   # Remove zero-overlap rows
   plan <- plan[plan$overlap_days > 0L, , drop = FALSE]
