@@ -124,6 +124,42 @@ test_that("CWP and BWP calculations work", {
   expect_equal(bwp, 12000 / (400 * 10))
 })
 
+test_that("green and blue water consumption calculations work", {
+  # Numeric inputs
+  expect_equal(wapor_calc_green_water(350, 200), 200)
+  expect_equal(wapor_calc_green_water(150, 200), 150)
+
+  expect_equal(wapor_calc_blue_water(350, 200), 150)
+  expect_equal(wapor_calc_blue_water(150, 200), 0)
+
+  # SpatRaster inputs
+  skip_if_not_installed("terra")
+  aeti_r <- terra::rast(nrows = 2, ncols = 2, vals = c(350, 150, 400, 100))
+  peff_r <- terra::rast(nrows = 2, ncols = 2, vals = c(200, 200, 100, 300))
+
+  green_r <- wapor_calc_green_water(aeti_r, peff_r)
+  expect_true(inherits(green_r, "SpatRaster"))
+  expect_equal(as.numeric(terra::values(green_r)), c(200, 150, 100, 100))
+
+  # Mixed input: scalar numeric + SpatRaster
+  green_mixed <- wapor_calc_green_water(350, peff_r)
+  expect_true(inherits(green_mixed, "SpatRaster"))
+  expect_equal(as.numeric(terra::values(green_mixed)), c(200, 200, 100, 300))
+
+  # Multi-layer SpatRaster
+  aeti_multi <- terra::rast(nrows = 2, ncols = 2, nlyrs = 2, vals = c(350, 150, 400, 100, 50, 300, 200, 100))
+  peff_multi <- terra::rast(nrows = 2, ncols = 2, nlyrs = 2, vals = c(200, 200, 100, 300, 100, 100, 100, 100))
+  green_multi <- wapor_calc_green_water(aeti_multi, peff_multi)
+  expect_true(inherits(green_multi, "SpatRaster"))
+  expect_equal(terra::nlyr(green_multi), 2)
+  expect_equal(as.numeric(terra::values(green_multi[[1]])), c(200, 150, 100, 100))
+  expect_equal(as.numeric(terra::values(green_multi[[2]])), c(50, 100, 100, 100))
+
+  blue_r <- wapor_calc_blue_water(aeti_r, peff_r)
+  expect_true(inherits(blue_r, "SpatRaster"))
+  expect_equal(as.numeric(terra::values(blue_r)), c(150, 0, 300, 0))
+})
+
 test_that("crop mask harmonization requires SpatRaster inputs", {
   expect_error(wapor_harmonize_raster("not_a_raster", "also_not"),
     "must be a SpatRaster")
