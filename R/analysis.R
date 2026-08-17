@@ -447,14 +447,18 @@ wapor_build_season_weights <- function(start_date, end_date,
 
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
+  # Pre-calculate all dekad boundary continuous Julian days upfront as vectors
+  # to avoid calling wapor_continuous_julian inside the lapply loop.
+  d_starts_jd <- wapor_continuous_julian(dekad_tbl$dekad_start, reference_year)
+  d_ends_jd   <- wapor_continuous_julian(dekad_tbl$dekad_end, reference_year)
+
   # Analytical overlap calculation:
   # Overlap = max(0, min(dekad_end, season_end) - max(dekad_start, season_start) + 1)
   layers <- lapply(seq_len(nrow(dekad_tbl)), function(i) {
     d <- dekad_tbl[i, ]
 
-    # Convert dekad boundaries to continuous Julian days
-    d_start_jd <- wapor_continuous_julian(d$dekad_start, reference_year)
-    d_end_jd   <- wapor_continuous_julian(d$dekad_end, reference_year)
+    d_start_jd <- d_starts_jd[i]
+    d_end_jd   <- d_ends_jd[i]
     
     # Calculate overlap using terra::clamp (robust for SpatRaster/scalar)
     o_start <- terra::clamp(start_raster, lower = d_start_jd)
