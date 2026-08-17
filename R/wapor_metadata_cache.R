@@ -19,9 +19,9 @@
 #'   }
 #'
 #' @details
-#' JSON files are resolved at runtime via [base::system.file()], so they
-#' must be present in the installed package's `inst/metadata/` directory.
-#' Call [wapor_update_metadata()] to regenerate the files from the live API.
+#' JSON files are resolved at runtime from a writable user cache first and
+#' fall back to the installed package metadata bundled under `inst/metadata/`.
+#' Call [wapor_update_metadata()] to refresh the user cache from the live API.
 #'
 #' @export
 #'
@@ -78,7 +78,22 @@ wapor_fetch_metadata <- function(level) {
 #' @return Character path to the file, or "" if not found.
 #' @keywords internal
 #' @noRd
+.wapor_metadata_cache_dir <- function() {
+  dir.path <- file.path(tools::R_user_dir("Rwapor", which = "cache"), "metadata")
+  if (!dir.exists(dir.path)) dir.create(dir.path, recursive = TRUE, showWarnings = FALSE)
+  dir.path
+}
+
+#' Get the path to a metadata JSON file
+#'
+#' Wrapper around system.file() for testability.
+#' @param filename Character. Name of the JSON file (e.g., "wapor_L1.json").
+#' @return Character path to the file, or "" if not found.
+#' @keywords internal
+#' @noRd
 .get_metadata_path <- function(filename) {
+  user_path <- file.path(.wapor_metadata_cache_dir(), filename)
+  if (file.exists(user_path)) return(user_path)
   system.file("metadata", filename, package = "Rwapor")
 }
 
@@ -175,7 +190,7 @@ wapor_fetch_metadata <- function(level) {
 #'
 #' @examples
 #' \dontrun{
-#' # Update all levels in the default package location
+#' # Update all levels in the default writable user cache
 #' wapor_update_metadata()
 #'
 #' # Update only L1 and write to a custom directory
@@ -191,14 +206,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
   }
 
   if (is.null(dest)) {
-    dest <- system.file("metadata", package = "Rwapor")
-    if (nchar(dest) == 0) {
-      # Package not installed (e.g., load_all() from source)
-      dest <- file.path(
-        system.file(package = "Rwapor"),
-        "inst", "metadata"
-      )
-    }
+    dest <- .wapor_metadata_cache_dir()
   }
 
   if (!dir.exists(dest)) {
