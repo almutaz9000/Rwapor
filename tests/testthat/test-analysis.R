@@ -434,3 +434,28 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_calc_green_water and wapor_calc_blue_water work for numeric and SpatRaster inputs", {
+  # Numeric testing
+  # AETI = 350, Peff = 200 -> green water = min(350, 200) = 200, blue water = max(0, 350 - 200) = 150
+  expect_equal(wapor_calc_green_water(350, 200), 200)
+  expect_equal(wapor_calc_blue_water(350, 200), 150)
+
+  # AETI = 150, Peff = 200 -> green water = min(150, 200) = 150, blue water = max(0, 150 - 200) = 0
+  expect_equal(wapor_calc_green_water(150, 200), 150)
+  expect_equal(wapor_calc_blue_water(150, 200), 0)
+
+  # SpatRaster testing
+  skip_if_not_installed("terra")
+  aeti_rast <- terra::rast(nrows = 2, ncols = 2, vals = c(350, 150, 400, 100))
+  peff_rast <- terra::rast(nrows = 2, ncols = 2, vals = c(200, 200, 500, 50))
+
+  green_rast <- wapor_calc_green_water(aeti_rast, peff_rast)
+  blue_rast  <- wapor_calc_blue_water(aeti_rast, peff_rast)
+
+  expect_true(inherits(green_rast, "SpatRaster"))
+  expect_true(inherits(blue_rast, "SpatRaster"))
+
+  expect_equal(as.numeric(terra::values(green_rast)), c(200, 150, 400, 50))
+  expect_equal(as.numeric(terra::values(blue_rast)), c(150, 0, 0, 50))
+})
