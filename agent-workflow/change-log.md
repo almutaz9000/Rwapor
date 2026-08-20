@@ -13,6 +13,7 @@
 
 ## 2026-05-14
 
+- Removed unused `getFromNamespace` import from `R/utils.R` roxygen comments and `NAMESPACE`.
 - Documented automatic transformations (AgERA5 temperature Kelvin-to-Celsius conversion and WaPOR Daily-to-Dekadal totals) in `vignettes/data-catalog.Rmd` and `vignettes/getting-started.Rmd`.
 - Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
 - Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.

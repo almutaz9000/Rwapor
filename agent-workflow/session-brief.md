@@ -7,7 +7,7 @@ _Last updated: 2026-05-14_
 - Documented automatic transformations (AgERA5 temperature Kelvin-to-Celsius conversion and WaPOR Daily-to-Dekadal totals) in `vignettes/data-catalog.Rmd` and `vignettes/getting-started.Rmd`.
 - Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
 - Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.
-- Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R`, `inst/shiny/mod_analysis.R`, and `tests/testthat/test-analysis-indicators.R` for cleaner local development and loading.
+- Replaced dynamic function resolution via `getFromNamespace` with explicit namespace prefixes inside `inst/shiny/utils_shiny.R`, `inst/shiny/mod_analysis.R`, and `tests/testthat/test-analysis-indicators.R` for cleaner local development and loading, and removed stale `getFromNamespace` imports from `R/utils.R` and `NAMESPACE`.
 - Created Python-based static code validation script at `dev-tools/scripts/validate_r_code.py` to check bracket/brace/parenthesis/quote balance and enforce namespace policies across all R files.
 - Implemented comprehensive unit tests for `wapor_convert_temperature()` in `tests/testthat/test-wapor.R`.
 - Relaxed `.gitignore` for shared agent configuration files (`bolt.md`, `CLAUDE.md`, `.agent/PROJECT.md`, `.github/agents/*`) to support Git-tracked coordination pointers.
