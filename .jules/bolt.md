@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Pre-allocated List Traps with NULL in R]
+**Learning:** In R, double-bracket assignment of `NULL` (`list[[i]] <- NULL`) silently deletes element $i$ and reduces list length rather than storing a `NULL` value. When optimizing multi-pass `lapply`/`vapply` extractions using pre-allocated `vector("list", n)` (which initializes all elements to `NULL`), conditionally update only non-empty elements (`if (length(val) > 0) list[[i]] <- val`) to preserve exact list length $n$ for downstream `data.frame` construction.
+**Action:** Never assign `NULL` via double-brackets `[[i]]` on pre-allocated lists; rely on `vector("list", n)` default initializations or single-bracket list assignments `[i] <- list(NULL)`.

@@ -90,7 +90,8 @@ wapor_fetch_metadata <- function(level) {
 #' @keywords internal
 #' @noRd
 .parse_metadata_items <- function(items, level) {
-  if (length(items) == 0) {
+  n <- length(items)
+  if (n == 0) {
     return(
       data.frame(
         code                = character(0),
@@ -105,30 +106,36 @@ wapor_fetch_metadata <- function(level) {
     )
   }
 
-  rows <- lapply(items, function(x) {
-    list(
-      code                = .null_chr(x$code),
-      long_name           = .null_chr(x$long_name),
-      units               = .null_chr(x$units),
-      scale               = if (!is.null(x$scale)) as.numeric(x$scale) else NA_real_,
-      temporal_resolution = .null_chr(x$temporal_resolution),
-      spatial_extent      = list(if (length(x$spatial_extent) == 0) NULL else x$spatial_extent),
-      level               = level
-    )
-  })
+  # Pre-allocate column vectors for single-pass extraction
+  code                <- character(n)
+  long_name           <- character(n)
+  units               <- character(n)
+  scale               <- numeric(n)
+  temporal_resolution <- character(n)
+  spatial_extent      <- vector("list", n)
 
-  df <- data.frame(
-    code                = vapply(rows, `[[`, character(1), "code"),
-    long_name           = vapply(rows, `[[`, character(1), "long_name"),
-    units               = vapply(rows, `[[`, character(1), "units"),
-    scale               = vapply(rows, `[[`, numeric(1),   "scale"),
-    temporal_resolution = vapply(rows, `[[`, character(1), "temporal_resolution"),
-    spatial_extent      = I(lapply(rows, function(r) r$spatial_extent[[1]])),
-    level               = vapply(rows, `[[`, character(1), "level"),
+  for (i in seq_len(n)) {
+    x <- items[[i]]
+    code[i]                <- .null_chr(x$code)
+    long_name[i]           <- .null_chr(x$long_name)
+    units[i]               <- .null_chr(x$units)
+    scale[i]               <- if (!is.null(x$scale)) as.numeric(x$scale) else NA_real_
+    temporal_resolution[i] <- .null_chr(x$temporal_resolution)
+    if (length(x$spatial_extent) > 0) {
+      spatial_extent[[i]]  <- x$spatial_extent
+    }
+  }
+
+  data.frame(
+    code                = code,
+    long_name           = long_name,
+    units               = units,
+    scale               = scale,
+    temporal_resolution = temporal_resolution,
+    spatial_extent      = I(spatial_extent),
+    level               = rep(level, n),
     stringsAsFactors    = FALSE
   )
-
-  df
 }
 
 #' Coerce a potentially-NULL value to character(1)
@@ -280,7 +287,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
         if (!is.null(level_filter) && !startsWith(code, level_filter)) next
 
         record <- .extract_item_metadata(item, level_filter)
-        all_items <- c(all_items, list(record))
+        all_items[[length(all_items) + 1L]] <- record
       }
     }
 
