@@ -124,6 +124,27 @@ test_that("CWP and BWP calculations work", {
   expect_equal(bwp, 12000 / (400 * 10))
 })
 
+test_that("wapor_calc_green_water and wapor_calc_blue_water work with numeric and SpatRaster inputs", {
+  # Numeric checks
+  expect_equal(wapor_calc_green_water(350, 200), 200)
+  expect_equal(wapor_calc_green_water(150, 200), 150)
+  expect_equal(wapor_calc_blue_water(350, 200), 150)
+  expect_equal(wapor_calc_blue_water(150, 200), 0)
+
+  # SpatRaster checks
+  skip_if_not_installed("terra")
+  aeti_r <- terra::rast(nrows = 2, ncols = 2, vals = c(350, 150, 400, 100))
+  peff_r <- terra::rast(nrows = 2, ncols = 2, vals = c(200, 200, 200, 200))
+
+  gw_r <- wapor_calc_green_water(aeti_r, peff_r)
+  bw_r <- wapor_calc_blue_water(aeti_r, peff_r)
+
+  expect_true(inherits(gw_r, "SpatRaster"))
+  expect_true(inherits(bw_r, "SpatRaster"))
+  expect_equal(as.numeric(terra::values(gw_r)), c(200, 150, 200, 100))
+  expect_equal(as.numeric(terra::values(bw_r)), c(150, 0, 200, 0))
+})
+
 test_that("crop mask harmonization requires SpatRaster inputs", {
   expect_error(wapor_harmonize_raster("not_a_raster", "also_not"),
     "must be a SpatRaster")

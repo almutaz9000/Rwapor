@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized pmin and terra::clamp over terra::ifel]
+**Learning:** In `terra` SpatRaster operations, `terra::ifel()` evaluates conditional branches with significant overhead. Replacing `terra::ifel()` with `pmin()` (dispatched to `terra::pmin`) or `terra::clamp()` delegates minimum and lower-bound clamping directly to underlying C++ functions without conditional branch evaluation.
+**Action:** Use `pmin()` and `terra::clamp()` instead of `terra::ifel()` for element-wise minimums and value bound clamping on SpatRasters.

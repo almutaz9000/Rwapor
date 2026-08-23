@@ -432,11 +432,9 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
 wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
-  if (inherits(aeti_seasonal, "SpatRaster")) {
-    terra::ifel(aeti_seasonal <= peff_seasonal, aeti_seasonal, peff_seasonal)
-  } else {
-    pmin(aeti_seasonal, peff_seasonal)
-  }
+  # Optimization: Using pmin() (which dispatches to terra::pmin for SpatRaster) avoids
+  # conditional branch evaluation overhead of terra::ifel() for major speedups in C++.
+  pmin(aeti_seasonal, peff_seasonal)
 }
 
 #' Compute Blue Water Consumption
@@ -452,8 +450,10 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
 wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
   diff_val <- aeti_seasonal - peff_seasonal
+  # Optimization: Replacing terra::ifel() with terra::clamp() for SpatRaster (and pmax for numeric)
+  # leverages direct C++ lower-bounds clamping without conditional branch overhead.
   if (inherits(diff_val, "SpatRaster")) {
-    terra::ifel(diff_val > 0, diff_val, 0)
+    terra::clamp(diff_val, lower = 0)
   } else {
     pmax(diff_val, 0)
   }
