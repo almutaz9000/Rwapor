@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Reducing Multi-Raster Covering via Reduce vs do.call]
+**Learning:** `do.call(terra::cover, list_of_rasters)` fails or corrupts data when passed a list of 3 or more `SpatRaster` objects because `terra::cover()`'s signature is `cover(x, y, value = NA, ...)`, causing `do.call` to map the 3rd list element to the `value` parameter. `Reduce(terra::cover, list_of_rasters)` is the correct, safe functional idiom for reducing raster lists across multi-class operations.
+**Action:** Always use `Reduce(terra::cover, raster_list)` instead of `do.call(terra::cover, ...)` when merging 3+ rasters.
