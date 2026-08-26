@@ -432,11 +432,10 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
 wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
-  if (inherits(aeti_seasonal, "SpatRaster")) {
-    terra::ifel(aeti_seasonal <= peff_seasonal, aeti_seasonal, peff_seasonal)
-  } else {
-    pmin(aeti_seasonal, peff_seasonal)
-  }
+  # Optimization: pmin() automatically dispatches S4 methods to terra::pmin() for SpatRasters
+  # and base R pmin() for numeric inputs. Executing element-wise minimum natively in C++
+  # avoids evaluating terra::ifel() conditional logic and intermediate boolean raster allocation.
+  pmin(aeti_seasonal, peff_seasonal)
 }
 
 #' Compute Blue Water Consumption
@@ -451,12 +450,10 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' @examples
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
 wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
-  diff_val <- aeti_seasonal - peff_seasonal
-  if (inherits(diff_val, "SpatRaster")) {
-    terra::ifel(diff_val > 0, diff_val, 0)
-  } else {
-    pmax(diff_val, 0)
-  }
+  # Optimization: pmax() automatically dispatches S4 methods to terra::pmax() for SpatRasters
+  # and base R pmax() for numeric inputs. Executing element-wise maximum natively in C++
+  # avoids evaluating terra::ifel() conditional logic and intermediate boolean raster allocation.
+  pmax(aeti_seasonal - peff_seasonal, 0)
 }
 
 
