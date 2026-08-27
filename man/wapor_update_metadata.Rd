@@ -35,7 +35,7 @@ each response.
 }
 \examples{
 \dontrun{
-# Update all levels in the default package location
+# Update all levels in the default writable user cache
 wapor_update_metadata()
 
 # Update only L1 and write to a custom directory

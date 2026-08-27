@@ -192,20 +192,6 @@ wapor_calc_monthly_weighted_rasters <- function(x, season_weights, dekad_table,
 
   list(rasters = monthly_rasters, summary = monthly_summary)
 }
-#' Compute Dekadal ETc
-#'
-#' Multiplies dekadal RET by dekadal Kc to produce dekadal ETc.
-#'
-#' @param ret_dekad SpatRaster. Dekadal RET layers.
-#' @param kc_dekad SpatRaster or numeric vector. Dekadal Kc values.
-#'   If a numeric vector, each value is applied uniformly to the
-#'   corresponding layer.
-#' @return A SpatRaster of dekadal ETc.
-#' @keywords internal
-wapor_calc_etc <- function(ret_dekad, kc_dekad) {
-  ret_dekad * kc_dekad
-}
-
 #' Compute Seasonal ETc Incrementally
 #'
 #' Avoids building a full multi-layer ETc stack by accumulating
@@ -377,72 +363,6 @@ wapor_aggregate_precip <- function(precip_ts) {
                                na.rm = TRUE)
   names(monthly)[3] <- "p_monthly_mm"
   monthly[order(monthly$year, monthly$month), ]
-}
-
-#' Compute Monthly Effective Precipitation (FAO USDA Method)
-#'
-#' Applies the USDA SCS formula from FAO:
-#' - If P <= 250 mm/month: Peff = P * (125 - 0.2 * P) / 125
-#' - If P > 250 mm/month:  Peff = 125 + 0.1 * P
-#'
-#' @param p_monthly Numeric vector of monthly precipitation in mm.
-#' @return Numeric vector of monthly effective precipitation in mm.
-#' @export
-#' @examples
-#' wapor_calc_peff_usda(c(50, 120, 300))
-wapor_calc_peff_usda <- function(p_monthly) {
-  ifelse(p_monthly <= 250,
-         p_monthly * (125 - 0.2 * p_monthly) / 125,
-         125 + 0.1 * p_monthly)
-}
-
-#' Compute Seasonal Effective Precipitation
-#'
-#' Sums monthly Peff values over the season months, pro-rating the first and 
-#' last months if they are only partially within the season dates.
-#'
-#' @param peff_monthly data.frame with columns: year, month, peff_mm.
-#' @param start_date Date or character. Start of season.
-#' @param end_date Date or character. End of season.
-#' @param season_months Integer vector. Legacy month numbers.
-#' @param season_year Integer. Legacy season year.
-#' @return Numeric. Total seasonal effective precipitation in mm.
-#' @export
-wapor_calc_peff <- function(peff_monthly, start_date = NULL,
-                                       end_date = NULL, season_months = NULL,
-                                       season_year = NULL) {
-  if (!is.null(start_date) && !is.null(end_date)) {
-    s_date <- as.Date(start_date)
-    e_date <- as.Date(end_date)
-    
-    # Create month-start dates for comparison
-    peff_monthly$date <- as.Date(sprintf("%04d-%02d-01", peff_monthly$year, peff_monthly$month))
-    peff_monthly$days_in_month <- lubridate::days_in_month(peff_monthly$date)
-    
-    # Filter months that fall within the interval (at least partially)
-    month_start_s <- lubridate::floor_date(s_date, "month")
-    month_start_e <- lubridate::floor_date(e_date, "month")
-    
-    peff_monthly$overlap_days <- vapply(seq_len(nrow(peff_monthly)), function(i) {
-      m_start <- peff_monthly$date[i]
-      m_end <- m_start + (peff_monthly$days_in_month[i] - 1)
-      
-      overlap_start <- max(m_start, s_date)
-      overlap_end   <- min(m_end, e_date)
-      
-      diff <- as.integer(overlap_end - overlap_start) + 1L
-      max(0L, diff)
-    }, integer(1))
-    
-    # Pro-rate: seasonal_peff = sum(peff_monthly * (overlap_days / days_in_month))
-    subset_df <- peff_monthly[peff_monthly$overlap_days > 0, ]
-    sum(subset_df$peff_mm * (subset_df$overlap_days / subset_df$days_in_month), na.rm = TRUE)
-  } else {
-    # Legacy support
-    subset_df <- peff_monthly[peff_monthly$year == season_year &
-                                peff_monthly$month %in% season_months, ]
-    sum(subset_df$peff_mm, na.rm = TRUE)
-  }
 }
 
 # Compute Seasonal Effective Precipitation Raster
@@ -806,65 +726,4 @@ wapor_calc_monthly_weighted_std_rasters <- function(x, season_weights, dekad_tab
   )
 
   list(rasters = monthly_rasters, summary = monthly_summary)
-}
-
-
-# =============================================================================
-# Analysis Time Series Helpers
-# =============================================================================
-
-#' Prepare Analysis Time Series Data
-#'
-#' Uses the existing wapor_ts() function to fetch AETI, RET, and precipitation
-#' time series for the analysis AOI.
-#'
-#' @param region Region definition (bbox, vector file, or L3 code).
-#' @param aeti_var Character. AETI variable name (e.g., "L1-AETI-D").
-#' @param ret_var Character. RET variable name (e.g., "L1-RET-D").
-#' @param precip_var Character. Precipitation variable name (e.g., "L1-PCP-D").
-#' @param period Character vector of length 2: c(start_date, end_date).
-#' @return A list with data.frames: aeti_ts, ret_ts, precip_ts.
-#' @keywords internal
-wapor_prepare_ts <- function(region, aeti_var, ret_var, precip_var,
-                                       period) {
-  aeti_ts <- wapor_ts(region = region, variable = aeti_var, period = period,
-                       unit_conversion = "none")
-  ret_ts <- wapor_ts(region = region, variable = ret_var, period = period,
-                      unit_conversion = "none")
-  precip_ts <- wapor_ts(region = region, variable = precip_var, period = period,
-                         unit_conversion = "none")
-  list(aeti_ts = aeti_ts, ret_ts = ret_ts, precip_ts = precip_ts)
-}
-
-#' Merge Analysis Time Series on Common Time Axis
-#'
-#' Joins AETI, RET, and precipitation data.frames on their start_date column.
-#'
-#' @param aeti_ts data.frame from wapor_ts().
-#' @param ret_ts data.frame from wapor_ts().
-#' @param precip_ts data.frame from wapor_ts().
-#' @return A merged data.frame.
-#' @keywords internal
-wapor_merge_ts <- function(aeti_ts, ret_ts, precip_ts) {
-  # Rename value columns to avoid collision
-  aeti_sub <- data.frame(
-    start_date = aeti_ts$start_date,
-    end_date   = aeti_ts$end_date,
-    aeti_mean  = aeti_ts$mean,
-    stringsAsFactors = FALSE
-  )
-  ret_sub <- data.frame(
-    start_date = ret_ts$start_date,
-    ret_mean   = ret_ts$mean,
-    stringsAsFactors = FALSE
-  )
-  precip_sub <- data.frame(
-    start_date  = precip_ts$start_date,
-    precip_mean = precip_ts$mean,
-    stringsAsFactors = FALSE
-  )
-
-  merged <- merge(aeti_sub, ret_sub, by = "start_date", all = TRUE)
-  merged <- merge(merged, precip_sub, by = "start_date", all = TRUE)
-  merged[order(as.Date(merged$start_date)), ]
 }

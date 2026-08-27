@@ -12,7 +12,7 @@ wapor_validate_analysis_config(
 )
 }
 \arguments{
-\item{config}{List. Analysis configuration (see wapor_analysis_pipeline).}
+\item{config}{List. Analysis configuration (see wapor_run_seasonal_analysis).}
 
 \item{crop_mask}{SpatRaster or NULL. Crop mask raster.}
 

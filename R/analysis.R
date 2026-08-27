@@ -268,9 +268,26 @@ wapor_extract_crop_classes <- function(crop_mask, exclude_nodata = TRUE, min_pix
 #' or user input.
 #'
 #' @param class_values Integer vector of unique crop class values.
-#' @param crop_defaults Optional data.frame of defaults (same format as FAO_CROP_DEFAULTS).
+#' @param crop_defaults Optional named list keyed by class value (as a
+#'   character string, e.g. `"1"`). Each element is either a single-row
+#'   data.frame in the same format as [wapor_crop_defaults()]'s return value,
+#'   or a plain named list using the same column names (`kc_ini`, `kc_mid`,
+#'   `kc_end`, `l_ini_days`, `l_mid_days`, `l_late_days`, `max_height_m`,
+#'   `HI`, `MC`, `fc`, `AOT`, and optionally `crop_name`/`crop_label`).
+#'   Class values without a matching entry are left as `NA` for manual entry.
 #' @return A data.frame with one row per class, columns for all crop parameters.
 #' @export
+#' @examples
+#' wapor_build_crop_assignments(
+#'   class_values = c(1L, 2L),
+#'   crop_defaults = list(
+#'     "1" = wapor_crop_defaults("sorghum"),
+#'     "2" = list(kc_ini = 0.4, kc_mid = 1.15, kc_end = 0.7,
+#'                l_ini_days = 25L, l_mid_days = 50L, l_late_days = 30L,
+#'                HI = 0.45, MC = 0.14, fc = 0.90, AOT = 0.80,
+#'                crop_label = "Custom crop")
+#'   )
+#' )
 wapor_build_crop_assignments <- function(class_values, crop_defaults = NULL) {
   n <- length(class_values)
   tbl <- data.frame(
@@ -289,6 +306,42 @@ wapor_build_crop_assignments <- function(class_values, crop_defaults = NULL) {
     HI           = rep(NA_real_, n),
     stringsAsFactors = FALSE
   )
+
+  if (is.null(crop_defaults) || length(crop_defaults) == 0) {
+    return(tbl)
+  }
+  if (!is.list(crop_defaults) || is.null(names(crop_defaults)) || any(!nzchar(names(crop_defaults)))) {
+    stop("'crop_defaults' must be a named list keyed by class value (as character).", call. = FALSE)
+  }
+
+  fillable_cols <- setdiff(names(tbl), "class_value")
+
+  for (key in names(crop_defaults)) {
+    row_idx <- which(tbl$class_value == suppressWarnings(as.integer(key)))
+    if (length(row_idx) == 0) {
+      warning(sprintf("crop_defaults key '%s' does not match any class_value; skipped.", key), call. = FALSE)
+      next
+    }
+
+    defaults <- crop_defaults[[key]]
+    if (is.null(defaults) || length(defaults) == 0) {
+      warning(sprintf("crop_defaults[['%s']] is NULL or empty (e.g. an unmatched wapor_crop_defaults() lookup); leaving that class's parameters as NA.", key), call. = FALSE)
+      next
+    }
+    if (is.data.frame(defaults)) defaults <- as.list(defaults[1, , drop = FALSE])
+
+    if (!is.null(defaults[["crop_label"]])) {
+      tbl$crop_label[row_idx] <- as.character(defaults[["crop_label"]])
+    } else if (!is.null(defaults[["crop_name"]])) {
+      tbl$crop_label[row_idx] <- as.character(defaults[["crop_name"]])
+    }
+
+    matched_cols <- intersect(names(defaults), fillable_cols)
+    for (col in matched_cols) {
+      tbl[row_idx, col] <- defaults[[col]]
+    }
+  }
+
   tbl
 }
 
@@ -319,41 +372,6 @@ wapor_continuous_julian <- function(date, reference_year) {
   day_offset <- as.integer(date - ref_start) + 1L
   day_offset
 }
-
-#' Build Daily Season Mask
-#'
-#' For each analysis date, creates a raster mask where each pixel is 1
-#' if the date falls inside that pixel's season (between start_jd and
-#' end_jd), or 0 otherwise.
-#'
-#' @param dates Date vector. The dates to evaluate.
-#' @param start_raster SpatRaster. Pixel-wise season start Julian days.
-#' @param end_raster SpatRaster. Pixel-wise season end Julian days
-#'   (may exceed 365/366 for cross-year seasons).
-#' @param reference_year Integer. The season reference year.
-#' @return A SpatRaster with one layer per date, values 0 or 1.
-#' @export
-wapor_build_season_mask <- function(dates, start_raster, end_raster,
-                                           reference_year) {
-  if (!inherits(start_raster, "SpatRaster") || !inherits(end_raster, "SpatRaster")) {
-    stop("start_raster and end_raster must be SpatRaster objects", call. = FALSE)
-  }
-  if (is.character(dates)) dates <- as.Date(dates)
-
-  jd_values <- vapply(dates, wapor_continuous_julian,
-                       reference_year = reference_year, FUN.VALUE = integer(1))
-
-  masks <- lapply(jd_values, function(jd) {
-    # For each pixel: 1 if start_jd <= jd <= end_jd, else 0
-    in_season <- (start_raster <= jd) & (end_raster >= jd)
-    terra::ifel(in_season, 1L, 0L)
-  })
-
-  result <- terra::rast(masks)
-  names(result) <- as.character(dates)
-  result
-}
-
 
 # =============================================================================
 # Dekadal Season Weights

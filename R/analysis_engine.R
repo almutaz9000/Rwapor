@@ -666,14 +666,3 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   results$crop_params <- crop_params
   return(results)
 }
-
-#' Internal helper to load and harmonize (internal usage)
-#' @keywords internal
-wapor_load_and_harmonize <- function(paths, template, reg_info, method = "near") {
-  if (is.null(paths)) return(NULL)
-  stack <- terra::rast(paths)
-  if (!is.null(reg_info)) {
-    stack <- Rwapor::wapor_crop_to_region(stack, reg_info, do_mask = (reg_info$type == "vector"))
-  }
-  Rwapor::wapor_harmonize_raster(stack, template, method = method)
-}

@@ -87,7 +87,12 @@ test_that("seasonal analysis engine computes the exposed indicator set from loca
 
   expected_aeti <- 2 * 10 + 3 * 10 + 4 * 11
   expected_ret <- 10 + 10 + 11
-  expected_peff <- wapor_calc_peff_usda(expected_ret)
+  # USDA SCS effective-precipitation formula (mirrors wapor_calc_monthly_precip_peff_rasters)
+  expected_peff <- if (expected_ret <= 250) {
+    expected_ret * (125 - 0.2 * expected_ret) / 125
+  } else {
+    125 + 0.1 * expected_ret
+  }
   expected_biomass_kg <- expected_ret * 22.222
   expected_biomass_t <- expected_biomass_kg / 1000
   expected_yield_t <- expected_biomass_t
