@@ -434,3 +434,31 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_check_local resolves local and remote paths correctly with vectorization", {
+  tmp_dir <- tempfile("wapor_test_local_")
+  dir.create(file.path(tmp_dir, "L1-AETI-D"), recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  # Create a dummy local tif file in standard naming format
+  local_tif <- file.path(tmp_dir, "L1-AETI-D", "L1-AETI-D.20230101.tif")
+  file.create(local_tif)
+
+  urls <- c(
+    "https://example.com/L1-AETI-D.20230101.tif",
+    "https://example.com/L1-AETI-D.20230111.tif"
+  )
+
+  res <- wapor_check_local(urls, "L1-AETI-D", tmp_dir)
+
+  expect_equal(res$found_count, 1L)
+  expect_equal(length(res$optimized_paths), 2L)
+  expect_equal(normalizePath(res$optimized_paths[1], winslash = "/"), normalizePath(local_tif, winslash = "/"))
+  expect_equal(res$optimized_paths[2], "/vsicurl/https://example.com/L1-AETI-D.20230111.tif")
+  expect_equal(res$missing_dates, "2023-01-11")
+
+  # Empty urls input test
+  empty_res <- wapor_check_local(character(0), "L1-AETI-D", tmp_dir)
+  expect_equal(empty_res$found_count, 0L)
+  expect_equal(length(empty_res$optimized_paths), 0L)
+})

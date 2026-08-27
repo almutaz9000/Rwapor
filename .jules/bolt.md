@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized Matrix Matching for Local File Lookup]
+**Learning:** Iterating over URLs and checking candidate existence matrices row-by-row or performing regex `grep` inside loops creates $O(N)$ R evaluation overhead. `max.col(mat, ties.method = "first")` paired with 2-D matrix indexing (`cand_matrix[cbind(rows, cols)]`) and `match()` for fallback date lookups converts local file detection into a fully vectorized C-speed operation.
+**Action:** Use `max.col` and 2-D index arrays instead of row-by-row `which()` loops when processing boolean existence matrices in R.

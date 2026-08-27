@@ -949,36 +949,50 @@ wapor_check_local <- function(urls, var, folder) {
   exists_vec <- file.exists(as.vector(cand_matrix))
   exists_mat <- matrix(exists_vec, nrow = nrow(cand_matrix), ncol = ncol(cand_matrix))
 
+  # Optimization: Vectorized candidate selection and fallback matching
+  # Find first matching column per row using max.col (which returns first TRUE per row)
+  row_has_match <- rowSums(exists_mat) > 0L
+
   optimized_paths <- character(length(urls))
-  missing_indices <- logical(length(urls))
-  found_count <- 0L
+  missing_indices <- !row_has_match
 
-  for (i in seq_along(urls)) {
-    # Find first candidate that exists
-    found_idx <- which(exists_mat[i, ])
-    if (length(found_idx) > 0) {
-      optimized_paths[i] <- cand_matrix[i, found_idx[1]]
-      found_count <- found_count + 1L
-    } else {
-      # Fallback: search by date pattern in existing files
-      found <- FALSE
-      if (length(existing_files) > 0) {
-        date_pattern <- paste0("\\.", dash_dates[i], "\\.tif$")
-        matches <- grep(date_pattern, existing_files, value = TRUE)
-        if (length(matches) > 0) {
-          optimized_paths[i] <- matches[1]
-          found_count <- found_count + 1L
-          found <- TRUE
-        }
-      }
+  if (any(row_has_match)) {
+    match_rows <- which(row_has_match)
+    # max.col with ties.method="first" finds the index of the first TRUE column for matching rows
+    match_cols <- max.col(exists_mat[match_rows, , drop = FALSE], ties.method = "first")
+    optimized_paths[match_rows] <- cand_matrix[cbind(match_rows, match_cols)]
+  }
 
-      if (!found) {
-        optimized_paths[i] <- if (grepl("^/vsicurl/", urls[i])) urls[i] else paste0("/vsicurl/", urls[i])
-        missing_indices[i] <- TRUE
-      }
+  # Fallback for URLs with no direct candidate matches
+  if (any(missing_indices) && length(existing_files) > 0) {
+    unmatched_indices <- which(missing_indices)
+
+    # Vectorized date extraction for existing files to avoid per-URL regex grep in loops
+    parsed_existing <- wapor_parse_dates(existing_files, tres = tres_code)
+    existing_start_dates <- parsed_existing$start_date
+
+    # Fast vector lookup using match()
+    fallback_matches <- match(dash_dates[unmatched_indices], existing_start_dates)
+    has_fallback <- !is.na(fallback_matches)
+
+    if (any(has_fallback)) {
+      resolved_indices <- unmatched_indices[has_fallback]
+      optimized_paths[resolved_indices] <- existing_files[fallback_matches[has_fallback]]
+      missing_indices[resolved_indices] <- FALSE
     }
   }
 
+  # For any remaining missing URLs, add /vsicurl/ prefix in a single vectorized step
+  if (any(missing_indices)) {
+    missing_urls <- urls[missing_indices]
+    optimized_paths[missing_indices] <- ifelse(
+      startsWith(missing_urls, "/vsicurl/"),
+      missing_urls,
+      paste0("/vsicurl/", missing_urls)
+    )
+  }
+
+  found_count <- sum(!missing_indices)
   missing_dates <- dash_dates[missing_indices]
 
   list(optimized_paths = optimized_paths, missing_dates = missing_dates, found_count = found_count)
