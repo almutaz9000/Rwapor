@@ -9,7 +9,13 @@ wapor_build_crop_assignments(class_values, crop_defaults = NULL)
 \arguments{
 \item{class_values}{Integer vector of unique crop class values.}
 
-\item{crop_defaults}{Optional data.frame of defaults (same format as FAO_CROP_DEFAULTS).}
+\item{crop_defaults}{Optional named list keyed by class value (as a
+character string, e.g. \code{"1"}). Each element is either a single-row
+data.frame in the same format as \code{\link[=wapor_crop_defaults]{wapor_crop_defaults()}}'s return value,
+or a plain named list using the same column names (\code{kc_ini}, \code{kc_mid},
+\code{kc_end}, \code{l_ini_days}, \code{l_mid_days}, \code{l_late_days}, \code{max_height_m},
+\code{HI}, \code{MC}, \code{fc}, \code{AOT}, and optionally \code{crop_name}/\code{crop_label}).
+Class values without a matching entry are left as \code{NA} for manual entry.}
 }
 \value{
 A data.frame with one row per class, columns for all crop parameters.
@@ -18,4 +24,16 @@ A data.frame with one row per class, columns for all crop parameters.
 Creates a data.frame for each crop class extracted from the mask,
 pre-populated with NA parameters that can be filled by crop defaults
 or user input.
+}
+\examples{
+wapor_build_crop_assignments(
+  class_values = c(1L, 2L),
+  crop_defaults = list(
+    "1" = wapor_crop_defaults("sorghum"),
+    "2" = list(kc_ini = 0.4, kc_mid = 1.15, kc_end = 0.7,
+               l_ini_days = 25L, l_mid_days = 50L, l_late_days = 30L,
+               HI = 0.45, MC = 0.14, fc = 0.90, AOT = 0.80,
+               crop_label = "Custom crop")
+  )
+)
 }

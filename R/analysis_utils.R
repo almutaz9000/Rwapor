@@ -94,25 +94,6 @@ wapor_shiny_safe_rast <- function(rv, label = "raster", session = shiny::getDefa
   invisible(TRUE)
 }
 
-#' Build a binary mask for specific crop class values
-#'
-#' @param mask_rast SpatRaster. The crop mask.
-#' @param class_values Integer vector. Values to include in the mask.
-#' @return A SpatRaster with 1 for matched classes and NA otherwise.
-#' @keywords internal
-wapor_build_class_mask <- function(mask_rast, class_values) {
-  if (is.null(mask_rast) || length(class_values) == 0) return(NULL)
-
-  match_rast <- mask_rast == as.integer(class_values[1])
-  if (length(class_values) > 1) {
-    for (cls in class_values[-1]) {
-      match_rast <- match_rast | (mask_rast == as.integer(cls))
-    }
-  }
-
-  terra::ifel(match_rast, 1L, NA)
-}
-
 #' Filter class stats to match active crop parameters
 #'
 #' @param res Analysis results list.

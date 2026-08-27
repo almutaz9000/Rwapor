@@ -6,7 +6,7 @@
 #'
 #' Checks analysis configuration for common errors before running the pipeline.
 #'
-#' @param config List. Analysis configuration (see wapor_analysis_pipeline).
+#' @param config List. Analysis configuration (see wapor_run_seasonal_analysis).
 #' @param crop_mask SpatRaster or NULL. Crop mask raster.
 #' @param season_start SpatRaster or NULL. Season start raster.
 #' @param season_end SpatRaster or NULL. Season end raster.

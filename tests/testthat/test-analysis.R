@@ -43,6 +43,67 @@ test_that("wapor_crop_defaults works", {
   expect_null(wapor_crop_defaults("NonexistentCrop"))
 })
 
+test_that("wapor_build_crop_assignments populates rows from crop_defaults", {
+  # No defaults supplied: template stays NA, one row per class
+  empty_tbl <- wapor_build_crop_assignments(class_values = c(1L, 2L))
+  expect_equal(nrow(empty_tbl), 2)
+  expect_true(all(is.na(empty_tbl$kc_ini)))
+
+  # Defaults from wapor_crop_defaults() (data.frame row) and a custom list
+  tbl <- wapor_build_crop_assignments(
+    class_values = c(1L, 2L, 3L),
+    crop_defaults = list(
+      "1" = wapor_crop_defaults("sorghum"),
+      "2" = list(kc_ini = 0.4, kc_mid = 1.15, kc_end = 0.7,
+                 l_ini_days = 25L, l_mid_days = 50L, l_late_days = 30L,
+                 HI = 0.45, MC = 0.14, fc = 0.90, AOT = 0.80,
+                 crop_label = "Custom crop")
+    )
+  )
+
+  sorghum <- wapor_crop_defaults("sorghum")
+  row1 <- tbl[tbl$class_value == 1L, ]
+  expect_equal(row1$kc_ini, sorghum$kc_ini)
+  expect_equal(row1$kc_mid, sorghum$kc_mid)
+  expect_equal(row1$crop_label, sorghum$crop_name)
+
+  row2 <- tbl[tbl$class_value == 2L, ]
+  expect_equal(row2$kc_ini, 0.4)
+  expect_equal(row2$l_late_days, 30L)
+  expect_equal(row2$crop_label, "Custom crop")
+
+  # Class 3 has no matching key: stays NA
+  row3 <- tbl[tbl$class_value == 3L, ]
+  expect_true(is.na(row3$kc_ini))
+
+  # Unmatched key warns but doesn't error
+  expect_warning(
+    wapor_build_crop_assignments(
+      class_values = c(1L),
+      crop_defaults = list("99" = wapor_crop_defaults("sorghum"))
+    ),
+    "does not match"
+  )
+
+  # A NULL/empty defaults value (e.g. an unmatched wapor_crop_defaults() lookup)
+  # warns and leaves that class NA, instead of silently no-op'ing
+  expect_warning(
+    result <- wapor_build_crop_assignments(
+      class_values = c(1L),
+      crop_defaults = list("1" = wapor_crop_defaults("not_a_real_crop"))
+    ),
+    "NULL or empty"
+  )
+  expect_true(is.na(result$kc_ini))
+
+  # wapor_crop_defaults() crop_name lookups must match the real crop_name
+  # values exactly (case-insensitive) -- "winter_wheat" (underscore) must NOT
+  # silently match "Winter Wheat" via partial grep, since that's a common typo.
+  expect_null(wapor_crop_defaults("winter_wheat"))
+  expect_false(is.null(wapor_crop_defaults("Winter Wheat")))
+  expect_false(is.null(wapor_crop_defaults("winter wheat")))
+})
+
 test_that("continuous Julian date logic works", {
   # Same year
   expect_equal(wapor_continuous_julian("2023-01-01", 2023), 1L)

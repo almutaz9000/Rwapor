@@ -28,9 +28,9 @@ Reads pre-built metadata JSON files bundled with the package and returns
 a data.frame describing WaPOR Level 1, 2, or 3 datasets.
 }
 \details{
-JSON files are resolved at runtime via \code{\link[base:system.file]{base::system.file()}}, so they
-must be present in the installed package's \verb{inst/metadata/} directory.
-Call \code{\link[=wapor_update_metadata]{wapor_update_metadata()}} to regenerate the files from the live API.
+JSON files are resolved at runtime from a writable user cache first and
+fall back to the installed package metadata bundled under \verb{inst/metadata/}.
+Call \code{\link[=wapor_update_metadata]{wapor_update_metadata()}} to refresh the user cache from the live API.
 }
 \examples{
 \dontrun{

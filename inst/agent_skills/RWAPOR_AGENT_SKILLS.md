@@ -2,7 +2,7 @@
 
 > **For AI Agents**: This file is the canonical guide for using the Rwapor R package in automated analysis workflows. Read this first. It tells you which functions to call, in what order, with what inputs, and what to watch out for. All code blocks are executable R; copy-paste or adapt them directly.
 
-**Package version**: 0.9.8  
+**Package version**: 0.9.9  
 **Access from R**: `system.file("agent_skills", "RWAPOR_AGENT_SKILLS.md", package = "Rwapor")`  
 **WaPOR Portal**: https://wapor.apps.fao.org/  
 **API Base**: https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/  
@@ -20,7 +20,7 @@ Rwapor downloads and analyzes FAO WaPOR satellite remote sensing data and AgERA5
 **Core capability chain**:
 ```
 Define AOI → Discover Variables → Download Rasters → Aggregate Seasonally →
-Compute Indicators (ETc, Adequacy, CWP, Green/Blue Water) → Detect Anomalies → Report
+Compute Indicators (ETc, Adequacy, CWP, Green/Blue Water) → Report
 ```
 
 **What it cannot do** (do not attempt):
@@ -49,16 +49,13 @@ User wants...
 │   └─ No crop data? → Preprocess first (Section 5), then Workflow C
 │
 ├─ "Compare multiple seasons / years"
-│   └─ → Workflow D: Multi-Season Comparison (runs Workflow C per season)
+│   └─ → Workflow D: Multi-Season Comparison (runs Workflow C per season, compares manually)
 │
 ├─ "Monitor farms / detect stress continuously"
 │   └─ → Workflow E: Farm Monitoring (DuckDB-backed)
 │
 ├─ "Calculate green water / blue water / Peff"
-│   └─ → Workflow C with indicators = c("green_blue_water", "peff")
-│
-├─ "Detect anomalies / stressed areas"
-│   └─ → Workflow C with anomaly detection, then wapor_detect_*() functions
+│   └─ → Workflow C with indicators = c("green_water", "blue_water", "agg_peff")
 │
 └─ "Just explore what data is available"
     └─ → Section 3: Data Discovery
@@ -257,26 +254,20 @@ aeti_ts <- wapor_ts(
 )
 # Returns: data.frame(date, mean, min, max, sum, stdev, count, identifier)
 
-# Extract multiple variables in one call
-all_ts <- wapor_prepare_ts(
-  region    = aoi,
-  aeti_var  = "L2-AETI-D",
-  ret_var   = "L1-RET-D",    # RET only available at L1
-  precip_var = "L1-PCP-D",   # PCP only available at L1
-  period    = c("2022-01-01", "2023-12-31")
-)
-# Returns: list(aeti = df, ret = df, precip = df)
+# To extract multiple variables, call wapor_ts() once per variable
+# and merge the resulting data.frames on start_date yourself:
+ret_ts    <- wapor_ts(region = aoi, variable = "L1-RET-D",  period = c("2022-01-01", "2023-12-31"), identifier = "field_id")
+precip_ts <- wapor_ts(region = aoi, variable = "L1-PCP-D",  period = c("2022-01-01", "2023-12-31"), identifier = "field_id")
 
-# Merge all three time-series to a single data.frame
-merged_ts <- wapor_merge_ts(
-  aeti_ts   = all_ts$aeti,
-  ret_ts    = all_ts$ret,
-  precip_ts = all_ts$precip
+merged_ts <- merge(
+  aeti_ts[, c("start_date", "field_id", "mean")],
+  ret_ts[,  c("start_date", "field_id", "mean")],
+  by = c("start_date", "field_id"), suffixes = c("_aeti", "_ret")
 )
 
 # Unit conversion: mm/day → mm/dekad (for D variables, done automatically)
 # If you need to convert manually:
-converted <- wapor_convert_units(merged_ts, unit_conversion = "dekad_to_month")
+converted <- wapor_convert_units(aeti_ts, unit_conversion = "dekad_to_month")
 ```
 
 ---
@@ -306,19 +297,21 @@ classes <- wapor_extract_crop_classes(crop_mask)
 
 # --- Step 3: Build crop assignment table ---
 # Quick start: use FAO defaults for known crops
-wapor_list_crops()  # See available defaults: "winter_wheat", "sorghum", "sugarbeet"
+wapor_list_crops()  # See available defaults: "Winter Wheat", "Sorghum", "Sugarbeet"
 
 # Assign crop to each class value
 crop_params <- wapor_build_crop_assignments(
   class_values = classes$class_value,
   crop_defaults = list(
     "1" = wapor_crop_defaults("sorghum"),
-    "2" = wapor_crop_defaults("winter_wheat")
+    "2" = wapor_crop_defaults("Winter Wheat")
     # "3" = custom parameters (see Section 6.2)
   )
 )
 
-# --- Step 4: Configure the analysis pipeline ---
+# --- Step 4: Configure the analysis ---
+# config is a plain list; crop_params comes from Step 3. RET/PCP always use
+# the L1 prefix regardless of which level AETI/NPP use (Section 3.1).
 config <- list(
   ref_year    = 2023,                         # Year containing season start
   period      = c("2023-10-01", "2024-05-31"), # Download window (wider than season)
@@ -326,76 +319,71 @@ config <- list(
   ret_var     = "L1-RET-D",   # RET only available at L1 — always use L1 prefix
   precip_var  = "L1-PCP-D",   # PCP only available at L1 — always use L1 prefix
   npp_var     = "L2-NPP-D",                   # Optional, needed for yield/CWP
-  crop_params = crop_params,
   indicators  = c(
     "agg_aeti",       # Seasonal total AETI
     "agg_ret",        # Seasonal total RET
     "etc",            # ETc = RET × Kc (requires crop_params)
     "adequacy_etc",   # AETI / ETc
     "adequacy_p95",   # AETI / P95(AETI by class)
-    "peff",           # Effective precipitation (requires precip_var)
-    "green_blue_water", # Green = min(AETI,Peff), Blue = AETI - Peff
+    "agg_peff",       # Effective precipitation (requires precip_var)
+    "green_water",    # min(AETI, Peff)
+    "blue_water",     # AETI - Peff
     "cwp_bwp"         # Crop/Biomass Water Productivity (requires npp_var)
   ),
-  data_source = "api"  # "api" (stream) or "local" (use downloaded files)
+  data_source = "api",  # "api" (stream) or "local" (use files under `folder`)
+  use_crop_mask      = TRUE,
+  use_season_rasters = TRUE
 )
 
-# Validate configuration before running
-wapor_validate_analysis_config(config, crop_mask, season_start, season_end)
+# Validate configuration before running — returns list(valid, errors)
+check <- wapor_validate_analysis_config(config, crop_mask, season_start, season_end)
+if (!check$valid) stop(paste(check$errors, collapse = "\n"))
 
-# --- Step 5: Run the pipeline ---
-results <- wapor_analysis_pipeline(
-  config        = config,
-  region        = c(36.0, 8.0, 38.5, 10.5),  # AOI bbox or L3 code
-  crop_mask     = crop_mask,
-  season_start  = season_start,
-  season_end    = season_end,
-  save_outputs  = TRUE,
-  output_folder = "results/season_2023_24",
-  output_prefix = "AWA_sorghum"
+# --- Step 5: Run the seasonal analysis engine ---
+# `rasters` carries the spatial inputs; `aoi_region` is the download AOI
+# (bbox, L3 code, or vector) and is separate from the config list.
+results <- wapor_run_seasonal_analysis(
+  config      = config,
+  crop_params = crop_params,
+  rasters     = list(
+    crop_mask    = crop_mask,
+    season_start = season_start,
+    season_end   = season_end
+  ),
+  aoi_region = c(36.0, 8.0, 38.5, 10.5)  # AOI bbox or L3 code
 )
 
 # --- Step 6: Inspect results ---
-# results$rasters : named list of SpatRasters (one per indicator)
-# results$summary : data.frame with per-class zonal statistics
-# results$metadata: config + run timestamp
+# results$seasonal_aeti$raster / $by_class : seasonal AETI raster + per-class zonal mean
+# results$seasonal_ret / results$seasonal_pcp / results$seasonal_peff : plain SpatRasters
+# results$etc_by_class[[class]]$etc_seasonal : per-class ETc raster
+# results$adequacy_etc / results$adequacy_p95 : SpatRasters
+# results$green_water / results$blue_water    : SpatRasters
+# results$seasonal_biomass_kg / _t, results$yield_raster, results$cwp, results$bwp
+# results$mask_class_stats : data.frame(layer, class_value, pixel_count, area_ha)
+# See Section 7 for the full field list.
 
-print(results$summary)
-terra::plot(results$rasters$agg_aeti)
+print(results$seasonal_aeti$by_class)
+terra::plot(results$seasonal_aeti$raster)
 
-# --- Step 7: Anomaly detection (optional) ---
-anomalies <- wapor_detect_aeti_anomalies(
-  aeti_seasonal = results$rasters$agg_aeti,
-  crop_mask     = crop_mask,
-  threshold     = 0.5  # Flag pixels < 50% of class median
-)
-
-zscore_anom <- wapor_detect_zscore_anomalies(
-  aeti_seasonal  = results$rasters$agg_aeti,
-  crop_mask      = crop_mask,
-  zscore_threshold = 1.5
-)
-
-compound_anom <- wapor_detect_compound_anomalies(
-  indicators = list(
-    aeti     = results$rasters$agg_aeti,
-    adequacy = results$rasters$adequacy_etc
-  ),
-  crop_mask  = crop_mask,
-  thresholds = list(aeti = 0.5, adequacy = 0.6)
-)
+# --- Step 7: Save any rasters you need (no built-in "save all" option) ---
+dir.create("results/season_2023_24", recursive = TRUE, showWarnings = FALSE)
+terra::writeRaster(results$seasonal_aeti$raster, "results/season_2023_24/seasonal_aeti.tif", overwrite = TRUE)
+terra::writeRaster(results$adequacy_etc,         "results/season_2023_24/adequacy_etc.tif",  overwrite = TRUE)
 ```
 
 ---
 
 ### Workflow D: Multi-Season / Multi-Year Comparison
 
-**Use when**: Comparing indicators across seasons or running trend analysis over multiple years.
+**Use when**: Comparing indicators across seasons. There is no built-in comparison/trend
+function — run Workflow C once per season (or pass `config$period` as a named list to run
+them in one call, see below) and compare the per-class summary tables yourself with base R.
 
 ```r
 library(Rwapor)
 
-# Run Workflow C for each season, collect results
+# Option 1: one config per season, run separately
 seasons <- list(
   "2021_22" = list(period = c("2021-10-01", "2022-05-31"), ref_year = 2021),
   "2022_23" = list(period = c("2022-10-01", "2023-05-31"), ref_year = 2022),
@@ -404,36 +392,34 @@ seasons <- list(
 
 season_results <- lapply(names(seasons), function(name) {
   cfg <- modifyList(config, seasons[[name]])  # Merge season dates into base config
-  wapor_analysis_pipeline(
-    config        = cfg,
-    region        = my_region,
-    crop_mask     = crop_mask,
-    season_start  = season_start,
-    season_end    = season_end
+  wapor_run_seasonal_analysis(
+    config      = cfg,
+    crop_params = crop_params,
+    rasters     = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end),
+    aoi_region  = my_region
   )
 })
 names(season_results) <- names(seasons)
 
-# Compare across seasons
-comparison <- wapor_compare_seasons(
-  season_results = season_results,
-  indicators     = c("AETI", "ETc", "Adequacy"),
-  by             = "crop_class"  # or "overall"
+# Option 2: a single call with config$period as a named list runs each season
+# internally and returns a named list of results keyed the same way.
+config_multi <- modifyList(config, list(period = lapply(seasons, `[[`, "period")))
+season_results <- wapor_run_seasonal_analysis(
+  config = config_multi, crop_params = crop_params,
+  rasters = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end),
+  aoi_region = my_region
 )
 
-# Trend analysis
-trend <- wapor_trend_analysis(
-  timeseries_list = lapply(season_results, function(r) r$summary),
-  variable        = "agg_aeti",
-  method          = "lm"  # Linear regression; returns slope, p-value per class
-)
-
-# Export HTML report
-wapor_export_comparison_report(
-  comparison_table = comparison,
-  output_folder    = "reports/",
-  format           = "html"
-)
+# Compare seasonal AETI by crop class across seasons
+by_class <- lapply(names(season_results), function(nm) {
+  tbl <- season_results[[nm]]$seasonal_aeti$by_class
+  tbl$season <- nm
+  tbl
+})
+comparison <- do.call(rbind, by_class)
+comparison_wide <- reshape(comparison, idvar = "class_value", timevar = "season",
+                            direction = "wide")
+print(comparison_wide)
 ```
 
 ---
@@ -626,27 +612,35 @@ Crop parameters follow FAO-56 standards. Each crop class in the mask needs these
 | `aot`     | Aboveground/Total biomass ratio | 0.5–0.9 | 0.75 |
 
 ```r
-# Use FAO defaults (available for sorghum, winter_wheat, sugarbeet)
+# Use FAO defaults (available for Sorghum, Winter Wheat, Sugarbeet (exact crop_name values, case-insensitive))
 wapor_list_crops()  # List available defaults
 defaults <- wapor_crop_defaults("sorghum")
-# Returns named list with all parameters above
+# Returns a single-row data.frame with all parameters above
 
-# Build the crop_params data.frame (one row per class)
+# Build the crop_params data.frame (one row per class). crop_defaults keys must
+# be the class_value as a character string; values are either the data.frame
+# returned by wapor_crop_defaults(), or a plain list using the SAME column
+# names (case-sensitive: kc_ini/kc_mid/kc_end, l_ini_days/l_mid_days/l_late_days,
+# HI, MC, fc, AOT — MC and HI are fractions 0-1, not percentages).
 crop_params <- wapor_build_crop_assignments(
   class_values = c(1, 2, 3),
   crop_defaults = list(
     "1" = wapor_crop_defaults("sorghum"),
-    "2" = wapor_crop_defaults("winter_wheat"),
-    "3" = list(  # Custom crop
+    "2" = wapor_crop_defaults("Winter Wheat"),
+    "3" = list(  # Custom crop — l_dev is NOT supplied here; the pipeline derives
+                 # it per-pixel as total_season_days - (l_ini_days+l_mid_days+l_late_days)
       kc_ini = 0.40, kc_mid = 1.15, kc_end = 0.70,
-      l_ini = 25,  l_dev = 35,   l_mid = 50,  l_late = 30,
-      hi = 0.45, mc = 14, fc = 0.90, aot = 0.80
+      l_ini_days = 25L, l_mid_days = 50L, l_late_days = 30L,
+      HI = 0.45, MC = 0.14, fc = 0.90, AOT = 0.80,
+      crop_label = "Custom crop"
     )
   )
 )
 
-# Validate before use
-wapor_validate_crop_params(crop_params)  # Raises informative error if invalid
+# Validate before use — returns a character vector of problems (empty = valid);
+# it does not stop/throw, so check the length yourself:
+problems <- wapor_validate_crop_params(crop_params)
+if (length(problems) > 0) stop(paste(problems, collapse = "\n"))
 ```
 
 ---
@@ -715,7 +709,7 @@ config <- list(
 ```r
 # Available defaults
 wapor_list_crops()
-# [1] "winter_wheat"  "sorghum"  "sugarbeet"
+# [1] "Winter Wheat"  "Sorghum"  "Sugarbeet"
 
 # Sorghum parameters
 wapor_crop_defaults("sorghum")
@@ -732,7 +726,7 @@ wapor_crop_defaults("sorghum")
 # $aot    [1] 0.75
 
 # Winter Wheat parameters
-wapor_crop_defaults("winter_wheat")
+wapor_crop_defaults("Winter Wheat")
 # Kc_ini=0.40, Kc_mid=1.15, Kc_end=0.25, stages=25/140/40/30, HI=0.40
 ```
 
@@ -774,31 +768,33 @@ data.frame columns:
   identifier : character Polygon identifier (from identifier= parameter)
 ```
 
-### wapor_analysis_pipeline() output
+### wapor_run_seasonal_analysis() output
+
+Only the fields relevant to the requested `indicators` are populated; everything
+else is `NULL`. Field presence depends on which indicators were requested and
+which inputs (crop mask, precip/NPP/T variables) were supplied.
 
 ```
-List with elements:
-  $rasters   : named list of terra::SpatRaster
-               Names: "agg_aeti", "agg_ret", "etc", "adequacy_etc",
-                      "adequacy_p95", "peff", "green_water", "blue_water",
-                      "cwp", "bwp"
-  $summary   : data.frame
-               Columns: crop_class, indicator, mean, median, sd, min, max,
-                        q25, q75, n_pixels, area_ha
-  $metadata  : list(config, run_time, n_dekads_used, crs, bbox)
+List with elements (selected):
+  $seasonal_aeti / $seasonal_ret / $seasonal_t
+               list(raster = SpatRaster, by_class = data.frame(class_value, mean_seasonal_*))
+  $seasonal_pcp, $seasonal_peff              : plain SpatRaster
+  $etc_by_class[[class]]$etc_seasonal        : SpatRaster, one entry per crop class
+  $adequacy_etc, $adequacy_p95               : SpatRaster
+  $beneficial_fraction                       : SpatRaster (T / AETI)
+  $green_water, $blue_water                  : SpatRaster
+  $seasonal_biomass_kg / _t, $yield_raster    : SpatRaster
+  $cwp, $bwp                                  : numeric (masked global mean)
+  $monthly_aeti / $monthly_ret / $monthly_t / $monthly_etc
+               list(rasters = named list of SpatRaster by "YYYY-MM", summary = data.frame)
+  $mask_class_stats  : data.frame(layer, class_value, pixel_count, area_ha)
+  $dekad_table       : data.frame, one row per dekad in the analysis period
+  $valid_crop_mask   : SpatRaster, 1 where any requested crop class is present
+  $crop_params       : the crop_params data.frame passed in
 ```
 
-### wapor_compare_seasons() output
-
-```
-data.frame columns:
-  season     : character Season label (from input names)
-  crop_class : integer   Crop class value (or "overall")
-  indicator  : character Indicator name
-  mean       : numeric   Zonal mean for this class/season
-  change_abs : numeric   Absolute change vs. first season
-  change_pct : numeric   % change vs. first season
-```
+If `config$period` is a named list (multiple seasons), the return value is
+instead a named list of the structure above, one per season name.
 
 ---
 
@@ -895,7 +891,11 @@ If seasons are shorter than expected (< 90 days), use shorter `l_ini`, `l_mid`, 
 
 ### 8.7 Effective Precipitation (Peff) Notes
 
-The USDA SCS formula for monthly Peff is applied per calendar month. For sub-monthly seasons, the function pro-rates monthly values to the fraction of the month within the season. Provide `start_date`, `end_date` when calling `wapor_calc_peff()` for accurate pro-rating.
+Effective precipitation is computed automatically when `"agg_peff"` (or `"green_water"` /
+`"blue_water"`, which depend on it) is included in `config$indicators` and `precip_var` is
+set — there is no separate Peff function to call. Internally, the USDA SCS formula
+(`P <= 250: Peff = P*(125-0.2*P)/125`; `P > 250: Peff = 125 + 0.1*P`) is applied per
+calendar month to the weighted monthly precipitation, then summed over the season.
 
 ---
 
@@ -947,11 +947,13 @@ season_end   <- wapor_load_season_raster("awa_season_end.tif")
 classes    <- wapor_extract_crop_classes(crop_mask)
 crop_parms <- wapor_build_crop_assignments(
   class_values  = classes$class_value,
-  crop_defaults = lapply(setNames(rep("sorghum", nrow(classes)), classes$class_value),
-                         wapor_crop_defaults)
+  crop_defaults = setNames(
+    lapply(rep("sorghum", nrow(classes)), wapor_crop_defaults),
+    as.character(classes$class_value)
+  )
 )
 
-results <- wapor_analysis_pipeline(
+results <- wapor_run_seasonal_analysis(
   config = list(
     ref_year    = 2023,
     period      = c("2023-09-01", "2024-04-30"),
@@ -959,20 +961,20 @@ results <- wapor_analysis_pipeline(
     ret_var     = "L1-RET-D",   # RET is L1-only even when AETI is L3
     precip_var  = "L1-PCP-D",  # PCP is L1-only even when AETI is L3
     npp_var     = "L3-NPP-D",
-    crop_params = crop_parms,
     indicators  = c("agg_aeti", "etc", "adequacy_etc", "cwp_bwp"),
     data_source = "api",
-    l3_code     = "AWA"
+    l3_code     = "AWA",
+    use_crop_mask      = TRUE,
+    use_season_rasters = TRUE
   ),
-  region       = "AWA",
-  crop_mask    = crop_mask,
-  season_start = season_start,
-  season_end   = season_end,
-  save_outputs = TRUE,
-  output_folder = "results/AWA_2023_24"
+  crop_params  = crop_parms,
+  rasters      = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end),
+  aoi_region   = "AWA"
 )
 
-print(results$summary)
+dir.create("results/AWA_2023_24", recursive = TRUE, showWarnings = FALSE)
+terra::writeRaster(results$seasonal_aeti$raster, "results/AWA_2023_24/seasonal_aeti.tif", overwrite = TRUE)
+print(results$seasonal_aeti$by_class)
 ```
 
 ---

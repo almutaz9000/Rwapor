@@ -4,19 +4,6 @@
 # Extracted from test-analysis.R to reduce its god-node edge count.
 # =============================================================================
 
-test_that("Peff USDA monthly calculation works", {
-  # P <= 250
-  expect_equal(wapor_calc_peff_usda(0), 0)
-  expect_equal(wapor_calc_peff_usda(100), 100 * (125 - 20) / 125)
-
-  # P > 250
-  expect_equal(wapor_calc_peff_usda(300), 125 + 30)
-
-  # Vectorized
-  peff <- wapor_calc_peff_usda(c(50, 120, 300))
-  expect_equal(length(peff), 3)
-})
-
 test_that("CWP and BWP calculations work", {
   # 5000 kg/ha yield, 400 mm AETI
   cwp <- wapor_calc_cwp(5000, 400)
