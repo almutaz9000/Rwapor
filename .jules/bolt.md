@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized Dekad Sequence Table Generation]
+**Learning:** Generating dekad tables by day-by-day while-loop iteration with string formatting (`format(current, "%Y")`) and appending single-row data frames creates significant memory reallocation overhead and $O(N^2)$ time complexity. Vectorizing month/year sequence calculations and constructing the output data frame in a single pass converts dekad table creation to $O(N)$ time and memory complexity.
+**Action:** Vectorize date range sequence expansion upfront and instantiate data frames directly using atomic vectors instead of iteratively building single-row data frames inside loops.
