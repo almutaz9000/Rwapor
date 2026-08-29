@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Preallocating S3 Date Vectors in R]
+**Learning:** In R, `vector("Date", n)` fails because `Date` is an S3 class rather than an atomic type, and `as.Date(rep(NA_integer_, n))` throws an error without `origin`. Preallocating S3 Date vectors must be done using `rep(as.Date(NA), n)`.
+**Action:** Use `rep(as.Date(NA), n)` to safely preallocate Date vectors before populating elements in vectorized index loops.
