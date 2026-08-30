@@ -434,3 +434,39 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_scan_local correctly scans directory structures with vectorized date parsing", {
+  tmp_dir <- tempfile("wapor_test_scan_")
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # Create dummy variable folders
+  var1_dir <- file.path(tmp_dir, "L1-AETI-D")
+  var2_dir <- file.path(tmp_dir, "AGERA5-ET0-E")
+  dir.create(var1_dir)
+  dir.create(var2_dir)
+
+  # Create dummy tif files with dekadal and daily date formats
+  file.create(file.path(var1_dir, "WAPOR-3.L1-AETI-D.2023-01-D1.tif"))
+  file.create(file.path(var1_dir, "WAPOR-3.L1-AETI-D.2023-01-D2.tif"))
+  file.create(file.path(var1_dir, "WAPOR-3.L1-AETI-D.2023-01-D3.tif"))
+
+  file.create(file.path(var2_dir, "C3S.AGERA5-ET0-E.2023-06-01.tif"))
+  file.create(file.path(var2_dir, "C3S.AGERA5-ET0-E.2023-06-02.tif"))
+
+  df <- wapor_scan_local(tmp_dir)
+
+  expect_s3_class(df, "data.frame")
+  expect_equal(nrow(df), 2)
+  expect_true(all(c("variable", "file_count", "min_date", "max_date", "folder_path") %in% names(df)))
+
+  df_aeti <- df[df$variable == "L1-AETI-D", ]
+  expect_equal(df_aeti$file_count, 3)
+  expect_equal(df_aeti$min_date, "2023-01-01")
+  expect_equal(df_aeti$max_date, "2023-01-21")
+
+  df_agera <- df[df$variable == "AGERA5-ET0-E", ]
+  expect_equal(df_agera$file_count, 2)
+  expect_equal(df_agera$min_date, "2023-06-01")
+  expect_equal(df_agera$max_date, "2023-06-02")
+})

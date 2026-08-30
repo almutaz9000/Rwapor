@@ -740,25 +740,13 @@ wapor_scan_local <- function(folder) {
       return(NULL)
     }
 
-    # Extract dates from filenames (pattern: *.YYYY-MM-DD.tif or *.YYYYMMDD.tif)
-    date_patterns <- c(
-      "\\.(\\d{4}-\\d{2}-\\d{2})\\.tif$",  # YYYY-MM-DD
-      "\\.(\\d{4}\\d{2}\\d{2})\\.tif$"      # YYYYMMDD
-    )
+    # Optimization: Extract temporal resolution and use vectorized wapor_parse_dates
+    # instead of iterative R-level regex loops (regexec/regmatches/sapply)
+    var_parts <- strsplit(var, "-")[[1]]
+    tres_code <- if (length(var_parts) >= 3) var_parts[length(var_parts)] else "D"
 
-    dates <- character(0)
-    for (pattern in date_patterns) {
-      matches <- regmatches(tif_files, regexec(pattern, tif_files))
-      extracted <- sapply(matches, function(m) if (length(m) > 1) m[2] else NA_character_)
-      extracted <- extracted[!is.na(extracted)]
-      if (length(extracted) > 0) {
-        # Normalize to YYYY-MM-DD
-        if (nchar(extracted[1]) == 8) {
-          extracted <- gsub("^(\\d{4})(\\d{2})(\\d{2})$", "\\1-\\2-\\3", extracted)
-        }
-        dates <- c(dates, extracted)
-      }
-    }
+    parsed <- wapor_parse_dates(tif_files, tres = tres_code)
+    dates <- parsed$start_date[!is.na(parsed$start_date)]
 
     if (length(dates) == 0) {
       # Fallback: just count files
@@ -784,7 +772,7 @@ wapor_scan_local <- function(folder) {
     )
   })
 
-  results <- results[!sapply(results, is.null)]
+  results <- results[!vapply(results, is.null, logical(1L))]
   if (length(results) == 0) {
     return(data.frame(
       variable = character(0),
