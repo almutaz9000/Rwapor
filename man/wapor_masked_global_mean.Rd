@@ -4,17 +4,21 @@
 \alias{wapor_masked_global_mean}
 \title{Compute masked global mean}
 \usage{
-wapor_masked_global_mean(r, mask_rast = NULL)
+wapor_masked_global_mean(r, mask_rast = NULL, area = NULL)
 }
 \arguments{
 \item{r}{SpatRaster.}
 
 \item{mask_rast}{SpatRaster. Optional mask.}
+
+\item{area}{SpatRaster. Optional per-pixel area in hectares.}
 }
 \value{
 Numeric mean.
 }
 \description{
-Compute masked global mean
+When \code{area} is a SpatRaster of per-pixel hectares, the mean is area-weighted
+so geographic grids are not biased toward polar pixels. Without \code{area} the
+result is a plain pixel-count mean (previous behaviour).
 }
 \keyword{internal}

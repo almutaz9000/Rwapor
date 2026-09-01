@@ -1,7 +1,7 @@
 {
   "project_name": ["Savola"],
   "farm_path": [""],
-  "db_path": ["C:/Users/Mohammedal/OneDrive - Food and Agriculture Organization/Documents/GitHub/Rwapor/inst/shiny/Savola.duckdb"],
+  "db_path": ["Savola.duckdb"],
   "mon_vars": ["L1-AETI-D", "L1-E-D", "L1-NPP-D", "L1-RET-D", "L1-T-D"],
   "mon_l3_region": ["MIT"],
   "sowing_date": ["2025-10-23"],

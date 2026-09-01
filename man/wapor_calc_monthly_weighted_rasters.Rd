@@ -2,7 +2,7 @@
 % Please edit documentation in R/analysis_indicators.R
 \name{wapor_calc_monthly_weighted_rasters}
 \alias{wapor_calc_monthly_weighted_rasters}
-\title{Compute Dekadal ETc from RET and Kc}
+\title{Compute Monthly Weighted Raster Series}
 \usage{
 wapor_calc_monthly_weighted_rasters(
   x,
@@ -33,11 +33,6 @@ wapor_calc_monthly_weighted_rasters(
 A list with \code{rasters} and \code{summary} entries.
 }
 \description{
-ETc = RET * Kc for each dekad. Both inputs should have the same
-number of layers (one per dekad).
-Compute Monthly Weighted Raster Series
-}
-\details{
 Aggregates a dekadal raster stack into per-month rasters using season weights
 and optional per-layer multipliers.
 }

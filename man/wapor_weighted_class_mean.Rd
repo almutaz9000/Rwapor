@@ -4,19 +4,28 @@
 \alias{wapor_weighted_class_mean}
 \title{Compute weighted mean over specific classes}
 \usage{
-wapor_weighted_class_mean(summary_tbl, class_stats, value_col)
+wapor_weighted_class_mean(
+  summary_tbl,
+  class_stats,
+  value_col,
+  area_weighted = TRUE
+)
 }
 \arguments{
 \item{summary_tbl}{data.frame with class_value and the value to average.}
 
-\item{class_stats}{data.frame with class_value and pixel_count.}
+\item{class_stats}{data.frame with class_value and pixel_count and/or area_ha.}
 
 \item{value_col}{Character. Column name in summary_tbl to average.}
+
+\item{area_weighted}{Logical. If TRUE (default), prefers \code{area_ha} when present
+on \code{class_stats} for latitude-unbiased means. If FALSE, uses \code{pixel_count}.}
 }
 \value{
 Numeric weighted mean.
 }
 \description{
-Compute weighted mean over specific classes
+Prefers \code{area_ha} when present on \code{class_stats} so geographic summaries are
+latitude-unbiased. Falls back to \code{pixel_count} when area is unavailable.
 }
 \keyword{internal}

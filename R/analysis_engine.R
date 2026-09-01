@@ -225,15 +225,17 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   mask_stats <- terra::freq(h_mask)
   # terra::freq returns [layer, value, count]
   names(mask_stats) <- c("layer", "class_value", "pixel_count")
-  
-  # Calculate approximate area in ha (assuming lonlat WGS84 for now)
-  res_xy <- terra::res(template_r)
-  pixel_area_ha <- if (terra::is.lonlat(template_r)) {
-    (res_xy[1] * 111320) * (res_xy[2] * 111320 * cos(terra::ext(template_r)$ymin * pi / 180)) / 10000
-  } else {
-    (res_xy[1] * res_xy[2]) / 10000
+
+  # Per-pixel area: latitude-aware on lon/lat grids, constant on projected grids.
+  apply_area_weight <- if (is.null(config$area_weighted)) TRUE else isTRUE(config$area_weighted)
+  pixel_area_r <- if (apply_area_weight) wapor_pixel_area_ha(template_r) else NULL
+  if (apply_area_weight && !is.null(pixel_area_r)) {
+    area_by_class <- as.data.frame(terra::zonal(pixel_area_r, h_mask, fun = "sum", na.rm = TRUE))
+    names(area_by_class)[seq_len(min(2, ncol(area_by_class)))] <-
+      c("class_value", "area_ha")[seq_len(min(2, ncol(area_by_class)))]
+    mask_stats <- merge(mask_stats, area_by_class[, c("class_value", "area_ha"), drop = FALSE],
+                        by = "class_value", all.x = TRUE)
   }
-  mask_stats$area_ha <- mask_stats$pixel_count * pixel_area_ha
 
   results <- list(
     h_mask = h_mask,
@@ -242,7 +244,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     template_r = template_r,
     dekad_table = dekad_table,
     mask_class_stats = mask_stats,
-    valid_crop_mask = terra::ifel(is.na(h_mask), NA, 1L)
+    valid_crop_mask = terra::ifel(is.na(h_mask), NA, 1L),
+    pixel_area_ha = pixel_area_r
   )
   
   # Multipliers
@@ -588,11 +591,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
      if (!is.null(results$yield_raster)) {
        cwp_raster <- Rwapor::wapor_calc_cwp(results$yield_raster, results$seasonal_aeti$raster, yield_unit = "t/ha")
-       results$cwp <- wapor_masked_global_mean(cwp_raster, results$valid_crop_mask)
+       results$cwp <- wapor_masked_global_mean(cwp_raster, results$valid_crop_mask, area = pixel_area_r)
      }
      if (!is.null(results$seasonal_biomass_t)) {
        bwp_raster <- Rwapor::wapor_calc_bwp(results$seasonal_biomass_t, results$seasonal_aeti$raster, biomass_unit = "t/ha")
-       results$bwp <- wapor_masked_global_mean(bwp_raster, results$valid_crop_mask)
+       results$bwp <- wapor_masked_global_mean(bwp_raster, results$valid_crop_mask, area = pixel_area_r)
      }
   }
 
