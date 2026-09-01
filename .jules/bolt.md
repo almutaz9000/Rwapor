@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Preserving S3 Date Class in Vectorized Date Calculations]
+**Learning:** In R, base `pmax()` and `pmin()` strip S3 `Date` class attributes when operating on `Date` vectors, converting them to raw numeric offsets (days since 1970-01-01).
+**Action:** Always wrap `pmax`/`pmin` on Date vectors with `structure(..., class = "Date")` to maintain class integrity across vectorized date operations.
