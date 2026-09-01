@@ -1,8 +1,8 @@
 ---
-title: "Getting Started with Rwapor"
+title: "Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with Rwapor}
+  %\VignetteIndexEntry{Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -17,373 +17,137 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-The **Rwapor** package provides tools for downloading and processing WaPOR
-(Water Productivity Open-access portal) and AgERA5 climate data from the
-FAO GISMGR API. This vignette covers the basic workflow for:
+The **Rwapor** package provides a high-performance R interface for querying, downloading, and analyzing satellite datasets from the **FAO WaPOR v3** (Water Productivity Open-access portal) and **ECMWF AgERA5** agro-meteorological datasets.
 
-1. Downloading raster maps for a region
-2. Extracting time series with zonal statistics
-3. Converting units between temporal resolutions
+This vignette covers:
+1. Connecting to the FAO GISMGR API and streaming Cloud-Optimized GeoTIFFs (COGs).
+2. Downloading spatial raster maps for bounding boxes, vector polygons, and Level 3 schemes.
+3. Extracting time-series statistics for agricultural field boundaries.
+4. Managing disk caching and automatic unit conversions.
 
-## Installation
+---
 
-```{r installation}
-# Install from GitHub
-# install.packages("pak")
-pak::pak("almutaz9000/Rwapor")
+## 1. Installation
 
-library(Rwapor)
-```
-
-## Performance: GDAL & Batching
-
-Rwapor automatically optimises GDAL's HTTP streaming settings when the
-package loads. This dramatically reduces download times for
-Cloud-Optimized GeoTIFFs (COGs) by using 10 MB read chunks instead of
-GDAL's 16 KB default, cutting the number of HTTP round-trips by 100–1000×.
-
-### Automatic Spatial Fixes (PROJ Redirection)
-
-On Windows systems with multiple GIS installations (e.g., PostGIS via PostgreSQL),
-the `PROJ_LIB` environment variable can point to incompatible databases, causing
-coordinate system errors. Rwapor automatically detects and redirects these to its
-internal, compatible database when the package loads:
+Install `Rwapor` directly from GitHub:
 
 ```r
+# install.packages("remotes")
+remotes::install_github("almutaz9000/Rwapor")
+
 library(Rwapor)
-# This calls wapor_fix_proj() automatically
 ```
 
-### Optional Batching & Parallel Processing
+---
 
-For long time series (e.g., 5+ years of dekadal data), loading all rasters at 
-once can exceed available RAM. Both `wapor_map()` and `wapor_ts()` support 
-**optional batching** and **parallel processing** to manage resources:
+## 2. API Streaming & Disk Caching
+
+Rwapor optimizes GDAL `/vsicurl/` settings automatically on package load (using 10 MB chunk reads instead of GDAL's default 16 KB), cutting HTTP round-trips by up to 1000×.
+
+Additionally, API endpoint responses are automatically cached to disk with a 24-hour Time-To-Live (TTL) under your user cache directory. You can purge this cache at any time:
 
 ```r
-library(Rwapor)
-library(future)
-
-# 1. Setup parallel backend (optional)
-plan(multisession, workers = 4)
-
-# 2. Extract with parallel batching
-# This will split 36 layers into 12 batches of 3, processed in parallel.
-df_batched <- wapor_ts(
-  region     = c(35.0, 33.0, 36.0, 34.0),
-  variable   = "L1-AETI-D",
-  period     = c("2023-01-01", "2023-12-31"),
-  batching   = TRUE,
-  batch_size = 3,
-  parallel   = TRUE
-)
+# Clear cached API URLs and catalog responses
+wapor_clear_url_cache()
 ```
 
-- **`batching`**: Defaults to `TRUE`. Processes data in manageable chunks.
-- **`batch_size`**: Number of layers per chunk (default `12L`).
-- **`parallel`**: If `TRUE`, batches are processed in parallel via background workers.
+---
 
-## Available Variables
+## 3. Data Catalog Exploration
 
-### WaPOR Variables
+Explore available variables in WaPOR v3 and AgERA5:
 
-WaPOR provides water productivity and related variables at different spatial
-and temporal resolutions:
-
-```{r wapor-vars}
-# List all WaPOR v3 variables
+```r
+# List WaPOR v3 variable codes
 names(WAPOR3_VARS)
 
-# Get metadata for a specific variable
-get_variable_metadata("L1-AETI-D")
+# Retrieve metadata for a specific variable
+get_variable_metadata("L2-AETI-D")
 # $long_name: "Actual EvapoTranspiration and Interception"
 # $units: "mm/day"
 # $scale: 0.1
+# $spatial_resolution: "~100m"
+
+# Explore sub-national Level 3 irrigation schemes
+head(L3_REGIONS)
 ```
 
-**Variable naming convention:** `{Level}-{Variable}-{TemporalResolution}`
+---
 
-- **Levels:** L1 (continental ~250m), L2 (regional ~100m), L3 (local)
-- **Variables:** AETI, E, I, NPP, PCP, T, GBWP, NBWP
-- **Temporal:** D (dekadal), M (monthly), A (annual), E (daily)
+## 4. Downloading Raster Maps (`wapor_map`)
 
-### AgERA5 Climate Variables
+### 4.1 Using a Bounding Box
 
-```{r agera5-vars}
-# List AgERA5 variables
-names(AGERA5_VARS)
-
-# Example: Reference evapotranspiration
-get_variable_metadata("AGERA5-ET0-E")
-```
-
-## Downloading Raster Maps
-
-Use `wapor_map()` to download and save raster data for a region:
-
-### Using a Bounding Box
-
-```{r download-bbox}
-# Define region as bounding box: c(xmin, ymin, xmax, ymax)
-region <- c(35.0, 33.0, 36.0, 34.0)
-
-# Download dekadal ET for January 2023 (defaults to mm/dekad)
+```r
+# Download dekadal AETI for January 2023 (converted to mm/dekad)
 output_file <- wapor_map(
-  region   = region,
+  region   = c(35.0, 33.0, 36.0, 34.0), # Bounding box: c(xmin, ymin, xmax, ymax)
   variable = "L1-AETI-D",
   period   = c("2023-01-01", "2023-01-31"),
-  folder   = "output"
+  folder   = "output_rasters"
 )
 
-print(output_file)
-# "output/L1-AETI-D/bb_WAPOR-3.L1-AETI-D.2023-01-01_2023-01-21.tif"
+# Load with terra
+library(terra)
+r <- rast(output_file)
+plot(r[[1]], main = "AETI - 2023-01-01 (mm/dekad)")
 ```
 
-### Using a Shapefile
+### 4.2 Using a Vector Polygon Boundary
 
-```{r download-shapefile}
-# Download for a shapefile region, cropped and masked to the polygon
-output_file <- wapor_map(
-  region   = "path/to/my_region.shp",
+```r
+# Download raster cropped and masked to a polygon shapefile
+map_path <- wapor_map(
+  region   = "study_area.geojson",
   variable = "L2-NPP-M",
   period   = c("2023-01-01", "2023-12-31"),
-  folder   = "output",
-  filename = "npp_monthly_2023.tif"
+  folder   = "output_rasters"
 )
 ```
 
-### Using L3 Region Codes
+### 4.3 Using Level 3 Irrigation Scheme Codes
 
-For WaPOR Level 3 data, use the 3-letter region code:
-
-```{r download-l3}
-# Download for Awash Basin (Ethiopia)
-output_file <- wapor_map(
+```r
+# Download Awash Basin Level 3 data (Ethiopia)
+awa_path <- wapor_map(
   region   = "AWA",
   variable = "L3-AETI-D",
   period   = c("2023-06-01", "2023-06-30"),
-  folder   = "output"
+  folder   = "output_rasters"
 )
 ```
 
-### Saving Separate Files Per Time Step
+---
 
-```{r download-separate}
-# One GeoTIFF per dekad instead of a single multi-band stack
-paths <- wapor_map(
-  region         = c(35.0, 33.0, 36.0, 34.0),
-  variable       = "L1-AETI-D",
-  period         = c("2023-01-01", "2023-03-31"),
-  folder         = "output",
-  separate_files = TRUE
+## 5. Extracting Field Time-Series (`wapor_ts`)
+
+Extract polygon zonal statistics (mean, min, max, standard deviation) for multiple agricultural plots:
+
+```r
+library(future)
+
+# Enable parallel processing
+plan(multisession, workers = 4)
+
+ts_df <- wapor_ts(
+  region          = "farm_plots.geojson",
+  variable        = "L2-AETI-D",
+  period          = c("2023-01-01", "2023-12-31"),
+  identifier      = "plot_id",
+  unit_conversion = "unit_conversion" # Automatically converts daily rate to dekadal total
 )
 
-length(paths)  # 9 files (3 dekads × 3 months)
+head(ts_df)
+# Plot time series
+library(ggplot2)
+ggplot(ts_df, aes(x = start_date, y = mean, group = plot_id, color = plot_id)) +
+  geom_line() +
+  labs(x = "Date", y = "AETI (mm/dekad)", title = "Seasonal AETI across Farm Plots")
 ```
 
-### Multiple Variables
+---
 
-```{r download-multi}
-# Download ET and NPP in one call — returns a named list
-results <- wapor_map(
-  region   = c(35.0, 33.0, 36.0, 34.0),
-  variable = c("L1-AETI-D", "L1-NPP-D"),
-  period   = c("2023-01-01", "2023-03-31"),
-  folder   = "output"
-)
+## 6. Next Steps
 
-results[["L1-AETI-D"]]
-results[["L1-NPP-D"]]
-```
-
-## Extracting Time Series
-
-Use `wapor_ts()` to extract zonal statistics (mean, min, max) for polygons:
-
-### Basic Time Series Extraction
-
-```{r ts-basic}
-# Extract time series for a bounding box (defaults to mm/dekad for dekadal vars)
-df <- wapor_ts(
-  region   = c(35.0, 33.0, 36.0, 34.0),
-  variable = "L1-AETI-D",
-  period   = c("2023-01-01", "2023-03-31")
-)
-
-head(df)
-#   mean   min   max start_date   end_date  number_of_days layer_index
-# 1  2.5   1.2   4.1 2023-01-01 2023-01-10             10           1
-# 2  2.8   1.5   4.3 2023-01-11 2023-01-20             10           2
-```
-
-### Time Series for Multiple Polygons
-
-```{r ts-polygons}
-# Extract for multiple fields — identifier column names each polygon
-df <- wapor_ts(
-  region     = "fields.geojson",
-  variable   = "L1-AETI-D",
-  period     = c("2023-01-01", "2023-12-31"),
-  identifier = "field_name"
-)
-
-head(df)
-```
-
-### Accessing Metadata
-
-The returned data frame carries units and variable description as attributes:
-
-```{r ts-metadata}
-attr(df, "units")
-# "mm/dekad"
-
-attr(df, "long_name")
-# "Actual EvapoTranspiration and Interception"
-```
-
-## Automatic Data Transformations
-
-To streamline agricultural water productivity and crop monitoring, `Rwapor` automatically performs key unit and variable transformations during the download and extraction processes.
-
-### 1. WaPOR Dekadal Defaults (Daily Rates to Dekadal Totals)
-
-WaPOR dekadal (10-day) variables are published on the FAO portal as average daily rates (`mm/day` or `gC/m²/day`). However, crop and water productivity analyses typically require total water depth or biomass produced over each 10-day period.
-
-To eliminate manual date-length calculations:
-* By default, `wapor_ts()` and `wapor_map()` **automatically scale and convert daily rates to dekadal totals** (`mm/dekad` or `gC/m²/dekad`) based on the exact number of days in each specific dekad (either 10, or 11/8/9 depending on the month and leap year).
-* You can customize or disable this conversion using the `unit_conversion` parameter (e.g., set `unit_conversion = "day"` to retrieve daily rates, or `"month"` to aggregate to monthly totals).
-
-```{r unit-conversion}
-# Default behavior: dekadal daily-rate products become mm/dekad
-df_dekad <- wapor_ts(
-  region   = c(35.0, 33.0, 36.0, 34.0),
-  variable = "L1-AETI-D",
-  period   = c("2023-01-01", "2023-03-31")
-)
-attr(df_dekad, "units")  # "mm/dekad"
-
-# Retrieve daily rate (mm/day)
-df_day <- wapor_ts(
-  region          = c(35.0, 33.0, 36.0, 34.0),
-  variable        = "L1-AETI-D",
-  period          = c("2023-01-01", "2023-03-31"),
-  unit_conversion = "day"
-)
-attr(df_day, "units")          # "mm/day"
-attr(df_day, "original_units") # "mm/day"
-
-# Monthly total
-df_monthly <- wapor_ts(
-  region          = c(35.0, 33.0, 36.0, 34.0),
-  variable        = "L1-AETI-D",
-  period          = c("2023-01-01", "2023-03-31"),
-  unit_conversion = "month"
-)
-attr(df_monthly, "units")  # "mm/month"
-```
-
-Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
-
-### 2. Automatic Temperature Conversion (Kelvin to Celsius)
-
-AgERA5 temperature datasets (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored natively on the FAO Copernicus mirrors in Kelvin (`K`). To make the data immediately usable for agricultural and phenological models:
-* Both `wapor_map()` and `wapor_ts()` **automatically convert Kelvin values to degrees Celsius (°C)** by subtracting `273.15` during raster download and extraction.
-* The output SpatRaster layers and extracted statistical data frames are in Celsius, and their units metadata attribute is dynamically updated from `K` to `degC` or `°C` automatically.
-  unit_conversion = "unit_conversion"
-)
-attr(df_monthly, "units")  # "mm/month"
-```
-
-Available conversions: `"none"`, `"day"`, `"dekad"`, `"month"`, `"year"`
-
-### 2. Automatic Temperature Conversion (Kelvin to Celsius)
-
-AgERA5 temperature datasets (`AGERA5-TMIN-E`, `AGERA5-TMAX-E`) are stored natively on the FAO Copernicus mirrors in Kelvin (`K`). To make the data immediately usable for agricultural and phenological models:
-* Both `wapor_map()` and `wapor_ts()` **automatically convert Kelvin values to degrees Celsius (°C)** by subtracting `273.15` during raster download and extraction.
-* The output SpatRaster layers and extracted statistical data frames are in Celsius, and their units metadata attribute is dynamically updated from `K` to `degC` or `°C` automatically.
-
-## Working with URLs Directly
-
-For advanced use cases, generate download URLs without saving to disk:
-
-```{r generate-urls}
-# Get download URLs for a variable and period
-urls <- wapor_generate_urls(
-  variable = "L1-AETI-D",
-  period   = c("2023-01-01", "2023-01-31")
-)
-
-length(urls)  # 3 (one per dekad)
-
-# Stream directly with terra — GDAL settings applied by Rwapor ensure
-# these remote reads are fast
-library(terra)
-r <- terra::rast(paste0("/vsicurl/", urls))
-```
-
-## Parsing Regions
-
-The `parse_region()` function normalises different region formats:
-
-```{r parse-region}
-# Bounding box
-parse_region(c(35.0, 33.0, 36.0, 34.0))
-# $type: "bbox"
-
-# L3 region code
-parse_region("AWA")
-# $type: "l3_code"
-
-# Vector file
-parse_region("path/to/region.shp")
-# $type: "vector"
-```
-
-## Error Handling
-
-All functions provide informative error messages:
-
-```{r error-handling, error = TRUE}
-# Invalid variable format
-wapor_generate_urls("INVALID")
-# Error: Invalid variable format 'INVALID'. Expected format: 'LEVEL-VAR-TRES'
-
-# Invalid date range
-wapor_generate_urls("L1-AETI-D", period = c("2023-12-31", "2023-01-01"))
-# Error: Start date must be before or equal to end date
-
-# Invalid bounding box
-parse_region(c(36, 33, 35, 34))
-# Error: Invalid bounding box: xmin must be less than xmax
-```
-
-## Best Practices
-
-1. **GDAL is tuned automatically** — `library(Rwapor)` applies optimised HTTP
-   settings immediately. No extra setup required. Call `wapor_gdal_settings()`
-   to confirm or `wapor_configure_gdal()` to customise.
-
-2. **Check variable metadata** before downloading to understand units:
-   ```r
-   get_variable_metadata("L1-AETI-D")
-   ```
-
-3. **Use appropriate temporal resolution** for your analysis:
-   - Daily (E): Weather / irrigation scheduling
-   - Dekadal (D): Crop monitoring
-   - Monthly (M): Seasonal analysis
-   - Annual (A): Long-term trends
-
-4. **Use `unit_conversion` intentionally**:
-   - default / `"unit_conversion"` keeps variable-specific safe behavior
-   - `"none"` keeps raw API values
-
-5. **Use `separate_files = TRUE`** in `wapor_map()` when you need one file
-   per time step, for example to feed into external processing pipelines.
-
-## Session Info
-
-```{r session-info}
-sessionInfo()
-```
+- Explore the **[Interactive Shiny Dashboard Guide](shiny-dashboard.html)** for point-and-click workflows.
+- See the **[Advanced Analysis Vignette](advanced-analysis.html)** for seasonal water productivity modeling ($ET_c, CWP, BWP$), custom crop parameter creation, and out-of-core tiled raster processing.

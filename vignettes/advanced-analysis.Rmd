@@ -1,8 +1,8 @@
 ---
-title: "Advanced Analysis and Monitoring"
+title: "Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Advanced Analysis and Monitoring}
+  %\VignetteIndexEntry{Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -10,117 +10,183 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  eval = FALSE
 )
 ```
 
-This guide covers advanced programmatic workflows for the `Rwapor` package, including seasonal analysis, multi-year monitoring with DuckDB, and handling mixed-resolution datasets.
+This guide covers advanced programmatic workflows for the `Rwapor` package, including seasonal crop water productivity analysis, custom crop factor modeling, out-of-core tiled processing, spatial water stress anomaly detection, and DuckDB monitoring cubes.
 
-## 1. Seasonal Crop Water Productivity Analysis
+---
 
-The `Rwapor` package provides a unified engine, `wapor_run_seasonal_analysis()`, to perform complex seasonal calculations (AETI, ETc, Yield, CWP, Adequacy) in a single step.
+## 1. Custom Crop Growth Parameters & Factors
 
-### 1.1 Single Season Analysis
+While `Rwapor` includes standard FAO-56 crop defaults for 12 major crops, agricultural projects often require custom crop coefficients ($K_c$), stage durations, harvest indices, or moisture contents.
 
-This workflow demonstrates how to calculate indicators for a single crop season using a crop mask and local data.
+### 1.1 Creating a Custom Crop from Scratch
+
+Use `wapor_create_crop_params()` to construct a validated parameter row:
 
 ```r
 library(Rwapor)
 
-# 1. Define configuration
+custom_wheat <- wapor_create_crop_params(
+  class_value  = 1L,
+  crop_name    = "Local Irrigated Durum Wheat",
+  kc_ini       = 0.35,
+  kc_mid       = 1.25,
+  kc_end       = 0.30,
+  l_ini_days   = 25L,
+  l_mid_days   = 50L,
+  l_late_days  = 30L,
+  max_height_m = 0.9,
+  HI           = 0.50, # Harvest Index
+  MC           = 0.12  # Moisture Content
+)
+```
+
+### 1.2 Overriding Specific Factors from an FAO Profile
+
+Use `wapor_custom_crop()` to inherit default values from an FAO profile while modifying specific fields:
+
+```r
+# Customize Maize for a high-density pivot
+custom_maize <- wapor_custom_crop(
+  base_crop   = "Maize",
+  class_value = 2L,
+  crop_name   = "High-Yield Hybrid Maize",
+  kc_mid      = 1.30,  # Overridden
+  HI          = 0.55   # Overridden
+)
+```
+
+### 1.3 Combining Multi-Crop Class Tables
+
+Merge individual crop definitions into a multi-class table for seasonal analysis:
+
+```r
+crop_params <- wapor_combine_crop_params(custom_wheat, custom_maize)
+```
+
+---
+
+## 2. Seasonal Crop Water Productivity Analysis
+
+The unified engine `wapor_run_seasonal_analysis()` executes seasonal aggregations ($AETI, RET, PCP, NPP, T$), potential crop water requirements ($ET_c$), adequacy ratios, and crop/biomass water productivity ($CWP / BWP$).
+
+### 2.1 Single Season Analysis with Latitude-Aware Area Weighting
+
+```r
 config <- list(
-  period      = c("2023-10-01", "2024-05-31"),
-  ref_year    = 1970,            # Historical anchor
-  aeti_var    = "L3-AETI-D",
-  ret_var     = "L1-RET-D",
-  precip_var  = "L1-PCP-D",
-  npp_var     = "L3-NPP-D",
-  t_var       = "L3-T-D",       # Transpiration support
-  data_source = "local",        # Use downloaded files
-  folder      = "wapor_data",   # Local project folder
-  indicators  = c("agg_aeti", "agg_t", "peff", "etc", "yield_npp", "adequacy_etc")
+  period        = c("2023-10-01", "2024-05-31"),
+  ref_year      = 1970,
+  aeti_var      = "L2-AETI-D",
+  ret_var       = "L1-RET-D",
+  precip_var    = "L1-PCP-D",
+  npp_var       = "L2-NPP-D",
+  t_var         = "L2-T-D",
+  data_source   = "local",
+  folder        = "wapor_data",
+  area_weighted = TRUE, # Exact cos(lat) ellipsoidal pixel weighting
+  indicators    = c("agg_aeti", "agg_t", "etc", "adequacy_etc", "peff", "cwp_bwp", "beneficial_fraction")
 )
 
-# 2. Set crop parameters (can be customized)
-crop_params <- wapor_crop_defaults("Winter Wheat")
+rasters <- list(crop_mask = terra::rast("crop_mask.tif"))
 
-# 3. Run the engine
 results <- wapor_run_seasonal_analysis(
   config      = config,
   crop_params = crop_params,
-  rasters     = list(crop_mask = terra::rast("wheat_mask.tif"))
+  rasters     = rasters
 )
 
-# 4. Save the results (canonical structured exporter)
+# Export all rasters and summary tables
 wapor_export_analysis_outputs(
-  results = results,
-  folder = "output/Winter2023",
-  indicators = config$indicators,
+  results      = results,
+  folder       = "outputs/Winter2023",
+  indicators   = config$indicators,
   season_label = "Winter2023"
 )
 ```
 
-### 1.2 Batch Multi-Year Analysis
+### 2.2 Multi-Year Batch Processing
 
-If you have multiple years of data, you can pass a named list of periods. The engine will automatically loop through them and perform "Smart-Linking" with any season-specific masks.
+Pass a named list of periods to loop through multiple seasons automatically:
 
 ```r
-# Define multiple seasons
 periods <- list(
-  "Winter2018" = c("2018-10-01", "2019-05-31"),
-  "Winter2019" = c("2019-10-01", "2020-05-31"),
-  "Winter2020" = c("2020-10-01", "2021-05-31")
+  "Winter2021" = c("2020-10-01", "2021-05-31"),
+  "Winter2022" = c("2021-10-01", "2022-05-31"),
+  "Winter2023" = c("2022-10-01", "2023-05-31")
 )
 
 config$period <- periods
 
-# The engine returns a named list of results for all years
 all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
-
-# Save all years at once
-wapor_export_analysis_outputs(
-  results = all_results,
-  folder = "output/batch_analysis",
-  indicators = config$indicators,
-  season_label = NULL
-)
 ```
 
-### 1.3 Plot-Specific Timing Masks (Heterogeneous Seasons)
+---
 
-For regions where different farm plots have different planting/harvest dates, you can generate custom timing masks from a Vector file and a CSV.
+## 3. Out-of-Core Tiled Processing for Large Extents
+
+When processing large regional or continental extents (such as Level 1 grids across entire river basins), use `wapor_run_seasonal_analysis_tiled()`:
 
 ```r
-# 1. Generate heterogeneous masks
-mask_map <- wapor_vector_to_season_rasters(
-  vector_path   = "farm_plots.geojson",
-  csv_path      = "planting_dates.csv",
-  template_r    = terra::rast("template.tif"),
-  vector_id_col = "plot_id",
-  csv_id_col    = "plot_id",
-  output_folder = "wapor_data/seasonal_masks"
+tiled_out <- wapor_run_seasonal_analysis_tiled(
+  config      = config,
+  crop_params = crop_params,
+  rasters     = rasters,
+  output_dir  = "tiled_outputs",
+  tile_size   = 1024L
 )
 
-# 2. Run analysis
-# The engine will automatically detect and apply the correct mask 
-# (e.g. Winter2018_start.tif) for each year in your batch.
-results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
+# Returns file paths to written GeoTIFFs
+tiled_out$saved_files$seasonal_aeti
 ```
 
-## 2. Continuous Monitoring with DuckDB
-...
+---
 
-The monitoring module allows you to maintain a local "Data Cube" that stays synchronized with the WaPOR API.
+## 4. Spatial Anomaly & Water Stress Hotspots
+
+Identify spatial water stress patterns using temporal standard normalized anomalies ($Z$-score) and statistical threshold classification:
 
 ```r
-library(Rwapor)
+library(terra)
+
+# 1. Stack multi-year seasonal AETI rasters
+aeti_stack <- c(
+  rast("aeti_2021.tif"),
+  rast("aeti_2022.tif"),
+  rast("aeti_2023.tif")
+)
+
+# 2. Compute pixel-wise temporal Z-score
+z_score_stack <- wapor_calc_zscore(aeti_stack)
+
+# 3. Classify spatial hotspots for the current season (+/- 1.96 = 95% confidence)
+hotspots_2023 <- wapor_calc_spatial_hotspots(
+  zscore_layer = z_score_stack[[3]],
+  low          = -1.96,
+  high         = 1.96
+)
+
+# Classes: -2 (Severe Deficit), -1 (Moderate Deficit), 0 (Normal), 1 (Moderate Surplus), 2 (Severe Surplus)
+plot(hotspots_2023)
+```
+
+---
+
+## 5. Continuous Farm Monitoring with Embedded DuckDB
+
+Maintain a synchronized local data cube for agricultural parcels:
+
+```r
 library(DBI)
 library(duckdb)
 
 con <- dbConnect(duckdb::duckdb(), dbdir = "monitoring.duckdb")
-pivots <- sf::st_read("pivots.geojson")
+pivots <- sf::st_read("farm_parcels.geojson")
 
-# Sync only new data
+# Sync only new data from API
 wapor_run_monitoring(
   con          = con,
   farms_sf     = pivots,
@@ -129,38 +195,11 @@ wapor_run_monitoring(
   save_rasters = TRUE
 )
 
-# Extract a specific blob for custom analysis
-blob_data <- dbGetQuery(con, "SELECT raster_blob FROM farm_rasters LIMIT 1")$raster_blob[[1]]
-r <- wapor_raster_from_blob(blob_data)
-```
-
-## 3. Handling Mixed Resolutions (L1 vs L3)
-
-When comparing Level 1 (250m) and Level 3 (30m) data, use `terra::resample` to align them.
-
-```r
-# Retrieve native blobs
-r_aeti_l3 <- wapor_raster_from_blob(blob_aeti) # 30m
-r_ret_l1  <- wapor_raster_from_blob(blob_ret)  # 250m
-
-# Resample RET to match AETI grid
-r_ret_aligned <- terra::resample(r_ret_l1, r_aeti_l3, method = "bilinear")
-
-# Calculate indicator
-r_ratio <- r_aeti_l3 / r_ret_aligned
-```
-
-## 4. Enhanced Analysis (Percentile Filtering)
-
-Remove noisy edge pixels by recalculating statistics from saved blobs.
-
-```r
-# Recalculate Pivot A1 stats using only the top 95% of pixels
-# (Discards the bottom 5% which are often contaminated by dry desert edges)
-new_stats <- wapor_recalculate_stats_from_rasters(
-  con = con,
-  farm_id = "Pivot_A1",
-  polygon = pivots[pivots$Name == "Pivot_A1", ],
-  threshold_pct = 5
-)
+# Query time series directly with SQL
+stats_df <- dbGetQuery(con, "
+  SELECT farm_id, date, aeti_mean_mm, ret_mean_mm
+  FROM farm_stats
+  WHERE date >= '2023-01-01'
+  ORDER BY farm_id, date
+")
 ```
