@@ -108,26 +108,66 @@ wapor_filter_class_stats <- function(res) {
   stats[stats$class_value %in% res$crop_params$class_value, , drop = FALSE]
 }
 
+#' Per-pixel area in hectares
+#'
+#' For geographic (lon/lat) grids, area varies with latitude: a 2-D raster is
+#' returned with one value per cell. For projected grids a constant cell area
+#' is used. Matches the waporbox `pixel_area_ha` convention
+#' (`111320 m/deg * cos(lat)`).
+#'
+#' @param x SpatRaster. Template whose geometry defines the area raster.
+#' @return A SpatRaster of per-pixel area in hectares.
+#' @export
+wapor_pixel_area_ha <- function(x) {
+  if (!inherits(x, "SpatRaster")) {
+    stop("'x' must be a SpatRaster", call. = FALSE)
+  }
+  res_xy <- terra::res(x)
+  out <- x[[1]]
+  if (isTRUE(terra::is.lonlat(x))) {
+    ext_r <- terra::ext(x)
+    height <- terra::nrow(x)
+    width <- terra::ncol(x)
+    lat <- as.numeric(ext_r$ymax) - (seq_len(height) - 0.5) * res_xy[2]
+    area_row <- (res_xy[1] * 111320) * (res_xy[2] * 111320 * cos(lat * pi / 180)) / 10000
+    terra::values(out) <- rep(area_row, each = width)
+  } else {
+    terra::values(out) <- (res_xy[1] * res_xy[2]) / 10000
+  }
+  names(out) <- "area_ha"
+  out
+}
+
 #' Compute weighted mean over specific classes
 #'
+#' Prefers `area_ha` when present on `class_stats` so geographic summaries are
+#' latitude-unbiased. Falls back to `pixel_count` when area is unavailable.
+#'
 #' @param summary_tbl data.frame with class_value and the value to average.
-#' @param class_stats data.frame with class_value and pixel_count.
+#' @param class_stats data.frame with class_value and pixel_count and/or area_ha.
 #' @param value_col Character. Column name in summary_tbl to average.
+#' @param area_weighted Logical. If TRUE (default), prefers `area_ha` when present
+#'   on `class_stats` for latitude-unbiased means. If FALSE, uses `pixel_count`.
 #' @return Numeric weighted mean.
 #' @keywords internal
-wapor_weighted_class_mean <- function(summary_tbl, class_stats, value_col) {
+wapor_weighted_class_mean <- function(summary_tbl, class_stats, value_col, area_weighted = TRUE) {
   if (is.null(summary_tbl) || is.null(class_stats) || nrow(summary_tbl) == 0 || nrow(class_stats) == 0) {
+    return(NA_real_)
+  }
+
+  weight_col <- if (isTRUE(area_weighted) && "area_ha" %in% names(class_stats)) "area_ha" else "pixel_count"
+  if (!weight_col %in% names(class_stats)) {
     return(NA_real_)
   }
 
   merged <- merge(
     summary_tbl,
-    class_stats[, c("class_value", "pixel_count"), drop = FALSE],
+    class_stats[, c("class_value", weight_col), drop = FALSE],
     by = "class_value",
     all = FALSE
   )
   merged <- merged[
-    !is.na(merged[[value_col]]) & !is.na(merged$pixel_count) & merged$pixel_count > 0,
+    !is.na(merged[[value_col]]) & !is.na(merged[[weight_col]]) & merged[[weight_col]] > 0,
     ,
     drop = FALSE
   ]
@@ -135,23 +175,41 @@ wapor_weighted_class_mean <- function(summary_tbl, class_stats, value_col) {
     return(NA_real_)
   }
 
-  stats::weighted.mean(merged[[value_col]], w = merged$pixel_count)
+  stats::weighted.mean(merged[[value_col]], w = merged[[weight_col]])
 }
 
 #' Compute masked global mean
 #'
+#' When `area` is a SpatRaster of per-pixel hectares, the mean is area-weighted
+#' so geographic grids are not biased toward polar pixels. Without `area` the
+#' result is a plain pixel-count mean (previous behaviour).
+#'
 #' @param r SpatRaster.
 #' @param mask_rast SpatRaster. Optional mask.
+#' @param area SpatRaster. Optional per-pixel area in hectares.
 #' @return Numeric mean.
 #' @keywords internal
-wapor_masked_global_mean <- function(r, mask_rast = NULL) {
+wapor_masked_global_mean <- function(r, mask_rast = NULL, area = NULL) {
   if (is.null(r)) return(NA_real_)
   target <- if (is.null(mask_rast)) {
     r
   } else {
     r * terra::ifel(is.na(mask_rast), NA, 1L)
   }
-  terra::global(target, "mean", na.rm = TRUE)$mean
+  if (is.null(area) || !inherits(area, "SpatRaster")) {
+    return(terra::global(target, "mean", na.rm = TRUE)$mean)
+  }
+  w <- area
+  if (!is.null(mask_rast)) {
+    w <- w * terra::ifel(is.na(mask_rast), NA, 1L)
+  }
+  w <- terra::ifel(is.na(target), NA, w)
+  num <- terra::global(target * w, "sum", na.rm = TRUE)$sum
+  den <- terra::global(w, "sum", na.rm = TRUE)$sum
+  if (is.na(den) || den == 0) {
+    return(NA_real_)
+  }
+  num / den
 }
 
 #' Build a table of unique season profiles (start/end combinations)

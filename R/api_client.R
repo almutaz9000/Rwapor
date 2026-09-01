@@ -1,3 +1,37 @@
+.wapor_url_cache_dir <- function() {
+  cache_dir <- file.path(tools::R_user_dir("Rwapor", "cache"), "url_cache")
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+  cache_dir
+}
+
+.wapor_url_hash <- function(x) {
+  raw_bytes <- as.raw(utf8ToInt(x))
+  sprintf("%08x_%d", sum(as.integer(raw_bytes)), nchar(x))
+}
+
+#' Clear WaPOR Disk URL Cache
+#'
+#' Removes all cached API response files from the user's cache directory.
+#'
+#' @return Invisible integer count of removed cache files.
+#' @export
+#' @examples
+#' wapor_clear_url_cache()
+wapor_clear_url_cache <- function() {
+  cache_dir <- .wapor_url_cache_dir()
+  files <- list.files(cache_dir, pattern = "\\.rds$", full.names = TRUE)
+  if (length(files) > 0) {
+    unlink(files)
+  }
+  # Also reset memoise cache
+  if (memoise::is.memoised(wapor_generate_urls)) {
+    memoise::forget(wapor_generate_urls)
+  }
+  invisible(length(files))
+}
+
 #' Collect Responses from GISMGR API with Pagination
 #'
 #' Internal function to paginate through FAO GISMGR API responses
@@ -15,6 +49,21 @@
 collect_responses <- function(url, info = "downloadUrl") {
   if (!is.character(url) || length(url) != 1 || nchar(url) == 0) {
     stop("'url' must be a non-empty character string", call. = FALSE)
+  }
+
+  ttl_seconds <- getOption("Rwapor.cache_ttl", 86400) # Default 24h
+  cache_file <- NULL
+  if (is.numeric(ttl_seconds) && ttl_seconds > 0) {
+    cache_key <- .wapor_url_hash(paste0(url, "::", paste(info, collapse = ",")))
+    cache_file <- file.path(.wapor_url_cache_dir(), paste0(cache_key, ".rds"))
+    if (file.exists(cache_file)) {
+      finfo <- file.info(cache_file)
+      age <- as.numeric(difftime(Sys.time(), finfo$mtime, units = "secs"))
+      if (!is.na(age) && age < ttl_seconds) {
+        cached_data <- tryCatch(readRDS(cache_file), error = function(e) NULL)
+        if (!is.null(cached_data)) return(cached_data)
+      }
+    }
   }
 
   all_items <- list()
@@ -66,6 +115,10 @@ collect_responses <- function(url, info = "downloadUrl") {
       }
     }
     next_url <- next_link
+  }
+
+  if (!is.null(cache_file) && length(all_items) > 0) {
+    tryCatch(saveRDS(all_items, cache_file), error = function(e) NULL)
   }
 
   return(all_items)

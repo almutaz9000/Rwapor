@@ -114,13 +114,8 @@ wapor_calc_seasonal_ret <- function(ret_dekad, season_weights,
 
 
 # =============================================================================
-# ETc Computation
+# Monthly & Seasonal Aggregation
 # =============================================================================
-
-#' Compute Dekadal ETc from RET and Kc
-#'
-#' ETc = RET * Kc for each dekad. Both inputs should have the same
-#' number of layers (one per dekad).
 
 #' Compute Monthly Weighted Raster Series
 #'
@@ -252,12 +247,10 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
 #' @return SpatRaster or numeric of adequacy ratio.
 #' @export
 wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
-  # Avoid division by zero
-  if (inherits(etc_seasonal, "SpatRaster")) {
-    etc_safe <- terra::ifel(etc_seasonal == 0, NA, etc_seasonal)
-  } else {
-    etc_safe <- ifelse(etc_seasonal == 0, NA, etc_seasonal)
+  if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(etc_seasonal, "SpatRaster")) {
+    return(wapor_math_adequacy_etc(aeti_seasonal, etc_seasonal))
   }
+  etc_safe <- terra::ifel(etc_seasonal == 0, NA, etc_seasonal)
   aeti_seasonal / etc_safe
 }
 
@@ -270,12 +263,10 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #' @return SpatRaster or numeric of beneficial fraction (0-1).
 #' @export
 wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
-  # Avoid division by zero
-  if (inherits(aeti_seasonal, "SpatRaster")) {
-    aeti_safe <- terra::ifel(aeti_seasonal == 0, NA, aeti_seasonal)
-  } else {
-    aeti_safe <- ifelse(aeti_seasonal == 0, NA, aeti_seasonal)
+  if (!inherits(t_seasonal, "SpatRaster") && !inherits(aeti_seasonal, "SpatRaster")) {
+    return(wapor_math_beneficial_fraction(t_seasonal, aeti_seasonal))
   }
+  aeti_safe <- terra::ifel(aeti_seasonal == 0, NA, aeti_seasonal)
   t_seasonal / aeti_safe
 }
 
@@ -451,19 +442,14 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
 #' @examples
 #' wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
 wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
-  # Convert yield to kg/ha if needed
+  if (!inherits(yield_value, "SpatRaster") && !inherits(aeti_mm, "SpatRaster")) {
+    return(wapor_math_cwp(yield_value, aeti_mm, yield_unit = yield_unit))
+  }
   if (tolower(yield_unit) == "t/ha") {
     yield_value <- yield_value * 1000
   }
-  # Convert AETI from mm to m3/ha: 1 mm = 10 m3/ha
   aeti_m3_ha <- aeti_mm * 10
-
-  # Avoid division by zero
-  if (inherits(aeti_m3_ha, "SpatRaster")) {
-    aeti_safe <- terra::ifel(aeti_m3_ha == 0, NA, aeti_m3_ha)
-  } else {
-    aeti_safe <- ifelse(aeti_m3_ha == 0, NA, aeti_m3_ha)
-  }
+  aeti_safe <- terra::ifel(aeti_m3_ha == 0, NA, aeti_m3_ha)
   yield_value / aeti_safe
 }
 
@@ -479,15 +465,14 @@ wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' @examples
 #' wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
 wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
+  if (!inherits(biomass_value, "SpatRaster") && !inherits(aeti_mm, "SpatRaster")) {
+    return(wapor_math_bwp(biomass_value, aeti_mm, biomass_unit = biomass_unit))
+  }
   if (tolower(biomass_unit) == "t/ha") {
     biomass_value <- biomass_value * 1000
   }
   aeti_m3_ha <- aeti_mm * 10
-  if (inherits(aeti_m3_ha, "SpatRaster")) {
-    aeti_safe <- terra::ifel(aeti_m3_ha == 0, NA, aeti_m3_ha)
-  } else {
-    aeti_safe <- ifelse(aeti_m3_ha == 0, NA, aeti_m3_ha)
-  }
+  aeti_safe <- terra::ifel(aeti_m3_ha == 0, NA, aeti_m3_ha)
   biomass_value / aeti_safe
 }
 
@@ -507,11 +492,10 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
 wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
-  if (inherits(aeti_seasonal, "SpatRaster")) {
-    terra::ifel(aeti_seasonal <= peff_seasonal, aeti_seasonal, peff_seasonal)
-  } else {
-    pmin(aeti_seasonal, peff_seasonal)
+  if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(peff_seasonal, "SpatRaster")) {
+    return(wapor_math_green_water(aeti_seasonal, peff_seasonal))
   }
+  terra::ifel(aeti_seasonal <= peff_seasonal, aeti_seasonal, peff_seasonal)
 }
 
 #' Compute Blue Water Consumption
@@ -526,12 +510,11 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' @examples
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
 wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
-  diff_val <- aeti_seasonal - peff_seasonal
-  if (inherits(diff_val, "SpatRaster")) {
-    terra::ifel(diff_val > 0, diff_val, 0)
-  } else {
-    pmax(diff_val, 0)
+  if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(peff_seasonal, "SpatRaster")) {
+    return(wapor_math_blue_water(aeti_seasonal, peff_seasonal))
   }
+  diff_val <- aeti_seasonal - peff_seasonal
+  terra::ifel(diff_val > 0, diff_val, 0)
 }
 
 
@@ -544,7 +527,10 @@ wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
 #' @return Numeric. TBP in kgDM/ha.
 #' @export
 wapor_convert_npp_tbp <- function(npp_gc_m2) {
-  npp_gc_m2 * 22.222
+  if (inherits(npp_gc_m2, "SpatRaster")) {
+    return(npp_gc_m2 * 22.222)
+  }
+  wapor_math_npp_to_biomass(npp_gc_m2)
 }
 
 #' Calculate Crop Yield from NPP
@@ -561,13 +547,12 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
 #' @return Numeric. Crop yield in t/ha.
 #' @export
 wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
-  # NPP * 22.222 converts gC/m2 to kgDM/ha (DMP)
-  dmp <- npp_gc_m2 * 22.222
-  # Calculate Above Ground Biomass (ton/ha)
-  agbm <- (aot * fc * (dmp / (1 - mc))) / 1000
-  # Calculate Yield
-  yield <- hi * agbm
-  yield
+  if (inherits(npp_gc_m2, "SpatRaster")) {
+    dmp <- npp_gc_m2 * 22.222
+    agbm <- (aot * fc * (dmp / (1 - mc))) / 1000
+    return(hi * agbm)
+  }
+  wapor_math_yield_from_npp(npp_gc_m2, mc = mc, fc = fc, aot = aot, hi = hi)
 }
 
 
