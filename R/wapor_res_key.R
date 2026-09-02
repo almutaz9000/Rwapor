@@ -55,12 +55,13 @@
 #' be stacked for a single zonal-statistics pass.  Variables with *different*
 #' keys must be extracted independently.
 #'
-#' @param variable Character scalar. Variable code such as `"L1-AETI-D"`,
+#' @param variable Character vector. Variable code(s) such as `"L1-AETI-D"`,
 #'   `"L1-PCP-D"`, `"L2-AETI-D"`, `"L3-AETI-D"`, or `"AGERA5-ET0-E"`.
 #'
-#' @return A character scalar, e.g. `"L1_300m"`, `"L1_5000m"`, `"L2_100m"`,
-#'   `"L3_30m"`, `"AGERA5_11000m"`.  Returns `variable` itself (unique key) if
-#'   not recognised, which safely prevents it from being batched with others.
+#' @return A character vector of the same length as `variable`, e.g. `"L1_300m"`,
+#'   `"L1_5000m"`, `"L2_100m"`, `"L3_30m"`, `"AGERA5_11000m"`. Returns `variable`
+#'   itself (unique key) for any element not recognised, which safely prevents
+#'   it from being batched with others.
 #'
 #' @details
 #' Within Level 1, variables originate from different sensors:
@@ -75,26 +76,30 @@
 #' @export
 #' @examples
 #' wapor_res_key("L1-AETI-D")   # "L1_300m"
-#' wapor_res_key("L1-PCP-D")    # "L1_5000m"
-#' wapor_res_key("L1-RET-D")    # "L1_30000m"
-#' wapor_res_key("L2-AETI-D")   # "L2_100m"
-#' wapor_res_key("L3-AETI-D")   # "L3_30m"
-#' wapor_res_key("AGERA5-ET0-E") # "AGERA5_11000m"
+#' wapor_res_key(c("L1-PCP-D", "L2-AETI-D")) # c("L1_5000m", "L2_100m")
 wapor_res_key <- function(variable) {
-  stopifnot(is.character(variable), length(variable) == 1L)
+  stopifnot(is.character(variable))
+  if (length(variable) == 0L) return(character(0L))
 
-  # 1. Try "LEVEL-VARNAME" prefix  (strip trailing temporal suffix: -D, -M, -A, -E)
-  lv_prefix <- sub("-[ADME]$", "", variable)   # e.g. "L1-AETI-D" -> "L1-AETI"
-  if (lv_prefix %in% names(.WAPOR_RES_LOOKUP))
-    return(unname(.WAPOR_RES_LOOKUP[lv_prefix]))
+  # 1. Try "LEVEL-VARNAME" prefix (strip trailing temporal suffix: -D, -M, -A, -E)
+  # Optimized: Vectorized lookup handles character vectors in a single pass
+  lv_prefix <- sub("-[ADME]$", "", variable)
+  res <- unname(.WAPOR_RES_LOOKUP[lv_prefix])
 
-  # 2. Try level-only prefix
-  lev_prefix <- sub("-.*", "", variable)        # e.g. "L1-AETI-D" -> "L1"
-  if (lev_prefix %in% names(.WAPOR_RES_LOOKUP))
-    return(unname(.WAPOR_RES_LOOKUP[lev_prefix]))
+  # 2. Try level-only prefix for any unmatched (NA) entries
+  na_idx <- is.na(res)
+  if (any(na_idx)) {
+    lev_prefix <- sub("-.*", "", variable[na_idx])
+    res[na_idx] <- unname(.WAPOR_RES_LOOKUP[lev_prefix])
+  }
 
   # 3. Unknown variable — return itself so it is never batched with others
-  variable
+  na_idx <- is.na(res)
+  if (any(na_idx)) {
+    res[na_idx] <- variable[na_idx]
+  }
+
+  res
 }
 
 #' Group a vector of variable codes by shared native grid
@@ -116,6 +121,7 @@ wapor_res_key <- function(variable) {
 #' # $L2_100m   -> "L2-AETI-D"
 wapor_group_by_res <- function(variables) {
   stopifnot(is.character(variables))
-  keys <- vapply(variables, wapor_res_key, character(1L), USE.NAMES = FALSE)
+  # Optimized: Vectorized wapor_res_key eliminates vapply loop overhead
+  keys <- wapor_res_key(variables)
   split(variables, keys)
 }
