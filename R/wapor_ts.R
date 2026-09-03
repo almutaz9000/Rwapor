@@ -327,6 +327,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
     attr(result_df, "plan") <- plan
     attr(result_df, "aggregation_rule") <- aggregation_rule
+    attr(result_df, "missing_periods") <- seasonal_data$missing_periods
 
     return(result_df)
   }
