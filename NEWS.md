@@ -1,5 +1,27 @@
 # Rwapor 0.9.9
 
+## Download Robustness
+
+* Replaced the disk URL-cache key (`.wapor_url_hash()`) with a proper SHA-256
+  digest (`digest::digest()`). The previous byte-sum-based checksum could
+  collide for different queries whose request strings were character
+  permutations of each other, silently serving cached URLs for the wrong
+  date range within the 24h cache TTL.
+* Added retry-with-backoff to the seasonal raster loader
+  (`download_seasonal_rasters()`), matching the retry behavior already used
+  by the non-seasonal `wapor_ts()` path, so a single transient `/vsicurl/`
+  failure no longer drops an entire resolution group.
+* `download_seasonal_rasters()` now reconciles the download plan against
+  what was actually loaded: any code group with no URLs, any plan row that
+  fails to match a URL, or any raster stack that fails to load after
+  retries is tracked and surfaced as a single clear warning (with the exact
+  missing period IDs and day-coverage shortfall) instead of being silently
+  dropped. The missing periods are also exposed via
+  `attr(result, "missing_periods")` on `wapor_ts(seasonal = TRUE)` output.
+* API request retries (`collect_responses()`, metadata pagination) now use
+  exponential backoff, honor a numeric `Retry-After` response header, and
+  treat HTTP 429/5xx as transient, instead of a flat 2-second delay.
+
 ## Fixes and Documentation
 
 * Fixed broken code-fence in README Example 2 that caused Example 3 to render

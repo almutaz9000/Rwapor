@@ -53,6 +53,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
   message(sprintf("Plan: %d raster(s) to download", nrow(plan)))
 
   groups <- list()
+  missing_period_ids <- character(0)
 
   for (code in unique(plan$code)) {
     code_rows <- plan[plan$code == code, ]
@@ -70,6 +71,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
 
     if (length(urls) == 0) {
       warning(sprintf("No URLs found for %s. Skipping.", var_for_code), call. = FALSE)
+      missing_period_ids <- c(missing_period_ids, code_rows$period_id)
       next
     }
 
@@ -96,6 +98,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
       } else {
         warning(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id),
                 call. = FALSE)
+        missing_period_ids <- c(missing_period_ids, row$period_id)
       }
     }
 
@@ -109,18 +112,32 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     )
     layer_ids <- matched_rows$period_id
 
-    # Load rasters via vsicurl
+    # Load rasters via vsicurl, with retry on transient network/GDAL failures
     t_code <- proc.time()
     vsicurl_urls <- paste0("/vsicurl/", matched_urls)
-    r <- tryCatch({
-      terra::rast(vsicurl_urls)
-    }, error = function(e) {
-      warning(sprintf("Failed to load %s rasters: %s", var_for_code, e$message),
-              call. = FALSE)
-      return(NULL)
-    })
+    r <- NULL
+    max_retries <- 3
+    for (attempt in seq_len(max_retries)) {
+      r <- tryCatch({
+        terra::rast(vsicurl_urls)
+      }, error = function(e) {
+        if (attempt < max_retries) {
+          message(sprintf("Attempt %d to load %s rasters failed. Retrying in %d seconds... (%s)",
+                           attempt, var_for_code, attempt * 2, e$message))
+          Sys.sleep(attempt * 2)
+        } else {
+          warning(sprintf("Failed to load %s rasters after %d attempts: %s",
+                           var_for_code, max_retries, e$message), call. = FALSE)
+        }
+        return(NULL)
+      })
+      if (!is.null(r)) break
+    }
 
-    if (is.null(r)) next
+    if (is.null(r)) {
+      missing_period_ids <- c(missing_period_ids, layer_ids)
+      next
+    }
 
     # Crop to region; optionally mask to polygon boundary
     r <- wapor_crop_to_region(r, reg_info, do_mask = do_mask)
@@ -141,5 +158,33 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     )
   }
 
-  list(groups = groups, plan = plan, aggregation_rule = aggregation_rule)
+  if (length(missing_period_ids) > 0) {
+    missing_rows <- plan[plan$period_id %in% missing_period_ids, , drop = FALSE]
+    missing_days <- if ("overlap_days" %in% names(missing_rows)) sum(missing_rows$overlap_days) else NA
+    total_days <- if ("overlap_days" %in% names(plan)) sum(plan$overlap_days) else NA
+    warning(
+      sprintf(
+        paste0(
+          "Seasonal download for '%s' is INCOMPLETE: %d of %d planned raster(s) ",
+          "could not be downloaded (missing period(s): %s)%s. ",
+          "The returned seasonal result under-represents the requested period."
+        ),
+        variable, length(missing_period_ids), nrow(plan),
+        paste(missing_period_ids, collapse = ", "),
+        if (!is.na(missing_days) && !is.na(total_days)) {
+          sprintf(", covering %.1f of %.1f requested day(s)", missing_days, total_days)
+        } else {
+          ""
+        }
+      ),
+      call. = FALSE
+    )
+  }
+
+  list(
+    groups = groups,
+    plan = plan,
+    aggregation_rule = aggregation_rule,
+    missing_periods = missing_period_ids
+  )
 }

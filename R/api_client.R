@@ -7,8 +7,46 @@
 }
 
 .wapor_url_hash <- function(x) {
-  raw_bytes <- as.raw(utf8ToInt(x))
-  sprintf("%08x_%d", sum(as.integer(raw_bytes)), nchar(x))
+  digest::digest(x, algo = "sha256")
+}
+
+#' @keywords internal
+#' @noRd
+.wapor_retry_is_transient <- function(resp) {
+  status <- httr2::resp_status(resp)
+  status == 429 || status >= 500
+}
+
+#' @keywords internal
+#' @noRd
+.wapor_retry_after <- function(resp) {
+  ra <- httr2::resp_header(resp, "Retry-After")
+  if (is.null(ra)) return(NA)
+  wait <- suppressWarnings(as.numeric(ra))
+  if (is.na(wait) || wait < 0) NA else wait
+}
+
+#' @keywords internal
+#' @noRd
+.wapor_retry_backoff <- function(attempt) {
+  min(2^attempt, 30)
+}
+
+#' Apply the shared GISMGR API retry policy to an httr2 request
+#'
+#' Exponential backoff (capped at 30s), honors a numeric `Retry-After`
+#' header when the API sends one, and treats HTTP 429/5xx as transient.
+#'
+#' @keywords internal
+#' @noRd
+.wapor_req_retry <- function(req) {
+  httr2::req_retry(
+    req,
+    max_tries = 5,
+    is_transient = .wapor_retry_is_transient,
+    backoff = .wapor_retry_backoff,
+    after = .wapor_retry_after
+  )
 }
 
 #' Clear WaPOR Disk URL Cache
@@ -73,7 +111,7 @@ collect_responses <- function(url, info = "downloadUrl") {
     resp <- tryCatch({
       httr2::request(next_url) |>
         httr2::req_timeout(60) |>
-        httr2::req_retry(max_tries = 3, backoff = ~ 2) |>
+        .wapor_req_retry() |>
         httr2::req_perform() |>
         httr2::resp_body_json()
     }, error = function(e) {

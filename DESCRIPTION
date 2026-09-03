@@ -30,7 +30,8 @@ Imports:
     exactextractr,
     memoise,
     jsonlite,
-    future.apply
+    future.apply,
+    digest
 Suggests:
     testthat (>= 3.0.0),
     pkgload,

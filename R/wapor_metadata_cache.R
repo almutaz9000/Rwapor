@@ -271,7 +271,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
   while (!is.null(next_url)) {
     resp <- httr2::request(next_url) |>
       httr2::req_timeout(60) |>
-      httr2::req_retry(max_tries = 3, backoff = ~ 2) |>
+      .wapor_req_retry() |>
       httr2::req_perform() |>
       httr2::resp_body_json()
 

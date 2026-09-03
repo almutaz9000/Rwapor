@@ -152,11 +152,12 @@ expect_true("dummy" %in% names(results$rasters))
 **Problem**: `memoise` only caches in session. waporbox has 24h on-disk cache surviving restarts.
 
 **Tasks**:
-- [ ] Add `cache_dir = tools::R_user_dir("Rwapor", "cache")`
-- [ ] `cache_key <- digest::digest(url_query, "sha256")`
-- [ ] Save `list(ts = Sys.time(), urls = urls)` as `.rds`
-- [ ] TTL = 24h (configurable via `options(Rwapor.cache_ttl = 86400)`)
-- [ ] `wapor_clear_url_cache()` function
+- [x] Add `cache_dir = tools::R_user_dir("Rwapor", "cache")`
+- [x] `cache_key <- digest::digest(url_query, "sha256")` (was a collision-prone
+      byte-sum checksum; fixed in 0.9.9, see NEWS.md)
+- [x] Save extracted items as `.rds`
+- [x] TTL = 24h (configurable via `options(Rwapor.cache_ttl = 86400)`)
+- [x] `wapor_clear_url_cache()` function
 
 ---
 
