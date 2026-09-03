@@ -1,3 +1,10 @@
+# Gemini CLI — Rwapor Adapter
+
+Start with [agent-workflow/START-HERE.md](agent-workflow/START-HERE.md). The canonical
+project workflow, memory, task state, and issue state for this repo live under
+`agent-workflow/`, not in this file. Treat the section below as generic operating
+discipline only, not project-specific instructions.
+
 <!-- BEGIN fable-skill (managed - do not edit inside) -->
 
 # fable-skill — agentic operating discipline

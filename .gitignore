@@ -31,11 +31,17 @@ libs/
 nul
 
 # Agent/AI Configuration (local development only)
-.github/
+# NOTE: agent-workflow/ and .github/workflows/ are intentionally NOT ignored:
+# agent-workflow/ is the shared, repo-owned coordination layer that all
+# agents/models are expected to read and update (see
+# docs/superpowers/specs/2026-05-11-agent-workflow-design.md), and
+# .github/workflows/ holds the actual CI definitions, which must be tracked
+# for GitHub Actions to run at all.
+.github/*
+!.github/workflows/
 .claude/
 .agents/
 .agent/
-agent-workflow/
 .jules/
 CLAUDE.md
 graphify-out/
