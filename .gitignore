@@ -32,7 +32,10 @@ nul
 
 # Agent/AI Configuration (local development only)
 .github/
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/README.md
 .agents/
 .agent/
 agent-workflow/
