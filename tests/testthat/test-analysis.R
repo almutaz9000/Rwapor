@@ -434,3 +434,60 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons works for overall and per-class comparisons", {
+  skip_if_not_installed("terra")
+
+  # Setup mock season results
+  h_mask <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(1L, 8), rep(2L, 8)))
+  adeq1 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.8, 8), rep(0.6, 8)))
+  adeq2 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.9, 8), rep(0.7, 8)))
+
+  crop_params <- data.frame(
+    class_value = c(1L, 2L),
+    crop_label = c("Wheat", "Maize"),
+    stringsAsFactors = FALSE
+  )
+
+  season1 <- list(
+    h_mask = h_mask,
+    adequacy_etc = adeq1,
+    crop_params = crop_params,
+    config = list(period = c("2023-01-01", "2023-05-31"))
+  )
+
+  season2 <- list(
+    h_mask = h_mask,
+    adequacy_etc = adeq2,
+    crop_params = crop_params,
+    config = list(period = c("2024-01-01", "2024-05-31"))
+  )
+
+  results <- list("Season 2023" = season1, "Season 2024" = season2)
+
+  # 1. Class comparison
+  comp_class <- wapor_compare_seasons(results, indicators = "Adequacy", by = "class")
+  expect_equal(nrow(comp_class), 4) # 2 classes x 2 seasons
+  expect_true(all(c("Class", "Crop", "Season", "Adequacy_pct") %in% names(comp_class)))
+
+  # Check Adequacy values per class
+  wheat_s1 <- comp_class[comp_class$Class == 1 & comp_class$Season == "Season 2023", "Adequacy_pct"]
+  wheat_s2 <- comp_class[comp_class$Class == 1 & comp_class$Season == "Season 2024", "Adequacy_pct"]
+  expect_equal(wheat_s1, 80) # 0.8 * 100
+  expect_equal(wheat_s2, 90) # 0.9 * 100
+
+  maize_s1 <- comp_class[comp_class$Class == 2 & comp_class$Season == "Season 2023", "Adequacy_pct"]
+  expect_equal(maize_s1, 60) # 0.6 * 100
+
+  # 2. Overall comparison
+  season1$valid_crop_mask <- terra::rast(nrows = 4, ncols = 4, vals = 1L)
+  season2$valid_crop_mask <- terra::rast(nrows = 4, ncols = 4, vals = 1L)
+
+  comp_overall <- wapor_compare_seasons(
+    list("Season 2023" = season1, "Season 2024" = season2),
+    indicators = "Adequacy",
+    by = "overall"
+  )
+  expect_equal(nrow(comp_overall), 2)
+  expect_true("Adequacy_pct_Change_pct" %in% names(comp_overall))
+})
