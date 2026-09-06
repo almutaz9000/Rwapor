@@ -4,6 +4,8 @@ _Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Executed complete workspace static analysis and R source code validation across all 51 package files via `dev-tools/scripts/validate_r_code.py`.
+- Verified error handling, async state restoration, and namespace policy adherence across `R/run_dashboard.R`, `inst/shiny/app.R`, and `inst/shiny/mod_analysis.R`.
 - Documented automatic transformations (AgERA5 temperature Kelvin-to-Celsius conversion and WaPOR Daily-to-Dekadal totals) in `vignettes/data-catalog.Rmd` and `vignettes/getting-started.Rmd`.
 - Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
 - Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.
