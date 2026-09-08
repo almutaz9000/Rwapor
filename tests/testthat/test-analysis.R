@@ -434,3 +434,62 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons works for overall and per-class comparisons", {
+  skip_if_not_installed("terra")
+
+  mask <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(1L, 8), rep(2L, 8)))
+  adeq1 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.8, 8), rep(0.9, 8)))
+  adeq2 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.88, 8), rep(0.99, 8)))
+
+  crop_params <- data.frame(
+    class_value = c(1L, 2L),
+    crop_label = c("Wheat", "Maize"),
+    stringsAsFactors = FALSE
+  )
+
+  season1 <- list(
+    config = list(period = c("2023-01-01", "2023-05-31")),
+    seasonal_aeti = list(
+      raster = terra::rast(nrows = 4, ncols = 4, vals = 300),
+      by_class = data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(280, 320))
+    ),
+    adequacy_etc = adeq1,
+    h_mask = mask,
+    valid_crop_mask = mask * 0 + 1,
+    crop_params = crop_params
+  )
+
+  season2 <- list(
+    config = list(period = c("2024-01-01", "2024-05-31")),
+    seasonal_aeti = list(
+      raster = terra::rast(nrows = 4, ncols = 4, vals = 330),
+      by_class = data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(308, 352))
+    ),
+    adequacy_etc = adeq2,
+    h_mask = mask,
+    valid_crop_mask = mask * 0 + 1,
+    crop_params = crop_params
+  )
+
+  results_list <- list("Season 2023" = season1, "Season 2024" = season2)
+
+  # 1. Overall comparison
+  comp_overall <- wapor_compare_seasons(results_list, indicators = c("AETI", "Adequacy"), by = "overall")
+  expect_equal(nrow(comp_overall), 2)
+  expect_true(all(c("Season", "AETI_mm", "Adequacy_pct", "AETI_mm_Change_pct") %in% names(comp_overall)))
+  expect_equal(comp_overall$AETI_mm, c(300, 330))
+  expect_equal(comp_overall$AETI_mm_Change_pct[2], 10) # 10% increase from 300 to 330
+
+  # 2. Per-class comparison
+  comp_class <- wapor_compare_seasons(results_list, indicators = c("AETI", "Adequacy"), by = "class")
+  expect_equal(nrow(comp_class), 4) # 2 classes x 2 seasons
+  expect_true(all(c("Class", "Crop", "Season", "AETI_mm", "Adequacy_pct") %in% names(comp_class)))
+
+  class1_s1 <- comp_class[comp_class$Class == 1 & comp_class$Season == "Season 2023", ]
+  class1_s2 <- comp_class[comp_class$Class == 1 & comp_class$Season == "Season 2024", ]
+  expect_equal(class1_s1$Adequacy_pct, 80)  # 0.8 * 100
+  expect_equal(class1_s2$Adequacy_pct, 88)  # 0.88 * 100
+  expect_equal(class1_s1$AETI_mm, 280)
+  expect_equal(class1_s2$AETI_mm, 308)
+})

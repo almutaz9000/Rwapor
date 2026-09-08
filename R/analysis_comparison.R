@@ -133,7 +133,21 @@ wapor_compare_seasons <- function(season_results,
   if (length(all_classes) == 0) {
     stop("No crop classes found in any season results", call. = FALSE)
   }
-  
+
+  # Optimization: Pre-compute per-class adequacy statistics once per season using terra::zonal
+  # to avoid creating intermediate SpatRaster masks and running terra::global in nested loops.
+  adequacy_by_season <- list()
+  if ("Adequacy" %in% indicators) {
+    for (season_name in names(season_results)) {
+      res <- season_results[[season_name]]
+      if (!is.null(res$adequacy_etc) && !is.null(res$h_mask)) {
+        z <- terra::zonal(res$adequacy_etc, res$h_mask, fun = "mean", na.rm = TRUE)
+        names(z) <- c("class_value", "mean_adequacy")
+        adequacy_by_season[[season_name]] <- z
+      }
+    }
+  }
+
   rows <- list()
   
   for (cls in all_classes) {
@@ -172,9 +186,12 @@ wapor_compare_seasons <- function(season_results,
       }
       
       # Adequacy
-      if ("Adequacy" %in% indicators && !is.null(res$adequacy_etc)) {
-        class_mask <- terra::ifel(res$h_mask == cls, 1L, NA)
-        row$Adequacy_pct <- .masked_global_mean(res$adequacy_etc, class_mask) * 100
+      if ("Adequacy" %in% indicators && !is.null(adequacy_by_season[[season_name]])) {
+        z_df <- adequacy_by_season[[season_name]]
+        match_idx <- match(cls, z_df$class_value)
+        if (!is.na(match_idx)) {
+          row$Adequacy_pct <- z_df$mean_adequacy[match_idx] * 100
+        }
       }
       
       # Biomass
