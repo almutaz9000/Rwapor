@@ -49,10 +49,6 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
       gdal = c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES"),
       ...
     )
-    tryCatch(
-      terra::overviews(terra::rast(filename), c(2, 4, 8), overwrite = TRUE),
-      error = function(e) invisible(NULL)
-    )
   }
   invisible(filename)
 }
