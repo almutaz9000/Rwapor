@@ -153,7 +153,11 @@ wapor_harmonize_raster <- function(x, template, method = "near") {
   }
 
   # Resample to match template grid
+  layer_names <- names(x)
   x <- terra::resample(x, template, method = method)
+  if (length(layer_names) == terra::nlyr(x)) {
+    names(x) <- layer_names
+  }
   x
 }
 
