@@ -712,3 +712,121 @@ wapor_calc_monthly_weighted_std_rasters <- function(x, season_weights, dekad_tab
 
   list(rasters = monthly_rasters, summary = monthly_summary)
 }
+
+#' Summarise a raster by crop-mask class
+#'
+#' @param r SpatRaster.
+#' @param crop_mask SpatRaster of integer class values.
+#' @param class_stats Optional data.frame with a `class_value` column to merge.
+#' @param var_name Character. Used to name the mean column `mean_<var_name>`.
+#' @return data.frame of class means, or `NULL` if inputs are missing.
+#' @keywords internal
+wapor_summary_by_class <- function(r, crop_mask, class_stats = NULL, var_name = "value") {
+  if (is.null(r) || is.null(crop_mask) || !inherits(r, "SpatRaster")) {
+    return(NULL)
+  }
+  by_class <- terra::zonal(r, crop_mask, fun = "mean", na.rm = TRUE)
+  names(by_class) <- c("class_value", paste0("mean_", var_name))
+  if (is.data.frame(class_stats) && "class_value" %in% names(class_stats)) {
+    by_class <- merge(by_class, class_stats, by = "class_value", all.x = TRUE)
+  }
+  by_class
+}
+
+#' USDA-SCS effective precipitation from monthly rasters
+#'
+#' @param monthly_rasters Named list of monthly precipitation SpatRasters (mm).
+#' @return List with `monthly` (Peff rasters) and `seasonal` (sum of monthly Peff).
+#' @keywords internal
+wapor_calc_peff <- function(monthly_rasters) {
+  if (is.null(monthly_rasters) || !length(monthly_rasters)) {
+    stop("'monthly_rasters' must be a non-empty list of SpatRasters", call. = FALSE)
+  }
+  monthly <- lapply(monthly_rasters, function(r) {
+    if (!inherits(r, "SpatRaster")) {
+      stop("Each monthly layer must be a SpatRaster", call. = FALSE)
+    }
+    terra::ifel(r <= 250, r * (125 - 0.2 * r) / 125, 125 + 0.1 * r)
+  })
+  seasonal <- monthly[[1]]
+  if (length(monthly) > 1L) {
+    for (i in 2:length(monthly)) {
+      seasonal <- seasonal + monthly[[i]]
+    }
+  }
+  list(monthly = monthly, seasonal = seasonal)
+}
+
+#' Spatial coefficient of variation
+#'
+#' @param r SpatRaster (typically seasonal AETI).
+#' @param crop_mask Optional SpatRaster mask / class raster.
+#' @return List with `overall` CV and optional `by_class` table.
+#' @keywords internal
+wapor_calc_cv <- function(r, crop_mask = NULL) {
+  if (!inherits(r, "SpatRaster")) {
+    stop("'r' must be a SpatRaster", call. = FALSE)
+  }
+  target <- if (is.null(crop_mask)) {
+    r
+  } else {
+    r * terra::ifel(is.na(crop_mask), NA, 1L)
+  }
+  mu <- terra::global(target, "mean", na.rm = TRUE)$mean
+  sdv <- terra::global(target, "sd", na.rm = TRUE)$sd
+  overall <- if (is.na(mu) || mu == 0) NA_real_ else sdv / mu
+
+  by_class <- NULL
+  if (!is.null(crop_mask)) {
+    z_mean <- terra::zonal(target, crop_mask, fun = "mean", na.rm = TRUE)
+    z_sd <- terra::zonal(target, crop_mask, fun = "sd", na.rm = TRUE)
+    by_class <- data.frame(
+      class_value = z_mean[[1]],
+      cv = ifelse(z_mean[[2]] == 0, NA_real_, z_sd[[2]] / z_mean[[2]]),
+      stringsAsFactors = FALSE
+    )
+  }
+  list(overall = overall, by_class = by_class)
+}
+
+#' Spatial Theil T inequality index
+#'
+#' Theil's T = mean( (x / xbar) * log(x / xbar) ) for positive finite values.
+#'
+#' @param r SpatRaster.
+#' @param crop_mask Optional SpatRaster mask / class raster.
+#' @return List with `overall` Theil T and optional `by_class` table.
+#' @keywords internal
+wapor_calc_theil <- function(r, crop_mask = NULL) {
+  if (!inherits(r, "SpatRaster")) {
+    stop("'r' must be a SpatRaster", call. = FALSE)
+  }
+  theil_t <- function(vals) {
+    vals <- vals[is.finite(vals) & vals > 0]
+    if (!length(vals)) return(NA_real_)
+    xbar <- mean(vals)
+    if (!is.finite(xbar) || xbar <= 0) return(NA_real_)
+    mean((vals / xbar) * log(vals / xbar))
+  }
+  target <- if (is.null(crop_mask)) {
+    r
+  } else {
+    r * terra::ifel(is.na(crop_mask), NA, 1L)
+  }
+  overall <- theil_t(terra::values(target, mat = FALSE))
+
+  by_class <- NULL
+  if (!is.null(crop_mask)) {
+    classes <- sort(unique(terra::values(crop_mask, mat = FALSE)))
+    classes <- classes[is.finite(classes)]
+    by_class <- data.frame(
+      class_value = classes,
+      theil = vapply(classes, function(cls) {
+        m <- terra::ifel(crop_mask == cls, target, NA)
+        theil_t(terra::values(m, mat = FALSE))
+      }, numeric(1)),
+      stringsAsFactors = FALSE
+    )
+  }
+  list(overall = overall, by_class = by_class)
+}

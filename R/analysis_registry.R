@@ -61,7 +61,7 @@ step_agg_aeti <- function(ctx) {
   ctx$results$seasonal_aeti <- res
 
   if ("agg_aeti" %in% ctx$indicators && !is.null(ctx$h_mask)) {
-    ctx$results$seasonal_aeti_by_class <- Rwapor::wapor_summary_by_class(
+    ctx$results$seasonal_aeti_by_class <- wapor_summary_by_class(
       r          = res$raster,
       crop_mask  = ctx$h_mask,
       class_stats = ctx$results$class_stats,
@@ -101,7 +101,7 @@ step_agg_t <- function(ctx) {
   ctx$results$seasonal_t <- res
 
   if ("agg_t" %in% ctx$indicators && !is.null(ctx$h_mask)) {
-    ctx$results$seasonal_t_by_class <- Rwapor::wapor_summary_by_class(
+    ctx$results$seasonal_t_by_class <- wapor_summary_by_class(
       r          = res$raster,
       crop_mask  = ctx$h_mask,
       class_stats = ctx$results$class_stats,
@@ -141,7 +141,7 @@ step_agg_ret <- function(ctx) {
   ctx$results$seasonal_ret <- res
 
   if ("agg_ret" %in% ctx$indicators && !is.null(ctx$h_mask)) {
-    ctx$results$seasonal_ret_by_class <- Rwapor::wapor_summary_by_class(
+    ctx$results$seasonal_ret_by_class <- wapor_summary_by_class(
       r          = res$raster,
       crop_mask  = ctx$h_mask,
       class_stats = ctx$results$class_stats,
@@ -181,7 +181,7 @@ step_agg_pcp <- function(ctx) {
   ctx$results$seasonal_pcp <- res
 
   if ("agg_pcp" %in% ctx$indicators && !is.null(ctx$h_mask)) {
-    ctx$results$seasonal_pcp_by_class <- Rwapor::wapor_summary_by_class(
+    ctx$results$seasonal_pcp_by_class <- wapor_summary_by_class(
       r          = res$raster,
       crop_mask  = ctx$h_mask,
       class_stats = ctx$results$class_stats,
@@ -221,7 +221,7 @@ step_agg_npp <- function(ctx) {
   ctx$results$seasonal_npp <- res
 
   if ("agg_npp" %in% ctx$indicators && !is.null(ctx$h_mask)) {
-    ctx$results$seasonal_npp_by_class <- Rwapor::wapor_summary_by_class(
+    ctx$results$seasonal_npp_by_class <- wapor_summary_by_class(
       r          = res$raster,
       crop_mask  = ctx$h_mask,
       class_stats = ctx$results$class_stats,
@@ -261,7 +261,7 @@ step_etc <- function(ctx) {
   }
   if (is.null(ctx$stacks$ret)) stop("RET stack is required for ETc/Adequacy.", call. = FALSE)
 
-  profile_table <- Rwapor::wapor_build_season_profile_table(ctx$h_mask, ctx$h_start, ctx$h_end, ctx$crop_params$class_value)
+  profile_table <- wapor_build_season_profile_table(ctx$h_mask, ctx$h_start, ctx$h_end, ctx$crop_params$class_value)
   if (nrow(profile_table) == 0) return(invisible(NULL))
 
   kc_profiles <- list()
@@ -336,7 +336,7 @@ step_etc <- function(ctx) {
 
       for (month_key in month_order) {
         idx <- which(month_keys == month_key)
-        profile_month_etc <- Rwapor::wapor_masked_sum(
+        profile_month_etc <- wapor_masked_sum(
           terra::subset(ctx$stacks$ret, idx),
           terra::subset(ctx$season_weights, idx),
           layer_multipliers = ctx$ret_mult[idx] * kc_profiles[[key]][idx],
@@ -360,7 +360,7 @@ step_etc <- function(ctx) {
   )
   monthly_etc_summary$etc_mean_mm <- vapply(
     monthly_etc,
-    function(r) Rwapor::wapor_masked_global_mean(r, ctx$results$valid_crop_mask),
+    function(r) wapor_masked_global_mean(r, ctx$results$valid_crop_mask),
     numeric(1)
   )
   ctx$results$monthly_etc <- list(rasters = monthly_etc, summary = monthly_etc_summary)
@@ -411,7 +411,7 @@ step_peff_green_blue <- function(ctx) {
   if (!any(c("peff", "green_water", "blue_water") %in% ctx$indicators)) return(invisible(NULL))
   if (is.null(ctx$results$monthly_pcp)) return(invisible(NULL))
 
-  peff_res <- Rwapor::wapor_calc_peff(ctx$results$monthly_pcp$rasters)
+  peff_res <- wapor_calc_peff(ctx$results$monthly_pcp$rasters)
   ctx$results$peff_monthly <- peff_res$monthly
   ctx$results$peff_seasonal <- peff_res$seasonal
 
@@ -482,10 +482,10 @@ step_variability <- function(ctx) {
   if (is.null(ctx$results$seasonal_aeti)) return(invisible(NULL))
 
   if ("cv_aeti" %in% ctx$indicators) {
-    ctx$results$cv_aeti <- Rwapor::wapor_calc_cv(ctx$results$seasonal_aeti$raster, ctx$h_mask)
+    ctx$results$cv_aeti <- wapor_calc_cv(ctx$results$seasonal_aeti$raster, ctx$h_mask)
   }
   if ("theil_aeti" %in% ctx$indicators) {
-    ctx$results$theil_aeti <- Rwapor::wapor_calc_theil(ctx$results$seasonal_aeti$raster, ctx$h_mask)
+    ctx$results$theil_aeti <- wapor_calc_theil(ctx$results$seasonal_aeti$raster, ctx$h_mask)
   }
   invisible(NULL)
 }

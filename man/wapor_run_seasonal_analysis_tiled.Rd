@@ -10,7 +10,8 @@ wapor_run_seasonal_analysis_tiled(
   rasters,
   output_dir = tempdir(),
   tile_size = 512L,
-  progress_callback = NULL
+  progress_callback = NULL,
+  cog = FALSE
 )
 }
 \arguments{
@@ -25,11 +26,16 @@ wapor_run_seasonal_analysis_tiled(
 \item{tile_size}{Integer. Number of pixel rows per processing window (default: 512).}
 
 \item{progress_callback}{Optional progress function(value, detail).}
+
+\item{cog}{Logical. Write outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
 }
 \value{
-List with paths to written raster files and class summary data.frames.
+List with paths to written raster files, class summary data.frames,
+and the merged in-memory \code{results} for the last/full run when small.
 }
 \description{
-Executes seasonal analysis in spatial tile chunks (windows) to process
-large spatial extents (e.g. continental Level 1 grids) without memory overflow.
+Processes seasonal analysis in spatial row windows so large extents
+(continental Level 1 grids) do not need the full cube in RAM. Each
+window is cropped, run through \code{\link[=wapor_run_seasonal_analysis]{wapor_run_seasonal_analysis()}}, and
+merged. Grids that fit in a single tile still use the in-memory engine.
 }

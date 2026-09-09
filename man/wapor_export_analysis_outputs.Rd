@@ -11,7 +11,8 @@ wapor_export_analysis_outputs(
   season_label = NULL,
   include_dekadal = TRUE,
   include_monthly = TRUE,
-  include_seasonal_tables = TRUE
+  include_seasonal_tables = TRUE,
+  cog = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ wapor_export_analysis_outputs(
 \item{include_monthly}{Logical. Write monthly PCP/Peff summary CSV files.}
 
 \item{include_seasonal_tables}{Logical. Write seasonal summary tables as CSV.}
+
+\item{cog}{Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.}
 }
 \description{
 Export Analysis Outputs to Structured Folders
