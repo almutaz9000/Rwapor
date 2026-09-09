@@ -1,5 +1,5 @@
 Package: Rwapor
-Title: Download WaPOR and AgERA5 Data
+Title: Download and Analyze FAO WaPOR v3 and AgERA5 Data
 Version: 0.9.9
 Authors@R: c(
     person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
@@ -14,7 +14,8 @@ Description: Downloads and processes WaPOR (Water Productivity Open-access porta
     climate variables. Includes an interactive Shiny dashboard for data exploration
     and analysis with crop mask integration and seasonal indicator computation.
 License: MIT + file LICENSE
-URL: https://github.com/almutaz9000/Rwapor
+URL: https://github.com/almutaz9000/Rwapor,
+    https://almutaz9000.github.io/Rwapor/
 BugReports: https://github.com/almutaz9000/Rwapor/issues
 Depends: R (>= 4.1.0)
 Encoding: UTF-8
