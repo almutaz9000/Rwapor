@@ -29,3 +29,9 @@ List of results (SpatRaster objects and summary tables).
 \description{
 Standalone function that performs the seasonal analysis workflow.
 }
+\details{
+Alignment uses \code{config$reference_layer} (\code{"aeti"} default, also
+\code{"crop_mask"}, \code{"ret"}, \code{"pcp"}, \code{"npp"}, \code{"template"}). Continuous WaPOR
+layers are bilinear-resampled onto that grid; crop mask and Julian-day
+rasters use nearest neighbour. Overlap failures name both extents.
+}

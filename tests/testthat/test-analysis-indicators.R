@@ -142,3 +142,42 @@ test_that("beneficial fraction and green/blue water helpers work", {
   expect_equal(wapor_calc_blue_water(350, 200), 150)
   expect_equal(wapor_calc_blue_water(150, 200), 0)
 })
+
+test_that("wapor_summary_by_class names the mean column and merges stats", {
+  skip_if_not_installed("terra")
+  r <- terra::rast(nrows = 2, ncols = 2, vals = c(10, 20, 30, 40), crs = "EPSG:4326")
+  mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 1, 2, 2), crs = "EPSG:4326")
+  stats <- data.frame(class_value = c(1L, 2L), crop_label = c("A", "B"))
+  out <- wapor_summary_by_class(r, mask, class_stats = stats, var_name = "seasonal_aeti")
+  expect_equal(names(out)[1:2], c("class_value", "mean_seasonal_aeti"))
+  expect_equal(out$mean_seasonal_aeti, c(15, 35))
+  expect_equal(out$crop_label, c("A", "B"))
+})
+
+test_that("wapor_calc_peff applies USDA-SCS to monthly rasters", {
+  skip_if_not_installed("terra")
+  jan <- terra::rast(nrows = 2, ncols = 2, vals = 100, crs = "EPSG:4326")
+  feb <- terra::rast(nrows = 2, ncols = 2, vals = 300, crs = "EPSG:4326")
+  res <- wapor_calc_peff(list(`2023-01` = jan, `2023-02` = feb))
+  expect_equal(as.numeric(terra::values(res$monthly[[1]])[1, 1]), 100 * (125 - 0.2 * 100) / 125)
+  expect_equal(as.numeric(terra::values(res$monthly[[2]])[1, 1]), 125 + 0.1 * 300)
+  expected_seasonal <- 100 * (125 - 0.2 * 100) / 125 + 125 + 0.1 * 300
+  expect_equal(as.numeric(terra::values(res$seasonal)[1, 1]), expected_seasonal)
+})
+
+test_that("wapor_calc_cv and wapor_calc_theil return overall and by-class stats", {
+  skip_if_not_installed("terra")
+  r <- terra::rast(nrows = 2, ncols = 2, vals = c(10, 20, 30, 40), crs = "EPSG:4326")
+  mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 1, 2, 2), crs = "EPSG:4326")
+  cv <- wapor_calc_cv(r, mask)
+  expect_true(is.numeric(cv$overall) && is.finite(cv$overall))
+  expect_equal(cv$overall, sd(c(10, 20, 30, 40)) / mean(c(10, 20, 30, 40)))
+  expect_equal(nrow(cv$by_class), 2)
+
+  theil <- wapor_calc_theil(r, mask)
+  vals <- c(10, 20, 30, 40)
+  xbar <- mean(vals)
+  expected <- mean((vals / xbar) * log(vals / xbar))
+  expect_equal(theil$overall, expected)
+  expect_equal(nrow(theil$by_class), 2)
+})

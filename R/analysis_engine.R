@@ -10,6 +10,11 @@
 #' @param aoi_region Optional numeric vector for the region bbox.
 #' @param progress_callback Optional function(value, detail) for updates.
 #' @return List of results (SpatRaster objects and summary tables).
+#' @details
+#' Alignment uses `config$reference_layer` (`"aeti"` default, also
+#' `"crop_mask"`, `"ret"`, `"pcp"`, `"npp"`, `"template"`). Continuous WaPOR
+#' layers are bilinear-resampled onto that grid; crop mask and Julian-day
+#' rasters use nearest neighbour. Overlap failures name both extents.
 #' @export
 wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region = NULL, progress_callback = NULL) {
   
@@ -90,19 +95,42 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   
   template_r <- NULL
   reg_info   <- if (!is.null(aoi_region)) Rwapor::wapor_parse_region(aoi_region) else NULL
+  reference_layer <- config$reference_layer %||% "aeti"
+  reference_layer <- match.arg(
+    reference_layer,
+    c("aeti", "crop_mask", "ret", "pcp", "npp", "template")
+  )
   
-  if (use_local) {
-    # Prefer AETI for template, fallback to others
-    template_var <- if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
-    paths <- wapor_local_rasters(folder, template_var, period[1], period[2])
-    if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
-    template_r <- terra::rast(paths[1])
+  if (identical(reference_layer, "crop_mask")) {
+    if (is.null(rasters$crop_mask) || !inherits(rasters$crop_mask, "SpatRaster")) {
+      stop("reference_layer = \"crop_mask\" requires rasters$crop_mask.", call. = FALSE)
+    }
+    template_r <- rasters$crop_mask
+    if (terra::nlyr(template_r) > 1) template_r <- template_r[[1]]
+  } else if (identical(reference_layer, "template") && inherits(config$template, "SpatRaster")) {
+    template_r <- config$template
   } else {
-    template_var <- if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
-    urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
-    if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
-    template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
+    template_var <- switch(
+      reference_layer,
+      aeti = if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var,
+      ret = ret_var,
+      pcp = precip_var,
+      npp = npp_var,
+      if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
+    )
+    if (use_local) {
+      paths <- wapor_local_rasters(folder, template_var, period[1], period[2])
+      if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
+      template_r <- terra::rast(paths[1])
+    } else {
+      urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
+      if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
+      template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
+    }
   }
+  
+  if (terra::nlyr(template_r) > 1) template_r <- template_r[[1]]
+
   
   if (!is.null(reg_info)) {
     template_r <- Rwapor::wapor_crop_to_region(template_r, reg_info, do_mask = (reg_info$type == "vector"))
@@ -158,6 +186,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   .load_and_harmonize <- function(var, paths, template, reg_info, method = "near") {
     if (is.null(paths)) return(NULL)
     stack <- terra::rast(paths)
+    src_names <- basename(terra::sources(stack))
+    if (length(src_names) == terra::nlyr(stack) && any(nzchar(src_names))) {
+      names(stack) <- src_names
+    }
     if (!is.null(reg_info)) {
       stack <- Rwapor::wapor_crop_to_region(stack, reg_info, do_mask = (reg_info$type == "vector"))
     }

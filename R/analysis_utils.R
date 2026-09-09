@@ -621,6 +621,23 @@ wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, ind
   )
 }
 
+wapor_canonical_export_is_kc <- function(name) {
+  grepl("(^|[._-])kc([._-]|$)", name, ignore.case = TRUE)
+}
+
+#' Canonical analysis export allow-list
+#'
+#' FAO-56 Kc is used internally to compute ETc. Canonical raster and table
+#' exports must not include `kc_*` products.
+#'
+#' @param names Character vector of file names, column names, or result keys.
+#' @return The input names that are allowed in canonical exports.
+#' @keywords internal
+wapor_filter_canonical_export_names <- function(names) {
+  names <- as.character(names)
+  names[!wapor_canonical_export_is_kc(names)]
+}
+
 #' Export Analysis Outputs to Structured Folders
 #'
 #' @param results List of analysis results from `wapor_run_seasonal_analysis()`.
@@ -630,11 +647,13 @@ wapor_shiny_save_analysis_rasters <- function(results, folder, season_label, ind
 #' @param include_dekadal Logical. Write aligned dekadal stacks.
 #' @param include_monthly Logical. Write monthly PCP/Peff summary CSV files.
 #' @param include_seasonal_tables Logical. Write seasonal summary tables as CSV.
+#' @param cog Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.
 #' @export
 wapor_export_analysis_outputs <- function(results, folder, indicators = character(0), season_label = NULL,
                                           include_dekadal = TRUE,
                                           include_monthly = TRUE,
-                                          include_seasonal_tables = TRUE) {
+                                          include_seasonal_tables = TRUE,
+                                          cog = FALSE) {
   indicators <- wapor_normalize_analysis_indicators(indicators)
   if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
 
@@ -643,15 +662,37 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
   }
 
   write_raster <- function(r, out_dir, prefix, suffix) {
-    if (!is.null(r)) {
-      terra::writeRaster(r, file.path(out_dir, paste0(prefix, "_", suffix, ".tif")), overwrite = TRUE)
+    if (is.null(r)) return(invisible(NULL))
+    if (wapor_canonical_export_is_kc(suffix) || wapor_canonical_export_is_kc(prefix)) {
+      warning(
+        sprintf("Skipping canonical export of Kc product '%s_%s' (Kc is internal only).", prefix, suffix),
+        call. = FALSE
+      )
+      return(invisible(NULL))
+    }
+    path <- file.path(out_dir, paste0(prefix, "_", suffix, ".tif"))
+    if (isTRUE(cog) && exists("wapor_write_cog", mode = "function")) {
+      wapor_write_cog(r, path, overwrite = TRUE)
+    } else {
+      terra::writeRaster(r, path, overwrite = TRUE)
     }
   }
 
   write_table <- function(x, out_dir, prefix, suffix) {
-    if (!is.null(x) && is.data.frame(x) && nrow(x) > 0) {
-      utils::write.csv(x, file.path(out_dir, paste0(prefix, "_", suffix, ".csv")), row.names = FALSE)
+    if (is.null(x) || !is.data.frame(x) || nrow(x) == 0) return(invisible(NULL))
+    if (wapor_canonical_export_is_kc(suffix) || wapor_canonical_export_is_kc(prefix)) {
+      warning(
+        sprintf("Skipping canonical export of Kc table '%s_%s' (Kc is internal only).", prefix, suffix),
+        call. = FALSE
+      )
+      return(invisible(NULL))
     }
+    drop <- names(x)[wapor_canonical_export_is_kc(names(x))]
+    if (length(drop)) {
+      x <- x[, setdiff(names(x), drop), drop = FALSE]
+    }
+    if (!ncol(x)) return(invisible(NULL))
+    utils::write.csv(x, file.path(out_dir, paste0(prefix, "_", suffix, ".csv")), row.names = FALSE)
   }
 
     write_monthly_series <- function(series, out_dir, prefix, suffix) {
