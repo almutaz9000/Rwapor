@@ -434,3 +434,87 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons correctly computes overall and per-class comparison tables", {
+  skip_if_not_installed("terra")
+
+  # Setup mock season results
+  crop_params <- data.frame(
+    class_value = c(1L, 2L),
+    crop_label = c("Wheat", "Maize"),
+    stringsAsFactors = FALSE
+  )
+
+  h_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1L, 1L, 2L, 2L))
+  valid_crop_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1L, 1L, 1L, 1L))
+
+  season1 <- list(
+    config = list(period = c("2023-01-01", "2023-05-31")),
+    crop_params = crop_params,
+    valid_crop_mask = valid_crop_mask,
+    h_mask = h_mask,
+    seasonal_aeti = list(
+      raster = terra::rast(nrows = 2, ncols = 2, vals = c(100, 100, 200, 200)),
+      by_class = data.frame(
+        class_value = c(1L, 2L),
+        mean_seasonal_aeti = c(100, 200),
+        stringsAsFactors = FALSE
+      )
+    ),
+    etc_by_class = list(
+      "1" = list(etc_seasonal = terra::rast(nrows = 2, ncols = 2, vals = 120)),
+      "2" = list(etc_seasonal = terra::rast(nrows = 2, ncols = 2, vals = 220))
+    ),
+    adequacy_etc = terra::rast(nrows = 2, ncols = 2, vals = c(0.8, 0.8, 0.9, 0.9)),
+    yield_by_class = list(
+      "1" = terra::rast(nrows = 2, ncols = 2, vals = 4.0),
+      "2" = terra::rast(nrows = 2, ncols = 2, vals = 8.0)
+    )
+  )
+
+  season2 <- list(
+    config = list(period = c("2024-01-01", "2024-05-31")),
+    crop_params = crop_params,
+    valid_crop_mask = valid_crop_mask,
+    h_mask = h_mask,
+    seasonal_aeti = list(
+      raster = terra::rast(nrows = 2, ncols = 2, vals = c(110, 110, 220, 220)),
+      by_class = data.frame(
+        class_value = c(1L, 2L),
+        mean_seasonal_aeti = c(110, 220),
+        stringsAsFactors = FALSE
+      )
+    ),
+    etc_by_class = list(
+      "1" = list(etc_seasonal = terra::rast(nrows = 2, ncols = 2, vals = 120)),
+      "2" = list(etc_seasonal = terra::rast(nrows = 2, ncols = 2, vals = 220))
+    ),
+    adequacy_etc = terra::rast(nrows = 2, ncols = 2, vals = c(0.88, 0.88, 0.99, 0.99)),
+    yield_by_class = list(
+      "1" = terra::rast(nrows = 2, ncols = 2, vals = 4.4),
+      "2" = terra::rast(nrows = 2, ncols = 2, vals = 8.8)
+    )
+  )
+
+  results_list <- list("Season 1" = season1, "Season 2" = season2)
+
+  # Test overall comparison
+  overall <- wapor_compare_seasons(results_list, indicators = c("AETI", "ETc", "Adequacy", "Yield"), by = "overall")
+  expect_equal(nrow(overall), 2)
+  expect_equal(overall$Season, c("Season 1", "Season 2"))
+  expect_equal(overall$AETI_mm, c(150, 165))
+  expect_equal(overall$AETI_mm_Change_pct[2], 10) # (165-150)/150 * 100
+
+  # Test per-class comparison
+  by_class <- wapor_compare_seasons(results_list, indicators = c("AETI", "ETc", "Adequacy", "Yield"), by = "class")
+  expect_equal(nrow(by_class), 4) # 2 classes x 2 seasons
+  expect_equal(unique(by_class$Class), c(1L, 2L))
+
+  # Class 1 Adequacy_pct: season 1 = 80%, season 2 = 88%
+  class1_rows <- by_class[by_class$Class == 1, ]
+  expect_equal(class1_rows$Adequacy_pct, c(80, 88))
+
+  # Class 2 Adequacy_pct: season 1 = 90%, season 2 = 99%
+  class2_rows <- by_class[by_class$Class == 2, ]
+  expect_equal(class2_rows$Adequacy_pct, c(90, 99))
+})

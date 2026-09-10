@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [O(1) Zonal Summary Lookups in Multi-Season Comparison]
+**Learning:** In multi-season comparison routines (`.compare_seasons_by_class`), evaluating per-class adequacy using `terra::ifel(mask == cls, 1L, NA)` inside nested loops triggers repeated SpatRaster allocation and C++ conditional evaluations for every crop class across seasons. Pre-computing per-class zonal means using a single `terra::zonal(adequacy, mask, fun="mean")` call per season allows O(1) hash/named-vector lookups during table row assembly.
+**Action:** Replace iterative per-class `terra::ifel` conditional raster masks with upfront `terra::zonal()` calls whenever calculating class-level summary metrics.

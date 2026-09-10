@@ -133,10 +133,30 @@ wapor_compare_seasons <- function(season_results,
   if (length(all_classes) == 0) {
     stop("No crop classes found in any season results", call. = FALSE)
   }
+
+  # Optimization: Pre-compute per-class zonal adequacy statistics once per season using terra::zonal.
+  # This replaces per-class terra::ifel conditional raster masking and multiplication inside nested loops
+  # with O(1) zonal mean lookups, avoiding high memory and SpatRaster allocation overhead.
+  adeq_by_season <- list()
+  if ("Adequacy" %in% indicators) {
+    for (season_name in names(season_results)) {
+      res <- season_results[[season_name]]
+      if (!is.null(res$adequacy_etc) && !is.null(res$h_mask)) {
+        z_df <- terra::zonal(res$adequacy_etc, res$h_mask, fun = "mean", na.rm = TRUE)
+        if (nrow(z_df) > 0) {
+          adeq_by_season[[season_name]] <- stats::setNames(
+            as.numeric(z_df[[2]]),
+            as.character(as.integer(z_df[[1]]))
+          )
+        }
+      }
+    }
+  }
   
   rows <- list()
   
   for (cls in all_classes) {
+    cls_str <- as.character(cls)
     for (season_name in names(season_results)) {
       res <- season_results[[season_name]]
       
@@ -165,16 +185,16 @@ wapor_compare_seasons <- function(season_results,
       
       # ETc
       if ("ETc" %in% indicators && !is.null(res$etc_by_class)) {
-        cls_str <- as.character(cls)
         if (cls_str %in% names(res$etc_by_class)) {
           row$ETc_mm <- .masked_global_mean(res$etc_by_class[[cls_str]]$etc_seasonal, NULL)
         }
       }
       
       # Adequacy
-      if ("Adequacy" %in% indicators && !is.null(res$adequacy_etc)) {
-        class_mask <- terra::ifel(res$h_mask == cls, 1L, NA)
-        row$Adequacy_pct <- .masked_global_mean(res$adequacy_etc, class_mask) * 100
+      if ("Adequacy" %in% indicators && !is.null(adeq_by_season[[season_name]])) {
+        if (cls_str %in% names(adeq_by_season[[season_name]])) {
+          row$Adequacy_pct <- adeq_by_season[[season_name]][[cls_str]] * 100
+        }
       }
       
       # Biomass
