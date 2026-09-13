@@ -434,3 +434,67 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons correctly aggregates overall and per-class indicators", {
+  skip_if_not_installed("terra")
+
+  # Setup mock season results with SpatRasters for adequacy and h_mask
+  h_mask <- terra::rast(nrows = 2, ncols = 2, vals = c(1L, 1L, 2L, 2L))
+  adequacy_s1 <- terra::rast(nrows = 2, ncols = 2, vals = c(0.8, 0.8, 0.6, 0.6))
+  adequacy_s2 <- terra::rast(nrows = 2, ncols = 2, vals = c(0.9, 0.9, 0.7, 0.7))
+
+  crop_params <- data.frame(
+    class_value = c(1L, 2L),
+    crop_label = c("Wheat", "Maize"),
+    stringsAsFactors = FALSE
+  )
+
+  season1 <- list(
+    config = list(period = c("2023-01-01", "2023-04-30")),
+    crop_params = crop_params,
+    seasonal_aeti = list(
+      by_class = data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(400, 300))
+    ),
+    adequacy_etc = adequacy_s1,
+    h_mask = h_mask
+  )
+
+  season2 <- list(
+    config = list(period = c("2024-01-01", "2024-04-30")),
+    crop_params = crop_params,
+    seasonal_aeti = list(
+      by_class = data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(440, 330))
+    ),
+    adequacy_etc = adequacy_s2,
+    h_mask = h_mask
+  )
+
+  season_results <- list("Season 2023" = season1, "Season 2024" = season2)
+
+  # Test overall comparison
+  res_overall <- wapor_compare_seasons(season_results, indicators = c("Adequacy"), by = "overall")
+  expect_equal(nrow(res_overall), 2)
+  expect_equal(res_overall$Adequacy_pct[1], 70) # mean of (0.8, 0.8, 0.6, 0.6) * 100
+  expect_equal(res_overall$Adequacy_pct[2], 80) # mean of (0.9, 0.9, 0.7, 0.7) * 100
+  expect_equal(res_overall$Adequacy_pct_Change_pct[2], 14.28571, tolerance = 1e-4)
+
+  # Test per-class comparison with optimized zonal pre-computation
+  res_class <- wapor_compare_seasons(season_results, indicators = c("AETI", "Adequacy"), by = "class")
+  expect_equal(nrow(res_class), 4) # 2 classes x 2 seasons
+
+  # Class 1 (Wheat)
+  wheat_s1 <- res_class[res_class$Class == 1 & res_class$Season == "Season 2023", ]
+  wheat_s2 <- res_class[res_class$Class == 1 & res_class$Season == "Season 2024", ]
+  expect_equal(wheat_s1$Adequacy_pct, 80)
+  expect_equal(wheat_s2$Adequacy_pct, 90)
+  expect_equal(wheat_s1$AETI_mm, 400)
+  expect_equal(wheat_s2$AETI_mm, 440)
+
+  # Class 2 (Maize)
+  maize_s1 <- res_class[res_class$Class == 2 & res_class$Season == "Season 2023", ]
+  maize_s2 <- res_class[res_class$Class == 2 & res_class$Season == "Season 2024", ]
+  expect_equal(maize_s1$Adequacy_pct, 60)
+  expect_equal(maize_s2$Adequacy_pct, 70)
+  expect_equal(maize_s1$AETI_mm, 300)
+  expect_equal(maize_s2$AETI_mm, 330)
+})
