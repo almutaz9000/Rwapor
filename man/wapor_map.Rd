@@ -16,7 +16,9 @@ wapor_map(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L
+  batch_size = 12L,
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all")
 )
 }
 \arguments{
@@ -70,6 +72,12 @@ If \code{FALSE}, loads all layers at once.}
 
 \item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
 Lower values reduce memory pressure for long periods. Default is \code{12L}.}
+
+\item{l3_region}{Optional L3 code to use for an L3 variable and spatial AOI.}
+
+\item{l3_mode}{L3 coverage policy: \code{"select"} requires one selected L3 code
+when several regions intersect; \code{"mosaic_all"} writes source assets and a
+coverage-bearing mosaic for every intersecting L3 region.}
 }
 \value{
 Character path to the output GeoTIFF file, or in seasonal mode with

@@ -35,6 +35,8 @@
 #'   is an L3 product and `region` is a spatial AOI. This keeps polygon/bbox
 #'   extraction against the supplied AOI while constraining source rasters to
 #'   the selected L3 mosaic.
+#' @param l3_mode L3 coverage policy. `"select"` requires one selected region
+#'   for a multi-L3 AOI; `"mosaic_all"` is reserved for multi-source extraction.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
