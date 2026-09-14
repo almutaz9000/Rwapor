@@ -247,3 +247,68 @@ test_that("seasonal analysis engine masks indicator rasters outside crop mask", 
   expect_masked(results$monthly_precip_peff$monthly_pcp[[1]])
   expect_masked(results$monthly_precip_peff$monthly_peff[[1]])
 })
+
+test_that("seasonal analysis engine runs a registered dummy indicator without touching the engine body", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("rwapor-analysis-dummy-")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  dates <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  template <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4)
+  crop_mask <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_start <- terra::setValues(template, rep(1L, terra::ncell(template)))
+  season_end <- terra::setValues(template, rep(31L, terra::ncell(template)))
+
+  var_dir <- file.path(analysis_dir, "L1-AETI-D")
+  dir.create(var_dir, recursive = TRUE)
+  for (d in dates) {
+    r <- terra::setValues(template, rep(2, terra::ncell(template)))
+    terra::writeRaster(
+      r,
+      file.path(var_dir, sprintf("WAPOR-3.L1-AETI-D.%s.tif", d)),
+      overwrite = TRUE
+    )
+  }
+
+  dummy_name <- paste0("dummy_", gsub("[^0-9]", "", format(Sys.time(), "%H%M%OS6")))
+  wapor_register_indicator_step(dummy_name, function(ctx) {
+    if (!dummy_name %in% ctx$indicators) return(invisible(NULL))
+    aeti <- ctx$results$seasonal_aeti
+    r <- if (is.list(aeti) && !is.null(aeti$raster)) aeti$raster else aeti
+    ctx$results[[dummy_name]] <- r * 0 + 42
+  }, depends = "agg_aeti", description = "Dummy indicator for registry wiring")
+
+  crop_params <- data.frame(
+    class_value = 1L,
+    crop_label = "Class 1",
+    kc_ini = 1, kc_mid = 1, kc_end = 1,
+    l_ini_days = 10L, l_mid_days = 10L, l_late_days = 11L,
+    HI = 1, MC = 0, fc = 1, AOT = 1,
+    stringsAsFactors = FALSE
+  )
+
+  results <- wapor_run_seasonal_analysis(
+    config = list(
+      period = c("2023-01-01", "2023-01-31"),
+      ref_year = 2023,
+      aeti_var = "L1-AETI-D",
+      data_source = "local",
+      folder = analysis_dir,
+      indicators = c("agg_aeti", dummy_name),
+      use_crop_mask = TRUE,
+      use_season_rasters = TRUE
+    ),
+    crop_params = crop_params,
+    rasters = list(
+      crop_mask = crop_mask,
+      season_start = season_start,
+      season_end = season_end
+    )
+  )
+
+  expect_true(!is.null(results[[dummy_name]]))
+  expect_s4_class(results[[dummy_name]], "SpatRaster")
+  expect_equal(as.numeric(terra::global(results[[dummy_name]], "mean", na.rm = TRUE)$mean), 42)
+})

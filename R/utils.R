@@ -806,7 +806,7 @@ wapor_crop_to_region <- function(r, reg_info, do_mask = FALSE) {
   if (reg_info$type == "vector") {
     vect_data <- reg_info$value
     vect_crs <- sf::st_crs(vect_data)
-    if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
+    if (!is.na(vect_crs) && !is.na(vect_crs$epsg) && vect_crs$epsg != 4326) {
       vect_data <- sf::st_transform(vect_data, 4326)
     }
     v <- suppressWarnings(terra::vect(vect_data))

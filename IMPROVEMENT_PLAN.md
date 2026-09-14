@@ -2,13 +2,28 @@
 
 **Version**: 0.9.9 → Target 1.0.0  
 **Date**: 2026-08-27  
-**Status**: Planning Phase  
+**Status**: Phase 1.1-1.3 complete; 1.4 has a tested tile-by-tile GeoTIFF vertical slice; 1.5 L3 selection/mosaic policy is next
 
 ---
 
 ## Executive Summary
 
-Rwapor is a mature, stable R package (lifecycle badge: stable) with a comprehensive Shiny dashboard, DuckDB monitoring, and operational seasonal workflows. This plan focuses on hardening the analysis engine, extracting reusable components, and adopting scientific correctness improvements from waporbox.
+Rwapor is an R package first and a dashboard second. Version 1.0 work starts with a correct, resumable, tile-first geospatial engine for long time series and high-resolution rasters. Dashboard work is deferred until the core functions produce complete, provenance-bearing GeoTIFF outputs reliably.
+
+### 2026-09 Core-First Revision
+
+**Implementation order**:
+1. Replace the current tiled wrapper with real tile-by-tile GeoTIFF processing, beginning with local inputs and seasonal AETI.
+2. Add deterministic target-grid, tile-manifest, completeness, and resume contracts; then extend the tiled reducer to all requested indicators.
+3. Replace silent first-L3 selection with an explicit policy: user-selected L3 region or `mosaic_all` of every AOI-intersecting L3 region, saved as a mosaicked output with coverage provenance.
+4. Add COG-ready atomic output writing, source/output manifests, strict validation, and benchmark fixtures.
+5. Only then make the Shiny dashboard submit and monitor those core jobs. Dashboard redesign is not on the critical path.
+
+**Non-negotiable correctness rules**:
+- A complete result must never omit planned time slices or intersecting L3 coverage.
+- Partial temporal or spatial coverage fails by default; it requires explicit opt-in and a machine-readable coverage report.
+- The engine never silently chooses the first discovered L3 region.
+- Tile output is immutable and resumable: a tile is marked complete only after it is readable, validates against the target grid, and is recorded in the manifest.
 
 ---
 
@@ -76,58 +91,86 @@ expect_equal(adequacy_etc(aeti, etc), c(0.8, 1.0, 1.2, NA))
 ### 1.3 Step-Registry Architecture for Indicators (Port from waporbox)
 **Priority**: HIGH  
 **Effort**: 3-4 days  
-**Files**: `R/analysis_engine.R`, `R/analysis_indicators.R`
+**Files**: `R/analysis_engine.R`, `R/analysis_registry.R`  
+**Status**: DONE 2026-09-04 (extra registered steps run from the engine; built-in indicators still computed in-engine to protect existing assertions)
 
 **Problem**: Adding a new indicator requires editing the monolithic `wapor_run_seasonal_analysis` engine. waporbox uses `INDICATOR_STEPS` registry — one function per indicator, auto-ordered by dependency.
 
 **Tasks**:
-- [ ] Define `INDICATOR_STEPS` list: `list(agg_aeti = step_agg_aeti, etc = step_etc, ...)`
-- [ ] Each step: `function(ctx) { if (!want) return(); ctx$res$etc <- ... }`
-- [ ] Shared context `ctx` holds inputs, weights, intermediates, crop_params, want_set
-- [ ] Engine loops `for (step in INDICATOR_STEPS) step(ctx)`
-- [ ] New indicator = one step function + append to registry
+- [x] Registry in `R/analysis_registry.R` (`wapor_register_indicator_step`, `wapor_list_indicator_steps`, `wapor_get_indicator_step`)
+- [x] Topological order: `wapor_ordered_indicator_steps()` (cycle error)
+- [x] Shared runner: `wapor_run_indicator_steps(ctx, skip = ...)`
+- [x] Engine runs extra registered steps after built-in calculations
+- [x] Dummy-indicator test: register a step, request it in `indicators`, raster mean = 42
+- [ ] Optional later: migrate built-in indicators out of the engine body into the loop (not required for the dummy-step verification)
 
 **Verification**:
 ```r
-# Add dummy indicator without touching engine
-INDICATOR_STEPS$dummy <- function(ctx) {
-  if (!"dummy" %in% ctx$want) return()
-  ctx$res$rasters$dummy <- ctx$inputs$aeti[[1]] * 0 + 42
-}
+wapor_register_indicator_step("dummy", function(ctx) {
+  if (!"dummy" %in% ctx$indicators) return()
+  r <- ctx$results$seasonal_aeti$raster
+  ctx$results$dummy <- r * 0 + 42
+}, depends = "agg_aeti")
 results <- wapor_run_seasonal_analysis(..., indicators = c("agg_aeti", "dummy"))
-expect_true("dummy" %in% names(results$rasters))
+expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 ```
 
 ---
 
-### 1.4 Tiled / Windowed Global Engine (Port from waporbox)
-**Priority**: HIGH  
-**Effort**: 8-10 days  
-**Files**: `R/analysis_tiled.R` (new), `R/analysis_engine.R`
+### 1.4 Tiled / Windowed GeoTIFF Engine
+**Priority**: CRITICAL
+**Effort**: 10-15 days total
+**Files**: `R/analysis_tiled.R`, `R/analysis_engine.R`, `R/analysis_utils.R`, `tests/testthat/test-analysis-tiled.R`
+**Status**: IN PROGRESS — first vertical slice implemented and tested on 2026-09-14
 
-**Problem**: Rwapor materializes full `(time, y, x)` SpatRasters. At L1 global (~5.6B pixels/layer) this is impossible. waporbox's `run_seasonal_analysis_tiled` streams tile-by-tile with `WarpedVRT`.
+**Problem**: Rwapor materializes full `(time, y, x)` SpatRasters. At L1 global (~5.6B pixels/layer) this is impossible. The previous `wapor_run_seasonal_analysis_tiled()` accepted `tile_size` but delegated to the full-grid engine.
+
+**Completed vertical slice**:
+- [x] Deterministic square tile enumeration from the crop-mask target grid
+- [x] Per-tile crop of local or `/vsicurl/` source rasters before seasonal calculation
+- [x] Per-tile compressed, tiled GeoTIFF output with temporary-file publication and geometry validation
+- [x] Tile manifest with tile ID, row/column bounds, status, and output asset paths
+- [x] Regression test: a 4×4 local seasonal AETI fixture produces four independently readable tile GeoTIFFs with the expected seasonal value
+
+**Remaining tasks, in order**:
+- [ ] Write a versioned JSON run manifest: source identities, target-grid signature, config, resampling policy, package/GDAL/PROJ versions, checksums, and coverage.
+- [ ] Resume completed tiles safely; retry only pending or failed tile/source-window units.
+- [ ] Implement direct block-level temporal reducers for all indicators so the tiled path never constructs a full temporal `SpatRaster` stack.
+- [ ] Extend tile outputs to COG validation, internal overviews, data-type-specific compression/predictor, BigTIFF policy, and atomic final promotion.
+- [ ] Assemble validated tile assets into VRT/mosaic products without retaining a full-AOI raster in R memory.
+- [ ] Add local-versus-remote COG fixtures, interrupted-job resume tests, tiled-versus-full numerical parity tests, and memory/HTTP benchmarks.
+
+**Acceptance criteria**:
+- Peak working memory is bounded by tile dimensions, active workers, and one temporal reducer state, not full AOI dimensions.
+- Tiled results match the standard engine within a documented tolerance on the same target grid.
+- No tile is listed as complete until it is readable and its geometry matches the target tile.
+- A resumed job reuses validated completed tiles and reports incomplete temporal/spatial coverage as failure by default.
+
+---
+
+### 1.5 Explicit L3 Selection and Mosaic-All Coverage Policy
+**Priority**: CRITICAL
+**Effort**: 5-7 days
+**Files**: `R/wapor_map.R`, `R/wapor_ts.R`, `R/seasonal_download.R`, `R/utils.R`, `inst/shiny/mod_download.R`, `inst/shiny/mod_analysis.R`, tests
+
+**Problem**: when an AOI intersects multiple Level 3 mosaics, core functions silently choose the first code. This can return an incomplete but apparently successful analysis.
 
 **Tasks**:
-- [ ] `run_seasonal_analysis_tiled(period, reference_year, reference, crop_params, output_dir, ..., tile_size = 1024)`
-- [ ] Use `terra::rast` with `vrt = TRUE` for lazy reprojection (equivalent to `WarpedVRT`)
-- [ ] Pass 1: stream season-timing rasters → global per-class median season length (histogram method)
-- [ ] Pass 2: for each tile window:
-  - Read window from each aligned VRT
-  - Run indicator math (pure R from 1.2) on tile arrays
-  - Write tile block to output GeoTIFFs (`terra::writeRaster` with `window=`)
-  - Accumulate class sums/weights online
-- [ ] Progress callback per tile
-- [ ] COG output option (`gdal:co:COMPRESS=LZW`, `gdal:co:COPY_SRC_OVERVIEWS=YES`)
+- [ ] Add one shared core resolver that returns all AOI-intersecting L3 codes and their coverage metadata.
+- [ ] Require an explicit policy for multiple matches: `l3_region = "CODE"` or `l3_mode = "mosaic_all"`; default is an error with the discovered choices.
+- [ ] For `mosaic_all`, process every intersecting source on one declared target grid, write the source tiles separately, and save a validated mosaicked asset plus coverage manifest.
+- [ ] Fail when selected regions do not provide full requested temporal coverage unless `partial = TRUE` is explicit.
+- [ ] In Shiny, present the discovered codes as a required selection and a separate **Mosaic all intersecting L3 regions** option. Do not preselect the first match.
+- [ ] Display the selected/mosaicked codes, spatial coverage, missing slices, and mosaic output path in the job result.
 
-**Verification**:
-```r
-# Benchmark: 2k x 2k grid, tile_size 512 vs 1024 vs full
-# Peak memory should be ~tile_size^2 * n_layers * 4 bytes, not grid^2
-```
+**Acceptance criteria**:
+- A multi-L3 AOI cannot silently use only one region.
+- Selecting one L3 creates an asset attributable to that code.
+- Mosaic-all creates a saved mosaic/VRT and records every contributing L3 code, source URL, grid signature, and coverage status.
 
 ---
 
-### 1.5 Explicit Alignment Reference (Mask vs AETI vs Custom)
+### 1.6 Explicit Alignment Reference (Mask vs AETI vs Custom)
 **Priority**: HIGH  
 **Effort**: 2 days  
 **Files**: `R/analysis.R`, `R/analysis_engine.R`
