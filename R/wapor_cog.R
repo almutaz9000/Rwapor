@@ -52,3 +52,34 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
   }
   invisible(filename)
 }
+
+#' Write an L3 mosaic and coverage manifest
+#'
+#' @param asset_paths Named character vector of per-L3 GeoTIFF asset paths.
+#' @param output_dir Directory for the VRT, COG, and JSON manifest.
+#' @param output_stem File stem for generated assets.
+#' @return A list with VRT, COG, manifest paths, and coverage metadata.
+#' @export
+wapor_write_l3_mosaic <- function(asset_paths, output_dir, output_stem) {
+  if (!is.character(asset_paths) || !length(asset_paths) || is.null(names(asset_paths)) ||
+      any(!nzchar(names(asset_paths))) || any(!file.exists(asset_paths))) {
+    stop("'asset_paths' must be a named vector of existing GeoTIFF paths", call. = FALSE)
+  }
+  if (!is.character(output_dir) || length(output_dir) != 1L || !nzchar(output_dir) ||
+      !is.character(output_stem) || length(output_stem) != 1L || !nzchar(output_stem)) {
+    stop("'output_dir' and 'output_stem' must be single non-empty strings", call. = FALSE)
+  }
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  l3_codes <- sort(unique(names(asset_paths)))
+  asset_paths <- unname(asset_paths[l3_codes])
+  vrt_path <- file.path(output_dir, paste0(output_stem, ".vrt"))
+  cog_path <- file.path(output_dir, paste0(output_stem, ".tif"))
+  manifest_path <- file.path(output_dir, paste0(output_stem, ".coverage.json"))
+  terra::vrt(asset_paths, filename = vrt_path, overwrite = TRUE)
+  mosaic <- terra::rast(vrt_path)
+  wapor_write_cog(mosaic, cog_path, overwrite = TRUE)
+  coverage <- list(l3_codes = l3_codes, asset_paths = stats::setNames(asset_paths, l3_codes),
+                   vrt_path = vrt_path, cog_path = cog_path)
+  jsonlite::write_json(coverage, manifest_path, pretty = TRUE, auto_unbox = TRUE)
+  list(vrt_path = vrt_path, cog_path = cog_path, manifest_path = manifest_path, coverage = coverage)
+}
