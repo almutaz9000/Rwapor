@@ -777,6 +777,42 @@ wapor_guess_region <- function(variable, reg_info, period) {
 }
 
 
+#' Resolve L3 coverage selection
+#'
+#' Converts discovered L3 region codes into an explicit caller choice. Multiple
+#' matches never silently fall back to the first code.
+#'
+#' @param detected_codes Character vector of intersecting L3 codes.
+#' @param l3_region Optional selected L3 code.
+#' @param l3_mode One of `"select"` or `"mosaic_all"`.
+#' @return A single code for `select`, or all detected codes for `mosaic_all`.
+#' @keywords internal
+#' @noRd
+wapor_resolve_l3_selection <- function(detected_codes, l3_region = NULL,
+                                       l3_mode = c("select", "mosaic_all")) {
+  l3_mode <- match.arg(l3_mode)
+  detected_codes <- sort(unique(as.character(detected_codes)))
+  detected_codes <- detected_codes[grepl("^[A-Z]{3}$", detected_codes)]
+  if (!length(detected_codes)) {
+    stop("The AOI does not intersect an available L3 region.", call. = FALSE)
+  }
+  if (identical(l3_mode, "mosaic_all")) return(detected_codes)
+  if (!is.null(l3_region)) {
+    if (!is.character(l3_region) || length(l3_region) != 1L || !l3_region %in% detected_codes) {
+      stop(sprintf("'l3_region' must be one of: %s", paste(detected_codes, collapse = ", ")), call. = FALSE)
+    }
+    return(l3_region)
+  }
+  if (length(detected_codes) == 1L) return(detected_codes)
+  stop(
+    sprintf(
+      "The AOI intersects multiple L3 regions (%s). Supply 'l3_region' or set l3_mode = 'mosaic_all'.",
+      paste(detected_codes, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
 #' Crop (and Optionally Mask) a Raster to a Parsed Region
 #'
 #' Internal helper that handles CRS alignment, cropping, and optional masking

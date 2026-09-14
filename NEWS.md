@@ -1,3 +1,12 @@
+# Rwapor 0.10.0 (development)
+
+## Core geospatial processing
+
+* Start the core-first 1.0 workstream: explicit multi-L3 selection/mosaic policy,
+  complete-coverage contracts, and scalable tiled COG processing.
+
+---
+
 # Rwapor 0.9.9
 
 ## Download Robustness
