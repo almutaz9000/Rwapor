@@ -126,9 +126,13 @@ all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
 
 ---
 
-## 3. Out-of-Core Tiled Processing for Large Extents
+## 3. Tiled Processing for Large Extents
 
-When processing large regional or continental extents (such as Level 1 grids across entire river basins), use `wapor_run_seasonal_analysis_tiled()`:
+For regional or continental extents, use `wapor_run_seasonal_analysis_tiled()`.
+It windows sources onto square tiles, writes a versioned run manifest, and
+assembles tile GeoTIFFs with a VRT. Peak memory is bounded by tile size, not
+the full AOI. Resume a previous run with `resume = TRUE` when the manifest
+matches the current configuration.
 
 ```r
 tiled_out <- wapor_run_seasonal_analysis_tiled(
@@ -136,11 +140,13 @@ tiled_out <- wapor_run_seasonal_analysis_tiled(
   crop_params = crop_params,
   rasters     = rasters,
   output_dir  = "tiled_outputs",
-  tile_size   = 1024L
+  tile_size   = 1024L,
+  cog         = TRUE,
+  resume      = TRUE
 )
 
-# Returns file paths to written GeoTIFFs
 tiled_out$saved_files$seasonal_aeti
+tiled_out$manifest_path
 ```
 
 ---

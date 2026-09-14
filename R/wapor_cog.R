@@ -29,26 +29,60 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
     dir.create(dir_name, recursive = TRUE, showWarnings = FALSE)
   }
 
+  if (file.exists(filename) && !isTRUE(overwrite)) {
+    stop(sprintf("File already exists: %s", filename), call. = FALSE)
+  }
+
+  ext <- tools::file_ext(filename)
+  if (!nzchar(ext)) ext <- "tif"
+  tmp <- paste0(filename, ".partial.", ext)
+  if (file.exists(tmp)) {
+    unlink(tmp, force = TRUE)
+  }
+
   drivers <- tryCatch(terra::gdal(drivers = TRUE)$name, error = function(e) character(0))
   use_cog <- length(drivers) && "COG" %in% drivers
+  datatype <- if (terra::is.int(x)) "INT4S" else "FLT4S"
+  ncell_x <- as.numeric(terra::ncell(x)) * as.numeric(terra::nlyr(x))
+  bigtiff <- if (isTRUE(ncell_x * 8 > 3.5e9)) "YES" else "IF_NEEDED"
+  predictor <- if (identical(datatype, "FLT4S")) "PREDICTOR=3" else "PREDICTOR=2"
+
+  on.exit({
+    if (file.exists(tmp) && !identical(normalizePath(tmp, winslash = "/", mustWork = FALSE),
+                                       normalizePath(filename, winslash = "/", mustWork = FALSE))) {
+      unlink(tmp, force = TRUE)
+    }
+  }, add = TRUE)
 
   if (isTRUE(use_cog)) {
     terra::writeRaster(
       x,
-      filename,
-      overwrite = overwrite,
+      tmp,
+      overwrite = TRUE,
       filetype = "COG",
-      gdal = c("COMPRESS=LZW", "OVERVIEWS=AUTO"),
+      datatype = datatype,
+      gdal = c("COMPRESS=LZW", "OVERVIEWS=AUTO", predictor, paste0("BIGTIFF=", bigtiff)),
       ...
     )
   } else {
     terra::writeRaster(
       x,
-      filename,
-      overwrite = overwrite,
-      gdal = c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES"),
+      tmp,
+      overwrite = TRUE,
+      datatype = datatype,
+      gdal = c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES", predictor, paste0("BIGTIFF=", bigtiff)),
       ...
     )
+  }
+
+  if (file.exists(filename)) {
+    unlink(filename, force = TRUE)
+  }
+  if (!file.rename(tmp, filename)) {
+    if (!file.copy(tmp, filename, overwrite = TRUE)) {
+      stop(sprintf("Failed to publish COG to %s", filename), call. = FALSE)
+    }
+    unlink(tmp, force = TRUE)
   }
   invisible(filename)
 }

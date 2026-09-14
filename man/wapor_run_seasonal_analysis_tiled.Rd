@@ -11,7 +11,8 @@ wapor_run_seasonal_analysis_tiled(
   output_dir = tempdir(),
   tile_size = 512L,
   progress_callback = NULL,
-  cog = FALSE
+  cog = FALSE,
+  resume = FALSE
 )
 }
 \arguments{
@@ -23,19 +24,24 @@ wapor_run_seasonal_analysis_tiled(
 
 \item{output_dir}{Character. Output directory for tiled GeoTIFF products.}
 
-\item{tile_size}{Integer. Number of pixel rows per processing window (default: 512).}
+\item{tile_size}{Integer. Square tile width/height in pixels (default: 512).}
 
 \item{progress_callback}{Optional progress function(value, detail).}
 
 \item{cog}{Logical. Write outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
+
+\item{resume}{Logical. Reuse valid completed tiles from an existing
+run manifest in \code{output_dir}. Default \code{FALSE}.}
 }
 \value{
-List with paths to written raster files, class summary data.frames,
-and the merged in-memory \code{results} for the last/full run when small.
+List with paths to written raster files, the run manifest, tile
+counts, and VRT-backed \code{results} rasters.
 }
 \description{
-Processes seasonal analysis in spatial row windows so large extents
-(continental Level 1 grids) do not need the full cube in RAM. Each
-window is cropped, run through \code{\link[=wapor_run_seasonal_analysis]{wapor_run_seasonal_analysis()}}, and
-merged. Grids that fit in a single tile still use the in-memory engine.
+Processes seasonal analysis in deterministic spatial tiles so large
+extents do not need the full cube in RAM. Each tile is cropped, run
+through tile-local block reducers, written as an immutable
+GeoTIFF/COG, and recorded in a versioned run manifest. Completed tiles
+can be resumed. Tile assets are assembled with a VRT rather than by
+keeping a full-AOI mosaic in memory.
 }
