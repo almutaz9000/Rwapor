@@ -1,4 +1,4 @@
-# Rwapor 0.10.0 (development)
+# Rwapor 1.0.0 (development)
 
 ## Core geospatial processing
 

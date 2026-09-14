@@ -100,8 +100,11 @@ wapor_map <- function(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L
+  batch_size = 12L,
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all")
 ) {
+  l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -135,6 +138,17 @@ wapor_map <- function(
   reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
+  resolve_l3_code <- function(var, current_period) {
+    if (!grepl("^L3-", var)) return(NULL)
+    if (!is.null(l3_code)) return(l3_code)
+    detected <- wapor_guess_region(var, reg_info, current_period)
+    selected <- wapor_resolve_l3_selection(detected, l3_region, l3_mode)
+    if (length(selected) != 1L) {
+      stop("l3_mode = 'mosaic_all' is not available in wapor_map() until mosaic output generation is enabled.", call. = FALSE)
+    }
+    selected
+  }
+
   get_current_unit_conv <- function(var, u_conv) {
     resolve_output_unit_conversion(var, u_conv)
   }
@@ -151,15 +165,7 @@ wapor_map <- function(
     process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
-      current_l3_code <- l3_code
-      if (is.null(current_l3_code) && grepl("^L3-", var)) {
-         guessed_codes <- wapor_guess_region(var, reg_info, current_period)
-         if (is.null(guessed_codes)) {
-            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
-            return(NULL)
-         }
-         current_l3_code <- guessed_codes[1]
-      }
+      current_l3_code <- resolve_l3_code(var, current_period)
 
       t0_seasonal <- proc.time()
       aggregation_rule <- get_seasonal_aggregation_rule(var)
@@ -349,19 +355,7 @@ wapor_map <- function(
       log_msg(sprintf("Variable %s is temperature. Automatically converting from Kelvin to Celsius.", var))
     }
 
-    current_l3_code <- l3_code
-    if (is.null(current_l3_code) && grepl("^L3-", var)) {
-        guessed_codes <- wapor_guess_region(var, reg_info, period)
-        if (is.null(guessed_codes)) {
-            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
-            return(NULL)
-        }
-        current_l3_code <- guessed_codes[1]
-        if (length(guessed_codes) > 1) {
-            warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s for %s.", 
-                            paste(guessed_codes, collapse=", "), current_l3_code, var), call. = FALSE)
-        }
-    }
+    current_l3_code <- resolve_l3_code(var, period)
 
     # Get URLs
     urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
