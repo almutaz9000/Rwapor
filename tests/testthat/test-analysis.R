@@ -434,3 +434,51 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons works for overall and per-class comparisons", {
+  skip_if_not_installed("terra")
+
+  # Setup mock season results with crop_params, adequacy_etc, and h_mask
+  h_mask <- terra::rast(nrows = 4, ncols = 4, vals = c(1L, 1L, 2L, 2L,
+                                                        1L, 1L, 2L, 2L,
+                                                        1L, 1L, 2L, 2L,
+                                                        1L, 1L, 2L, 2L))
+  adequacy_s1 <- terra::rast(nrows = 4, ncols = 4, vals = rep(0.8, 16))
+  adequacy_s2 <- terra::rast(nrows = 4, ncols = 4, vals = rep(0.9, 16))
+
+  crop_params <- data.frame(
+    class_value = c(1L, 2L),
+    crop_label = c("Wheat", "Maize"),
+    stringsAsFactors = FALSE
+  )
+
+  aeti_by_class_s1 <- data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(300, 400))
+  aeti_by_class_s2 <- data.frame(class_value = c(1L, 2L), mean_seasonal_aeti = c(330, 440))
+
+  season_results <- list(
+    "2022" = list(
+      crop_params = crop_params,
+      h_mask = h_mask,
+      adequacy_etc = adequacy_s1,
+      seasonal_aeti = list(raster = adequacy_s1 * 400, by_class = aeti_by_class_s1)
+    ),
+    "2023" = list(
+      crop_params = crop_params,
+      h_mask = h_mask,
+      adequacy_etc = adequacy_s2,
+      seasonal_aeti = list(raster = adequacy_s2 * 400, by_class = aeti_by_class_s2)
+    )
+  )
+
+  # Test overall comparison
+  overall_comp <- wapor_compare_seasons(season_results, indicators = c("AETI", "Adequacy"), by = "overall")
+  expect_equal(nrow(overall_comp), 2)
+  expect_true("Adequacy_pct" %in% names(overall_comp))
+
+  # Test per-class comparison using optimized zonal stats
+  class_comp <- wapor_compare_seasons(season_results, indicators = c("AETI", "Adequacy"), by = "class")
+  expect_equal(nrow(class_comp), 4) # 2 classes x 2 seasons
+  expect_true("Adequacy_pct" %in% names(class_comp))
+  expect_equal(class_comp$Adequacy_pct[class_comp$Class == 1 & class_comp$Season == "2022"], 80)
+  expect_equal(class_comp$Adequacy_pct[class_comp$Class == 1 & class_comp$Season == "2023"], 90)
+})
