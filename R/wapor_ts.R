@@ -97,7 +97,8 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all")) {
+  l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -146,17 +147,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
   if (grepl("^L3-", variable)) {
-    if (!is.null(l3_region)) {
-      l3_code <- l3_region
-    } else if (is.null(l3_code)) {
-      guessed_codes <- wapor_guess_region(variable, reg_info, period)
-      if (is.null(guessed_codes)) {
-          stop("Region does not intersect with any available WaPOR L3 data for this variable.", call. = FALSE)
+    if (is.null(l3_code)) {
+      selected_codes <- wapor_resolve_l3_selection(
+        wapor_guess_region(variable, reg_info, period), l3_region, l3_mode
+      )
+      if (length(selected_codes) != 1L) {
+        stop("l3_mode = 'mosaic_all' is not available in wapor_ts() until multi-source extraction is enabled.", call. = FALSE)
       }
-      l3_code <- guessed_codes[1]
-      if (length(guessed_codes) > 1) {
-          warning(sprintf("Region intersects multiple L3 areas (%s). Only extracting data from %s. To extract from others, supply their codes directly.", paste(guessed_codes, collapse=", "), l3_code), call. = FALSE)
-      }
+      l3_code <- selected_codes
     }
   }
 
