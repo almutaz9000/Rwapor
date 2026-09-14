@@ -43,6 +43,122 @@ wapor_get_indicator_step <- function(name) {
   .indicator_registry[[name]]
 }
 
+#' Built-in engine steps already computed by wapor_run_seasonal_analysis
+#'
+#' Used so extra registered indicators can run without re-executing the
+#' in-engine implementations of the same names.
+#' @keywords internal
+.wapor_builtin_indicator_steps <- function() {
+  c(
+    "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
+    "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
+    "peff_green_blue", "green_water", "blue_water",
+    "cwp_bwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
+    "variability", "cv_aeti", "theil_aeti"
+  )
+}
+
+#' Order indicator steps by declared dependencies
+#'
+#' Returns a topological order of `wanted` plus any registered
+#' dependencies. Errors if a cycle is present.
+#'
+#' @param wanted Character vector of step names to run.
+#' @return Character vector of step names, dependencies first.
+#' @export
+wapor_ordered_indicator_steps <- function(wanted) {
+  if (is.null(wanted) || !length(wanted)) {
+    return(character(0))
+  }
+  wanted <- unique(as.character(wanted))
+
+  nodes <- character()
+  stack <- wanted
+  seen <- character()
+  while (length(stack)) {
+    name <- stack[[1]]
+    stack <- stack[-1]
+    if (name %in% seen) {
+      next
+    }
+    seen <- c(seen, name)
+    fn <- wapor_get_indicator_step(name)
+    if (is.null(fn)) {
+      next
+    }
+    nodes <- c(nodes, name)
+    deps <- attr(fn, "depends")
+    if (!is.null(deps) && length(deps)) {
+      stack <- c(stack, as.character(deps))
+    }
+  }
+  nodes <- unique(nodes)
+  if (!length(nodes)) {
+    return(character(0))
+  }
+
+  incoming <- lapply(nodes, function(name) {
+    fn <- wapor_get_indicator_step(name)
+    deps <- as.character(attr(fn, "depends"))
+    intersect(deps, nodes)
+  })
+  names(incoming) <- nodes
+
+  remaining <- nodes
+  ordered <- character()
+  while (length(remaining)) {
+    ready <- remaining[vapply(remaining, function(name) {
+      length(incoming[[name]]) == 0L
+    }, logical(1))]
+    if (!length(ready)) {
+      stop(
+        "Indicator step dependency cycle: ",
+        paste(remaining, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    ordered <- c(ordered, ready)
+    remaining <- setdiff(remaining, ready)
+    incoming <- lapply(incoming, function(deps) setdiff(deps, ready))
+  }
+  ordered
+}
+
+#' Run registered indicator steps against a shared context
+#'
+#' Executes `ctx$indicators` (and their registered dependencies) in
+#' topological order. Pass `skip` to avoid re-running steps the engine
+#' has already computed.
+#'
+#' @param ctx Environment. Must contain `indicators` and `results`.
+#' @param skip Character vector of step names to omit.
+#' @return The same `ctx`, invisibly, with `results` updated.
+#' @export
+wapor_run_indicator_steps <- function(ctx, skip = character()) {
+  if (!is.environment(ctx)) {
+    stop("'ctx' must be an environment", call. = FALSE)
+  }
+  if (is.null(ctx$progress_callback)) {
+    ctx$progress_callback <- function(v, d) NULL
+  }
+  if (is.null(ctx$results)) {
+    ctx$results <- list()
+  }
+  wanted <- ctx$indicators
+  if (is.null(wanted) || !length(wanted)) {
+    return(invisible(ctx))
+  }
+  ordered <- setdiff(wapor_ordered_indicator_steps(wanted), as.character(skip))
+  for (name in ordered) {
+    fn <- wapor_get_indicator_step(name)
+    if (is.null(fn)) {
+      next
+    }
+    fn(ctx)
+  }
+  invisible(ctx)
+}
+
 # ── 1. Seasonal AETI Step ───────────────────────────────────────────────────
 step_agg_aeti <- function(ctx) {
   if (!"agg_aeti" %in% ctx$indicators && !any(c("etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% ctx$indicators)) {
