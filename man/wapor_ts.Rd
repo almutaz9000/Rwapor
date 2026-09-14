@@ -15,7 +15,8 @@ wapor_ts(
   parallel = FALSE,
   batching = TRUE,
   batch_size = 12L,
-  l3_region = NULL
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all")
 )
 }
 \arguments{
@@ -65,6 +66,9 @@ Default is \code{12L} (~4 months of dekadal data).}
 is an L3 product and \code{region} is a spatial AOI. This keeps polygon/bbox
 extraction against the supplied AOI while constraining source rasters to
 the selected L3 mosaic.}
+
+\item{l3_mode}{L3 coverage policy. \code{"select"} requires one selected region
+for a multi-L3 AOI; \code{"mosaic_all"} is reserved for multi-source extraction.}
 }
 \value{
 A data.frame with columns:

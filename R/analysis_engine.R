@@ -696,6 +696,32 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     results$monthly_precip_peff$seasonal_peff <- .mask_result_raster(results$monthly_precip_peff$seasonal_peff)
   }
 
+  extra_steps <- setdiff(indicators, .wapor_builtin_indicator_steps())
+  extra_steps <- intersect(extra_steps, wapor_list_indicator_steps())
+  if (length(extra_steps)) {
+    progress_callback(0.92, "Running registered extra indicator steps...")
+    ctx <- new.env(parent = emptyenv())
+    ctx$indicators <- indicators
+    ctx$results <- results
+    ctx$progress_callback <- progress_callback
+    ctx$stacks <- stacks
+    ctx$h_mask <- h_mask
+    ctx$h_start <- h_start
+    ctx$h_end <- h_end
+    ctx$crop_params <- crop_params
+    ctx$season_weights <- season_weights
+    ctx$dekad_table <- dekad_table
+    ctx$ref_year <- ref_year
+    ctx$use_incremental <- use_incremental
+    ctx$aeti_mult <- aeti_mult
+    ctx$ret_mult <- ret_mult
+    ctx$pcp_mult <- precip_mult
+    ctx$npp_mult <- npp_mult
+    ctx$t_mult <- t_mult
+    wapor_run_indicator_steps(ctx, skip = .wapor_builtin_indicator_steps())
+    results <- ctx$results
+  }
+
   # 6. Cleanup & Return
   progress_callback(0.95, "Finalizing...")
   results$crop_params <- crop_params

@@ -38,6 +38,10 @@
 #'   If `FALSE`, loads all layers at once.
 #' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
 #'   Lower values reduce memory pressure for long periods. Default is `12L`.
+#' @param l3_region Optional L3 code to use for an L3 variable and spatial AOI.
+#' @param l3_mode L3 coverage policy: `"select"` requires one selected L3 code
+#'   when several regions intersect; `"mosaic_all"` writes source assets and a
+#'   coverage-bearing mosaic for every intersecting L3 region.
 #'
 #' @return Character path to the output GeoTIFF file, or in seasonal mode with
 #'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
@@ -151,6 +155,36 @@ wapor_map <- function(
 
   get_current_unit_conv <- function(var, u_conv) {
     resolve_output_unit_conversion(var, u_conv)
+  }
+
+  if (identical(l3_mode, "mosaic_all") && any(grepl("^L3-", variable))) {
+    if (!is.null(l3_code)) {
+      stop("'mosaic_all' requires a spatial AOI, not a single L3 code region.", call. = FALSE)
+    }
+    if (length(variable) != 1L || is.list(period) || isTRUE(separate_files)) {
+      stop("'mosaic_all' currently requires one variable, one period, and separate_files = FALSE.", call. = FALSE)
+    }
+    l3_codes <- wapor_resolve_l3_selection(
+      wapor_guess_region(variable[[1]], reg_info, period),
+      l3_mode = "mosaic_all"
+    )
+    source_root <- file.path(folder, "l3_sources")
+    asset_paths <- vapply(l3_codes, function(code) {
+      path <- wapor_map(
+        region = region, variable = variable, period = period,
+        folder = file.path(source_root, code), filename = filename,
+        separate_files = FALSE, unit_conversion = unit_conversion,
+        seasonal = seasonal, mask = mask, parallel = parallel,
+        batching = batching, batch_size = batch_size,
+        l3_region = code, l3_mode = "select"
+      )
+      if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
+        stop(sprintf("L3 source asset was not written for %s", code), call. = FALSE)
+      }
+      path
+    }, character(1))
+    stem <- tools::file_path_sans_ext(filename %||% paste0(variable[[1]], "_mosaic"))
+    return(wapor_write_l3_mosaic(asset_paths, file.path(folder, "l3_mosaic"), stem))
   }
 
   # --- Seasonal mode ---
