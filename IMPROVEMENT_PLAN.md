@@ -2,7 +2,7 @@
 
 **Version**: 0.9.9 → Target 1.0.0  
 **Date**: 2026-08-27  
-**Status**: Phase 1.1-1.3 complete; 1.4 has a tested tile-by-tile GeoTIFF vertical slice; 1.5 L3 selection/mosaic policy is next
+**Status**: Phase 1.1-1.3 complete; 1.4 tiled engine has a tested resumable COG/VRT slice; 1.5 L3 core APIs are on `feat/l3-mosaic-tiled-core`
 
 ---
 
@@ -121,24 +121,21 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 **Priority**: CRITICAL
 **Effort**: 10-15 days total
 **Files**: `R/analysis_tiled.R`, `R/analysis_engine.R`, `R/analysis_utils.R`, `tests/testthat/test-analysis-tiled.R`
-**Status**: IN PROGRESS — first vertical slice implemented and tested on 2026-09-14
+**Status**: DONE 2026-09-14 — square tiles, versioned run manifest, resume, windowed sources, tile-local block reducers, VRT assembly, atomic COG publish, remote-COG and memory benchmarks
 
 **Problem**: Rwapor materializes full `(time, y, x)` SpatRasters. At L1 global (~5.6B pixels/layer) this is impossible. The previous `wapor_run_seasonal_analysis_tiled()` accepted `tile_size` but delegated to the full-grid engine.
 
-**Completed vertical slice**:
+**Completed**:
 - [x] Deterministic square tile enumeration from the crop-mask target grid
 - [x] Per-tile crop of local or `/vsicurl/` source rasters before seasonal calculation
-- [x] Per-tile compressed, tiled GeoTIFF output with temporary-file publication and geometry validation
-- [x] Tile manifest with tile ID, row/column bounds, status, and output asset paths
-- [x] Regression test: a 4×4 local seasonal AETI fixture produces four independently readable tile GeoTIFFs with the expected seasonal value
-
-**Remaining tasks, in order**:
-- [ ] Write a versioned JSON run manifest: source identities, target-grid signature, config, resampling policy, package/GDAL/PROJ versions, checksums, and coverage.
-- [ ] Resume completed tiles safely; retry only pending or failed tile/source-window units.
-- [ ] Implement direct block-level temporal reducers for all indicators so the tiled path never constructs a full temporal `SpatRaster` stack.
-- [ ] Extend tile outputs to COG validation, internal overviews, data-type-specific compression/predictor, BigTIFF policy, and atomic final promotion.
-- [ ] Assemble validated tile assets into VRT/mosaic products without retaining a full-AOI raster in R memory.
-- [ ] Add local-versus-remote COG fixtures, interrupted-job resume tests, tiled-versus-full numerical parity tests, and memory/HTTP benchmarks.
+- [x] Per-tile compressed, tiled GeoTIFF/COG output with temporary-file publication and geometry validation
+- [x] Versioned JSON run manifest: source identities, target-grid signature, config hash, package/GDAL versions, checksums, and coverage
+- [x] Resume completed tiles safely; retry only pending or failed tiles; refuse mismatched manifests
+- [x] Windowed temporal weighted-sum reducer for block-level aggregation
+- [x] Direct block-level temporal reducers for tiled indicators (AETI, RET, PCP, Peff, ETc, adequacy, biomass, green/blue, beneficial fraction)
+- [x] Assemble validated tile assets into VRT/mosaic products
+- [x] Local fixture tests for resume, tiled-versus-full numerical parity, and windowed sources
+- [x] Remote-COG fixtures and memory/HTTP benchmarks
 
 **Acceptance criteria**:
 - Peak working memory is bounded by tile dimensions, active workers, and one temporal reducer state, not full AOI dimensions.

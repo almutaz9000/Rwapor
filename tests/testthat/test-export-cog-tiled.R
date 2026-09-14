@@ -146,8 +146,9 @@ test_that("tiled engine windows a grid larger than tile_size", {
     tile_size = 2L
   )
 
-  expect_equal(tiled$n_tiles, 3L)
+  expect_equal(tiled$n_tiles, 6L)
   expect_true(file.exists(file.path(out_dir, "seasonal_aeti.tif")))
+  expect_true(file.exists(file.path(out_dir, "run_manifest.json")))
   full_mean <- as.numeric(terra::global(full$seasonal_aeti$raster, "mean", na.rm = TRUE)$mean)
   tile_mean <- as.numeric(terra::global(tiled$results$seasonal_aeti$raster, "mean", na.rm = TRUE)$mean)
   expect_equal(tile_mean, full_mean, tolerance = 1e-6)
