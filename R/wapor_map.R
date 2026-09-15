@@ -1,66 +1,539 @@
-#' Download a Map
+#' Download and Save a Raster Map
 #'
-#' @param region Region definition
-#' @param variable Variable name
-#' @param period Date range c(start, end)
-#' @param folder Output folder
-#' @param filename Output filename (optional)
-#' @param download_locally If TRUE, download files using parallel processing before reading
-#' @return Path to output file
-#' @importFrom terra rast crop mask writeRaster
-#' @importFrom sf st_transform st_bbox
+#' Downloads WaPOR or AgERA5 raster data for a specified region and time period,
+#' optionally crops/masks to the region boundary, and saves as a GeoTIFF file.
+#'
+#' @param region Region definition. One of:
+#'   * Path to a vector file (shapefile, GeoJSON, GeoPackage)
+#'   * L3 region code (3 uppercase letters, e.g., "AWA")
+#'   * Numeric bounding box: `c(xmin, ymin, xmax, ymax)` in WGS84
+#' @param variable Character. Variable name following WaPOR/AgERA5 naming
+#'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
+#' @param period Character vector or list. Date range as
+#'   `c(start_date, end_date)` in "YYYY-MM-DD" format. Can also be a
+#'   named or unnamed list of such vectors for multiple seasons.
+#' @param folder Character. Output directory path. Will be created if needed.
+#' @param filename Character. Optional output filename. If NULL, a default
+#'   name is generated based on region and variable.
+#' @param unit_conversion Character. Public unit-conversion mode.
+#'   One of: `"unit_conversion"` or `"none"`.
+#'   Default is `NULL`, which dynamically matches the variable behavior:
+#'   * Dekadal daily-rate products are saved as dekadal totals
+#'   * Monthly products remain monthly totals
+#'   * `"none"` preserves raw API values without temporal conversion
+#' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
+#'   entire period into a single seasonal raster (sum/mean).
+#'   Default is `FALSE`.
+#' @param separate_files Logical. If `TRUE`, writes each time step as a separate
+#'   GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
+#'   seasonal-plan component rasters into
+#'   `<folder>/<variable>_seasonal/components/`. Default is `FALSE`.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing.
+#'   Default is `FALSE`.
+#' @param mask Logical. If `TRUE` and `region` is a vector file or polygon,
+#'   the output raster is masked to the polygon boundary (pixels outside set to NA).
+#'   If `FALSE` (default), only a rectangular crop to the bounding box is applied.
+#'   Ignored for bounding box and L3 code regions.
+#' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
+#'   If `FALSE`, loads all layers at once.
+#' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
+#'   Lower values reduce memory pressure for long periods. Default is `12L`.
+#' @param l3_region Optional L3 code to use for an L3 variable and spatial AOI.
+#' @param l3_mode L3 coverage policy: `"select"` requires one selected L3 code
+#'   when several regions intersect; `"mosaic_all"` writes source assets and a
+#'   coverage-bearing mosaic for every intersecting L3 region.
+#' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
+#'   and recorded. Default `FALSE` fails the request.
+#' @param cog Logical. Write GeoTIFF outputs with [wapor_write_cog()]. Default `FALSE`.
+#'
+#' @return Character path to the output GeoTIFF file, or in seasonal mode with
+#'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
+#'   `seasonal_components`.
+#'
+#' @details
+#' The function performs the following steps:
+#' 1. Generates download URLs for the specified variable and period
+#' 2. Streams raster data using GDAL virtual file system (/vsicurl/)
+#' 3. Crops to bounding box or masks to vector geometry
+#' 4. Applies temporal-resolution conversion when requested
+#' 5. Writes output as a multi-band GeoTIFF (one band per time step) or separate files
+#'
 #' @export
-wapor_map <- function(region, variable, period, folder, filename = NULL, download_locally = FALSE) {
-  if (!dir.exists(folder)) dir.create(folder, recursive = TRUE)
-  
-  # Parse region
-  reg_info <- parse_region(region)
-  l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
-  
-  # Get URLs
-  urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)
-  message(sprintf("Found %d files for %s.", length(urls), variable))
-  
-  if (length(urls) == 0) stop("No data found for this period/region.")
-  
-  # Download locally if requested
-  if (download_locally) {
-      # Use a subfolder or just caching folder? 
-      # Let's use a "cache" folder inside the output folder or just temporary
-      dl_folder <- file.path(folder, "cache")
-      message("Downloading locally to: ", dl_folder, " (Parallel)")
-      urls <- download_urls_parallel(urls, dl_folder)
+#'
+#' @importFrom terra rast crop mask writeRaster vect ext nlyr subst app
+#' @importFrom sf st_transform st_bbox st_crs
+#' @importFrom future.apply future_lapply
+#'
+#' @examples
+#' \dontrun{
+#' # Download dekadal ET for a bounding box (defaults to mm/dekad)
+#' output_file <- wapor_map(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-01-31"),
+#'   folder = "output"
+#' )
+#'
+#' # Preserve raw API values without temporal conversion
+#' output_file <- wapor_map(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-01-31"),
+#'   folder = "output",
+#'   unit_conversion = "none"
+#' )
+#'
+#' # Download with parallel batching for long periods
+#' library(future)
+#' plan(multisession)
+#' output_file <- wapor_map(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2020-01-01", "2023-12-31"),
+#'   folder = "output",
+#'   parallel = TRUE,
+#'   batch_size = 12
+#' )
+#' }
+wapor_map <- function(
+  region,
+  variable,
+  period,
+  folder,
+  filename = NULL,
+  separate_files = FALSE,
+  unit_conversion = NULL,
+  seasonal = FALSE,
+  mask = FALSE,
+  parallel = FALSE,
+  batching = TRUE,
+  batch_size = 12L,
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  cog = FALSE
+) {
+  l3_mode <- match.arg(l3_mode)
+  # Input validation
+  if (!is.character(variable) || length(variable) == 0) {
+    stop("'variable' must be a character vector", call. = FALSE)
   }
-  
-  # Load as SpatRaster
-  r <- terra::rast(urls)
-  
-  # Crop/Mask if region is vector or bbox
-  if (reg_info$type == "vector") {
-    vect <- reg_info$value
-    # Transform vector to raster CRS if needed (usually EPSG:4326 for WaPOR)
-    # WaPOR is typically 4326.
-    if (sf::st_crs(vect)$epsg != 4326) {
-        vect <- sf::st_transform(vect, 4326)
+  if (!is.list(period) && (!is.character(period) || length(period) != 2)) {
+    stop("'period' must be a character vector of length 2 or a list of such vectors", call. = FALSE)
+  }
+  if (!is.character(folder) || length(folder) != 1) {
+    stop("'folder' must be a single character string", call. = FALSE)
+  }
+  if (!is.logical(batching) || length(batching) != 1) {
+    stop("'batching' must be a single logical value", call. = FALSE)
+  }
+  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
+    stop("'batch_size' must be a positive integer", call. = FALSE)
+  }
+  batch_size <- as.integer(batch_size)
+
+  if (!is.list(period)) {
+    if (as.Date(period[1]) > as.Date(period[2])) {
+      stop("'period' start date must be <= end date", call. = FALSE)
     }
-    v <- terra::vect(vect)
-    r <- terra::crop(r, v)
-    r <- terra::mask(r, v)
-  } else if (reg_info$type == "bbox") {
-    # Crop to bbox
-    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- terra::crop(r, ext)
   }
-  
-  # Output filename
-  if (is.null(filename)) {
-    # Generate filename: region_variable_period.tif
-    reg_str <- if (reg_info$type == "l3_code") l3_code else "region"
-    filename <- paste0(reg_str, "_", variable, ".tif")
+
+  # Create base output directory
+  if (!dir.exists(folder)) {
+    dir.create(folder, recursive = TRUE)
   }
+
+  # Parse region once
+  reg_info <- wapor_parse_region(region)
+  l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
+
+  resolve_l3_code <- function(var, current_period) {
+    if (!grepl("^L3-", var)) return(NULL)
+    if (!is.null(l3_code)) return(l3_code)
+    detected <- wapor_guess_region(var, reg_info, current_period)
+    selected <- wapor_resolve_l3_selection(detected, l3_region, l3_mode)
+    selected[[1]]
+  }
+
+  get_current_unit_conv <- function(var, u_conv) {
+    resolve_output_unit_conversion(var, u_conv)
+  }
+
+  if (identical(l3_mode, "mosaic_all") && any(grepl("^L3-", variable))) {
+    if (!is.null(l3_code)) {
+      stop("'mosaic_all' requires a spatial AOI, not a single L3 code region.", call. = FALSE)
+    }
+    return(wapor_map_mosaic_all(
+      region = region, variable = variable, period = period, folder = folder,
+      filename = filename, separate_files = separate_files,
+      unit_conversion = unit_conversion, seasonal = seasonal, mask = mask,
+      parallel = parallel, batching = batching, batch_size = batch_size,
+      partial = partial, cog = cog
+    ))
+  }
+
+  # --- Seasonal mode ---
+  if (seasonal) {
+    if (length(variable) != 1L) {
+      stop(sprintf(
+        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
+        length(variable)
+      ), call. = FALSE)
+    }
+
+    process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
+      log_msg(sprintf("Processing seasonal variable: %s", var))
+      
+      current_l3_code <- resolve_l3_code(var, current_period)
+
+      t0_seasonal <- proc.time()
+      aggregation_rule <- get_seasonal_aggregation_rule(var)
+      seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
+      
+      # Smart-Linking for Timing Rasters:
+      # If specific masks for this season exist (e.g., Winter2018_start.tif), use them.
+      p_start_raster <- NULL
+      p_end_raster   <- NULL
+      
+      if (!is.null(folder)) {
+        # Check both the folder itself and the 'seasonal_masks' subfolder
+        mask_dirs <- c(folder, file.path(folder, "seasonal_masks"))
+        for (m_dir in mask_dirs) {
+          s_start_path <- file.path(m_dir, paste0(s_name, "_start.tif"))
+          s_end_path   <- file.path(m_dir, paste0(s_name, "_end.tif"))
+          if (file.exists(s_start_path)) p_start_raster <- terra::rast(s_start_path)
+          if (file.exists(s_end_path))   p_end_raster   <- terra::rast(s_end_path)
+        }
+      }
+
+      seasonal_data <- tryCatch({
+        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder,
+                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster,
+                                  partial = partial)
+      }, error = function(e) {
+        warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
+        return(NULL)
+      })
+      
+      if (is.null(seasonal_data)) return(NULL)
+      
+      groups <- seasonal_data$groups
+      aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+      seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
+      if (length(groups) == 0) return(NULL)
+
+      running_value <- NULL
+      running_weight <- NULL
+      valid_count <- NULL
+      component_paths <- character(0)
+
+      var_folder <- file.path(folder, paste0(var, "_seasonal"))
+      if (!dir.exists(var_folder)) {
+        dir.create(var_folder, recursive = TRUE, showWarnings = FALSE)
+      }
+
+      for (g_name in names(groups)) {
+        g <- groups[[g_name]]
+        r_group <- g$raster
+        multipliers <- g$multipliers
+
+        # Clean NaNs and apply temperature conversion
+        r_group <- terra::subst(r_group, NaN, NA)
+        r_group <- wapor_convert_temperature(r_group, g$variable)
+
+        # Handle weighted sum/mean using terra::sum for performance and tree depth stability
+        weighted_stack <- r_group * multipliers
+
+        group_sum <- sum(weighted_stack, na.rm = TRUE)
+
+        if (isTRUE(separate_files)) {
+          comp_dir <- file.path(var_folder, "components")
+          if (!dir.exists(comp_dir)) dir.create(comp_dir, recursive = TRUE, showWarnings = FALSE)
+          comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
+          r_comp <- terra::classify(group_sum, cbind(NA, -9999))
+          r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
+          suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+          component_paths <- c(component_paths, comp_fname)
+        }
+        
+        if (identical(aggregation_rule, "weighted_mean")) {
+          # Sum of weights where data is not NA
+          group_weight <- sum(terra::ifel(is.na(r_group), 0, multipliers), na.rm = TRUE)
+          
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            running_weight <- group_weight
+          } else {
+            # Align if needed (should be same ext/res from download_seasonal_rasters)
+            running_value <- running_value + group_sum
+            running_weight <- running_weight + group_weight
+          }
+        } else {
+          # Number of valid observations (used for masking the final sum)
+          group_valid <- sum(!is.na(r_group), na.rm = TRUE)
+          
+          if (is.null(running_value)) {
+            running_value <- group_sum
+            valid_count <- group_valid
+          } else {
+            running_value <- running_value + group_sum
+            valid_count <- valid_count + group_valid
+          }
+        }
+      }
+
+      seasonal_result <- if (identical(aggregation_rule, "weighted_mean")) {
+        terra::ifel(running_weight > 0, running_value / running_weight, NA)
+      } else {
+        terra::mask(running_value, valid_count, maskvalue = 0)
+      }
+      
+      names(seasonal_result) <- paste0(
+        if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", 
+        current_period[1], "_", current_period[2]
+      )
+      
+      out_path <- file.path(var_folder, current_filename)
+      # Finalize raster with metadata and proper NA flag
+      r_out <- terra::classify(seasonal_result, cbind(NA, -9999))
+      r_out <- assign_raster_metadata(r_out, var, units_override = seasonal_output_units)
+      
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+
+      log_msg(sprintf("Seasonal %s for %s saved to: %s",
+                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
+                      var, out_path))
+
+      if (isTRUE(separate_files) && length(component_paths) > 0) {
+        return(list(seasonal_aggregate = out_path, seasonal_components = component_paths))
+      }
+      return(out_path)
+    }
+
+    # Iterate over variables and periods
+    all_results <- list()
+    for (v in variable) {
+      if (is.list(period)) {
+        v_results <- list()
+        for (i in seq_along(period)) {
+          p <- period[[i]]
+          s_name <- names(period)[i] %||% paste0(p[1], "_", p[2])
+          
+          window_filename <- if (!is.null(filename)) {
+            if (length(variable) > 1) {
+              sub("\\.tif$", paste0(".", v, ".", s_name, ".", p[1], "_", p[2], ".tif"), filename)
+            } else {
+              sub("\\.tif$", paste0(".", s_name, ".", p[1], "_", p[2], ".tif"), filename)
+            }
+          } else {
+            prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
+            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+          }
+          
+          log_msg(sprintf("Processing variable %s, season %s", v, s_name))
+          v_results[[s_name]] <- process_seasonal_var(v, p, window_filename, s_name)
+        }
+        all_results[[v]] <- v_results
+      } else {
+        s_name <- if (!is.null(names(period))) names(period)[1] else "seasonal"
+        def_fname <- if (!is.null(filename)) {
+           if (length(variable) > 1) sub("\\.tif$", paste0(".", v, ".tif"), filename) else filename
+        } else {
+          prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
+          sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+        }
+        all_results[[v]] <- process_seasonal_var(v, period, def_fname, s_name)
+      }
+    }
+    
+    if (length(variable) == 1) return(all_results[[1]])
+    return(all_results)
+  }
+
+  # Helper function to process a single variable
+  process_single_var <- function(var) {
+    t0_var <- proc.time()
+    log_msg(sprintf("Processing variable: %s", var))
+    
+    # Create variable-specific subdirectory
+    var_folder <- file.path(folder, var)
+    if (!dir.exists(var_folder)) {
+      dir.create(var_folder, recursive = TRUE)
+    }
+
+    current_unit_conv <- get_current_unit_conv(var, unit_conversion)
+    if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
+        identical(current_unit_conv, "dekad")) {
+       log_msg(sprintf(
+         "Variable %s is Dekadal (stored as mm/day). Saving with temporal conversion as mm/dekad.",
+         var
+       ))
+    }
+    
+    # Inform user about automatic temperature conversion
+    if (grepl("^AGERA5-(TMIN|TMAX)-", var, ignore.case = FALSE)) {
+      log_msg(sprintf("Variable %s is temperature. Automatically converting from Kelvin to Celsius.", var))
+    }
+
+    current_l3_code <- resolve_l3_code(var, period)
+
+    # Get URLs
+    urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
+    log_msg(sprintf("Found %d files for %s.", length(urls), var))
+
+    if (length(urls) == 0) {
+      warning(sprintf("No data found for %s in this period/region. Skipping.", var), call. = FALSE)
+      return(NULL)
+    }
+
+    # Determine naming components
+    base_fname <- basename(urls[1])
+    parts <- strsplit(base_fname, "\\.")[[1]]
+    if (length(parts) >= 3) {
+      product_base <- paste(parts[1:(length(parts)-2)], collapse = ".")
+    } else {
+      product_base <- var 
+    }
+    
+    prefix <- if (reg_info$type == "bbox") "bb_" else ""
+
+    # Use GDAL virtual file system
+    urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+    log_msg(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", var))
+    
+    tres_code <- strsplit(var, "-")[[1]][3]
+    
+    # Split URLs into chunks based on batch_size
+    n_urls <- length(urls)
+    url_chunks <- get_url_chunks(urls, batching = batching, batch_size = batch_size)
+    
+    log_msg(sprintf("  Splitting %d files into %d chunk(s) for memory efficiency.", n_urls, length(url_chunks)))
+    
+    # Define a helper function to process a single chunk of URLs
+    process_chunk <- function(chunk_urls, chunk_idx) {
+      r <- NULL
+      max_retries <- 3
+      for (attempt in seq_len(max_retries)) {
+        r <- tryCatch({
+          suppressWarnings(terra::rast(chunk_urls))
+        }, error = function(e) {
+          if (attempt < max_retries) {
+            Sys.sleep(attempt * 2)
+            return(NULL)
+          } else {
+            warning(sprintf("Failed to load chunk %d raster data after %d attempts: %s", 
+                            chunk_idx, max_retries, e$message), call. = FALSE)
+            return(NULL)
+          }
+        })
+        if (!is.null(r)) break
+      }
+      
+      if (is.null(r)) return(NULL)
+
+      # Crop to region; optionally mask to polygon boundary
+      r <- wapor_crop_to_region(r, reg_info, do_mask = mask)
+
+      # Unit Conversion
+      if (current_unit_conv != "none") {
+        r <- wapor_convert_raster(r, var, chunk_urls, current_unit_conv)
+      }
+
+      # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+      r <- wapor_convert_temperature(r, var)
+
+      # Standardize layer names to "YYYY-MM-DD"
+      layer_names <- vapply(chunk_urls, function(u) {
+        wapor_date_info(sub("^/vsicurl/", "", u), tres = tres_code)$start_date
+      }, character(1))
+      names(r) <- layer_names
+
+      if (separate_files) {
+        # Save individual files directly
+        chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
+          out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
+          # Finalize raster with metadata AFTER all transformations (like classify)
+          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
+          r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
+          
+          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          out_path
+        }, character(1))
+        return(list(type = "separate", paths = chunk_paths))
+      } else {
+        # Save chunk to tempfile for later stacking
+        tmp_path <- tempfile(fileext = ".tif")
+        r_out <- terra::classify(r, cbind(NA, -9999))
+        suppressWarnings(terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999))
+        return(list(type = "stack", filepath = tmp_path, layer_names = layer_names))
+      }
+    }
+    
+    # Process all chunks, using future_lapply if parallel is TRUE
+    if (parallel) {
+      log_msg("  Processing chunks in parallel...")
+      chunk_results <- future.apply::future_lapply(seq_along(url_chunks), function(i) {
+        process_chunk(url_chunks[[i]], i)
+      }, future.seed = TRUE)
+    } else {
+      chunk_results <- lapply(seq_along(url_chunks), function(i) {
+        process_chunk(url_chunks[[i]], i)
+      })
+    }
+    
+    # Filter out any failed chunks
+    chunk_results <- Filter(Negate(is.null), chunk_results)
+    
+    if (length(chunk_results) == 0) {
+      warning("All chunks failed to process.", call. = FALSE)
+      return(NULL)
+    }
+
+    if (separate_files) {
+      # Combine paths from all chunks
+      output_paths <- unlist(lapply(chunk_results, function(res) res$paths))
+    } else {
+      # Combine temporary files into a single stack
+      temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
+      on.exit(unlink(temp_files), add = TRUE)  # ensure cleanup even if merge errors
+      all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
+
+      log_msg("  Merging chunks into final multi-band stack...")
+      # Load all temp files logically
+      r_all <- suppressWarnings(terra::rast(temp_files))
+      names(r_all) <- all_names
+
+      current_filename <- filename
+      if (is.null(current_filename)) {
+        start_date <- names(r_all)[1]
+        end_date <- names(r_all)[terra::nlyr(r_all)]
+        date_part <- if (terra::nlyr(r_all) == 1) start_date else paste0(start_date, "_", end_date)
+        current_filename <- paste0(prefix, product_base, ".", date_part, ".tif")
+      }
+
+      out_path <- file.path(var_folder, current_filename)
+      r_out <- terra::classify(r_all, cbind(NA, -9999))
+      r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
+
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+
+      output_paths <- out_path
+    }
+    
+    log_msg(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
+    return(output_paths)
+  }
+
+  # Process all variables
+  results <- lapply(variable, process_single_var)
+  names(results) <- variable
   
-  out_path <- file.path(folder, filename)
-  terra::writeRaster(r, out_path, overwrite = TRUE)
-  
-  return(out_path)
+  # Return just the path if it's a single variable (backward compatibility/simplicity)
+  # But structured list is better if >1 variable.
+  # User requested "processing list of variables", so list return is safer.
+  if (length(variable) == 1) {
+    return(results[[1]])
+  } else {
+    return(results)
+  }
 }

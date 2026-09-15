@@ -25,4 +25,47 @@ src/*.so
 
 # Tests
 tests/testthat/test_output/
+test_metadata/
+test_*.R
 libs/
+nul
+
+# Agent/AI Configuration (local development only)
+# NOTE: agent-workflow/ and .github/workflows/ are intentionally NOT ignored:
+# agent-workflow/ is the shared, repo-owned coordination layer that all
+# agents/models are expected to read and update (see
+# docs/superpowers/specs/2026-05-11-agent-workflow-design.md), and
+# .github/workflows/ holds the actual CI definitions, which must be tracked
+# for GitHub Actions to run at all.
+.github/*
+!.github/workflows/
+.claude/
+.agents/
+.agent/
+.jules/
+CLAUDE.md
+graphify-out/
+.vscode/
+memories/
+
+# Development artifacts
+archived_reports/
+check_db_summary.R
+Pivots_savola2.geojson
+
+# Manual / ad hoc test scripts
+tests/manual/
+tests/benchmark*.R
+tests/test_agera5*.R
+tests/test_analysis*.R
+tests/test_fix*.R
+tests/test_implementation*.R
+tests/test_tiny.R
+tests/load_source.R
+tests/run_bench.bat
+tests/l3_urls.txt
+
+# Database Files
+*.duckdb
+*.duckdb.wal
+.positai
