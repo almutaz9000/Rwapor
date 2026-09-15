@@ -17,3 +17,7 @@
 ## 2026-06-22 - [Vectorized Date Parsing and Metadata Extraction]
 **Learning:** In R, processing large character vectors with row-wise functions like `vapply(..., strsplit)` or `lapply(..., wapor_date_info)` is a major bottleneck. Vectorizing these operations using `sub()` for regex extraction and `matrix(unlist(...), ncol=N, byrow=TRUE)` for batch part extraction provides significant speedups.
 **Action:** Always prefer vectorized string functions and matrix-based unlisting over iterative R-level loops for metadata parsing.
+
+## 2026-06-23 - [Vectorized Lookup Table Fallback Indexing]
+**Learning:** Restricting a lookup helper function to scalar input forces callers to process character vectors element-by-element using `vapply()`, adding high interpreter loop overhead. Vectorizing string lookup helpers using vector indexing (`.LOOKUP[sub(...)]`) and staged `is.na()` sub-indexing for multi-level fallbacks allows functions like `wapor_res_key` and `wapor_group_by_res` to process large variable vectors in a single pass.
+**Action:** Vectorize lookup functions natively using NA sub-indexing fallback patterns instead of enforcing scalar inputs.
