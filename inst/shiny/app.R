@@ -335,9 +335,8 @@ server <- function(input, output, session) {
 
   # Automatically stop the app when the browser tab is closed
   session$onSessionEnded(function() {
-    log_msg("Browser session ended. Stopping app.")
+    log_msg("Browser session ended.")
     runtime_state$restore()
-    shiny::stopApp()
   })
 
   shiny::onStop(function() {

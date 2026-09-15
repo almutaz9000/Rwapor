@@ -16,7 +16,8 @@ wapor_ts(
   batching = TRUE,
   batch_size = 12L,
   l3_region = NULL,
-  l3_mode = c("select", "mosaic_all")
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE
 )
 }
 \arguments{
@@ -68,7 +69,10 @@ extraction against the supplied AOI while constraining source rasters to
 the selected L3 mosaic.}
 
 \item{l3_mode}{L3 coverage policy. \code{"select"} requires one selected region
-for a multi-L3 AOI; \code{"mosaic_all"} is reserved for multi-source extraction.}
+for a multi-L3 AOI; \code{"mosaic_all"} extracts every intersecting L3 source.}
+
+\item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
+and recorded. Default \code{FALSE} fails the request.}
 }
 \value{
 A data.frame with columns:

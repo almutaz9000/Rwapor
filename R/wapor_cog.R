@@ -117,3 +117,103 @@ wapor_write_l3_mosaic <- function(asset_paths, output_dir, output_stem) {
   jsonlite::write_json(coverage, manifest_path, pretty = TRUE, auto_unbox = TRUE)
   list(vrt_path = vrt_path, cog_path = cog_path, manifest_path = manifest_path, coverage = coverage)
 }
+
+.wapor_period_list <- function(period) {
+  if (is.list(period)) period else list(period)
+}
+
+.wapor_period_label <- function(period, i = 1L) {
+  nm <- names(period)
+  if (!is.null(nm) && length(nm) >= i && nzchar(nm[[i]])) {
+    return(nm[[i]])
+  }
+  p <- if (is.list(period)) period[[i]] else period
+  paste(p, collapse = "_")
+}
+
+wapor_map_mosaic_all <- function(region, variable, period, folder, filename = NULL,
+                                 separate_files = FALSE, unit_conversion = NULL,
+                                 seasonal = FALSE, mask = FALSE, parallel = FALSE,
+                                 batching = TRUE, batch_size = 12L,
+                                 partial = FALSE, cog = FALSE) {
+  periods <- .wapor_period_list(period)
+  results <- list()
+  for (var in variable) {
+    for (i in seq_along(periods)) {
+      p <- periods[[i]]
+      l3_codes <- wapor_resolve_l3_selection(
+        wapor_guess_region(var, wapor_parse_region(region), p),
+        l3_mode = "mosaic_all"
+      )
+      source_root <- file.path(folder, "l3_sources", var, .wapor_period_label(period, i))
+      asset_paths <- vapply(l3_codes, function(code) {
+        path <- wapor_map(
+          region = region, variable = var, period = p,
+          folder = file.path(source_root, code), filename = filename,
+          separate_files = FALSE, unit_conversion = unit_conversion,
+          seasonal = seasonal, mask = mask, parallel = parallel,
+          batching = batching, batch_size = batch_size,
+          l3_region = code, l3_mode = "select",
+          partial = partial, cog = cog
+        )
+        if (is.list(path) && !is.null(path$seasonal_aggregate)) path <- path$seasonal_aggregate
+        if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
+          stop(sprintf("L3 source asset was not written for %s / %s", var, code), call. = FALSE)
+        }
+        path
+      }, character(1))
+      names(asset_paths) <- l3_codes
+      stem <- tools::file_path_sans_ext(filename %||% paste0(var, "_", .wapor_period_label(period, i), "_mosaic"))
+      key <- paste(var, .wapor_period_label(period, i), sep = "/")
+      results[[key]] <- wapor_write_l3_mosaic(asset_paths, file.path(folder, "l3_mosaic", var), stem)
+    }
+  }
+  if (length(results) == 1L) results[[1]] else results
+}
+
+wapor_ts_mosaic_all <- function(region, variable, period, identifier = NULL,
+                                unit_conversion = NULL, seasonal = FALSE,
+                                download_locally = FALSE, parallel = FALSE,
+                                batching = TRUE, batch_size = 12L,
+                                partial = FALSE) {
+  codes <- wapor_resolve_l3_selection(
+    wapor_guess_region(variable, wapor_parse_region(region), period),
+    l3_mode = "mosaic_all"
+  )
+  parts <- lapply(codes, function(code) {
+    df <- wapor_ts(
+      region = region, variable = variable, period = period,
+      identifier = identifier, unit_conversion = unit_conversion,
+      seasonal = seasonal, download_locally = download_locally,
+      parallel = parallel, batching = batching, batch_size = batch_size,
+      l3_region = code, l3_mode = "select", partial = partial
+    )
+    df$l3_region <- code
+    df
+  })
+  do.call(rbind, parts)
+}
+
+wapor_shiny_l3_choices <- function(codes) {
+  codes <- unique(as.character(codes))
+  choices <- stats::setNames(codes, codes)
+  if (length(codes) > 1L) {
+    choices <- c(choices, stats::setNames("__MOSAIC_ALL__", "Mosaic all intersecting L3 regions"))
+  }
+  choices
+}
+
+wapor_shiny_l3_selection <- function(codes, current = NULL) {
+  codes <- unique(as.character(codes))
+  if (identical(current, "__MOSAIC_ALL__") && length(codes) > 1L) {
+    return("__MOSAIC_ALL__")
+  }
+  if (!is.null(current) && nzchar(current) && current %in% codes) {
+    return(current)
+  }
+  if (length(codes) == 1L) {
+    return(codes[[1]])
+  }
+  ""
+}
+

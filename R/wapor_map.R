@@ -42,6 +42,9 @@
 #' @param l3_mode L3 coverage policy: `"select"` requires one selected L3 code
 #'   when several regions intersect; `"mosaic_all"` writes source assets and a
 #'   coverage-bearing mosaic for every intersecting L3 region.
+#' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
+#'   and recorded. Default `FALSE` fails the request.
+#' @param cog Logical. Write GeoTIFF outputs with [wapor_write_cog()]. Default `FALSE`.
 #'
 #' @return Character path to the output GeoTIFF file, or in seasonal mode with
 #'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
@@ -106,7 +109,9 @@ wapor_map <- function(
   batching = TRUE,
   batch_size = 12L,
   l3_region = NULL,
-  l3_mode = c("select", "mosaic_all")
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  cog = FALSE
 ) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
@@ -147,10 +152,7 @@ wapor_map <- function(
     if (!is.null(l3_code)) return(l3_code)
     detected <- wapor_guess_region(var, reg_info, current_period)
     selected <- wapor_resolve_l3_selection(detected, l3_region, l3_mode)
-    if (length(selected) != 1L) {
-      stop("l3_mode = 'mosaic_all' is not available in wapor_map() until mosaic output generation is enabled.", call. = FALSE)
-    }
-    selected
+    selected[[1]]
   }
 
   get_current_unit_conv <- function(var, u_conv) {
@@ -161,30 +163,13 @@ wapor_map <- function(
     if (!is.null(l3_code)) {
       stop("'mosaic_all' requires a spatial AOI, not a single L3 code region.", call. = FALSE)
     }
-    if (length(variable) != 1L || is.list(period) || isTRUE(separate_files)) {
-      stop("'mosaic_all' currently requires one variable, one period, and separate_files = FALSE.", call. = FALSE)
-    }
-    l3_codes <- wapor_resolve_l3_selection(
-      wapor_guess_region(variable[[1]], reg_info, period),
-      l3_mode = "mosaic_all"
-    )
-    source_root <- file.path(folder, "l3_sources")
-    asset_paths <- vapply(l3_codes, function(code) {
-      path <- wapor_map(
-        region = region, variable = variable, period = period,
-        folder = file.path(source_root, code), filename = filename,
-        separate_files = FALSE, unit_conversion = unit_conversion,
-        seasonal = seasonal, mask = mask, parallel = parallel,
-        batching = batching, batch_size = batch_size,
-        l3_region = code, l3_mode = "select"
-      )
-      if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
-        stop(sprintf("L3 source asset was not written for %s", code), call. = FALSE)
-      }
-      path
-    }, character(1))
-    stem <- tools::file_path_sans_ext(filename %||% paste0(variable[[1]], "_mosaic"))
-    return(wapor_write_l3_mosaic(asset_paths, file.path(folder, "l3_mosaic"), stem))
+    return(wapor_map_mosaic_all(
+      region = region, variable = variable, period = period, folder = folder,
+      filename = filename, separate_files = separate_files,
+      unit_conversion = unit_conversion, seasonal = seasonal, mask = mask,
+      parallel = parallel, batching = batching, batch_size = batch_size,
+      partial = partial, cog = cog
+    ))
   }
 
   # --- Seasonal mode ---
@@ -222,8 +207,9 @@ wapor_map <- function(
       }
 
       seasonal_data <- tryCatch({
-        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder, 
-                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster)
+        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder,
+                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster,
+                                  partial = partial)
       }, error = function(e) {
         warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
         return(NULL)

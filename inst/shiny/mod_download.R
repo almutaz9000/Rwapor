@@ -546,12 +546,10 @@ mod_download_server <- function(id, l3_regions_meta) {
           })
         )
         
-        # Auto-select if exactly one region overlaps
-        selected_val <- if (length(codes) == 1) codes[1] else input$l3_region
-        
+        selected_val <- wapor_shiny_l3_selection(codes, current = input$l3_region)
         shiny::updateSelectInput(
           session, "l3_region",
-          choices = choices,
+          choices = wapor_shiny_l3_choices(codes),
           selected = selected_val
         )
       }
@@ -641,7 +639,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           class = "alert alert-warning mt-2",
           style = "font-size: 0.85rem; padding: 0.5rem;",
           shiny::icon("triangle-exclamation"),
-          sprintf(" Multiple L3 regions overlap (%s). Please select one.", 
+          sprintf(" Multiple L3 regions overlap (%s). Select one or Mosaic all intersecting L3 regions.",
                   paste(codes, collapse = ", "))
         ))
       }
