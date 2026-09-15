@@ -1,0 +1,34 @@
+citHeader("To cite Rwapor in publications use:")
+
+bibentry(
+  bibtype  = "Manual",
+  title    = "Rwapor: Download WaPOR and AgERA5 Data",
+  author   = c(
+    person("WaPOR-DL", "Contributors")
+  ),
+  year     = "2025",
+  note     = "R package version 0.1.0",
+  url      = "https://github.com/wateraccounting/wapordl",
+  textVersion = paste(
+    "WaPOR-DL Contributors (2025).",
+    "Rwapor: Download WaPOR and AgERA5 Data.",
+    "R package version 0.1.0.",
+    "https://github.com/wateraccounting/wapordl"
+  )
+)
+
+bibentry(
+  bibtype  = "Article",
+  title    = "WaPOR, a near real time database of Water Productivity obtained through Remote Sensing",
+  author   = c(
+    person("FAO")
+  ),
+  journal  = "FAO Water Reports",
+  year     = "2018",
+  url      = "https://www.fao.org/in-action/remote-sensing-for-water-productivity/wapor/en",
+  textVersion = paste(
+    "FAO (2018).",
+    "WaPOR, a near real time database of Water Productivity obtained through Remote Sensing.",
+    "https://www.fao.org/in-action/remote-sensing-for-water-productivity/wapor/en"
+  )
+)

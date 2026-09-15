@@ -1,0 +1,13 @@
+# graphify exclusions for Rwapor
+#
+# Archived outputs — obsolete code snapshots, not active source
+dev-archive/
+
+# Manual test scripts — dev-only, not part of the formal test suite
+tests/manual/
+
+# Debug/profiling harnesses — dev tooling, not package logic
+dev-tools/scripts/debug/
+
+# Generated outputs
+dev-archive/2026-05-production-cleanup/graphify-out/

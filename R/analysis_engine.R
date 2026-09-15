@@ -1,0 +1,729 @@
+# R/analysis_engine.R
+
+#' Run Seasonal Analysis Engine
+#'
+#' Standalone function that performs the seasonal analysis workflow.
+#'
+#' @param config List of configuration parameters.
+#' @param crop_params data.frame of crop class parameters (Kc, HI, etc.).
+#' @param rasters List of terra::SpatRaster objects (mask, start, end).
+#' @param aoi_region Optional numeric vector for the region bbox.
+#' @param progress_callback Optional function(value, detail) for updates.
+#' @return List of results (SpatRaster objects and summary tables).
+#' @details
+#' Alignment uses `config$reference_layer` (`"aeti"` default, also
+#' `"crop_mask"`, `"ret"`, `"pcp"`, `"npp"`, `"template"`). Continuous WaPOR
+#' layers are bilinear-resampled onto that grid; crop mask and Julian-day
+#' rasters use nearest neighbour. Overlap failures name both extents.
+#' @export
+wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region = NULL, progress_callback = NULL) {
+  
+  if (is.null(progress_callback)) progress_callback <- function(v, d) NULL
+  
+  # Handle multi-period list
+  if (is.list(config$period)) {
+    periods <- config$period
+    all_results <- list()
+    n_p <- length(periods)
+    
+    for (i in seq_along(periods)) {
+      p_name <- names(periods)[i] %||% sprintf("Season_%d", i)
+      progress_callback(i / n_p, sprintf("Processing %s...", p_name))
+      
+      # Create a shallow copy of config with the single period
+      p_config <- config
+      p_config$period <- periods[[i]]
+      
+      # Auto-derive ref_year for this season if needed
+      if (is.null(p_config$ref_year)) {
+        p_config$ref_year <- as.integer(format(as.Date(p_config$period[1]), "%Y"))
+      }
+      
+      # Smart-Linking: Look for season-specific masks in folder/seasonal_masks
+      p_rasters <- rasters
+      if (!is.null(config$folder)) {
+        # Check both the folder itself and the 'seasonal_masks' subfolder
+        mask_dirs <- c(config$folder, file.path(config$folder, "seasonal_masks"))
+        for (m_dir in mask_dirs) {
+          s_start_path <- file.path(m_dir, paste0(p_name, "_start.tif"))
+          s_end_path   <- file.path(m_dir, paste0(p_name, "_end.tif"))
+          s_mask_path  <- file.path(m_dir, paste0(p_name, "_mask.tif"))
+          
+          if (file.exists(s_start_path)) {
+            p_rasters$season_start <- terra::rast(s_start_path)
+            p_config$use_season_rasters <- TRUE
+          }
+          if (file.exists(s_end_path)) {
+            p_rasters$season_end <- terra::rast(s_end_path)
+            p_config$use_season_rasters <- TRUE
+          }
+          if (file.exists(s_mask_path)) {
+            p_rasters$crop_mask <- terra::rast(s_mask_path)
+            p_config$use_crop_mask <- TRUE
+          }
+        }
+      }
+      
+      # Recursive call for single period
+      all_results[[p_name]] <- wapor_run_seasonal_analysis(
+        config = p_config, 
+        crop_params = crop_params, 
+        rasters = p_rasters, 
+        aoi_region = aoi_region, 
+        progress_callback = NULL # Suppress sub-progress
+      )
+    }
+    return(all_results)
+  }
+
+  # 1. Resolve basic params
+  period      <- config$period
+  ref_year    <- config$ref_year %||% as.integer(format(as.Date(period[1]), "%Y"))
+  aeti_var    <- config$aeti_var
+  ret_var     <- config$ret_var
+  precip_var  <- config$precip_var
+  npp_var     <- config$npp_var
+  t_var       <- config$t_var
+  l3_code     <- config$l3_code
+  indicators  <- wapor_normalize_analysis_indicators(config$indicators)
+  use_local   <- config$data_source == "local"
+  folder      <- config$folder
+  use_incremental <- isTRUE(config$incremental)
+  
+  # 2. Get template and harmonize
+  progress_callback(0.05, "Getting reference raster...")
+  
+  template_r <- NULL
+  reg_info   <- if (!is.null(aoi_region)) Rwapor::wapor_parse_region(aoi_region) else NULL
+  reference_layer <- config$reference_layer %||% "aeti"
+  reference_layer <- match.arg(
+    reference_layer,
+    c("aeti", "crop_mask", "ret", "pcp", "npp", "template")
+  )
+  
+  if (identical(reference_layer, "crop_mask")) {
+    if (is.null(rasters$crop_mask) || !inherits(rasters$crop_mask, "SpatRaster")) {
+      stop("reference_layer = \"crop_mask\" requires rasters$crop_mask.", call. = FALSE)
+    }
+    template_r <- rasters$crop_mask
+    if (terra::nlyr(template_r) > 1) template_r <- template_r[[1]]
+  } else if (identical(reference_layer, "template") && inherits(config$template, "SpatRaster")) {
+    template_r <- config$template
+  } else {
+    template_var <- switch(
+      reference_layer,
+      aeti = if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var,
+      ret = ret_var,
+      pcp = precip_var,
+      npp = npp_var,
+      if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
+    )
+    if (use_local) {
+      paths <- wapor_local_rasters(folder, template_var, period[1], period[2])
+      if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
+      template_r <- terra::rast(paths[1])
+    } else {
+      urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
+      if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
+      template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
+    }
+  }
+  
+  if (terra::nlyr(template_r) > 1) template_r <- template_r[[1]]
+
+  
+  if (!is.null(reg_info)) {
+    template_r <- Rwapor::wapor_crop_to_region(template_r, reg_info, do_mask = (reg_info$type == "vector"))
+  }
+  
+  progress_callback(0.10, "Harmonizing inputs...")
+  
+  # Harmonize mask
+  h_mask <- if (isTRUE(config$use_crop_mask)) {
+    wapor_harmonize_crop_mask(rasters$crop_mask, template_r)
+  } else {
+    # If no mask used, treat entire area as class 1
+    template_r[[1]] * 0 + 1L
+  }
+  
+  # Harmonize season rasters
+  h_start <- if (isTRUE(config$use_season_rasters)) {
+    Rwapor::wapor_harmonize_raster(rasters$season_start, template_r, method = "near")
+  } else {
+    template_r * 0 + Rwapor::wapor_continuous_julian(period[1], ref_year)
+  }
+  
+  h_end <- if (isTRUE(config$use_season_rasters)) {
+    Rwapor::wapor_harmonize_raster(rasters$season_end, template_r, method = "near")
+  } else {
+    template_r * 0 + Rwapor::wapor_continuous_julian(period[2], ref_year)
+  }
+  
+  # 3. Build Weights
+  progress_callback(0.15, "Building season weights...")
+  sw <- Rwapor::wapor_build_season_weights(period[1], period[2], h_start, h_end, ref_year)
+  season_weights <- sw$weights
+  dekad_table    <- sw$dekad_table
+  target_dates   <- dekad_table$dekad_key
+  
+  # 4. Resolve and Load Stacks
+  progress_callback(0.20, "Building raster stacks...")
+  
+  # Helpers (internal to engine)
+  .resolve_paths <- function(var, use_local, folder, period, l3_code) {
+    if (is.null(var) || nchar(var) == 0) return(NULL)
+    if (use_local) {
+      paths <- wapor_local_rasters(folder, var, period[1], period[2])
+      if (length(paths) == 0) return(NULL)
+      paths
+    } else {
+      urls <- Rwapor::wapor_generate_urls(var, l3_region = l3_code, period = period)
+      if (length(urls) == 0) return(NULL)
+      paste0("/vsicurl/", urls)
+    }
+  }
+  
+  .load_and_harmonize <- function(var, paths, template, reg_info, method = "near") {
+    if (is.null(paths)) return(NULL)
+    stack <- terra::rast(paths)
+    src_names <- basename(terra::sources(stack))
+    if (length(src_names) == terra::nlyr(stack) && any(nzchar(src_names))) {
+      names(stack) <- src_names
+    }
+    if (!is.null(reg_info)) {
+      stack <- Rwapor::wapor_crop_to_region(stack, reg_info, do_mask = (reg_info$type == "vector"))
+    }
+    Rwapor::wapor_harmonize_raster(stack, template, method = method)
+  }
+  
+  # Align helper
+  .align_to_weights <- function(s, targets) {
+    if (is.null(s)) return(NULL)
+    candidate_labels <- names(s)
+    extract_ymd <- function(nm) {
+      m <- regmatches(nm, regexpr("\\d{4}-\\d{2}-\\d{2}", nm))
+      if (length(m)) return(m)
+      m <- regmatches(nm, regexpr("(?<![0-9])\\d{12}(?![0-9])", nm, perl = TRUE))
+      if (length(m)) return(paste(substr(m, 1, 4), substr(m, 5, 6), substr(m, 7, 8), sep = "-"))
+      m <- regmatches(nm, regexpr("(?<![0-9])\\d{8}(?![0-9])", nm, perl = TRUE))
+      if (length(m)) return(paste(substr(m, 1, 4), substr(m, 5, 6), substr(m, 7, 8), sep = "-"))
+      NA_character_
+    }
+
+    found <- vapply(candidate_labels, extract_ymd, character(1), USE.NAMES = FALSE)
+    if (all(is.na(found))) {
+      source_labels <- basename(terra::sources(s))
+      found <- vapply(source_labels, extract_ymd, character(1), USE.NAMES = FALSE)
+    }
+
+    idx <- match(as.character(targets), found)
+    if (any(is.na(idx))) stop("Missing data for some dekads in the analysis period.")
+    terra::subset(s, idx)
+  }
+
+  # Loading logic
+  stacks <- list()
+  if (any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators)) {
+    progress_callback(0.25, sprintf("Loading %s...", aeti_var %||% "AETI"))
+    p <- .resolve_paths(aeti_var, use_local, folder, period, l3_code)
+    stacks$aeti <- .align_to_weights(.load_and_harmonize(aeti_var, p, template_r, reg_info, "bilinear"), target_dates)
+  }
+  if (any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)) {
+    progress_callback(0.30, sprintf("Loading %s...", ret_var %||% "RET"))
+    p <- .resolve_paths(ret_var, use_local, folder, period, l3_code)
+    stacks$ret <- .align_to_weights(.load_and_harmonize(ret_var, p, template_r, reg_info), target_dates)
+  }
+  if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators)) {
+    progress_callback(0.35, sprintf("Loading %s...", precip_var %||% "PCP"))
+    p <- .resolve_paths(precip_var, use_local, folder, period, l3_code)
+    stacks$precip <- .align_to_weights(.load_and_harmonize(precip_var, p, template_r, reg_info), target_dates)
+  }
+  if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators)) {
+    progress_callback(0.40, sprintf("Loading %s...", npp_var %||% "NPP"))
+    p <- .resolve_paths(npp_var, use_local, folder, period, l3_code)
+    stacks$npp <- .align_to_weights(.load_and_harmonize(npp_var, p, template_r, reg_info), target_dates)
+  }
+  if (any(c("agg_t", "beneficial_fraction") %in% indicators)) {
+    progress_callback(0.42, sprintf("Loading %s...", t_var %||% "Transpiration"))
+    p <- .resolve_paths(t_var, use_local, folder, period, l3_code)
+    stacks$t <- .align_to_weights(.load_and_harmonize(t_var, p, template_r, reg_info, "bilinear"), target_dates)
+  }
+
+  # 5. Calculations
+  progress_callback(0.40, "Performing aggregations...")
+  
+  # Calculate mask stats (area-weighted means in dashboard depend on this)
+  progress_callback(0.45, "Calculating class statistics...")
+  mask_stats <- terra::freq(h_mask)
+  # terra::freq returns [layer, value, count]
+  names(mask_stats) <- c("layer", "class_value", "pixel_count")
+
+  # Per-pixel area: latitude-aware on lon/lat grids, constant on projected grids.
+  apply_area_weight <- if (is.null(config$area_weighted)) TRUE else isTRUE(config$area_weighted)
+  pixel_area_r <- if (apply_area_weight) wapor_pixel_area_ha(template_r) else NULL
+  if (apply_area_weight && !is.null(pixel_area_r)) {
+    area_by_class <- as.data.frame(terra::zonal(pixel_area_r, h_mask, fun = "sum", na.rm = TRUE))
+    names(area_by_class)[seq_len(min(2, ncol(area_by_class)))] <-
+      c("class_value", "area_ha")[seq_len(min(2, ncol(area_by_class)))]
+    mask_stats <- merge(mask_stats, area_by_class[, c("class_value", "area_ha"), drop = FALSE],
+                        by = "class_value", all.x = TRUE)
+  }
+
+  results <- list(
+    h_mask = h_mask,
+    h_start = h_start,
+    h_end = h_end,
+    template_r = template_r,
+    dekad_table = dekad_table,
+    mask_class_stats = mask_stats,
+    valid_crop_mask = terra::ifel(is.na(h_mask), NA, 1L),
+    pixel_area_ha = pixel_area_r
+  )
+  
+  # Multipliers
+  aeti_mult   <- if (!is.null(stacks$aeti))   get_analysis_layer_multipliers(aeti_var, dekad_table)   else NULL
+  ret_mult    <- if (!is.null(stacks$ret))    get_analysis_layer_multipliers(ret_var, dekad_table)    else NULL
+  precip_mult <- if (!is.null(stacks$precip)) get_analysis_layer_multipliers(precip_var, dekad_table) else NULL
+  npp_mult    <- if (!is.null(stacks$npp))    get_analysis_layer_multipliers(npp_var, dekad_table)    else NULL
+  t_mult      <- if (!is.null(stacks$t))      get_analysis_layer_multipliers(t_var, dekad_table)      else NULL
+
+  results$season_weights <- season_weights
+  results$dekadal_stacks <- Filter(
+    Negate(is.null),
+    list(
+      aeti = stacks$aeti,
+      ret = stacks$ret,
+      pcp = stacks$precip,
+      npp = stacks$npp,
+      t = stacks$t
+    )
+  )
+  results$layer_multipliers <- Filter(
+    Negate(is.null),
+    list(
+      aeti = aeti_mult,
+      ret = ret_mult,
+      pcp = precip_mult,
+      npp = npp_mult,
+      t = t_mult
+    )
+  )
+
+  if (!is.null(stacks$aeti)) {
+    results$monthly_aeti <- wapor_calc_monthly_weighted_rasters(
+      stacks$aeti,
+      season_weights,
+      dekad_table,
+      layer_multipliers = aeti_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "aeti_mean_mm"
+    )
+  }
+  if (!is.null(stacks$ret)) {
+    results$monthly_ret <- wapor_calc_monthly_weighted_rasters(
+      stacks$ret,
+      season_weights,
+      dekad_table,
+      layer_multipliers = ret_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "ret_mean_mm"
+    )
+  }
+  if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
+    results$monthly_precip_peff <- wapor_calc_monthly_precip_peff_rasters(
+      precip_stack = stacks$precip,
+      season_weights = season_weights,
+      dekad_table = dekad_table,
+      layer_multipliers = precip_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask
+    )
+  }
+  if (!is.null(stacks$t)) {
+    results$monthly_t <- wapor_calc_monthly_weighted_rasters(
+      stacks$t,
+      season_weights,
+      dekad_table,
+      layer_multipliers = t_mult,
+      incremental = use_incremental,
+      summary_mask = results$valid_crop_mask,
+      summary_value_name = "t_mean_mm"
+    )
+  }
+
+  # Aggregates
+  if (!is.null(stacks$aeti)) {
+    results$seasonal_aeti <- Rwapor::wapor_calc_seasonal_aeti(stacks$aeti, season_weights, h_mask, aeti_mult, incremental = use_incremental)
+  }
+  if (!is.null(stacks$ret)) {
+    results$seasonal_ret <- Rwapor::wapor_calc_seasonal_ret(stacks$ret, season_weights, h_mask, ret_mult, incremental = use_incremental)
+  }
+  if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
+    results$seasonal_pcp <- wapor_masked_sum(stacks$precip, season_weights, precip_mult, incremental = use_incremental)
+  }
+  if (any(c("agg_t", "beneficial_fraction") %in% indicators) && !is.null(stacks$t)) {
+    # T is a flux (mm/day), same as AETI
+    results$seasonal_t <- Rwapor::wapor_calc_seasonal_aeti(stacks$t, season_weights, h_mask, t_mult, incremental = use_incremental)
+  }
+  if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators) && !is.null(stacks$npp)) {
+    results$seasonal_biomass_kg <- wapor_masked_sum(stacks$npp, season_weights, npp_mult, incremental = use_incremental) * 22.222
+    results$seasonal_biomass_t  <- results$seasonal_biomass_kg / 1000
+    results$seasonal_biomass    <- results$seasonal_biomass_kg
+    results$seasonal_biomass_by_class <- terra::zonal(results$seasonal_biomass_kg, h_mask, fun = "mean", na.rm = TRUE)
+    names(results$seasonal_biomass_by_class) <- c("class_value", "mean_seasonal_biomass_kg")
+    results$seasonal_biomass_by_class$mean_seasonal_biomass_t <-
+      results$seasonal_biomass_by_class$mean_seasonal_biomass_kg / 1000
+    results$seasonal_biomass_by_class$mean_seasonal_biomass <-
+      results$seasonal_biomass_by_class$mean_seasonal_biomass_kg
+  }
+
+  # 5. Derived Indicators
+  progress_callback(0.60, "Computing derived indicators...")
+
+  # ETc
+  if ("etc" %in% indicators || "adequacy_etc" %in% indicators) {
+    if (is.null(stacks$ret)) stop("RET stack is required for ETc/Adequacy.")
+    
+    profile_table <- wapor_build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
+    if (nrow(profile_table) > 0) {
+      # This is the complex logic from mod_analysis.R
+      # For now, I'll implement the per-profile ETc calculation
+      
+      kc_profiles <- list()
+      profile_table$kc_key <- NA_character_
+      for (i in seq_len(nrow(profile_table))) {
+        profile_row <- profile_table[i, ]
+        cp <- crop_params[crop_params$class_value == profile_row$class_value, , drop = FALSE]
+        if (nrow(cp) == 0) next
+
+        fixed_sum <- cp$l_ini_days + cp$l_mid_days + cp$l_late_days
+        l_dev     <- as.integer(profile_row$total_days - fixed_sum)
+        if (l_dev < 0L) l_dev <- 0L
+
+        kc_daily <- Rwapor::wapor_build_kc(
+          kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
+          l_ini = cp$l_ini_days[1], l_dev = l_dev, l_mid = cp$l_mid_days[1], l_late = cp$l_late_days[1]
+        )
+        season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + profile_row$start_jd - 1L
+        kc_dekad <- Rwapor::wapor_aggregate_kc(kc_daily, dekad_table, season_start_date)
+        kc_key   <- paste(round(kc_dekad, 6), collapse = ",")
+        profile_table$kc_key[i] <- kc_key
+        if (is.null(kc_profiles[[kc_key]])) kc_profiles[[kc_key]] <- kc_dekad
+      }
+
+      unique_etc_rasters <- list()
+      for (key in names(kc_profiles)) {
+        unique_etc_rasters[[key]] <- Rwapor::wapor_calc_seasonal_etc(stacks$ret, season_weights, kc_profiles[[key]], layer_multipliers = ret_mult)
+      }
+
+      etc_by_class <- list()
+      for (j in seq_len(nrow(crop_params))) {
+        cls <- as.character(crop_params$class_value[j])
+        class_profiles <- profile_table[profile_table$class_value == as.integer(cls), , drop = FALSE]
+        if (nrow(class_profiles) == 0) next
+
+        class_etc <- NULL
+        for (i in seq_len(nrow(class_profiles))) {
+          key <- class_profiles$kc_key[i]
+          profile_mask <- terra::ifel((h_mask == as.integer(cls)) & (h_start == class_profiles$start_jd[i]) & (h_end == class_profiles$end_jd[i]), 1L, NA)
+          profile_etc  <- unique_etc_rasters[[key]] * profile_mask
+          class_etc    <- if (is.null(class_etc)) profile_etc else terra::cover(class_etc, profile_etc)
+        }
+        etc_by_class[[cls]] <- list(etc_seasonal = class_etc)
+      }
+      results$etc_by_class <- etc_by_class
+
+      layer_dates <- if ("dekad_start" %in% names(dekad_table)) {
+        as.Date(dekad_table$dekad_start)
+      } else {
+        as.Date(dekad_table$dekad_key)
+      }
+      month_keys <- format(layer_dates, "%Y-%m")
+      month_order <- unique(month_keys)
+      monthly_etc <- stats::setNames(vector("list", length(month_order)), month_order)
+
+      for (j in seq_len(nrow(crop_params))) {
+        cls <- as.character(crop_params$class_value[j])
+        class_profiles <- profile_table[profile_table$class_value == as.integer(cls), , drop = FALSE]
+        if (nrow(class_profiles) == 0) next
+
+        for (i in seq_len(nrow(class_profiles))) {
+          key <- class_profiles$kc_key[i]
+          profile_mask <- terra::ifel(
+            (h_mask == as.integer(cls)) &
+              (h_start == class_profiles$start_jd[i]) &
+              (h_end == class_profiles$end_jd[i]),
+            1L,
+            NA
+          )
+
+          for (month_key in month_order) {
+            idx <- which(month_keys == month_key)
+            profile_month_etc <- wapor_masked_sum(
+              terra::subset(stacks$ret, idx),
+              terra::subset(season_weights, idx),
+              layer_multipliers = ret_mult[idx] * kc_profiles[[key]][idx],
+              incremental = use_incremental
+            )
+            profile_month_etc <- profile_month_etc * profile_mask
+            monthly_etc[[month_key]] <- if (is.null(monthly_etc[[month_key]])) {
+              profile_month_etc
+            } else {
+              terra::cover(monthly_etc[[month_key]], profile_month_etc)
+            }
+          }
+        }
+      }
+
+      monthly_etc_summary <- data.frame(
+        month_key = names(monthly_etc),
+        year = as.integer(substr(names(monthly_etc), 1, 4)),
+        month = as.integer(substr(names(monthly_etc), 6, 7)),
+        stringsAsFactors = FALSE
+      )
+      monthly_etc_summary$etc_mean_mm <- vapply(
+        monthly_etc,
+        function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+        numeric(1)
+      )
+      results$monthly_etc <- list(rasters = monthly_etc, summary = monthly_etc_summary)
+    }
+  }
+
+  # Adequacy ETc
+  if ("adequacy_etc" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(results$etc_by_class)) {
+    all_etc <- lapply(results$etc_by_class, function(x) x$etc_seasonal)
+    if (length(all_etc) > 0) {
+      combined_etc <- all_etc[[1]]
+      if (length(all_etc) > 1) {
+        for (k in seq_along(all_etc)[-1]) combined_etc <- terra::cover(combined_etc, all_etc[[k]])
+      }
+      results$adequacy_etc <- Rwapor::wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
+    }
+  }
+
+  # Adequacy P95
+  if ("adequacy_p95" %in% indicators && !is.null(results$seasonal_aeti)) {
+    p95_table <- Rwapor::wapor_calc_p95_aeti(results$seasonal_aeti$raster, h_mask)
+    results$p95_table <- p95_table
+    results$adequacy_p95 <- Rwapor::wapor_calc_adequacy_p95(results$seasonal_aeti$raster, h_mask, p95_table)
+  }
+
+  # Beneficial Fraction (T/AETI)
+  if ("beneficial_fraction" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(results$seasonal_t)) {
+    results$beneficial_fraction <- Rwapor::wapor_calc_beneficial_fraction(results$seasonal_t$raster, results$seasonal_aeti$raster)
+  }
+
+  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
+    month_keys <- intersect(names(results$monthly_aeti$rasters), names(results$monthly_precip_peff$monthly_peff))
+    monthly_green <- list()
+    monthly_blue <- list()
+
+    for (month_key in month_keys) {
+      monthly_green[[month_key]] <- Rwapor::wapor_calc_green_water(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_peff[[month_key]]
+      )
+      monthly_blue[[month_key]] <- Rwapor::wapor_calc_blue_water(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_peff[[month_key]]
+      )
+    }
+
+    monthly_green_summary <- data.frame(
+      month_key = names(monthly_green),
+      year = as.integer(substr(names(monthly_green), 1, 4)),
+      month = as.integer(substr(names(monthly_green), 6, 7)),
+      stringsAsFactors = FALSE
+    )
+    monthly_blue_summary <- data.frame(
+      month_key = names(monthly_blue),
+      year = as.integer(substr(names(monthly_blue), 1, 4)),
+      month = as.integer(substr(names(monthly_blue), 6, 7)),
+      stringsAsFactors = FALSE
+    )
+    monthly_green_summary$green_mean_mm <- vapply(
+      monthly_green,
+      function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+      numeric(1)
+    )
+    monthly_blue_summary$blue_mean_mm <- vapply(
+      monthly_blue,
+      function(r) wapor_masked_global_mean(r, results$valid_crop_mask),
+      numeric(1)
+    )
+
+    results$monthly_green_water <- list(rasters = monthly_green, summary = monthly_green_summary)
+    results$monthly_blue_water <- list(rasters = monthly_blue, summary = monthly_blue_summary)
+  }
+
+  # Peff (simplified seasonal estimate)
+  if (any(c("agg_peff", "green_water", "blue_water") %in% indicators) && !is.null(stacks$precip)) {
+     if (!is.null(results$monthly_precip_peff)) {
+       results$seasonal_peff <- results$monthly_precip_peff$seasonal_peff
+     } else {
+       results$seasonal_peff <- wapor_calc_seasonal_peff_raster(
+         stacks$precip,
+         season_weights,
+         dekad_table,
+         layer_multipliers = precip_mult,
+         incremental = use_incremental
+       )
+     }
+  }
+
+  # Green/Blue Water
+  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$seasonal_aeti) && !is.null(stacks$precip)) {
+     if (is.null(results$seasonal_peff)) {
+       if (!is.null(results$monthly_precip_peff)) {
+         results$seasonal_peff <- results$monthly_precip_peff$seasonal_peff
+       } else {
+         results$seasonal_peff <- wapor_calc_seasonal_peff_raster(
+           stacks$precip,
+           season_weights,
+           dekad_table,
+           layer_multipliers = precip_mult,
+           incremental = use_incremental
+         )
+       }
+     }
+     if ("green_water" %in% indicators) results$green_water <- Rwapor::wapor_calc_green_water(results$seasonal_aeti$raster, results$seasonal_peff)
+     if ("blue_water" %in% indicators)  results$blue_water <- Rwapor::wapor_calc_blue_water(results$seasonal_aeti$raster, results$seasonal_peff)
+  }
+
+  # Yield and CWP/BWP...
+  if (any(c("yield_npp", "cwp_bwp") %in% indicators) && !is.null(results$seasonal_biomass)) {
+     yield_layers <- list()
+     for (j in seq_len(nrow(crop_params))) {
+       cls <- as.character(crop_params$class_value[j])
+       cp <- crop_params[j, ]
+       class_mask <- terra::ifel(h_mask == as.integer(cls), 1L, NA)
+       yield_rast <- Rwapor::wapor_calc_yield_npp(
+         npp_gc_m2 = results$seasonal_biomass_kg / 22.222,
+         mc = cp$MC,
+         fc = cp$fc,
+         aot = cp$AOT,
+         hi = cp$HI
+       )
+       yield_layers[[cls]] <- yield_rast * class_mask
+     }
+     results$yield_by_class <- yield_layers
+     all_yield <- lapply(yield_layers, identity)
+     combined_yield <- all_yield[[1]]
+     if (length(all_yield) > 1) {
+       for (k in 2:length(all_yield)) {
+         combined_yield <- terra::cover(combined_yield, all_yield[[k]])
+       }
+     }
+     results$yield_raster <- combined_yield
+  }
+
+  if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
+     if (!is.null(results$yield_raster)) {
+       cwp_raster <- Rwapor::wapor_calc_cwp(results$yield_raster, results$seasonal_aeti$raster, yield_unit = "t/ha")
+       results$cwp <- wapor_masked_global_mean(cwp_raster, results$valid_crop_mask, area = pixel_area_r)
+     }
+     if (!is.null(results$seasonal_biomass_t)) {
+       bwp_raster <- Rwapor::wapor_calc_bwp(results$seasonal_biomass_t, results$seasonal_aeti$raster, biomass_unit = "t/ha")
+       results$bwp <- wapor_masked_global_mean(bwp_raster, results$valid_crop_mask, area = pixel_area_r)
+     }
+  }
+
+  # Ensure all indicator rasters honor the active crop mask before export/plotting.
+  .mask_result_raster <- function(r) {
+    if (is.null(r) || !inherits(r, "SpatRaster")) return(r)
+    terra::mask(r, results$valid_crop_mask)
+  }
+
+  .mask_monthly_series <- function(series) {
+    if (is.null(series) || is.null(series$rasters) || !is.list(series$rasters)) return(series)
+    series$rasters <- lapply(series$rasters, .mask_result_raster)
+    series
+  }
+
+  if (!is.null(results$seasonal_aeti) && !is.null(results$seasonal_aeti$raster)) {
+    results$seasonal_aeti$raster <- .mask_result_raster(results$seasonal_aeti$raster)
+  }
+  if (!is.null(results$seasonal_ret) && !is.null(results$seasonal_ret$raster)) {
+    results$seasonal_ret$raster <- .mask_result_raster(results$seasonal_ret$raster)
+  }
+  if (!is.null(results$seasonal_t) && !is.null(results$seasonal_t$raster)) {
+    results$seasonal_t$raster <- .mask_result_raster(results$seasonal_t$raster)
+  }
+
+  results$seasonal_pcp <- .mask_result_raster(results$seasonal_pcp)
+  results$seasonal_peff <- .mask_result_raster(results$seasonal_peff)
+  results$beneficial_fraction <- .mask_result_raster(results$beneficial_fraction)
+  results$green_water <- .mask_result_raster(results$green_water)
+  results$blue_water <- .mask_result_raster(results$blue_water)
+  results$adequacy_etc <- .mask_result_raster(results$adequacy_etc)
+  results$adequacy_p95 <- .mask_result_raster(results$adequacy_p95)
+  results$seasonal_biomass_kg <- .mask_result_raster(results$seasonal_biomass_kg)
+  results$seasonal_biomass_t <- .mask_result_raster(results$seasonal_biomass_t)
+  results$seasonal_biomass <- .mask_result_raster(results$seasonal_biomass)
+  results$yield_raster <- .mask_result_raster(results$yield_raster)
+
+  if (!is.null(results$etc_by_class) && is.list(results$etc_by_class)) {
+    for (cls in names(results$etc_by_class)) {
+      if (!is.null(results$etc_by_class[[cls]]$etc_seasonal)) {
+        results$etc_by_class[[cls]]$etc_seasonal <- .mask_result_raster(results$etc_by_class[[cls]]$etc_seasonal)
+      }
+    }
+  }
+
+  results$monthly_aeti <- .mask_monthly_series(results$monthly_aeti)
+  results$monthly_ret <- .mask_monthly_series(results$monthly_ret)
+  results$monthly_t <- .mask_monthly_series(results$monthly_t)
+  results$monthly_etc <- .mask_monthly_series(results$monthly_etc)
+  results$monthly_green_water <- .mask_monthly_series(results$monthly_green_water)
+  results$monthly_blue_water <- .mask_monthly_series(results$monthly_blue_water)
+
+  if (!is.null(results$monthly_precip_peff)) {
+    if (!is.null(results$monthly_precip_peff$monthly_pcp)) {
+      results$monthly_precip_peff$monthly_pcp <- lapply(results$monthly_precip_peff$monthly_pcp, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$monthly_peff)) {
+      results$monthly_precip_peff$monthly_peff <- lapply(results$monthly_precip_peff$monthly_peff, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$rasters$pcp)) {
+      results$monthly_precip_peff$rasters$pcp <- lapply(results$monthly_precip_peff$rasters$pcp, .mask_result_raster)
+    }
+    if (!is.null(results$monthly_precip_peff$rasters$peff)) {
+      results$monthly_precip_peff$rasters$peff <- lapply(results$monthly_precip_peff$rasters$peff, .mask_result_raster)
+    }
+    results$monthly_precip_peff$seasonal_peff <- .mask_result_raster(results$monthly_precip_peff$seasonal_peff)
+  }
+
+  extra_steps <- setdiff(indicators, .wapor_builtin_indicator_steps())
+  extra_steps <- intersect(extra_steps, wapor_list_indicator_steps())
+  if (length(extra_steps)) {
+    progress_callback(0.92, "Running registered extra indicator steps...")
+    ctx <- new.env(parent = emptyenv())
+    ctx$indicators <- indicators
+    ctx$results <- results
+    ctx$progress_callback <- progress_callback
+    ctx$stacks <- stacks
+    ctx$h_mask <- h_mask
+    ctx$h_start <- h_start
+    ctx$h_end <- h_end
+    ctx$crop_params <- crop_params
+    ctx$season_weights <- season_weights
+    ctx$dekad_table <- dekad_table
+    ctx$ref_year <- ref_year
+    ctx$use_incremental <- use_incremental
+    ctx$aeti_mult <- aeti_mult
+    ctx$ret_mult <- ret_mult
+    ctx$pcp_mult <- precip_mult
+    ctx$npp_mult <- npp_mult
+    ctx$t_mult <- t_mult
+    wapor_run_indicator_steps(ctx, skip = .wapor_builtin_indicator_steps())
+    results <- ctx$results
+  }
+
+  # 6. Cleanup & Return
+  progress_callback(0.95, "Finalizing...")
+  results$crop_params <- crop_params
+  return(results)
+}

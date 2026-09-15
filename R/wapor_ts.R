@@ -1,231 +1,526 @@
-#' Download a Time Series
+#' Extract Time Series with Zonal Statistics
 #'
-#' @param region Region definition
-#' @param variable Variable name
-#' @param period Date range
-#' @param identifier Column name in vector file to identify polygons (optional)
-#' @param unit_conversion Target unit conversion
-#' @param download_locally If TRUE, download files using parallel processing before reading
-#' @return DataFrame with zonal statistics
-#' @importFrom terra rast crop extract
+#' Downloads WaPOR or AgERA5 raster data and extracts time series of zonal
+#' statistics (mean, min, max) for specified polygons or regions.
+#'
+#' @param region Region definition. One of:
+#'   * Path to a vector file (shapefile, GeoJSON, GeoPackage) containing polygons
+#'   * L3 region code (3 uppercase letters, e.g., "AWA")
+#'   * Numeric bounding box: `c(xmin, ymin, xmax, ymax)` in WGS84
+#' @param variable Character. Variable name following WaPOR/AgERA5 naming
+#'   convention (e.g., "L1-AETI-D", "L2-NPP-M", "AGERA5-ET0-E").
+#' @param period Character vector or list. Date range as
+#'   `c(start_date, end_date)` in "YYYY-MM-DD" format. Can also be a
+#'   named or unnamed list of such vectors for multiple seasons.
+#' @param identifier Character. Optional column name in vector file to identify
+#'   polygons in output. If NULL, numeric IDs are used.
+#' @param unit_conversion Character. Public unit-conversion mode.
+#'   One of: `"unit_conversion"` or `"none"`.
+#'   Default is `NULL`, which dynamically matches the variable behavior:
+#'   * Dekadal daily-rate products are returned as dekadal totals
+#'   * Monthly products remain monthly totals
+#'   * `"none"` preserves raw API values without temporal conversion
+#' @param seasonal Logical. If `TRUE`, calculates a single seasonal aggregate
+#'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
+#' @param download_locally Logical. Deprecated and ignored. Data are streamed
+#'   with `/vsicurl/`. Kept for backward compatibility.
+#' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing
+#'   within or across batches. Default is `FALSE`.
+#' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
+#'   If `FALSE`, loads all layers at once.
+#' @param batch_size Integer. Number of remote raster layers loaded and processed
+#'   per batch. Lower values reduce peak memory usage for long time series.
+#'   Default is `12L` (~4 months of dekadal data).
+#' @param l3_region Character. Optional L3 region code to use when `variable`
+#'   is an L3 product and `region` is a spatial AOI. This keeps polygon/bbox
+#'   extraction against the supplied AOI while constraining source rasters to
+#'   the selected L3 mosaic.
+#' @param l3_mode L3 coverage policy. `"select"` requires one selected region
+#'   for a multi-L3 AOI; `"mosaic_all"` extracts every intersecting L3 source.
+#' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
+#'   and recorded. Default `FALSE` fails the request.
+#'
+#' @return A data.frame with columns:
+#'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
+#'   * `start_date`, `end_date`: Date range for each time step
+#'   * `number_of_days`: Number of days in the time step
+#'   * `ID` or custom identifier: Polygon identifier
+#'   * `layer_index`: Index of the raster layer
+#'
+#'   The data.frame also has attributes:
+#'   * `units`: The unit of measurement (possibly converted)
+#'   * `long_name`: Full variable name
+#'   * `original_units`: Original units before conversion (if converted)
+#'
+#' @details
+#' The function uses `exactextractr::exact_extract()` for accurate zonal
+#' statistics that properly handle partial pixel coverage at polygon boundaries.
+#'
+#' @export
+#'
+#' @importFrom terra rast crop extract global nlyr vect
 #' @importFrom dplyr bind_rows mutate group_by summarize left_join
 #' @importFrom purrr map_dfr
-#' @importFrom sf st_drop_geometry
-#' @export
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = "none", download_locally = FALSE) {
-  
-  # Parse region
-  reg_info <- parse_region(region)
-  l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
-  
-  # Get URLs
-  urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)
-  if (length(urls) == 0) stop("No data found.")
-  
-  # Download locally if requested
-  if (download_locally) {
-      # Use a robust temp cache
-      temp_dl_folder <- file.path(tempdir(), "rwapor_cache")
-      message("Downloading files locally for processing (Parallel) to: ", temp_dl_folder)
-      urls <- download_urls_parallel(urls, temp_dl_folder)
+#' @importFrom sf st_drop_geometry st_crs st_transform st_as_sf
+#' @importFrom exactextractr exact_extract
+#' @importFrom future.apply future_lapply
+#' @importFrom utils tail
+#'
+#' @examples
+#' \dontrun{
+#' # Extract time series for a bounding box
+#' # For dekadal variables, defaults to mm/dekad behavior
+#' df <- wapor_ts(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-03-31")
+#' )
+#'
+#' # Preserve raw API values without temporal conversion
+#' df <- wapor_ts(
+#'   region = "fields.geojson",
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-12-31"),
+#'   identifier = "field_name",
+#'   unit_conversion = "none"
+#' )
+#'
+#' # Parallel extraction for memory efficiency
+#' library(future)
+#' plan(multisession)
+#' df <- wapor_ts(
+#'   region = c(35.0, 33.0, 36.0, 34.0),
+#'   variable = "L1-AETI-D",
+#'   period = c("2023-01-01", "2023-12-31"),
+#'   parallel = TRUE,
+#'   batching = TRUE,
+#'   batch_size = 3
+#' )
+#'
+#' # Check units
+#' attr(df, "units")
+#' attr(df, "long_name")
+#' }
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE) {
+  l3_mode <- match.arg(l3_mode)
+  # Input validation
+  if (!is.character(variable) || length(variable) != 1) {
+    stop("'variable' must be a single character string", call. = FALSE)
   }
-  
-  message(sprintf("Found %d files. Processing...", length(urls)))
-  
-  # Helper to process in chunks if needed, but for now load all.
-  # If remote URLs, terra::rast might be lazy which is good.
-  r <- terra::rast(urls)
-  
-  # Crop if needed
-  vect <- NULL
-  if (reg_info$type == "vector") {
-    vect <- reg_info$value
-    if (sf::st_crs(vect)$epsg != 4326) vect <- sf::st_transform(vect, 4326)
-    v <- terra::vect(vect)
-    r <- terra::crop(r, v)
-    # Masking is expensive for TS extraction depending on extract method.
-    # exact_extract is faster. Here we use terra::extract.
-  } else if (reg_info$type == "bbox") {
-    ext <- terra::ext(reg_info$value[c("xmin", "xmax", "ymin", "ymax")])
-    r <- terra::crop(r, ext)
+  if (!is.list(period) && (!is.character(period) || length(period) != 2)) {
+    stop("'period' must be a character vector of length 2 or a list of such vectors", call. = FALSE)
   }
-  
-  # Extract
-  # We want mean, min, max per polygon/region
-  # If region is bbox or l3_code (no polygons), it's one big region.
-  
-  stats <- list()
-  
-  if (!is.null(vect)) {
-    # Zonal stats
-    # use terra::extract
-    # small optimization: exact_extractr is better for polygons but strict dependency?
-    # Let's stick to terra.
-    
-    # We also need to apply scaling factor?
-    # WaPOR rasters are usually Int32 with scale factor.
-    # terra applies scale/offset automatically if in metadata.
-    
-    vals <- terra::extract(r, v, fun = NULL, na.rm = TRUE) # Get raw values to calc multiple stats?
-    # Or separate calls? separate calls is slow.
-    # terra::extract with fun=mean returns mean.
-    
-    # Better: extract returns a DF with ID and values.
-    # With many layers, it's (ID, lyr1, lyr2, ...)
-    # For large time series, this might be wide.
-    
-    # Actually, we can pass a function to extract that returns multiple valid
-    # e.g. fun=function(x) c(mean=mean(x, na.rm=T), min=min(x, na.rm=T), max=max(x, na.rm=T))
-    
-    msg_extract <- capture.output(
-      ex <- terra::extract(r, v, fun = function(x) c(mean = mean(x, na.rm=TRUE), 
-                                                     min = min(x, na.rm=TRUE), 
-                                                     max = max(x, na.rm=TRUE)))
+  if (!is.logical(download_locally) || length(download_locally) != 1) {
+    stop("'download_locally' must be a single logical value", call. = FALSE)
+  }
+  if (isTRUE(download_locally)) {
+    .Deprecated(
+      msg = paste0(
+        "'download_locally' is deprecated and will be removed in a future release. ",
+        "Data are always streamed via /vsicurl/ and this argument has no effect."
+      )
     )
-    
-    # ex structure: ID, lyr1.mean, lyr1.min, lyr1.max, lyr2.mean ...
-    # We need to reshape this.
-    
-  } else {
-    # global stats for the whole raster (cropped)
-    # terra::global
-    ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
-    # ex structure: mean, min, max rows per layer?
-    # terra::global returns rows = layers, cols = stats provided.
-    ex$ID <- 1
-    # We match the structure of extract somewhat?
-    # output of global:
-    #      mean       min       max
-    # lyr1  ...       ...       ...
-    # lyr2  ...       ...       ...
-    
-    # We need to convert this to long format with dates.
+  }
+  if (!is.logical(batching) || length(batching) != 1) {
+    stop("'batching' must be a single logical value", call. = FALSE)
+  }
+  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
+    stop("'batch_size' must be a positive integer", call. = FALSE)
+  }
+  batch_size <- as.integer(batch_size)
+  if (!is.null(l3_region)) {
+    if (!is.character(l3_region) || length(l3_region) != 1 ||
+        !nzchar(l3_region) || !grepl("^[A-Z]{3}$", l3_region)) {
+      stop("'l3_region' must be a single 3-letter L3 region code.", call. = FALSE)
+    }
   }
   
-  # Post-processing to creating the DataFrame
-  # We need to map Layer Index -> Date/Url -> Date Info
+  resolved_unit_conversion <- resolve_output_unit_conversion(variable, unit_conversion)
+  if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
+      identical(resolved_unit_conversion, "dekad")) {
+    message("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
+  }
   
-  parts <- strsplit(variable, "-")[[1]]
-  tres <- tail(parts, 1)
-  
-  # Gather metadata for all layers
-  meta_list <- lapply(urls, function(u) get_date_info(u, tres))
-  # Create a lookup DF
-  meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
-  meta_df$layer_index <- 1:nrow(meta_df)
-  # row.names(ex) usually matches layer names.
-  
-  results <- list()
-  
-  if (is.null(vect)) {
-    # Global stats
-    # ex has rows corresponding to layers
-    df_res <- cbind(meta_df, ex)
-    # ex cols: mean, min, max
-    # We assume simple single region
-    df_res$region_id <- 1
-    results[[1]] <- df_res
-  } else {
-    # Zonal stats result `ex` is wide: ID, lyr1.mean, ...
-    # This is painful to reshape if many layers.
-    
-    # Alternative approach: iterate over layers?
-    # No, extract is efficient for all layers.
-    
-    # Reshaping:
-    # ID | lyr1.mean | lyr1.min | ...
-    
-    # Let's pivot longer?
-    # tidyr::pivot_longer
-    
-    # But names are messy.
-    # terra names layers usually by filename or default.
-    # Let's rely on column order if we sort it?
-    # Or we can rely on `names(r)`.
-    
-    # Robust Zonal stats using exactextractr
-    # This handles small polygons correctly by using fractional coverage
-    
-    # Make sure r names are consistent
-    names(r) <- paste0("L", 1:terra::nlyr(r))
-    
-    # exact_extract returns a dataframe with one row per feature
-    # Cols: <layer_name>.<stat>
-    ex <- exactextractr::exact_extract(r, sf::st_as_sf(v), c("mean", "min", "max"), progress = FALSE)
-    
-    # Add ID column to match previous logic (row index as ID)
-    ex$ID <- 1:nrow(ex)
-    
-    # ex columns: mean.L1, min.L1, max.L1 ... OR L1.mean if logic differs?
-    # exact_extract naming convention: <stat>.<layer> usually if multiple layers?
-    # Actually for named layers it seems to be <layer_name>.<stat> in recent versions or <stat>.<layer_name>
-    # Let's check documentation or assume standard behavior. 
-    # Usually it is <layer_name>.<stat> if stacks are named.
-    # However, exact_extract might output `mean.L1`, `min.L1`.
-    
-    # Let's standardize names to sure. 
-    # If standard output is `mean.L1`, `min.L1`, `max.L1`
-    
-    n_poly <- nrow(v)
-    n_lyr <- terra::nlyr(r)
-    
-    # Extract IDs
-    ids <- if (!is.null(identifier)) vect[[identifier]] else 1:n_poly
-    
-    out_list <- list()
-    
-    for (i in 1:n_lyr) {
-      lyr_name <- paste0("L", i)
-      # Check likely column names
-      # exact_extract typically: <stat>.<layer>
-      col_mean <- paste0("mean.", lyr_name)
-      col_min <- paste0("min.", lyr_name)
-      col_max <- paste0("max.", lyr_name)
-      
-      # Fallback if names are reversed (some versions do <layer>.<stat>)
-      if (!col_mean %in% names(ex) && paste0(lyr_name, ".mean") %in% names(ex)) {
-          col_mean <- paste0(lyr_name, ".mean")
-          col_min <- paste0(lyr_name, ".min")
-          col_max <- paste0(lyr_name, ".max")
+  # Inform user about automatic temperature conversion
+  if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
+    message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
+  }
+
+  # Parse region
+  reg_info <- wapor_parse_region(region)
+  l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
+
+  if (grepl("^L3-", variable)) {
+    if (is.null(l3_code)) {
+      selected_codes <- wapor_resolve_l3_selection(
+        wapor_guess_region(variable, reg_info, period), l3_region, l3_mode
+      )
+      if (length(selected_codes) != 1L) {
+        return(wapor_ts_mosaic_all(
+          region = region, variable = variable, period = period,
+          identifier = identifier, unit_conversion = unit_conversion,
+          seasonal = seasonal, download_locally = download_locally,
+          parallel = parallel, batching = batching, batch_size = batch_size,
+          partial = partial
+        ))
       }
-      
-      cols <- c(col_mean, col_min, col_max)
-      
-      sub_df <- ex[, cols, drop = FALSE]
-      colnames(sub_df) <- c("mean", "min", "max")
-      
-      sub_df$ID <- ids[ex$ID] # map ID correctly? ex$ID usually 1..N
-      if (!is.null(identifier)) {
-          # if identifer is provided, we map internal ID (1..N) to that identifier
-          sub_df[[identifier]] <- ids[ex$ID]
-      }
-      
-      # Add metadata
-      m <- meta_df[i, ]
-      # Replicate metadata for each polygon
-      m_rep <- m[rep(1, nrow(sub_df)), ]
-      
-      combined <- cbind(sub_df, m_rep)
-      out_list[[i]] <- combined
+      l3_code <- selected_codes
+    }
+  }
+
+  # --- Seasonal mode ---
+  if (seasonal) {
+    if (!is.null(unit_conversion) && unit_conversion != "none") {
+      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
     
-    results <- do.call(rbind, out_list)
+    # Handle list of periods for seasonal extraction
+    if (is.list(period)) {
+      multi_ts_results <- list()
+      for (i in seq_along(period)) {
+        p <- period[[i]]
+        s_name <- names(period)[i]
+        if (is.null(s_name) || s_name == "") {
+           s_name <- paste0(p[1], "_", p[2])
+        }
+        
+        log_msg(sprintf("Extracting seasonal TS for window %d/%d: %s", i, length(period), s_name))
+        # Recursive call for each window
+        window_res <- wapor_ts(
+          region = region,
+          variable = variable,
+          period = p,
+          identifier = identifier,
+          unit_conversion = "none",
+          seasonal = TRUE,
+          parallel = parallel,
+          batching = batching,
+          batch_size = batch_size,
+          l3_region = l3_region
+        )
+        if (!is.null(window_res)) {
+          window_res$season_name <- s_name
+          multi_ts_results[[s_name]] <- window_res
+        }
+      }
+      
+      if (length(multi_ts_results) == 0) return(NULL)
+      
+      final_multi_df <- do.call(rbind, multi_ts_results)
+      # Re-apply attributes from first valid result
+      first_res <- multi_ts_results[[1]]
+      attr(final_multi_df, "units") <- attr(first_res, "units")
+      attr(final_multi_df, "long_name") <- attr(first_res, "long_name")
+      attr(final_multi_df, "aggregation_rule") <- attr(first_res, "aggregation_rule")
+      
+      return(final_multi_df)
+    }
+
+    aggregation_rule <- get_seasonal_aggregation_rule(variable)
+
+    # Prepare region geometry for zonal stats
+    vect_data <- NULL
+    if (reg_info$type == "vector") {
+      vect_data <- reg_info$value
+      vect_crs <- sf::st_crs(vect_data)
+      if (!is.na(vect_crs) && vect_crs$epsg != 4326) {
+        vect_data <- sf::st_transform(vect_data, 4326)
+      }
+    }
+
+    # Determine number of zones
+    if (!is.null(vect_data)) {
+      n_zones <- nrow(vect_data)
+      zone_ids <- if (!is.null(identifier) && identifier %in% names(vect_data)) {
+        sf::st_drop_geometry(vect_data)[[identifier]]
+      } else {
+        seq_len(n_zones)
+      }
+    } else {
+      n_zones <- 1L
+      zone_ids <- 1L
+    }
+
+    # Call helper. Use tempdir for intermediate raster download.
+    temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
+    if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
+    
+    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder, partial = partial)
+    
+    groups <- seasonal_data$groups
+    plan <- seasonal_data$plan
+    aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+    
+    # Accumulate seasonal contributions and, when needed, mean denominators.
+    sum_values <- rep(0, n_zones)
+    total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
+    
+    for (g_name in names(groups)) {
+      g <- groups[[g_name]]
+      r_group <- g$raster
+      multipliers <- g$multipliers
+      n_lyr_group <- terra::nlyr(r_group)
+      
+      # Process entire group stack at once for better performance
+      # This avoids redundant polygon-raster intersection overhead in exact_extract
+      if (!is.null(vect_data)) {
+        # exact_extract returns a data.frame with one column per layer
+        group_means_df <- suppressWarnings(exactextractr::exact_extract(
+          r_group, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+        ))
+        # Convert to matrix for fast weighted sum
+        group_means_mat <- as.matrix(group_means_df)
+        group_means_mat[is.na(group_means_mat)] <- 0
+
+        sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
+
+        if (!is.null(total_weights)) {
+          # For weighted_mean, we need the sum of weights where data exists
+          # We check which layers are NOT NA.
+          # Note: exact_extract doesn't directly support weighted coverage sum for multiple layers
+          # so we process !is.na(stack)
+          not_na_stack <- !is.na(r_group)
+          coverage_df <- suppressWarnings(exactextractr::exact_extract(
+            not_na_stack, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
+          ))
+          coverage_mat <- as.matrix(coverage_df)
+          coverage_mat[is.na(coverage_mat)] <- 0
+          total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
+        }
+      } else {
+        # Global stats for bbox/L3
+        group_stats <- terra::global(r_group, fun = "mean", na.rm = TRUE)
+        group_means <- group_stats$mean
+        group_means[is.na(group_means)] <- 0
+
+        sum_values <- sum_values + sum(group_means * multipliers)
+
+        if (!is.null(total_weights)) {
+          # For global, if mean is not NA, the whole layer is considered valid for the bbox
+          has_data <- !is.na(group_stats$mean)
+          total_weights <- total_weights + sum(ifelse(has_data, multipliers, 0))
+        }
+      }
+    }
+
+    seasonal_values <- if (is.null(total_weights)) {
+      sum_values
+    } else {
+      ifelse(total_weights > 0, sum_values / total_weights, NA_real_)
+    }
+    value_name <- if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean" else "seasonal_sum"
+    
+    # Build result data.frame
+    result_df <- data.frame(
+      start_date = period[1],
+      end_date = period[2],
+      n_rasters = nrow(plan),
+      ID = zone_ids,
+      stringsAsFactors = FALSE
+    )
+    result_df[[value_name]] <- seasonal_values
+    
+    # Add custom identifier column if specified
+    if (!is.null(identifier) && !is.null(vect_data) && identifier %in% names(vect_data)) {
+      result_df[[identifier]] <- zone_ids
+    }
+
+    # Determine final units from seasonal aggregation semantics.
+    source_var_meta <- wapor_variable_metadata(variable)
+    if (!is.null(source_var_meta)) {
+      attr(result_df, "units") <- get_seasonal_output_units(variable, aggregation_rule) %||% source_var_meta$units
+      attr(result_df, "long_name") <- source_var_meta$long_name
+    } else {
+      attr(result_df, "units") <- "unknown"
+    }
+    attr(result_df, "plan") <- plan
+    attr(result_df, "aggregation_rule") <- aggregation_rule
+    attr(result_df, "missing_periods") <- seasonal_data$missing_periods
+
+    return(result_df)
   }
-  
-  final_df <- if (is.data.frame(results)) results else do.call(rbind, results)
-  
-  # Get Source Units using dynamic/static fetcher
-  source_var_meta <- get_variable_metadata(variable)
-  
+
+  # Get URLs
+  urls <- wapor_generate_urls(variable, l3_region = l3_code, period = period)
+  if (length(urls) == 0) {
+    stop("No data found for the specified variable and period.", call. = FALSE)
+  }
+
+  # Use GDAL virtual file system for efficient streaming
+  urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+  message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
+
+  message(sprintf("Found %d files for %s. Processing...", length(urls), variable))
+  t0_ts <- proc.time()
+
+  # Extract temporal resolution from variable name
+  parts <- strsplit(variable, "-")[[1]]
+  tres <- tail(parts, 1)
+
+  # Gather metadata for all layers
+  meta_list <- lapply(urls, function(u) wapor_date_info(u, tres))
+  meta_df <- do.call(rbind, lapply(meta_list, as.data.frame))
+  meta_df$layer_index <- seq_len(nrow(meta_df))
+
+  # Determine region type
+
+  vect <- if (reg_info$type == "vector") reg_info$value else NULL
+
+  # Extract polygon identifiers once
+  ids <- NULL
+  if (!is.null(vect)) {
+    ids <- if (!is.null(identifier) && identifier %in% names(vect)) {
+      vect[[identifier]]
+    } else {
+      seq_len(nrow(vect))
+    }
+  }
+
+  # Split URLs into batches for memory-efficient processing
+  n_urls <- length(urls)
+  url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
+  n_chunks <- length(url_idx_chunks)
+
+  if (n_chunks > 1) {
+    message(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
+                    n_urls, n_chunks, batch_size))
+  }
+
+  # Helper function to process a single batch
+  process_batch <- function(ci) {
+    idx <- url_idx_chunks[[ci]]
+    chunk_urls <- urls[idx]
+    chunk_meta <- meta_df[idx, , drop = FALSE]
+
+    if (n_chunks > 1 && !parallel) {
+      message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
+    }
+
+    # Load raster batch with retry logic
+    r <- NULL
+    max_retries <- 3
+    for (attempt in seq_len(max_retries)) {
+      r <- tryCatch({
+        suppressWarnings(terra::rast(chunk_urls))
+      }, error = function(e) {
+        if (attempt < max_retries) {
+          if (!parallel) {
+            message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
+                          attempt, attempt * 2, e$message))
+          }
+          Sys.sleep(attempt * 2)
+          return(NULL)
+        } else {
+          stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
+        }
+      })
+      if (!is.null(r)) break
+    }
+
+    # Crop to region
+    r <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
+
+    # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+    r <- wapor_convert_temperature(r, variable)
+
+    if (!is.null(vect)) {
+      # Zonal statistics for polygons using exactextractr
+      names(r) <- paste0("L", seq_len(terra::nlyr(r)))
+      n_lyr <- terra::nlyr(r)
+
+      ex <- suppressWarnings(exactextractr::exact_extract(
+        r,
+        vect,
+        c("mean", "min", "max"),
+        progress = FALSE
+      ))
+
+      ex$ID <- seq_len(nrow(ex))
+
+      # Reshape extracted stats into long format.
+      # When outer batches are already running in parallel (parallel = TRUE), force
+      # the inner per-layer loop to be serial (lapply) to avoid nested parallelism.
+      # Only use future_lapply for the inner loop when the outer loop is serial and
+      # the developer opt-in option "wapor.parallel_inner" is set.
+      inner_apply_fn <- if (!parallel && isTRUE(getOption("wapor.parallel_inner", FALSE))) {
+        future.apply::future_lapply
+      } else {
+        lapply
+      }
+      
+      out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
+        lyr_name <- paste0("L", i)
+
+        col_mean <- paste0("mean.", lyr_name)
+        col_min <- paste0("min.", lyr_name)
+        col_max <- paste0("max.", lyr_name)
+
+        if (!col_mean %in% names(ex)) {
+          if (paste0(lyr_name, ".mean") %in% names(ex)) {
+            col_mean <- paste0(lyr_name, ".mean")
+            col_min <- paste0(lyr_name, ".min")
+            col_max <- paste0(lyr_name, ".max")
+          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
+            col_mean <- "mean"
+            col_min <- "min"
+            col_max <- "max"
+          } else {
+            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
+                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
+          }
+        }
+
+        cols <- c(col_mean, col_min, col_max)
+        sub_df <- ex[, cols, drop = FALSE]
+        colnames(sub_df) <- c("mean", "min", "max")
+
+        sub_df$ID <- ex$ID
+
+        if (!is.null(identifier) && identifier %in% names(vect)) {
+          sub_df[[identifier]] <- ids[ex$ID]
+        }
+
+        m <- chunk_meta[i, ]
+        m_rep <- m[rep(1, nrow(sub_df)), ]
+        cbind(sub_df, m_rep)
+      })
+
+      return(do.call(rbind, out_list))
+    } else {
+      # Global statistics for bbox or L3 code regions
+      ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
+      ex$ID <- 1
+      df_res <- cbind(chunk_meta, ex)
+      df_res$region_id <- 1
+      return(df_res)
+    }
+  }
+
+  # Process all batches: load, crop, extract stats, release memory
+  if (parallel && n_chunks > 1) {
+    message(sprintf("  Processing %d batches in parallel...", n_chunks))
+    all_batch_results <- future.apply::future_lapply(seq_len(n_chunks), process_batch, future.seed = TRUE)
+  } else {
+    all_batch_results <- lapply(seq_len(n_chunks), process_batch)
+  }
+
+  message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
+
+  final_df <- do.call(rbind, all_batch_results)
+
+  # Get variable metadata for units
+  source_var_meta <- wapor_variable_metadata(variable)
+
   if (!is.null(source_var_meta)) {
     attr(final_df, "units") <- source_var_meta$units
     attr(final_df, "long_name") <- source_var_meta$long_name
   } else {
-    attr(final_df, "units") <- "unknown" # Should not happen if Vars complete
+    attr(final_df, "units") <- "unknown"
   }
-  
-  # Apply Unit Conversion
-  final_df <- df_unit_convertor(final_df, unit_conversion)
-  
+
+  # Apply unit conversion
+  final_df <- wapor_convert_units(final_df, resolved_unit_conversion)
+
+  message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

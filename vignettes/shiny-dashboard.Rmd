@@ -1,0 +1,112 @@
+---
+title: "Interactive Web GIS & Agricultural Analytics with the Rwapor Shiny Dashboard"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Interactive Web GIS & Agricultural Analytics with the Rwapor Shiny Dashboard}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Introduction
+
+The **Rwapor** package includes a full-featured, reactive Shiny Web GIS dashboard designed for point-and-click satellite data retrieval, FAO-56 crop water productivity modeling, seasonal comparisons, and high-throughput farm monitoring.
+
+---
+
+## 1. Launching the Dashboard
+
+Launch the dashboard directly from your R console:
+
+```r
+library(Rwapor)
+
+# Launch default dashboard
+run_wapor()
+
+# Or specify a custom data directory
+run_wapor(data_folder = "C:/WaPOR_Projects")
+```
+
+The application automatically opens in your default web browser.
+
+---
+
+## 2. Dashboard Architecture & Modules
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Rwapor Shiny Dashboard                          │
+├──────────────┬──────────────┬──────────────┬─────────────┬─────────────┤
+│ 📥 Download  │ 🌾 Seasonal  │ 📈 Seasonal  │ 🛰️ Field    │ 🗺️ Map      │
+│  & Extraction│   Analysis   │  Comparison  │  Monitoring │  Visualizer │
+└──────────────┴──────────────┴──────────────┴─────────────┴─────────────┘
+```
+
+---
+
+## 3. Module Walkthroughs
+
+### 📥 3.1 Download & Spatial Extraction Tab
+
+1. **Project Folder**: Select or browse for your project workspace. All downloaded rasters and metadata are organized hierarchically by variable and period.
+2. **Interactive Area of Interest (AOI)**:
+   - **Draw on Map**: Draw rectangles or arbitrary polygons directly on the Leaflet map.
+   - **Upload Spatial File**: Ingest Shapefiles (`.shp` in `.zip`), GeoJSON, KML, GeoPackage (`.gpkg`), or GeoTIFF templates.
+   - **Smart L3 Region Auto-Detection**: When Level 3 variables are selected, the app intersects your AOI geometry with all 30+ sub-national WaPOR Level 3 irrigation schemes in Africa and the Near East, filtering and auto-selecting the appropriate scheme.
+3. **Variable Selection & Date Ranges**:
+   - Choose from 100+ WaPOR v3 and AgERA5 variables across Level 1 (~250m), Level 2 (~100m), and Level 3 (~20m).
+   - Set custom start and end dates.
+4. **Execution**:
+   - Stream raster data directly into local GeoTIFFs or extract polygon zonal time series in parallel.
+
+---
+
+### 🌾 3.2 Seasonal Analysis & Crop Water Productivity Tab
+
+1. **Seasonal Calendar**:
+   - Configure single-season dates or **Batch Multi-Year** schedules.
+   - Use `Detect from Folder` to automatically discover downloaded dekadal files and align dates.
+2. **Crop Parameterization**:
+   - **FAO-56 Presets**: Select from 12 pre-configured FAO-56 crops (Winter Wheat, Sorghum, Sugarbeet, Maize, Rice, Cotton, Potato, Soybean, Sunflower, Barley, Alfalfa, Sugarcane).
+   - **Interactive Customization**: Modify crop coefficients ($K_{c,\text{ini}}, K_{c,\text{mid}}, K_{c,\text{end}}$), stage durations, Harvest Index ($HI$), and Moisture Content ($MC$) directly in the UI.
+3. **Spatial Masks & Timing**:
+   - Upload categorical crop classification masks and Julian day start/end rasters.
+   - Toggle **Latitude-Aware Area Weighting** for exact ellipsoidal surface area weighting.
+4. **Calculated Indicators**:
+   - Seasonal $AETI, RET, PCP, NPP, T$.
+   - Crop Evapotranspiration ($ET_c$) and Water Adequacy ratios.
+   - Beneficial Transpiration Fraction ($T/AETI$).
+   - Crop Water Productivity ($CWP$) and Biomass Water Productivity ($BWP$).
+5. **One-Click Export**:
+   - Download seasonal GeoTIFF rasters, dekadal components, and monthly CSV summaries.
+
+---
+
+### 📈 3.3 Seasonal Comparison Tab
+
+- Evaluate multi-year trends across cropping seasons.
+- Analyze spatial variability and uniformity using Coefficient of Variation ($CV$) and Theil Disparity Index.
+- Generate comparative violin plots, boxplots, and bar charts across crop classes.
+
+---
+
+### 🛰️ 3.4 High-Throughput Field Monitoring (DuckDB)
+
+- Ingest agricultural field polygons and crop rotation schedules.
+- Maintain an embedded local DuckDB database synchronized with WaPOR.
+- Run interactive SQL queries, temporal water stress anomaly checks, and percentile filtering to remove border artifacts.
+
+---
+
+### 🗺️ 3.5 Map Visualizer & Split-Screen Swipe Slider
+
+- Compare before/after rasters (e.g. $AETI$ vs. $ET_c$, or 2022 vs. 2023) using an interactive side-by-side swipe comparison tool.
+- Inspect pixel values dynamically with interactive hover tooltips and customizable color ramps (Viridis, Turbo, Spectral).

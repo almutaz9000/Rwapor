@@ -1,0 +1,442 @@
+{
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\scripts\\agent_closeout.ps1": {
+    "mtime": 1778503685.3378727,
+    "hash": "463debfb2084147137edc0eb05940261"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\scripts\\agent_digest.ps1": {
+    "mtime": 1778503857.8619182,
+    "hash": "29168e5d6ac16e6dbcb3d0f757e8a0bc"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\scripts\\agent_preflight.ps1": {
+    "mtime": 1778503857.7515,
+    "hash": "d0277653f0d4705b4858938eb272df7f"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\debug_paths.R": {
+    "mtime": 1776698484.4652183,
+    "hash": "d894e8fcad9ed8729f8c95b90bb383cb"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\debug_r.R": {
+    "mtime": 1776698330.5832627,
+    "hash": "07d9a2a1b226926736ff50c663060480"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\empty.R": {
+    "mtime": 1776698696.9216993,
+    "hash": "bc949ea893a9384070c31f083ccefd26"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\repro_error.R": {
+    "mtime": 1776779400.374082,
+    "hash": "b44c95a49eaece84843fee17e69ef8b5"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\test_monitoring.R": {
+    "mtime": 1776779572.9294596,
+    "hash": "5c7189f7e44e22f5ad64647d642a3f27"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\test_monitoring_run.R": {
+    "mtime": 1776429232.0326302,
+    "hash": "b3262ee9836f76a523f8b08f68f5f963"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\root-files\\wrapper.R": {
+    "mtime": 1776698366.977828,
+    "hash": "4dade351810a2c440cb9edb0d9eb4bc9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\run_savola_monitoring.R": {
+    "mtime": 1776691326.7432363,
+    "hash": "f51f80a1261e2437faaad1b63bc292b5"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\test_classify.R": {
+    "mtime": 1776673507.5503373,
+    "hash": "0b2f87c02c84b5083ed43b6f482884c9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\test_parallel_monitoring.R": {
+    "mtime": 1776698729.7911618,
+    "hash": "2f87198579bbaad404d6a83a4ccaacf4"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\test_temp.R": {
+    "mtime": 1777451273.7543986,
+    "hash": "c0e8c8dca6eeef8b396d8385082e0df8"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\test_unique.R": {
+    "mtime": 1776673520.7208502,
+    "hash": "7c3547e6355026b36ba1a278eb72a29f"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\archived_reports\\2026-05-12-obsolete-files\\scratch-files\\verify_profiles.R": {
+    "mtime": 1776673805.1915355,
+    "hash": "aa9d9699dd30a23243d2aae239163959"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\metadata\\fetch_metadata.R": {
+    "mtime": 1774940998.971845,
+    "hash": "5ddf0e69812f6ef7bb548093fdf3f2ce"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\app.R": {
+    "mtime": 1778687390.764072,
+    "hash": "cd1ec6dc9cfc412f242d8650b3c5b493"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_analysis.R": {
+    "mtime": 1778688141.708173,
+    "hash": "b61faa41dcc35ff5b4d45750e1a5e7d3"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_analysis_ui_body.R": {
+    "mtime": 1778686483.7754004,
+    "hash": "0ec31acd059eb835428026630f503ec8"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_analysis_ui_sidebar.R": {
+    "mtime": 1778687923.2068222,
+    "hash": "31f863ed08ebc035b014d2d0125e26af"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_aoi.R": {
+    "mtime": 1778687916.2960951,
+    "hash": "ff042f8d2af1f2ae849e0fb71bbec9bc"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_download.R": {
+    "mtime": 1778687691.337848,
+    "hash": "aec947e400d4cc1233f8bada0d93e5a3"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_monitoring.R": {
+    "mtime": 1776948270.0955613,
+    "hash": "2dcdc291390e2e4d51d4be15cd15730d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_timeseries.R": {
+    "mtime": 1778687928.8397162,
+    "hash": "05c4948f75888b11cde70eb6bf374908"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\mod_visualisation.R": {
+    "mtime": 1778687934.4094048,
+    "hash": "1a2675a1d1775f1a1a6ac03e1d107161"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\monitoring_helpers.R": {
+    "mtime": 1776935348.040034,
+    "hash": "e99e5620a94672d1a200a5ba7e648fbe"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\utils_shiny.R": {
+    "mtime": 1778572518.4452732,
+    "hash": "0e9466214028e69f64583d1df4f8125d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\projects\\Savola\\scripts\\R\\01_unified_analysis_pipeline.R": {
+    "mtime": 1776936885.969975,
+    "hash": "b377f04e882001cf18c59d977de546aa"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis.R": {
+    "mtime": 1778582087.9658716,
+    "hash": "219b44c8da72ee230e78adbc861ad9fe"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_anomaly.R": {
+    "mtime": 1774955726.1260974,
+    "hash": "ecb145820b6b5f760d25fd91ebbb8e79"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_comparison.R": {
+    "mtime": 1778488118.5008914,
+    "hash": "4dec99666e9ca0fa0d6139150f366147"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_engine.R": {
+    "mtime": 1778592393.8988984,
+    "hash": "86f24839113ed8eb4ec437f56c18e97b"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_indicators.R": {
+    "mtime": 1778592392.8762436,
+    "hash": "54b610365ab9ebb046b88a91a84b99c3"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_pipeline.R": {
+    "mtime": 1778582087.9658716,
+    "hash": "5803d9491bbe1db5a73aa69f40ed1def"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_utils.R": {
+    "mtime": 1778591747.0262516,
+    "hash": "ca20ba1e6a8fe6cc60689047520e56da"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\analysis_validation.R": {
+    "mtime": 1778662047.1600962,
+    "hash": "b6b941639741b5868b972fe4507a08a9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\api_client.R": {
+    "mtime": 1776861686.9012027,
+    "hash": "650895c40f796f7d270ba43f5c290b6a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\crop_defaults.R": {
+    "mtime": 1774940998.947854,
+    "hash": "a1eb79017e64a99cf88cbadf618298de"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\gdal_config.R": {
+    "mtime": 1773844940.5083313,
+    "hash": "3b96c7e1ab550e4f587e05eebe4815ed"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\interval_helpers.R": {
+    "mtime": 1773647304.9137142,
+    "hash": "e67d1c3e72ae919ea722d2651d856f2b"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\metadata.R": {
+    "mtime": 1776934165.0970497,
+    "hash": "3ef97e7c637c73810f973dea8d0025e7"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\plan_wapor_time_slices.R": {
+    "mtime": 1774940998.9531853,
+    "hash": "4cdaf9fa812c733614688f3bddda7428"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\run_dashboard.R": {
+    "mtime": 1778662047.1600962,
+    "hash": "d114d4492fc94a23bec7bd521475ba8d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\rwapor_favorites.R": {
+    "mtime": 1774940998.955827,
+    "hash": "d77a81288f22dbcb7ed74cd6ea5fc9d9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\seasonal_download.R": {
+    "mtime": 1776948756.5230043,
+    "hash": "f40ff5cf42fddd1c8c9b185cbd6c57eb"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\unit_convertor.R": {
+    "mtime": 1774950319.3613164,
+    "hash": "630f1c2f8638c4fb7c61236f5ba204bc"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\utils.R": {
+    "mtime": 1776933576.3881896,
+    "hash": "c14544165834401299e04e0976c1a8b6"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\wapor_map.R": {
+    "mtime": 1776949074.608109,
+    "hash": "a5309376ec946b9de67c33a1e76b0150"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\wapor_metadata_cache.R": {
+    "mtime": 1778582087.9658716,
+    "hash": "695003365de7c416083ef6d0030759e8"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\wapor_monitoring.R": {
+    "mtime": 1776779735.801395,
+    "hash": "58a9ddc614fa1b7dd0bc1d62b50131a4"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\wapor_res_key.R": {
+    "mtime": 1774940998.9683053,
+    "hash": "b42a6a5d57edce960060c1a47aa9ae4d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\R\\wapor_ts.R": {
+    "mtime": 1776861729.532429,
+    "hash": "11918c9a6de572dfff5ae5e6084e8780"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\get_fao_crop_data.R": {
+    "mtime": 1773647304.9387221,
+    "hash": "c0a7bcd8f538596dbbac0a1144726456"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\debug\\check_env_windows.R": {
+    "mtime": 1778571988.5569532,
+    "hash": "8aa9e1ca4c96de07d839268657a1c760"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\debug\\mock_wapor_stacks.R": {
+    "mtime": 1778571988.5580566,
+    "hash": "0c5eaf36fa3d02c4ad2475f638c9deb9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\debug\\profile_seasonal_analysis.R": {
+    "mtime": 1778571988.5580566,
+    "hash": "4231f97ba4211dc922dbf5a9a34b954a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\debug\\repro_alignment_check.R": {
+    "mtime": 1778571988.5580566,
+    "hash": "a7cfe80f88b3ba39ad8513c71b0169b2"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\scripts\\debug\\repro_api_failure.R": {
+    "mtime": 1778571988.5569532,
+    "hash": "8c07a865cb23a3aef55e694cc9c88588"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat.R": {
+    "mtime": 1778488366.6915658,
+    "hash": "5a405a284b04045514cab18b113cff9d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\inspect_monitoring_db.R": {
+    "mtime": 1776264993.7837772,
+    "hash": "0acc15bf433a07f9206441ed872d5fff"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\migrate_monitoring_schema.R": {
+    "mtime": 1776265220.0574918,
+    "hash": "2a0330542ec48a9eec8eb6cd9728f867"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\reload_and_run.R": {
+    "mtime": 1775050768.2293668,
+    "hash": "c5ad680ea97dec0270cb71b73d0866de"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_analysis_utils.R": {
+    "mtime": 1776333998.0791698,
+    "hash": "e11de01880078594fdfae2791c01254a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_enhanced_plot.R": {
+    "mtime": 1776266759.7519925,
+    "hash": "a92e64f3e7385f44f958cc8270175377"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_load.R": {
+    "mtime": 1774960617.242131,
+    "hash": "b432f2c88841022a1c360afbb8ce6cd1"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_minimal_duckdb.R": {
+    "mtime": 1776257772.4601505,
+    "hash": "9dc40d31ffb42865fc53ca1363124eee"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_monitoring.R": {
+    "mtime": 1776257993.1142335,
+    "hash": "3bac774a5b281340d873cff9e6bf2ebe"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_monitoring_helpers.R": {
+    "mtime": 1776265364.843083,
+    "hash": "6965a9138a23636f5a7b5ba99a857d01"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_monitoring_module.R": {
+    "mtime": 1776265657.9712758,
+    "hash": "437d53b5ad4d6d7523d5b7505fe8a1fb"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_monitoring_module_load.R": {
+    "mtime": 1776258060.0213435,
+    "hash": "ae8f76ebd942ca00b84e557bf5cc3897"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_shiny.R": {
+    "mtime": 1774960612.002185,
+    "hash": "41839469eececdd2875ce3f1e173d1e6"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_visualization.R": {
+    "mtime": 1775029919.694141,
+    "hash": "c23a705c986e9f5e76a029b5b3066326"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_viz_fixes.R": {
+    "mtime": 1775036877.2734742,
+    "hash": "1d9cef0a69253668050f5143d9e9d5df"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\manual\\test_viz_module.R": {
+    "mtime": 1775036910.3558028,
+    "hash": "c8a517697db1fc9da496c857f7e588b8"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\helper-skip.R": {
+    "mtime": 1773841662.5032303,
+    "hash": "29ba339c4419c91c5a6a187e9aebcc41"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\setup.R": {
+    "mtime": 1774940999.067046,
+    "hash": "215258fd526087e330e0685149e5f7e6"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-analysis-shiny.R": {
+    "mtime": 1778672828.354385,
+    "hash": "9e3681029ecc30fd85148d8bd0053eba"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-analysis.R": {
+    "mtime": 1778488431.2386365,
+    "hash": "df34087c1fcab93d8635faa45b955979"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-dashboard-validation.R": {
+    "mtime": 1778662404.8479967,
+    "hash": "b37a4e7f245b18b7ef9ef24610ab7c0a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-gdal_config.R": {
+    "mtime": 1773647304.945705,
+    "hash": "15ba166b852eb3176114af5d42d7280d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-multi-season.R": {
+    "mtime": 1776861770.7849438,
+    "hash": "17c22d0ce0d16b758e1f385d9b29d9ac"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-plan_wapor_time_slices.R": {
+    "mtime": 1774940999.070046,
+    "hash": "a03f163de8159333c35a38c0d9dd7aae"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-wapor.R": {
+    "mtime": 1774940999.0733483,
+    "hash": "8716c4e1498baf8090da64aed3fedc63"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\tests\\testthat\\test-wapor_metadata_cache.R": {
+    "mtime": 1774953688.204296,
+    "hash": "9826fd7319e92f6b7361a8ad55f25d41"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\AGENTS.md": {
+    "mtime": 1778503684.3678312,
+    "hash": "eec4fb0bcb9c07b073d45b2e64d2a21f"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\CLAUDE.md": {
+    "mtime": 1778503790.3180664,
+    "hash": "abfaecaae19bbdc9eefc737ea97c21d4"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\NEWS.md": {
+    "mtime": 1776669205.210168,
+    "hash": "d92b03e906aa02f22653646332fcf40e"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\README.md": {
+    "mtime": 1778582087.9680274,
+    "hash": "290b0fc35becb8afe4f30a80607eac2a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\change-log.md": {
+    "mtime": 1778673289.6285436,
+    "hash": "b7b9d9a1f73006b5aad3bd716a7669ea"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\issues-log.md": {
+    "mtime": 1778673289.6285436,
+    "hash": "920243f4508c319efaea1c9f99504ea0"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\project-memory.md": {
+    "mtime": 1778588854.0782447,
+    "hash": "7a98cf58afc876124ac071725d2234a5"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\session-brief.md": {
+    "mtime": 1778673289.6285436,
+    "hash": "7ff5d138a6cf94470800baffafa61521"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\START-HERE.md": {
+    "mtime": 1778503684.6063912,
+    "hash": "9d6eb5f699cc1605723c8468c81e0a6d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\task-status.md": {
+    "mtime": 1778663442.1893435,
+    "hash": "b30edb0476a42befd482a7d1a53e6519"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\templates\\issue-entry.md": {
+    "mtime": 1778503685.0229218,
+    "hash": "00e6d89984898c080ba5554fa53e5f27"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\templates\\memory-entry.md": {
+    "mtime": 1778503685.1596558,
+    "hash": "0277ef166cd0386217a4ec55f9d6d5fc"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\templates\\session-brief.md": {
+    "mtime": 1778503685.1280081,
+    "hash": "ac50ea2b292ad14e45b383a1208fa2a0"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\agent-workflow\\templates\\task-entry.md": {
+    "mtime": 1778503685.0598445,
+    "hash": "52c5e832b8036185fb8ef3c46d55f1db"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\docs\\debugging\\DEBUGGING_CHECKLIST.md": {
+    "mtime": 1778571988.5569532,
+    "hash": "2af6c28dd990f3a0b282fed62bae7efd"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\docs\\superpowers\\specs\\2026-05-11-agent-workflow-design.md": {
+    "mtime": 1778500986.8627505,
+    "hash": "7d81a0f99da674b1f2337e3ade1fcb8d"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\docs\\superpowers\\specs\\2026-05-11-shiny-batch-analysis-design.md": {
+    "mtime": 1778508092.9928353,
+    "hash": "e9708d4f7b657dcb7430ee1815644df9"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\improvements\\P1_schema_versioning.md": {
+    "mtime": 1776787162.3142493,
+    "hash": "2a81a45152fe2715b4c8efb247e73e2a"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\improvements\\P2_shiny_decomposition.md": {
+    "mtime": 1776787168.7029338,
+    "hash": "e5c73417d77e399ae4b965576d503699"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\improvements\\P3_external_metadata.md": {
+    "mtime": 1776787174.974124,
+    "hash": "ad56c6858356b70b3d46f642fc26b746"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\improvements\\P4_shiny_batch_analysis.md": {
+    "mtime": 1778508435.3397312,
+    "hash": "2d854ad1f1d455d15fd6d77626978777"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\improvements\\package_review_summary.md": {
+    "mtime": 1776787181.8544774,
+    "hash": "911cdcc7353ed1e8f90d8be515e6d306"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\agent_skills\\RWAPOR_AGENT_SKILLS.md": {
+    "mtime": 1776934137.2156441,
+    "hash": "7f833f4af3e530a10c93b95dfb51447f"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\inst\\shiny\\VISUALIZATION_FEATURES.md": {
+    "mtime": 1775029734.6942165,
+    "hash": "4d8f406729fa00be1c52bbdafa1c67e6"
+  },
+  "C:\\Users\\Mohammedal\\OneDrive - Food and Agriculture Organization\\Documents\\GitHub\\Rwapor\\man\\figures\\dashboard_screenshot.png": {
+    "mtime": 1774543898.3380568,
+    "hash": "59585b8fd49adffd4ef721cce87dabec"
+  }
+}
