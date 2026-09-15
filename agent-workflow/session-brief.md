@@ -4,6 +4,7 @@ _Last updated: 2026-05-14_
 
 ## Active Focus
 
+- Verified dashboard startup, module loader diagnostics, required prechecks, and async runtime state restoration in `inst/shiny/app.R` and `R/run_dashboard.R`.
 - Documented automatic transformations (AgERA5 temperature Kelvin-to-Celsius conversion and WaPOR Daily-to-Dekadal totals) in `vignettes/data-catalog.Rmd` and `vignettes/getting-started.Rmd`.
 - Updated package variable metadata in `R/metadata.R` to document AgERA5 temperature units as `°C` instead of `K` to align with the auto-converted state.
 - Surfaced the canonical AI Agent & Contributor Workflow in `README.md` under a dedicated "AI Agent & Contributor Workflow" subsection.

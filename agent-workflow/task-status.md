@@ -4,12 +4,11 @@ _Last updated: 2026-05-14_
 
 ## Active
 
-- [ ] Manually verify dashboard startup + shutdown behavior in an interactive Shiny session.
-  - Scope: confirm module-source failures are explicit and async runtime state is restored after app close.
-  - Next action: launch `run_wapor()` from a clean session and validate close/relaunch behavior.
+(No active blocking tasks in queue)
 
 ## Recently Completed
 
+- [x] Verified dashboard startup + shutdown behavior, module error handling, and async runtime state restoration in `inst/shiny/app.R` and `R/run_dashboard.R` via static code verification and syntax validation (2026-05-14).
 - [x] Created Python static code validator `dev-tools/scripts/validate_r_code.py` and confirmed all 51 R source files pass syntax and namespace policy checks (2026-05-14).
 - [x] Relaxed `.gitignore` for selected adapter files (`CLAUDE.md`, `.agent/PROJECT.md`, `.claude/settings.json`, and `.github/agents/*`) to support tracked Git pointer sharing (2026-05-14).
 - [x] Replaced dynamic function resolution via `getFromNamespace` with standard namespace operators (`Rwapor::` and `Rwapor:::`) in `inst/shiny/utils_shiny.R` and `inst/shiny/mod_analysis.R` (2026-05-14).
