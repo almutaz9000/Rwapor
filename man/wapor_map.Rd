@@ -18,7 +18,9 @@ wapor_map(
   batching = TRUE,
   batch_size = 12L,
   l3_region = NULL,
-  l3_mode = c("select", "mosaic_all")
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  cog = FALSE
 )
 }
 \arguments{
@@ -78,6 +80,11 @@ Lower values reduce memory pressure for long periods. Default is \code{12L}.}
 \item{l3_mode}{L3 coverage policy: \code{"select"} requires one selected L3 code
 when several regions intersect; \code{"mosaic_all"} writes source assets and a
 coverage-bearing mosaic for every intersecting L3 region.}
+
+\item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
+and recorded. Default \code{FALSE} fails the request.}
+
+\item{cog}{Logical. Write GeoTIFF outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
 }
 \value{
 Character path to the output GeoTIFF file, or in seasonal mode with

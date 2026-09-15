@@ -35,7 +35,7 @@
 #' @keywords internal
 #' @noRd
 download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE,
-                                       start_raster = NULL, end_raster = NULL) {
+                                       start_raster = NULL, end_raster = NULL, partial = FALSE) {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
   aggregation_rule <- get_seasonal_aggregation_rule(variable)
@@ -162,29 +162,31 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     missing_rows <- plan[plan$period_id %in% missing_period_ids, , drop = FALSE]
     missing_days <- if ("overlap_days" %in% names(missing_rows)) sum(missing_rows$overlap_days) else NA
     total_days <- if ("overlap_days" %in% names(plan)) sum(plan$overlap_days) else NA
-    warning(
-      sprintf(
-        paste0(
-          "Seasonal download for '%s' is INCOMPLETE: %d of %d planned raster(s) ",
-          "could not be downloaded (missing period(s): %s)%s. ",
-          "The returned seasonal result under-represents the requested period."
-        ),
-        variable, length(missing_period_ids), nrow(plan),
-        paste(missing_period_ids, collapse = ", "),
-        if (!is.na(missing_days) && !is.na(total_days)) {
-          sprintf(", covering %.1f of %.1f requested day(s)", missing_days, total_days)
-        } else {
-          ""
-        }
+    msg <- sprintf(
+      paste0(
+        "Seasonal download for '%s' is INCOMPLETE: %d of %d planned raster(s) ",
+        "could not be downloaded (missing period(s): %s)%s. ",
+        "The returned seasonal result under-represents the requested period."
       ),
-      call. = FALSE
+      variable, length(missing_period_ids), nrow(plan),
+      paste(missing_period_ids, collapse = ", "),
+      if (!is.na(missing_days) && !is.na(total_days)) {
+        sprintf(", covering %.1f of %.1f requested day(s)", missing_days, total_days)
+      } else {
+        ""
+      }
     )
+    if (!isTRUE(partial)) {
+      stop(msg, call. = FALSE)
+    }
+    warning(msg, call. = FALSE)
   }
 
   list(
     groups = groups,
     plan = plan,
     aggregation_rule = aggregation_rule,
-    missing_periods = missing_period_ids
+    missing_periods = missing_period_ids,
+    partial = isTRUE(partial)
   )
 }

@@ -884,11 +884,22 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             reg_info      <- Rwapor::wapor_parse_region(file_path)
             period_str    <- as.character(shiny::isolate(input$an_period))
             intersecting  <- Rwapor::wapor_guess_region(aeti_v, reg_info, period_str)
-            if (length(intersecting) > 0) {
+            if (length(intersecting) == 1L) {
               shiny::updateSelectInput(session, "an_l3_region", selected = intersecting[1])
               shiny::showNotification(
-                sprintf("Auto-matched crop mask to L3 region: %s", intersecting[1]),
+                sprintf("Matched crop mask to L3 region: %s", intersecting[1]),
                 type = "message"
+              )
+            } else if (length(intersecting) > 1L) {
+              shiny::updateSelectInput(
+                session, "an_l3_region",
+                choices = wapor_shiny_l3_choices(intersecting),
+                selected = wapor_shiny_l3_selection(intersecting)
+              )
+              shiny::showNotification(
+                sprintf("Crop mask intersects multiple L3 regions (%s). Select one or mosaic all.",
+                        paste(intersecting, collapse = ", ")),
+                type = "warning"
               )
             }
           }, error = function(e) NULL)

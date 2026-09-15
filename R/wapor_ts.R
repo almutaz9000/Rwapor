@@ -36,7 +36,9 @@
 #'   extraction against the supplied AOI while constraining source rasters to
 #'   the selected L3 mosaic.
 #' @param l3_mode L3 coverage policy. `"select"` requires one selected region
-#'   for a multi-L3 AOI; `"mosaic_all"` is reserved for multi-source extraction.
+#'   for a multi-L3 AOI; `"mosaic_all"` extracts every intersecting L3 source.
+#' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
+#'   and recorded. Default `FALSE` fails the request.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -99,7 +101,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all")) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
@@ -154,7 +156,13 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         wapor_guess_region(variable, reg_info, period), l3_region, l3_mode
       )
       if (length(selected_codes) != 1L) {
-        stop("l3_mode = 'mosaic_all' is not available in wapor_ts() until multi-source extraction is enabled.", call. = FALSE)
+        return(wapor_ts_mosaic_all(
+          region = region, variable = variable, period = period,
+          identifier = identifier, unit_conversion = unit_conversion,
+          seasonal = seasonal, download_locally = download_locally,
+          parallel = parallel, batching = batching, batch_size = batch_size,
+          partial = partial
+        ))
       }
       l3_code <- selected_codes
     }
@@ -237,7 +245,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
     if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
     
-    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder)
+    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder, partial = partial)
     
     groups <- seasonal_data$groups
     plan <- seasonal_data$plan

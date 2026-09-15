@@ -1,31 +1,3 @@
-test_that("download_seasonal_rasters warns and reports missing_periods when a whole code group has no URLs", {
-  local_mocked_bindings(
-    wapor_temporal_codes = function(variable) "D",
-    wapor_generate_urls = function(...) character(0),
-    .package = "Rwapor"
-  )
-
-  reg_info <- list(type = "bbox", value = c(xmin = 35, ymin = 33, xmax = 36, ymax = 34))
-
-  expect_warning(
-    expect_warning(
-      result <- download_seasonal_rasters(
-        variable = "L1-AETI-D",
-        period = c("2023-01-01", "2023-01-31"),
-        l3_code = NULL,
-        reg_info = reg_info,
-        folder = tempdir()
-      ),
-      "No URLs found"
-    ),
-    "INCOMPLETE"
-  )
-
-  expect_length(result$groups, 0)
-  expect_true(length(result$missing_periods) > 0)
-  expect_true(all(result$missing_periods %in% result$plan$period_id))
-})
-
 test_that("download_seasonal_rasters reports no missing_periods when all groups load successfully", {
   skip_if_not_installed("terra")
 

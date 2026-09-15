@@ -10,6 +10,11 @@
   RET, PCP, Peff, ETc, adequacy, biomass, and related indicators one layer at
   a time. Remote-COG fixtures and a tile-vs-AOI memory benchmark cover
   `/vsicurl/` windowing.
+* Incomplete seasonal coverage now fails unless `partial = TRUE`.
+* `mosaic_all` supports multiple variables and periods, and `wapor_ts()`
+  extracts every intersecting L3 source. Shiny no longer preselects the
+  first of several L3 codes and offers mosaic-all.
+* Closing a dashboard browser tab no longer calls `stopApp()`.
 * `wapor_write_cog()` publishes atomically through a `.partial.tif` file and
   applies LZW compression, datatype predictors, overviews, and a BigTIFF
   policy.
