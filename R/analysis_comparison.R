@@ -134,9 +134,25 @@ wapor_compare_seasons <- function(season_results,
     stop("No crop classes found in any season results", call. = FALSE)
   }
   
+  # Optimization: Pre-compute per-class adequacy statistics once per season using zonal stats.
+  # This avoids per-class terra::ifel conditional masks and raster multiplications in nested loops.
+  adequacy_zonal <- list()
+  if ("Adequacy" %in% indicators) {
+    for (season_name in names(season_results)) {
+      res <- season_results[[season_name]]
+      if (!is.null(res$adequacy_etc) && !is.null(res$h_mask)) {
+        z_df <- terra::zonal(res$adequacy_etc, res$h_mask, fun = "mean", na.rm = TRUE)
+        if (nrow(z_df) > 0 && ncol(z_df) >= 2) {
+          adequacy_zonal[[season_name]] <- setNames(z_df[[2]], as.character(z_df[[1]]))
+        }
+      }
+    }
+  }
+
   rows <- list()
   
   for (cls in all_classes) {
+    cls_str <- as.character(cls)
     for (season_name in names(season_results)) {
       res <- season_results[[season_name]]
       
@@ -165,7 +181,6 @@ wapor_compare_seasons <- function(season_results,
       
       # ETc
       if ("ETc" %in% indicators && !is.null(res$etc_by_class)) {
-        cls_str <- as.character(cls)
         if (cls_str %in% names(res$etc_by_class)) {
           row$ETc_mm <- .masked_global_mean(res$etc_by_class[[cls_str]]$etc_seasonal, NULL)
         }
@@ -173,8 +188,13 @@ wapor_compare_seasons <- function(season_results,
       
       # Adequacy
       if ("Adequacy" %in% indicators && !is.null(res$adequacy_etc)) {
-        class_mask <- terra::ifel(res$h_mask == cls, 1L, NA)
-        row$Adequacy_pct <- .masked_global_mean(res$adequacy_etc, class_mask) * 100
+        season_az <- adequacy_zonal[[season_name]]
+        if (!is.null(season_az) && cls_str %in% names(season_az)) {
+          val <- season_az[[cls_str]]
+          if (!is.na(val)) {
+            row$Adequacy_pct <- val * 100
+          }
+        }
       }
       
       # Biomass
@@ -189,7 +209,6 @@ wapor_compare_seasons <- function(season_results,
       
       # Yield
       if ("Yield" %in% indicators && !is.null(res$yield_by_class)) {
-        cls_str <- as.character(cls)
         if (cls_str %in% names(res$yield_by_class)) {
           row$Yield_t_ha <- terra::global(res$yield_by_class[[cls_str]], 
                                           "mean", na.rm = TRUE)$mean
