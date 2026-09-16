@@ -434,3 +434,46 @@ test_that("wapor_detect_aeti_anomalies correctly flags anomalies and masks inval
   expect_equal(sum(anom_vals[1:40] == 1, na.rm = TRUE), 1)
   expect_equal(sum(anom_vals[1:40] == 0, na.rm = TRUE), 39)
 })
+
+test_that("wapor_compare_seasons computes overall and per-class comparisons correctly", {
+  skip_if_not_installed("terra")
+
+  h_mask <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(1L, 8), rep(2L, 8)))
+  adequacy_s1 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.8, 8), rep(0.9, 8)))
+  adequacy_s2 <- terra::rast(nrows = 4, ncols = 4, vals = c(rep(0.85, 8), rep(0.95, 8)))
+
+  season1 <- list(
+    crop_params = data.frame(class_value = c(1L, 2L), crop_label = c("Wheat", "Maize"), stringsAsFactors = FALSE),
+    h_mask = h_mask,
+    adequacy_etc = adequacy_s1,
+    valid_crop_mask = h_mask * 0 + 1
+  )
+
+  season2 <- list(
+    crop_params = data.frame(class_value = c(1L, 2L), crop_label = c("Wheat", "Maize"), stringsAsFactors = FALSE),
+    h_mask = h_mask,
+    adequacy_etc = adequacy_s2,
+    valid_crop_mask = h_mask * 0 + 1
+  )
+
+  seasons <- list("Season 1" = season1, "Season 2" = season2)
+
+  # Overall comparison
+  res_overall <- wapor_compare_seasons(seasons, indicators = "Adequacy", by = "overall")
+  expect_equal(nrow(res_overall), 2)
+  expect_equal(res_overall$Adequacy_pct, c(85, 90))
+
+  # Class comparison
+  res_class <- wapor_compare_seasons(seasons, indicators = "Adequacy", by = "class")
+  expect_equal(nrow(res_class), 4)
+
+  wheat_s1 <- res_class[res_class$Class == 1 & res_class$Season == "Season 1", ]
+  wheat_s2 <- res_class[res_class$Class == 1 & res_class$Season == "Season 2", ]
+  maize_s1 <- res_class[res_class$Class == 2 & res_class$Season == "Season 1", ]
+  maize_s2 <- res_class[res_class$Class == 2 & res_class$Season == "Season 2", ]
+
+  expect_equal(wheat_s1$Adequacy_pct, 80)
+  expect_equal(wheat_s2$Adequacy_pct, 85)
+  expect_equal(maize_s1$Adequacy_pct, 90)
+  expect_equal(maize_s2$Adequacy_pct, 95)
+})
