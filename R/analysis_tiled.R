@@ -3,6 +3,66 @@
 # Out-of-Core Tiled / Windowed Seasonal Analysis Engine
 # =============================================================================
 
+#' Suggest a safe tile size for the tiled seasonal analysis engine
+#'
+#' Computes the largest square tile (in pixels) that fits within
+#' `target_ram_mb` of working memory, given the number of raster layers and
+#' parallel workers.  Use the returned value as the `tile_size` argument of
+#' [wapor_run_seasonal_analysis_tiled()].
+#'
+#' @param n_layers Integer. Number of raster layers to hold in memory at once
+#'   (e.g. total dekadal layers in the season).
+#' @param n_workers Integer. Number of parallel tile workers. Each worker
+#'   holds one tile in RAM simultaneously. Default `1L`.
+#' @param bytes_per_val Integer. Bytes per raster cell. Float32 COGs = 4.
+#'   Default `4L`.
+#' @param target_ram_mb Numeric. RAM budget in megabytes. Default `4096` (4 GB).
+#' @param min_tile Integer. Minimum tile size to return. Default `64L`.
+#' @param max_tile Integer. Maximum tile size to return. Default `4096L`.
+#'
+#' @return A single integer: recommended tile side length in pixels.
+#'
+#' @details
+#' Formula:
+#'   bytes_per_tile = tile_size^2 * n_layers * bytes_per_val
+#'   total_bytes    = bytes_per_tile * n_workers
+#'   max_tile_size  = floor(sqrt(target_ram_mb * 1024^2 / (n_layers * bytes_per_val * n_workers)))
+#'
+#' The result is clamped to \[min_tile, max_tile\] so extreme inputs produce
+#' a usable value rather than an error.
+#'
+#' @examples
+#' # 36 dekadal layers, 2 workers, 8 GB RAM budget
+#' wapor_suggest_tile_size(n_layers = 36L, n_workers = 2L, target_ram_mb = 8192)
+#'
+#' @export
+wapor_suggest_tile_size <- function(n_layers,
+                                    n_workers    = 1L,
+                                    bytes_per_val = 4L,
+                                    target_ram_mb = 4096,
+                                    min_tile      = 64L,
+                                    max_tile      = 4096L) {
+  n_layers      <- max(1L, as.integer(n_layers))
+  n_workers     <- max(1L, as.integer(n_workers))
+  bytes_per_val <- max(1L, as.integer(bytes_per_val))
+  target_ram_mb <- max(1, as.numeric(target_ram_mb))
+  min_tile      <- max(1L, as.integer(min_tile))
+  max_tile      <- max(min_tile, as.integer(max_tile))
+
+  budget_bytes <- target_ram_mb * 1024^2
+  tile_sq      <- budget_bytes / (as.numeric(n_layers) * as.numeric(bytes_per_val) * as.numeric(n_workers))
+  raw_tile     <- floor(sqrt(tile_sq))
+  tile         <- as.integer(max(min_tile, min(max_tile, raw_tile)))
+
+  message(sprintf(
+    "wapor_suggest_tile_size: %d px (n_layers=%d, n_workers=%d, budget=%.0f MB, %.1f MB/tile)",
+    tile, n_layers, n_workers, target_ram_mb,
+    (as.numeric(tile)^2 * n_layers * bytes_per_val) / 1024^2
+  ))
+  tile
+}
+
+
 .wapor_tiled_row_windows <- function(nrow, tile_size) {
   tile_size <- max(1L, as.integer(tile_size))
   starts <- seq(1L, as.integer(nrow), by = tile_size)
@@ -173,7 +233,7 @@
     if (!length(urls)) {
       return(character(0))
     }
-    paste0("/vsicurl/", urls)
+    .wapor_prefix_vsicurl(urls)
   }
 }
 
@@ -280,18 +340,20 @@
 }
 
 .wapor_read_window_layer <- function(path, win, tile_template) {
-  layer <- terra::rast(path)
-  if (terra::nlyr(layer) > 1L) {
-    layer <- layer[[1]]
-  }
-  cropped <- tryCatch(
-    .wapor_crop_raster_window(layer, win),
-    error = function(e) terra::crop(layer, tile_template, snap = "out")
-  )
-  if (!isTRUE(terra::compareGeom(cropped, tile_template, stopOnError = FALSE))) {
-    cropped <- terra::resample(cropped, tile_template, method = "near")
-  }
-  cropped
+  .wapor_retry_remote_operation(function() {
+    layer <- terra::rast(path)
+    if (terra::nlyr(layer) > 1L) {
+      layer <- layer[[1]]
+    }
+    cropped <- tryCatch(
+      .wapor_crop_raster_window(layer, win),
+      error = function(e) terra::crop(layer, tile_template, snap = "out")
+    )
+    if (!isTRUE(terra::compareGeom(cropped, tile_template, stopOnError = FALSE))) {
+      cropped <- terra::resample(cropped, tile_template, method = "near")
+    }
+    cropped
+  }, label = sprintf("window read %s", basename(path)))
 }
 
 .wapor_weighted_sum_from_paths <- function(paths, win, tile_template, weight_layers, multipliers) {

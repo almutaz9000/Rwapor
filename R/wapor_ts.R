@@ -39,6 +39,8 @@
 #'   for a multi-L3 AOI; `"mosaic_all"` extracts every intersecting L3 source.
 #' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
 #'   and recorded. Default `FALSE` fails the request.
+#' @param on_batch_done Optional function called after each processed batch with
+#'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
 #' @return A data.frame with columns:
 #'   * `mean`, `min`, `max`: Zonal statistics for each polygon/time step
@@ -101,7 +103,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE, on_batch_done = NULL) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
@@ -264,32 +266,57 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       # Process entire group stack at once for better performance
       # This avoids redundant polygon-raster intersection overhead in exact_extract
       if (!is.null(vect_data)) {
-        # exact_extract returns a data.frame with one column per layer
-        group_means_df <- suppressWarnings(exactextractr::exact_extract(
-          r_group, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-        ))
-        # Convert to matrix for fast weighted sum
-        group_means_mat <- as.matrix(group_means_df)
+        # exact_extract returns a data.frame with one column per layer.
+        # Set explicit column names immediately so downstream code is stable.
+        ex <- .wapor_retry_remote_operation(
+          function() suppressWarnings(exactextractr::exact_extract(
+            r_group, vect_data, "mean", progress = FALSE
+          )),
+          label = sprintf("%s zonal extraction", var_for_code)
+        )
+        # exact_extract column naming: for n layers it returns "mean.1"..."mean.n"
+        # or, when n==1, just "mean". Normalise to "mean.L1"..."mean.Ln".
+        ncol_ex <- ncol(ex)
+        if (ncol_ex == 0) {
+          stop(sprintf("exact_extract returned no columns for %s (n_lyr=%d).",
+                       var_for_code, n_lyr_group), call. = FALSE)
+        }
+        if (ncol_ex == 1 && "mean" %in% names(ex)) {
+          names(ex)[names(ex) == "mean"] <- "mean.L1"
+        } else {
+          names(ex) <- paste0("mean.L", seq_len(ncol_ex))
+        }
+        group_means_mat <- as.matrix(ex)
         group_means_mat[is.na(group_means_mat)] <- 0
 
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
 
         if (!is.null(total_weights)) {
-          # For weighted_mean, we need the sum of weights where data exists
-          # We check which layers are NOT NA.
-          # Note: exact_extract doesn't directly support weighted coverage sum for multiple layers
-          # so we process !is.na(stack)
+          # Per-layer validity via exact_extract("sum") on a 0/1 raster.
+          # This gives the number of valid pixels per layer; multiplying by the
+          # per-layer multiplier gives the denominator for the weighted mean.
           not_na_stack <- !is.na(r_group)
-          coverage_df <- suppressWarnings(exactextractr::exact_extract(
-            not_na_stack, sf::st_as_sf(terra::vect(vect_data)), "mean", progress = FALSE
-          ))
+          coverage_df <- .wapor_retry_remote_operation(
+            function() suppressWarnings(exactextractr::exact_extract(
+              not_na_stack, vect_data, "sum", progress = FALSE
+            )),
+            label = sprintf("%s coverage extraction", var_for_code)
+          )
+          if (ncol(coverage_df) == 1 && "sum" %in% names(coverage_df)) {
+            names(coverage_df)[names(coverage_df) == "sum"] <- "sum.L1"
+          } else {
+            names(coverage_df) <- paste0("sum.L", seq_len(ncol(coverage_df)))
+          }
           coverage_mat <- as.matrix(coverage_df)
           coverage_mat[is.na(coverage_mat)] <- 0
           total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
         }
       } else {
         # Global stats for bbox/L3
-        group_stats <- terra::global(r_group, fun = "mean", na.rm = TRUE)
+        group_stats <- .wapor_retry_remote_operation(
+          function() terra::global(r_group, fun = "mean", na.rm = TRUE),
+          label = sprintf("%s global reduction", var_for_code)
+        )
         group_means <- group_stats$mean
         group_means[is.na(group_means)] <- 0
 
@@ -347,7 +374,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Use GDAL virtual file system for efficient streaming
-  urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+  urls <- .wapor_prefix_vsicurl(urls)
   message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
 
   message(sprintf("Found %d files for %s. Processing...", length(urls), variable))
@@ -395,9 +422,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     if (n_chunks > 1 && !parallel) {
       message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
     }
+    # Fire progress callback if provided (used by Shiny progressr integration)
+    if (is.function(on_batch_done)) {
+      tryCatch(on_batch_done(ci, n_chunks), error = function(e) NULL)
+    }
 
     # Load raster batch with retry logic
     r <- NULL
+    err <- NULL
     max_retries <- 3
     for (attempt in seq_len(max_retries)) {
       r <- tryCatch({
@@ -411,14 +443,36 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           Sys.sleep(attempt * 2)
           return(NULL)
         } else {
-          stop(sprintf("Failed to load raster data after %d attempts: %s", max_retries, e$message), call. = FALSE)
+          return(e)
         }
       })
+      if (inherits(r, "error")) {
+        err <- r
+        r <- NULL
+      }
       if (!is.null(r)) break
     }
 
-    # Crop to region
-    r <- wapor_crop_to_region(r, reg_info, do_mask = FALSE)
+    if (is.null(r)) {
+      # Return a failure sentinel row so this batch does not crash the whole call.
+      return(list(
+        status = "failed",
+        batch_idx = ci,
+        urls = chunk_urls,
+        error = if (is.null(err)) "unknown" else conditionMessage(err),
+        rows = data.frame(
+          ID = integer(0), region_id = integer(0),
+          mean = numeric(0), min = numeric(0), max = numeric(0),
+          stringsAsFactors = FALSE
+        )
+      ))
+    }
+
+    # Crop can force remote pixel I/O, so keep it inside the retry boundary.
+    r <- .wapor_retry_remote_operation(
+      function() wapor_crop_to_region(r, reg_info, do_mask = FALSE),
+      label = sprintf("%s batch %d crop", variable, ci)
+    )
 
     # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
     r <- wapor_convert_temperature(r, variable)
@@ -428,12 +482,15 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       names(r) <- paste0("L", seq_len(terra::nlyr(r)))
       n_lyr <- terra::nlyr(r)
 
-      ex <- suppressWarnings(exactextractr::exact_extract(
-        r,
-        vect,
-        c("mean", "min", "max"),
-        progress = FALSE
-      ))
+      ex <- .wapor_retry_remote_operation(
+        function() suppressWarnings(exactextractr::exact_extract(
+          r,
+          vect,
+          c("mean", "min", "max"),
+          progress = FALSE
+        )),
+        label = sprintf("%s batch %d zonal extraction", variable, ci)
+      )
 
       ex$ID <- seq_len(nrow(ex))
 
@@ -451,23 +508,19 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       out_list <- inner_apply_fn(seq_len(n_lyr), function(i) {
         lyr_name <- paste0("L", i)
 
+        # exact_extract on n layers with c("mean","min","max") returns columns
+        # "mean.L1"..."mean.Ln", "min.L1"..."min.Ln", "max.L1"..."max.Ln"
+        # (prefix "L<i>" when n>1). We normalise to the same scheme here.
         col_mean <- paste0("mean.", lyr_name)
-        col_min <- paste0("min.", lyr_name)
-        col_max <- paste0("max.", lyr_name)
+        col_min  <- paste0("min.", lyr_name)
+        col_max  <- paste0("max.", lyr_name)
 
-        if (!col_mean %in% names(ex)) {
-          if (paste0(lyr_name, ".mean") %in% names(ex)) {
-            col_mean <- paste0(lyr_name, ".mean")
-            col_min <- paste0(lyr_name, ".min")
-            col_max <- paste0(lyr_name, ".max")
-          } else if (n_lyr == 1 && "mean" %in% names(ex)) {
-            col_mean <- "mean"
-            col_min <- "min"
-            col_max <- "max"
-          } else {
-            stop(sprintf("Could not find expected columns for layer %d. Available: %s",
-                         i, paste(names(ex), collapse = ", ")), call. = FALSE)
-          }
+        # Guard: if a column is missing, fail fast with the available names.
+        missing <- setdiff(c(col_mean, col_min, col_max), names(ex))
+        if (length(missing)) {
+          stop(sprintf("Could not find expected columns for layer %d (%s). Available: %s",
+                       i, paste(missing, collapse=", "), paste(names(ex), collapse=", ")),
+               call. = FALSE)
         }
 
         cols <- c(col_mean, col_min, col_max)
@@ -485,14 +538,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         cbind(sub_df, m_rep)
       })
 
-      return(do.call(rbind, out_list))
+      return(list(status = "ok", rows = do.call(rbind, out_list)))
     } else {
       # Global statistics for bbox or L3 code regions
-      ex <- terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE)
+      ex <- .wapor_retry_remote_operation(
+        function() terra::global(r, fun = c("mean", "min", "max"), na.rm = TRUE),
+        label = sprintf("%s batch %d global reduction", variable, ci)
+      )
       ex$ID <- 1
       df_res <- cbind(chunk_meta, ex)
       df_res$region_id <- 1
-      return(df_res)
+      return(list(status = "ok", rows = df_res))
     }
   }
 
@@ -506,7 +562,28 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
   message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
 
-  final_df <- do.call(rbind, all_batch_results)
+  # Separate ok and failed batches
+  ok_batches <- all_batch_results[vapply(all_batch_results, function(r) identical(r$status, "ok"), logical(1))]
+  failed_batches <- all_batch_results[vapply(all_batch_results, function(r) identical(r$status, "failed"), logical(1))]
+
+  if (length(ok_batches) == 0) {
+    failed_urls <- unique(unlist(lapply(failed_batches, function(r) r$urls)))
+    stop(sprintf("All batches failed to process for %s (%d layer(s) affected).",
+                 variable, length(failed_urls)), call. = FALSE)
+  }
+
+  if (length(failed_batches) > 0 && !isTRUE(partial)) {
+    stop(sprintf(
+      "%d raster batch(es) failed for %s; refusing incomplete result. Set partial = TRUE to allow it.",
+      length(failed_batches), variable
+    ), call. = FALSE)
+  }
+  if (length(failed_batches) > 0 && isTRUE(partial)) {
+    warning(sprintf("Returning partial result for %s: %d raster batch(es) failed.",
+                    variable, length(failed_batches)), call. = FALSE)
+  }
+
+  final_df <- do.call(rbind, lapply(ok_batches, function(r) r$rows))
 
   # Get variable metadata for units
   source_var_meta <- wapor_variable_metadata(variable)
@@ -518,9 +595,27 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     attr(final_df, "units") <- "unknown"
   }
 
-  # Apply unit conversion
   final_df <- wapor_convert_units(final_df, resolved_unit_conversion)
 
-  message(sprintf("Time series extraction completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
+  failed_urls <- unique(unlist(lapply(failed_batches, function(r) r$urls)))
+  attr(final_df, "partial") <- length(failed_urls) > 0L
+  attr(final_df, "failed_layers") <- failed_urls
+
+  if (length(failed_batches) > 0) {
+    failed_csv <- file.path(tempdir(), paste0(variable, "_failed_layers.csv"))
+    utils::write.csv(
+      data.frame(
+        variable = variable,
+        failed_url = failed_urls,
+        stringsAsFactors = FALSE
+      ),
+      failed_csv, row.names = FALSE, quote = TRUE
+    )
+    message(sprintf("  %d layer(s) failed for %s; logged to %s",
+                    length(failed_urls), variable, failed_csv))
+  }
+
+  message(sprintf("Time series extraction completed in %.1f seconds",
+                  (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

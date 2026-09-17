@@ -1,12 +1,18 @@
 #' Write a Cloud-Optimized GeoTIFF
 #'
 #' Writes `x` with the GDAL COG driver when available. If that driver is
-#' missing, falls back to a tiled GeoTIFF with internal overviews so the
-#' file is still range-request friendly.
+#' missing, falls back to a tiled, compressed GeoTIFF. The fallback remains
+#' readable and can support efficient range access, but is not guaranteed to
+#' satisfy the complete COG overview specification.
 #'
 #' @param x SpatRaster to write.
 #' @param filename Character. Output `.tif` path.
 #' @param overwrite Logical. Overwrite an existing file. Default `TRUE`.
+#' @param datatype Character. Output GDAL datatype: one of `"INT1U"`, `"INT1S"`,
+#'   `"INT2U"`, `"INT2S"`, `"INT4U"`, `"INT4S"`, `"FLT4S"`, `"FLT8S"`. If `NULL`
+#'   (default), the datatype is probed from the actual cell values of the first
+#'   layer: integer-valued rasters within the INT4 range are written as `"INT4S"`,
+#'   everything else as `"FLT4S"`.
 #' @param ... Passed to [terra::writeRaster()] (for example `NAflag`).
 #' @return The `filename`, invisibly.
 #' @export
@@ -16,7 +22,7 @@
 #' r <- terra::rast(nrows = 4, ncols = 4, vals = 1:16)
 #' wapor_write_cog(r, tempfile(fileext = ".tif"))
 #' }
-wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
+wapor_write_cog <- function(x, filename, overwrite = TRUE, datatype = NULL, ...) {
   if (!inherits(x, "SpatRaster")) {
     stop("'x' must be a SpatRaster", call. = FALSE)
   }
@@ -42,10 +48,29 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
 
   drivers <- tryCatch(terra::gdal(drivers = TRUE)$name, error = function(e) character(0))
   use_cog <- length(drivers) && "COG" %in% drivers
-  datatype <- if (terra::is.int(x)) "INT4S" else "FLT4S"
+
+  # Determine datatype from actual cell values (not storage type) so COG
+  # writes match the data, not the in-memory representation.
+  known_dtypes <- c("INT1U", "INT1S", "INT2U", "INT2S", "INT4U", "INT4S", "FLT4S", "FLT8S")
+  if (is.null(datatype)) {
+    datatype <- .wapor_probe_datatype(x)
+  } else {
+    if (!datatype %in% known_dtypes) {
+      stop(sprintf("'datatype' must be one of: %s", paste(known_dtypes, collapse = ", ")), call. = FALSE)
+    }
+  }
+
+  # Lookup actual bytes per value so BIGTIFF threshold is correct for all dtypes.
+  .dtype_bytes <- c(
+    INT1U = 1L, INT1S = 1L,
+    INT2U = 2L, INT2S = 2L,
+    INT4U = 4L, INT4S = 4L,
+    FLT4S = 4L, FLT8S = 8L
+  )
+  bytes_per_val <- .dtype_bytes[[datatype]] %||% 4L
   ncell_x <- as.numeric(terra::ncell(x)) * as.numeric(terra::nlyr(x))
-  bigtiff <- if (isTRUE(ncell_x * 8 > 3.5e9)) "YES" else "IF_NEEDED"
-  predictor <- if (identical(datatype, "FLT4S")) "PREDICTOR=3" else "PREDICTOR=2"
+  bigtiff <- if (isTRUE(ncell_x * bytes_per_val > 3.5e9)) "YES" else "IF_NEEDED"
+  predictor <- if (datatype %in% c("FLT4S", "FLT8S")) "PREDICTOR=3" else "PREDICTOR=2"
 
   on.exit({
     if (file.exists(tmp) && !identical(normalizePath(tmp, winslash = "/", mustWork = FALSE),
@@ -85,6 +110,60 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, ...) {
     unlink(tmp, force = TRUE)
   }
   invisible(filename)
+}
+
+#' Probe the output datatype from actual cell values
+#'
+#' Samples up to 10000 cells from the first layer of `x` and determines the
+#' smallest GDAL datatype that can losslessly represent all non-NA values.
+#' Integer-valued rasters within the INT4 range are classified as `"INT4S"` (or
+#' `"INT4U"` when all values are non-negative); everything else is `"FLT4S"`.
+#'
+#' @param x SpatRaster.
+#' @return A single datatype string: `"INT4U"`, `"INT4S"`, or `"FLT4S"`.
+#' @keywords internal
+#' @noRd
+.wapor_probe_datatype <- function(x) {
+  n <- terra::ncell(x)
+  if (n == 0L) return("FLT4S")
+
+  sample_size <- min(n, 10000L)
+  ncol_x <- max(1L, as.integer(terra::ncol(x)))
+  sample_rows <- max(1L, ceiling(sample_size / ncol_x))
+
+  vals <- tryCatch(
+    as.numeric(terra::readValues(x, row = 1L, nrows = sample_rows, mat = TRUE)),
+    error = function(e) NULL
+  )
+  if (!is.null(vals) && length(vals) > sample_size) vals <- vals[seq_len(sample_size)]
+  if (is.null(vals)) return("FLT4S")
+
+  vals <- vals[!is.na(vals)]
+  if (length(vals) == 0L) return("FLT4S")
+
+  # Integer-valued check: all non-NA values within 1e-6 of an integer.
+  is_int_val <- all(abs(vals - round(vals)) < 1e-6)
+  if (!is_int_val) return("FLT4S")
+
+  rng <- range(vals, na.rm = TRUE)
+  # INT4S range: -2147483648 .. 2147483647
+  if (rng[1] >= -2147483648 && rng[2] <= 2147483647) {
+    if (rng[1] >= 0) return("INT4U")
+    return("INT4S")
+  }
+
+  # Integer-valued but outside INT4 range: fall back to float.
+  "FLT4S"
+}
+
+#' Write a Cloud-Optimized GeoTIFF
+#' @param r SpatRaster to write.
+#' @param path Output path.
+#' @param ... Passed to `wapor_write_cog()`.
+#' @return `path`, invisibly.
+#' @export
+write_raster_cog <- function(r, path, ...) {
+  wapor_write_cog(r, path, ...)
 }
 
 #' Write an L3 mosaic and coverage manifest
