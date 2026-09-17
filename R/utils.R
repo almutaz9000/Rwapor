@@ -2,11 +2,14 @@
 #'
 #' @param x Primary value.
 #' @param y Fallback value.
-#' @return `x` when it is not `NULL`, otherwise `y`.
+#' @return `x` when it is neither `NULL` nor zero-length, otherwise `y`.
+#'   The zero-length check matters for values round-tripped through
+#'   `jsonlite`: a `NULL` list element written with `write_json()` and read
+#'   back with `fromJSON()` becomes an empty (non-`NULL`) list, not `NULL`.
 #' @keywords internal
 #' @noRd
 `%||%` <- function(x, y) {
-  if (is.null(x)) y else x
+  if (is.null(x) || length(x) == 0) y else x
 }
 
 #' Load the Rwapor Agent Skills Reference
@@ -677,7 +680,7 @@ wapor_l3_extent <- function(url, code) {
   }
 
   # Fetch from remote
-  vsi_url <- paste0("/vsicurl/", url)
+  vsi_url <- .wapor_prefix_vsicurl(url)
   r <- tryCatch({
     suppressWarnings(terra::rast(vsi_url))
   }, error = function(e) NULL)
@@ -896,6 +899,67 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
   }
   
   split(urls, ceiling(seq_along(urls) / batch_size))
+}
+
+#' Prefix URLs for GDAL virtual file system access
+#'
+#' Ensures every URL in `urls` begins with `/vsicurl/` exactly once. URLs that
+#' already start with `/vsicurl/` are returned unchanged; bare filenames and
+#' absolute `https://` URLs get the prefix prepended. This centralises the
+#' prefix logic so all streaming call sites behave identically and never double
+#' prefix.
+#'
+#' @param urls Character vector of URLs or filenames.
+#' @return Character vector of the same length, each element starting with
+#'   `/vsicurl/`.
+#' @keywords internal
+#' @noRd
+.wapor_prefix_vsicurl <- function(urls) {
+  if (!is.character(urls) || length(urls) == 0) return(character(0))
+  needs_prefix <- !grepl("^/vsicurl/", urls)
+  out <- urls
+  out[needs_prefix] <- paste0("/vsicurl/", urls[needs_prefix])
+  out
+}
+
+#' Retry a complete remote raster operation
+#'
+#' The operation must include all work that forces pixel I/O. Retrying only
+#' terra::rast() is insufficient because rast() can return a lazy reference.
+#' @param operation Zero-argument function that performs the complete operation.
+#' @param label Short label used in retry messages.
+#' @param max_retries Positive integer number of attempts.
+#' @param retry_delay Numeric base delay in seconds; delay grows linearly.
+#' @return The value returned by `operation()`.
+#' @keywords internal
+#' @noRd
+.wapor_retry_remote_operation <- function(operation, label = "remote raster operation",
+                                           max_retries = 3L, retry_delay = 2) {
+  if (!is.function(operation)) stop("'operation' must be a function", call. = FALSE)
+  if (length(max_retries) != 1L || is.na(max_retries) || max_retries < 1) {
+    stop("'max_retries' must be a positive integer", call. = FALSE)
+  }
+  if (length(retry_delay) != 1L || is.na(retry_delay) || retry_delay < 0) {
+    stop("'retry_delay' must be a non-negative number", call. = FALSE)
+  }
+  max_retries <- as.integer(max_retries)
+  last_error <- NULL
+  for (attempt in seq_len(max_retries)) {
+    result <- tryCatch(operation(), error = function(e) {
+      last_error <<- e
+      NULL
+    })
+    if (!is.null(result)) return(result)
+    if (attempt < max_retries) {
+      delay <- retry_delay * attempt
+      message(sprintf("Attempt %d/%d failed for %s; retrying in %.1f seconds: %s",
+                      attempt, max_retries, label, delay,
+                      conditionMessage(last_error)))
+      if (delay > 0) Sys.sleep(delay)
+    }
+  }
+  stop(sprintf("%s failed after %d attempt(s): %s", label, max_retries,
+              conditionMessage(last_error)), call. = FALSE)
 }
 
 #' Log Message with Timestamp

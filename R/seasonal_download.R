@@ -40,7 +40,11 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
   aggregation_rule <- get_seasonal_aggregation_rule(variable)
 
-  avail <- wapor_temporal_codes(variable)
+  avail <- if (all(c("l3_region", "period") %in% names(formals(wapor_temporal_codes)))) {
+    wapor_temporal_codes(variable, l3_region = l3_code, period = period)
+  } else {
+    wapor_temporal_codes(variable)
+  }
   message(sprintf("Building seasonal plan for %s (%s to %s)", variable, period[1], period[2]))
   message(sprintf("Available temporal resolutions: %s", paste(avail, collapse = ", ")))
 
@@ -70,7 +74,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     urls <- wapor_generate_urls(var_for_code, l3_region = l3_code, period = code_period)
 
     if (length(urls) == 0) {
-      warning(sprintf("No URLs found for %s. Skipping.", var_for_code), call. = FALSE)
+      message(sprintf("No URLs found for %s. Skipping.", var_for_code))
       missing_period_ids <- c(missing_period_ids, code_rows$period_id)
       next
     }
@@ -96,8 +100,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
         matched_urls[match_count] <- urls[idx[1]]
         matched_idx[match_count] <- i
       } else {
-        warning(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id),
-                call. = FALSE)
+        message(sprintf("No URL found for %s period %s. Skipping.", code, row$period_id))
         missing_period_ids <- c(missing_period_ids, row$period_id)
       }
     }
@@ -112,40 +115,28 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     )
     layer_ids <- matched_rows$period_id
 
-    # Load rasters via vsicurl, with retry on transient network/GDAL failures
+    # Retry the complete operation because terra::rast() may return a lazy
+    # reference and pixel I/O occurs during crop, conversion, or later use.
     t_code <- proc.time()
-    vsicurl_urls <- paste0("/vsicurl/", matched_urls)
-    r <- NULL
-    max_retries <- 3
-    for (attempt in seq_len(max_retries)) {
-      r <- tryCatch({
-        terra::rast(vsicurl_urls)
-      }, error = function(e) {
-        if (attempt < max_retries) {
-          message(sprintf("Attempt %d to load %s rasters failed. Retrying in %d seconds... (%s)",
-                           attempt, var_for_code, attempt * 2, e$message))
-          Sys.sleep(attempt * 2)
-        } else {
-          warning(sprintf("Failed to load %s rasters after %d attempts: %s",
-                           var_for_code, max_retries, e$message), call. = FALSE)
-        }
-        return(NULL)
-      })
-      if (!is.null(r)) break
-    }
+    vsicurl_urls <- .wapor_prefix_vsicurl(matched_urls)
+    r <- tryCatch(
+      .wapor_retry_remote_operation(function() {
+        out <- terra::rast(vsicurl_urls)
+        out <- wapor_crop_to_region(out, reg_info, do_mask = do_mask)
+        out <- wapor_convert_temperature(out, var_for_code)
+        names(out) <- layer_ids
+        out
+      }, label = sprintf("%s rasters", var_for_code)),
+      error = function(e) {
+        warning(conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
 
     if (is.null(r)) {
       missing_period_ids <- c(missing_period_ids, layer_ids)
       next
     }
-
-    # Crop to region; optionally mask to polygon boundary
-    r <- wapor_crop_to_region(r, reg_info, do_mask = do_mask)
-    
-    # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
-    r <- wapor_convert_temperature(r, var_for_code)
-    
-    names(r) <- layer_ids
     message(sprintf("  %s: loaded and cropped %d layer(s) in %.1f seconds",
                     var_for_code, terra::nlyr(r), (proc.time() - t_code)[["elapsed"]]))
 

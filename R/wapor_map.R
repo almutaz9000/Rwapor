@@ -45,6 +45,8 @@
 #' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
 #'   and recorded. Default `FALSE` fails the request.
 #' @param cog Logical. Write GeoTIFF outputs with [wapor_write_cog()]. Default `FALSE`.
+#' @param on_batch_done Optional function called after each processed batch with
+#'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
 #' @return Character path to the output GeoTIFF file, or in seasonal mode with
 #'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
@@ -111,7 +113,8 @@ wapor_map <- function(
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
-  cog = FALSE
+  cog = FALSE,
+  on_batch_done = NULL
 ) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
@@ -398,7 +401,7 @@ wapor_map <- function(
     prefix <- if (reg_info$type == "bbox") "bb_" else ""
 
     # Use GDAL virtual file system
-    urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+    urls <- .wapor_prefix_vsicurl(urls)
     log_msg(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", var))
     
     tres_code <- strsplit(var, "-")[[1]][3]
@@ -412,6 +415,7 @@ wapor_map <- function(
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {
       r <- NULL
+      err <- NULL
       max_retries <- 3
       for (attempt in seq_len(max_retries)) {
         r <- tryCatch({
@@ -421,25 +425,40 @@ wapor_map <- function(
             Sys.sleep(attempt * 2)
             return(NULL)
           } else {
-            warning(sprintf("Failed to load chunk %d raster data after %d attempts: %s", 
-                            chunk_idx, max_retries, e$message), call. = FALSE)
-            return(NULL)
+            return(e)
           }
         })
+        if (inherits(r, "error")) {
+          err <- r
+          r <- NULL
+        }
         if (!is.null(r)) break
       }
-      
-      if (is.null(r)) return(NULL)
 
-      # Crop to region; optionally mask to polygon boundary
-      r <- wapor_crop_to_region(r, reg_info, do_mask = mask)
+      if (is.null(r)) {
+        return(list(
+          status = "failed",
+          chunk_idx = chunk_idx,
+          urls = chunk_urls,
+          error = if (is.null(err)) "unknown" else conditionMessage(err),
+          paths = character(0),
+          layer_names = character(0)
+        ))
+      }
+
+      # Crop to region; optionally mask to polygon boundary. Crop can force
+      # remote pixel I/O, so keep it inside the retry boundary.
+      r <- .wapor_retry_remote_operation(
+        function() wapor_crop_to_region(r, reg_info, do_mask = mask),
+        label = sprintf("%s crop", var)
+      )
 
       # Unit Conversion
       if (current_unit_conv != "none") {
         r <- wapor_convert_raster(r, var, chunk_urls, current_unit_conv)
       }
 
-      # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+      # Temperature Conversion (Kelvin to Celsius for AgERA5 variables)
       r <- wapor_convert_temperature(r, var)
 
       # Standardize layer names to "YYYY-MM-DD"
@@ -449,26 +468,30 @@ wapor_map <- function(
       names(r) <- layer_names
 
       if (separate_files) {
-        # Save individual files directly
         chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
-          # Finalize raster with metadata AFTER all transformations (like classify)
           r_out <- terra::classify(r[[i]], cbind(NA, -9999))
           r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
-          
-          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          .wapor_retry_remote_operation(
+            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999),
+            label = sprintf("%s output", var)
+          )
           out_path
         }, character(1))
-        return(list(type = "separate", paths = chunk_paths))
+        return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
+                    paths = chunk_paths, layer_names = layer_names))
       } else {
-        # Save chunk to tempfile for later stacking
         tmp_path <- tempfile(fileext = ".tif")
         r_out <- terra::classify(r, cbind(NA, -9999))
-        suppressWarnings(terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999))
-        return(list(type = "stack", filepath = tmp_path, layer_names = layer_names))
+        .wapor_retry_remote_operation(
+          function() terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999),
+          label = sprintf("%s temporary output", var)
+        )
+        return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
+                    filepath = tmp_path, layer_names = layer_names))
       }
     }
-    
+
     # Process all chunks, using future_lapply if parallel is TRUE
     if (parallel) {
       log_msg("  Processing chunks in parallel...")
@@ -477,29 +500,52 @@ wapor_map <- function(
       }, future.seed = TRUE)
     } else {
       chunk_results <- lapply(seq_along(url_chunks), function(i) {
-        process_chunk(url_chunks[[i]], i)
+        result <- process_chunk(url_chunks[[i]], i)
+        if (is.function(on_batch_done)) {
+          tryCatch(on_batch_done(i, length(url_chunks)), error = function(e) NULL)
+        }
+        result
       })
     }
-    
-    # Filter out any failed chunks
-    chunk_results <- Filter(Negate(is.null), chunk_results)
-    
-    if (length(chunk_results) == 0) {
-      warning("All chunks failed to process.", call. = FALSE)
-      return(NULL)
+
+    # Classify results: ok chunks and failed chunks
+    ok_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "ok"), logical(1))]
+    failed_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "failed"), logical(1))]
+
+    if (length(ok_chunks) == 0) {
+      failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
+      warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
+                      var, length(failed_urls)), call. = FALSE)
+      return(list(
+        status = "failed",
+        variable = var,
+        output_paths = character(0),
+        failed_layers = failed_urls,
+        n_ok_chunks = 0L,
+        n_failed_chunks = length(chunk_results)
+      ))
+    }
+
+    failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
+    if (length(failed_urls) > 0 && !isTRUE(partial)) {
+      stop(sprintf(
+        "%d raster batch(es) failed for %s; refusing incomplete output. Set partial = TRUE to allow it.",
+        length(failed_chunks), var
+      ), call. = FALSE)
+    }
+    if (length(failed_urls) > 0 && isTRUE(partial)) {
+      warning(sprintf("Returning partial output for %s: %d raster layer(s) failed.",
+                      var, length(failed_urls)), call. = FALSE)
     }
 
     if (separate_files) {
-      # Combine paths from all chunks
-      output_paths <- unlist(lapply(chunk_results, function(res) res$paths))
+      output_paths <- unlist(lapply(ok_chunks, function(res) res$paths))
     } else {
-      # Combine temporary files into a single stack
-      temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
-      on.exit(unlink(temp_files), add = TRUE)  # ensure cleanup even if merge errors
-      all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
+      temp_files <- vapply(ok_chunks, function(res) res$filepath, character(1))
+      on.exit(unlink(temp_files), add = TRUE)
+      all_names <- unlist(lapply(ok_chunks, function(res) res$layer_names))
 
       log_msg("  Merging chunks into final multi-band stack...")
-      # Load all temp files logically
       r_all <- suppressWarnings(terra::rast(temp_files))
       names(r_all) <- all_names
 
@@ -516,12 +562,33 @@ wapor_map <- function(
       r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
 
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-
       output_paths <- out_path
     }
-    
-    log_msg(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
-    return(output_paths)
+
+    if (length(failed_urls) > 0) {
+      failed_csv <- file.path(var_folder, paste0(var, "_failed_layers.csv"))
+      utils::write.csv(
+        data.frame(
+          variable = var,
+          failed_url = failed_urls,
+          stringsAsFactors = FALSE
+        ),
+        failed_csv, row.names = FALSE, quote = TRUE
+      )
+      log_msg(sprintf("  %d layer(s) failed for %s; logged to %s",
+                      length(failed_urls), var, failed_csv))
+    }
+
+    log_msg(sprintf("  Variable %s completed in %.1f seconds",
+                    var, (proc.time() - t0_var)[["elapsed"]]))
+    return(list(
+      status = "ok",
+      variable = var,
+      output_paths = output_paths,
+      failed_layers = failed_urls,
+      n_ok_chunks = length(ok_chunks),
+      n_failed_chunks = length(failed_chunks)
+    ))
   }
 
   # Process all variables
