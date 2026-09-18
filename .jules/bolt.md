@@ -21,3 +21,7 @@
 ## 2026-06-23 - [Precomputed Zonal Stats for Multi-Class Comparisons]
 **Learning:** In multi-season or multi-class spatial comparison loops, computing per-class zonal means using `terra::ifel(mask == cls, 1L, NA)` and raster multiplication inside nested class/season loops scales linearly with $O(N_{\text{classes}} \times N_{\text{seasons}})$, causing repetitive allocation and pass-through raster computation. Pre-computing `terra::zonal(indicator_raster, crop_mask, fun = "mean", na.rm = TRUE)` once per season evaluates all class zonal statistics in a single pass in C++, allowing $O(1)$ vector lookup per class.
 **Action:** When extracting class-level statistics across multiple categories or seasons, use `terra::zonal()` upfront per raster instead of generating conditional class masks in nested loops.
+
+## 2026-09-17 - [Direct S4 pmin/pmax Dispatch for SpatRaster Indicators]
+**Learning:** In `terra`, using `terra::ifel(a <= b, a, b)` or `terra::ifel(diff > 0, diff, 0)` allocates intermediate boolean `SpatRaster` mask layers and performs conditional branch evaluation on every pixel. Calling `pmin(a, b)` or `pmax(diff, 0)` directly dispatches S4 methods to `terra::pmin()` / `terra::pmax()` (or base R `pmin()` / `pmax()` for numeric inputs), evaluating element-wise minimums/maximums natively in C++ without evaluating `ifel` logic or allocating intermediate boolean SpatRaster objects.
+**Action:** Prefer direct `pmin()` and `pmax()` calls over `terra::ifel()` conditional branches when calculating bounds or thresholds on `SpatRaster` and numeric objects.

@@ -477,3 +477,24 @@ test_that("wapor_compare_seasons computes overall and per-class comparisons corr
   expect_equal(maize_s1$Adequacy_pct, 90)
   expect_equal(maize_s2$Adequacy_pct, 95)
 })
+
+test_that("wapor_calc_green_water and wapor_calc_blue_water work for numeric and SpatRaster inputs", {
+  # Numeric inputs
+  expect_equal(wapor_calc_green_water(350, 200), 200)
+  expect_equal(wapor_calc_green_water(150, 200), 150)
+  expect_equal(wapor_calc_blue_water(350, 200), 150)
+  expect_equal(wapor_calc_blue_water(150, 200), 0)
+
+  # SpatRaster inputs
+  skip_if_not_installed("terra")
+  aeti_r <- terra::rast(nrows = 2, ncols = 2, vals = c(350, 150, 200, 400))
+  peff_r <- terra::rast(nrows = 2, ncols = 2, vals = c(200, 200, 200, 200))
+
+  green_r <- wapor_calc_green_water(aeti_r, peff_r)
+  blue_r  <- wapor_calc_blue_water(aeti_r, peff_r)
+
+  expect_true(inherits(green_r, "SpatRaster"))
+  expect_true(inherits(blue_r, "SpatRaster"))
+  expect_equal(as.numeric(terra::values(green_r)), c(200, 150, 200, 200))
+  expect_equal(as.numeric(terra::values(blue_r)), c(150, 0, 0, 200))
+})
