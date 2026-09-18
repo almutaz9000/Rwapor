@@ -156,8 +156,9 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
   }
   
   # Convert to integer raster
+  # Optimization: Direct boolean raster multiplication avoids terra::ifel overhead
   if (!is.null(compound_anomaly)) {
-    compound_anomaly <- terra::ifel(compound_anomaly, 1L, 0L)
+    compound_anomaly <- compound_anomaly * 1L
   } else {
     stop("No valid indicators found in input list", call. = FALSE)
   }
@@ -215,12 +216,13 @@ wapor_detect_zscore_anomalies <- function(value_raster, crop_mask,
   z_score <- (value_raster - mean_raster) / sd_raster
   
   # Flag anomalies based on direction
+  # Optimization: Direct boolean raster multiplication avoids terra::ifel overhead
   if (direction == "below") {
-    anomaly_map <- terra::ifel(z_score < -z_threshold, 1L, 0L)
+    anomaly_map <- (z_score < -z_threshold) * 1L
   } else if (direction == "above") {
-    anomaly_map <- terra::ifel(z_score > z_threshold, 1L, 0L)
+    anomaly_map <- (z_score > z_threshold) * 1L
   } else if (direction == "both") {
-    anomaly_map <- terra::ifel(abs(z_score) > z_threshold, 1L, 0L)
+    anomaly_map <- (abs(z_score) > z_threshold) * 1L
   } else {
     stop("direction must be 'below', 'above', or 'both'", call. = FALSE)
   }
@@ -255,10 +257,8 @@ wapor_detect_spatial_hotspots <- function(aeti_seasonal, window_size = 5,
   focal_median <- terra::focal(aeti_seasonal, w = w, fun = "median", na.rm = TRUE)
   
   # Flag pixels below threshold * focal_median
-  hotspot_map <- terra::ifel(
-    aeti_seasonal < (focal_median * threshold) & !is.na(aeti_seasonal),
-    1L, 0L
-  )
+  # Optimization: Direct boolean raster multiplication avoids terra::ifel overhead
+  hotspot_map <- (aeti_seasonal < (focal_median * threshold) & !is.na(aeti_seasonal)) * 1L
   
   # Compute hotspot cluster sizes using connected components
   # This requires additional processing - simplified version:

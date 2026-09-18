@@ -212,8 +212,8 @@ wapor_map <- function(
         # This is significantly faster than per-layer R loops with ifel()
         if (identical(aggregation_rule, "weighted_mean")) {
           # Weight raster for each layer: multiplier where data is present, 0 otherwise
-          # Vectorized across the stack
-          weight_stack <- terra::ifel(is.na(r_group), 0, multipliers)
+          # Optimization: Direct boolean raster multiplication avoids terra::ifel overhead
+          weight_stack <- (!is.na(r_group)) * multipliers
 
           group_sum <- terra::sum(weighted_stack, na.rm = TRUE)
           group_weight <- terra::sum(weight_stack, na.rm = TRUE)
