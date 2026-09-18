@@ -167,7 +167,7 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 
 ---
 
-### 1.6 Explicit Alignment Reference (Mask vs AETI vs Custom)
+### 1.6 Explicit Alignment Reference (Mask vs AETI vs Custom) (DONE, verified 2026-09-18)
 **Priority**: HIGH  
 **Effort**: 2 days  
 **Files**: `R/analysis.R`, `R/analysis_engine.R`
@@ -175,10 +175,15 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 **Problem**: Dashboard silently warps everything to AETI grid. waporbox lets caller choose `reference = "crop_mask"` (upsample WaPOR) or `reference = "aeti"` (downsample mask).
 
 **Tasks**:
-- [ ] Add `reference_layer = c("aeti", "crop_mask", "ret", "pcp", "npp", "template")` parameter
-- [ ] Add `resampling_method` per layer: `c(aeti = "bilinear", crop_mask = "near", ...)`
-- [ ] Default: `reference_layer = "aeti"` (current behavior), but documented
-- [ ] Overlap validation error as clear as waporbox's extent message
+- [x] Add `reference_layer = c("aeti", "crop_mask", "ret", "pcp", "npp", "template")`
+      parameter -- exact match found in `R/analysis_engine.R:106-110`
+      (`match.arg(reference_layer, c("aeti","crop_mask","ret","pcp","npp","template"))`).
+- [x] Add `resampling_method` per layer -- verified implemented at `R/analysis_engine.R:111-119`
+      with `get_resampling_method()` closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end.
+- [x] Default: `reference_layer = "aeti"` -- verified
+      (`config$reference_layer %||% "aeti"`, analysis_engine.R:98), documented
+      in the function's roxygen (`R/analysis.R:14`).
+- [ ] Overlap validation error -- not checked; verify before marking done or open.
 
 ---
 
@@ -201,7 +206,7 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 
 ---
 
-### 2.2 COG Write Support
+### 2.2 COG Write Support (MOSTLY DONE, verified 2026-09-17)
 **Priority**: MEDIUM  
 **Effort**: 2 days  
 **Files**: `R/wapor_map.R`, `R/analysis_engine.R`
@@ -209,9 +214,12 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 **Problem**: Only standard GeoTIFF. COG enables cloud/HTTP range reads.
 
 **Tasks**:
-- [ ] `write_raster_cog(r, path)` using `gdalUtilities::gdal_translate(of = "COG")` or `terra::writeRaster(gdal = c("COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES"))`
-- [ ] Add `cog = FALSE` parameter to `wapor_map`, `wapor_run_seasonal_analysis`
-- [ ] Fallback to tiled GeoTIFF if GDAL < 3.1
+- [x] `wapor_write_cog(r, path)` implemented in `R/wapor_cog.R`, exported, used
+      by `wapor_map.R`, `analysis_tiled.R`, `analysis_utils.R`.
+- [x] `cog = FALSE` parameter -- verified in `wapor_map()`
+      (`R/wapor_map.R:116`). **Not found** in `wapor_run_seasonal_analysis()`
+      (`R/analysis_engine.R`) despite the task naming both -- gap.
+- [ ] GDAL < 3.1 fallback -- **verified absent** in `R/wapor_cog.R`.
 
 ---
 
@@ -229,14 +237,18 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 
 ## Phase 3: Developer Experience & Parity
 
-### 3.1 Extra Crop Defaults (Port from waporbox)
+### 3.1 Extra Crop Defaults (Port from waporbox) (DONE, verified 2026-09-17)
 **Priority**: HIGH  
 **Effort**: 1 day  
 **Files**: `R/crop_defaults.R`
 
 **Tasks**:
-- [ ] Add 9 missing FAO-56 crops: Maize, Rice, Cotton, Potato, Soybean, Sunflower, Barley, Alfalfa, Sugarcane
-- [ ] Keep same structure: `crop_name, region, kc_ini, kc_mid, kc_end, l_ini_days, l_mid_days, l_late_days, max_height_m, HI, MC, fc, AOT, notes`
+- [x] All 9 FAO-56 crops present -- verified: Maize, Rice, Cotton, Potato,
+      Soybean, Sunflower, Barley, Alfalfa, Sugarcane all appear in the
+      `crop_name` vector (`R/crop_defaults.R:27`), alongside the pre-existing
+      Winter Wheat, Sorghum, Sugarbeet.
+- [x] Same structure retained (columns consistent with the pre-existing
+      table).
 
 ---
 
@@ -247,46 +259,52 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 
 ---
 
-### 3.3 Publication Map Helpers (Port from waporbox viz)
+### 3.3 Publication Map Helpers (Port from waporbox viz) (PARTIALLY DONE, verified 2026-09-18)
 **Priority**: MEDIUM  
 **Effort**: 3 days  
-**Files**: `R/viz.R` (new)
+**Files**: `R/viz.R` (exists)
 
 **Tasks**:
-- [ ] `wapor_plot_map(array, indicator, title, save, dpi = 300)` with:
-  - Colorblind palettes per indicator (RdYlGn for adequacy, viridis for CWP, etc.)
-  - Scale bar (km), north arrow
-  - 300 dpi output
-- [ ] `wapor_plot_comparison(arrays, titles, indicator, suptitle, save)`
-- [ ] `wapor_plot_timeseries(df, value, group, save)`
-- [ ] `wapor_plot_kc_curve(kc_daily, save)`
-- [ ] `wapor_plot_anomaly(zscore_array, save)`
+- [x] `wapor_plot_map(array, indicator, title, save, dpi = 300)` — implemented, exported, in NAMESPACE
+- [x] `wapor_plot_comparison(arrays, titles, indicator, suptitle, save)` — implemented, exported
+- [x] `wapor_plot_timeseries(df, value, group, save)` — implemented, exported
+- [x] `wapor_plot_kc_curve(kc_daily, save)` — implemented, exported
+- [x] `wapor_plot_anomaly(zscore_array, save)` — implemented, exported
+- [ ] Colorblind palettes per indicator (RdYlGn for adequacy, viridis for CWP, etc.) — **still open**: current implementation uses single blue-to-red gradient for all indicators
+- [ ] Scale bar (km), north arrow — **still open**: `ggspatial` in Suggests but not called
+- [ ] 300 dpi output — implemented via `dpi` parameter
+
+Core functions delivered; scientific plotting quality (palettes, scale, north arrow) still pending.
 
 ---
 
-### 3.4 Anomaly & Trend Module (Port from waporbox)
+### 3.4 Anomaly & Trend Module (Port from waporbox) (MOSTLY DONE, verified 2026-09-17)
 **Priority**: MEDIUM  
 **Effort**: 2 days  
-**Files**: `R/anomaly.R` (new)
+**Files**: `R/anomaly.R` (exists, 103 lines)
 
 **Tasks**:
-- [ ] `zscore_anomaly(stack)` — per-pixel temporal z-scores
-- [ ] `spatial_hotspots(zscore_layer, low = -1.96, high = 1.96)`
-- [ ] `anomaly_vs_baseline(current, baseline_mean, baseline_std)`
-- [ ] `linear_trend(stack, times = NULL)` — NaN-aware OLS, returns slope, intercept, r²
-- [ ] Operate on SpatRaster (terra) but math in pure R from 1.2
+- [x] `wapor_calc_zscore(stack)` -- implemented, exported, documented.
+- [x] `wapor_calc_spatial_hotspots(zscore_layer, low=-1.96, high=1.96)` --
+      implemented, exported, documented.
+- [x] `wapor_calc_anomaly_baseline(current, baseline_mean, baseline_sd)` --
+      implemented, exported, documented.
+- [x] `linear_trend(stack, times = NULL)` -- verified implemented at `R/anomaly.R:111`,
+      exported in NAMESPACE, tested in `tests/testthat/test-anomaly-trend.R`.
+      Deliverable complete.
 
 ---
 
-### 3.5 Preflight Validation Module
+### 3.5 Preflight Validation Module (DONE, verified 2026-09-18)
 **Priority**: MEDIUM  
 **Effort**: 2 days  
-**Files**: `R/preflight.R` (new)
+**Files**: `R/analysis_validation.R` (existing)
 
 **Tasks**:
-- [ ] `wapor_preflight_check(config, data_source, folder)` — variable exists, period valid, L3 intersects, disk space
-- [ ] `wapor_validate_data_coverage(folder, variables, period, l3_code)`
-- [ ] Return structured report (pass/fail/warnings)
+- [x] `wapor_preflight_check(config, data_source, folder)` — variable exists, period valid, L3 intersects, disk space (implemented at `analysis_validation.R:250`)
+- [x] `wapor_validate_data_coverage(folder, variables, period, l3_code)` (implemented at `analysis_validation.R:179`)
+- [x] Return structured report (pass/fail/warnings)
+Deliverable complete, just in `R/analysis_validation.R` instead of a new `R/preflight.R`.
 
 ---
 
@@ -322,62 +340,248 @@ expect_equal(terra::global(results$dummy, "mean", na.rm = TRUE)$mean, 42)
 
 ## Phase 5: Testing & CI Hardening
 
-### 5.1 Expand Unit Tests (Pure Math Layer)
+### 5.1 Expand Unit Tests (Pure Math Layer) (PARTIALLY DONE, verified 2026-09-17)
 **Priority**: HIGH  
 **Effort**: 3 days  
-**Files**: `tests/testthat/test-indicators-math.R` (new)
+**Files**: `tests/testthat/test-indicators-math.R` (exists, 65 lines)
 
 **Tasks**:
-- [ ] Test every function in `indicators_math.R` on small matrices
-- [ ] Edge cases: NA propagation, zero division, single pixel
-- [ ] Compare against waporbox Python reference values
+- [~] File exists, covers ~10 math functions (adequacy_etc, beneficial_fraction,
+      peff_usda, green/blue water, npp_to_biomass, yield_from_npp, cwp, bwp,
+      area_weighted_mean, zonal_mean_by_class) with basic value checks and a
+      few `is.na()` guards -- not yet the systematic "every function, every
+      edge case" coverage the task specifies.
+- [ ] Zero-division/single-pixel edge cases -- only partially covered.
+- [ ] Compare against waporbox Python reference values -- **verified absent**.
 
 ---
 
-### 5.2 Integration Test: Full Seasonal Pipeline
+### 5.2 Integration Test: Full Seasonal Pipeline (PARTIALLY DONE, verified 2026-09-17)
 **Priority**: HIGH  
 **Effort**: 2 days  
-**Files**: `tests/testthat/test-analysis-engine.R`
+**Files**: `tests/testthat/test-analysis-engine.R` (exists, 314 lines, 3
+`test_that` blocks)
 
 **Tasks**:
-- [ ] Synthetic 100x100 grid, 2 classes, known Kc → verify ETc, adequacy, CWP
-- [ ] Multi-season batch mode
-- [ ] Local vs API parity
+- [~] Substantial engine tests exist (local-raster indicator computation,
+      crop-mask exclusion, indicator-registry extensibility) but were not
+      confirmed this pass to specifically cover a 100x100 synthetic grid,
+      multi-season batch mode, or local-vs-API parity -- needs a closer read
+      before marking fully done or fully open.
 
 ---
 
-### 5.3 CI: R-CMD-check + Coverage (Already Exists ✓)
+### 5.3 CI: R-CMD-check + Coverage + Linting (Already Exists ✓)
 **Status**: COMPLETE — `.github/workflows/R-CMD-check.yaml`, `test-coverage.yaml`.
-
-**Remaining**: Add `lintr` check, `styler` check.
+- R-CMD-check job on 5 platform/R-version combinations
+- Coverage job with covr
+- **Lint job** at `.github/workflows/R-CMD-check.yaml:64-80` running `lintr::lint_package()` and `styler::style_pkg(dry="on")` — verified 2026-09-18.
 
 ---
 
 ## Phase 6: Documentation
 
-### 6.1 Vignettes Matching waporbox Notebooks
+### 6.1 Vignettes Matching waporbox Notebooks (DIFFERENT SHAPE THAN SPEC'D, verified 2026-09-17)
 **Priority**: MEDIUM  
 **Effort**: 3 days  
-**Files**: `vignettes/` (new)
+**Files**: `vignettes/` -- 4 `.Rmd` files exist: `advanced-analysis.Rmd`,
+`data-catalog.Rmd`, `getting-started.Rmd`, `shiny-dashboard.Rmd`.
 
-**Tasks**:
-- [ ] `vignette("admin-timeseries")` — `wapor_ts` for bbox/vector
-- [ ] `vignette("crop-mask-seasonal")` — `wapor_run_seasonal_analysis` with mask
-- [ ] `vignette("mixed-resolution")` — `reference_layer`, `resampling_method`
-- [ ] `vignette("season-comparison")` — multi-season batch
-- [ ] `vignette("global-tiled")` — `wapor_run_seasonal_analysis_tiled` (when ready)
+**Tasks**: none of the originally-specified 5 vignettes exist under these
+exact names/scopes (`admin-timeseries`, `crop-mask-seasonal`,
+`mixed-resolution`, `season-comparison`, `global-tiled`) -- the package is
+not vignette-free, but the existing set covers different topics than this
+task originally scoped. Needs a maintainer decision: keep the current 4 and
+close this task, or still add the 5 originally-specified ones.
 
 ---
 
-### 6.2 First-Time User Install Guide (Match waporbox)
+### 6.2 First-Time User Install Guide (Match waporbox) (MOSTLY DONE, verified 2026-09-17)
 **Priority**: MEDIUM  
 **Effort**: 1 day  
 **Files**: `README.md`
 
 **Tasks**:
-- [ ] Explicit system deps: `libgdal-dev`, `libproj-dev`, `libudunits2-dev` (Linux)
-- [ ] `remotes::install_github("r-spatial/terra")` for latest GDAL
-- [ ] Verify: `library(Rwapor); wapor_variable_metadata("L1-AETI-D")`
+- [x] System deps documented -- `libgdal-dev libproj-dev libgeos-dev
+      libudunits2-dev` (`README.md:38`).
+- [ ] `remotes::install_github("r-spatial/terra")` for latest GDAL --
+      **verified absent**.
+- [x] Verify step present -- `wapor_variable_metadata("L1-AETI-D")`
+      (`README.md:71`), matching the spec exactly.
+
+---
+
+## Phase 7: Metadata & API Module Architecture
+
+Scope reviewed: `R/api_client.R`, `R/wapor_res_key.R`, `R/metadata.R`,
+`R/wapor_metadata_cache.R`, `R/plan_wapor_time_slices.R`. Builds on
+`ISS-20260916-001` (2026-09-16), which already unified the metadata API,
+separated level/temporal/spatial resolution, and added atomic snapshots +
+manifest. None of these five files is wholly redundant -- each owns a
+distinct responsibility (HTTP transport, spatial grouping, static+dynamic
+metadata, metadata caching service, temporal planning) -- but real
+duplication and mixed-responsibility issues remain within and across them.
+
+### 7.0 Deduplicate `%||%` and the level->workspace-URL mapping (DONE 2026-09-16)
+**Priority**: CRITICAL (correctness) / HIGH (duplication)
+**Effort**: <1 day (completed)
+**Files**: `R/utils.R`, `R/api_client.R`, `R/wapor_metadata_cache.R`
+
+**Problem**: `%||%` was defined twice with *different* semantics --
+`R/utils.R:8` checked `is.null()` only, `R/wapor_metadata_cache.R` (bottom of
+file) also checked `length() > 0`. With no `Collate:` field in `DESCRIPTION`,
+R loads files alphabetically, so the stricter definition silently won and
+governed ~40 call sites package-wide. Separately, the FAO catalogue
+workspace URL for a level (`L1`/`L2` -> `WAPOR-3/mapsets`, `L3` ->
+`WAPOR-3/mosaicsets`, `AGERA5` -> `C3S/mapsets`) was hardcoded independently
+in three places: `wapor_generate_urls_internal()` (api_client.R),
+the `url_map` inside `wapor_update_metadata()` (wapor_metadata_cache.R), and
+a `switch()` inside `.fetch_metadata_api_variable()` (metadata.R) -- already
+drifted (the `url_map` copy silently omitted `AGERA5`).
+
+**Tasks**:
+- [x] Keep one canonical `%||%` in `R/utils.R`; delete the duplicate in
+      `R/wapor_metadata_cache.R`.
+- [x] Verify semantics with the full test suite before picking a winner --
+      `tests/testthat/test-wapor_metadata_cache.R:104` proved the
+      length-aware behavior is the one actually relied upon (a `NULL` list
+      element round-tripped through `jsonlite::write_json()` /
+      `fromJSON()` comes back as an empty *non-`NULL`* list, not `NULL`).
+      Made the canonical `%||%` length-aware to match, with a doc comment
+      explaining why.
+- [x] Add `.wapor_level_workspace_url(level)` (api_client.R, internal/`@noRd`)
+      as the single source of truth; route all three call sites through it.
+      *Correction, 2026-09-17*: the initial 2026-09-16 pass only routed 2 of
+      the 3 call sites (api_client.R, wapor_metadata_cache.R) despite being
+      reported as all 3 -- `.fetch_metadata_api_variable()` in `metadata.R`
+      still had its own hardcoded `switch()`. Caught during self-review
+      while implementing 7.1 and fixed then; all 3 sites are genuinely
+      consolidated now.
+- [x] Verify: `devtools::load_all()` clean, `devtools::document()` produced
+      no unexpected NAMESPACE/man diffs, full suite `0 fail / 1019 passed`.
+
+---
+
+### 7.1 Deduplicate the RET/PCP level-fallback rule (DONE 2026-09-17)
+**Priority**: MEDIUM
+**Effort**: <1 day (completed)
+**Files**: `R/api_client.R`, `R/metadata.R`
+
+**Problem**: "RET and PCP are not published at L2/L3; resolve to the L1
+code" is implemented three times independently, with different regex/scope:
+twice inline in `wapor_generate_urls_internal()` (api_client.R:223-224 and
+231-234) and once in `get_variable_metadata_internal()` (metadata.R:373-377,
+via `parts[1] %in% c("L2","L3") && grepl(...)`). If FAO ever publishes L3-RET
+or adds another fallback-eligible variable, all three sites must change in
+lockstep and nothing enforces that today.
+
+**Tasks**:
+- [x] Add `.wapor_resolve_level_fallback(variable)` (api_client.R, internal/
+      `@noRd`) -- returns the L1-substituted code, or `variable` unchanged
+      when no fallback applies. (Callers that need to know whether a
+      fallback happened already hold `variable` and can compare with
+      `!identical()`, as `wapor_generate_urls_internal()`'s L3 branch does
+      to pick the right base URL -- no separate flag return needed.)
+      Called from `wapor_generate_urls_internal()` (both L1/L2 and L3
+      branches) and `get_variable_metadata_internal()`.
+- [x] Regression test: direct check of `L1-RET-D`, `L2-RET-D`, `L2-PCP-D`,
+      `L3-RET-D`, `L3-PCP-D`, `L3-AETI-D`, `AGERA5-ET0-E` all resolve
+      identically to pre-refactor behavior; full suite `0 fail / 1019
+      passed`; `devtools::document()` produced no new NAMESPACE/man diffs.
+
+---
+
+### 7.2 Stop re-deriving spatial resolution in `wapor_res_key()`
+**Priority**: LOW
+**Effort**: <1 day
+**Files**: `R/wapor_res_key.R`
+
+**Problem**: `.parse_spatial_resolution_m()` (wapor_metadata_cache.R) parses
+a `"300 m"`/`"5 km"`-style string into metres, with NA guards.
+`wapor_res_key()` re-implements the same regex inline (wapor_res_key.R:94-99)
+without reusing it, even though `wapor_variable_metadata()` already computes
+and caches `spatial_resolution_m` via that helper.
+
+**Tasks**:
+- [ ] `wapor_res_key()` reads `meta$spatial_resolution_m` directly instead of
+      re-parsing `meta$spatial_resolution`; falls through to
+      `.WAPOR_RES_LOOKUP` unchanged when unavailable.
+- [ ] Delete the now-redundant inline parsing.
+
+---
+
+### 7.3 Memoise `.load_metadata_catalog()`
+**Priority**: MEDIUM (efficiency)
+**Effort**: <1 day
+**Files**: `R/wapor_metadata_cache.R`, `R/plan_wapor_time_slices.R`
+
+**Problem**: `wapor_temporal_codes()` (plan_wapor_time_slices.R:360) calls
+`.load_metadata_catalog(level)` directly, bypassing the memoised
+`wapor_variable_metadata()` wrapper. Every call re-reads and re-parses
+`wapor_L1.json`/`L2`/`L3` from disk with `jsonlite::fromJSON()`, even though
+the catalogue only changes when `wapor_update_metadata()` runs. In a seasonal
+download loop this is a repeated, avoidable disk read + JSON parse per
+variable.
+
+**Tasks**:
+- [ ] Wrap `.load_metadata_catalog()` with `memoise::memoise()`.
+- [ ] Add its `memoise::forget()` call alongside the existing
+      `wapor_variable_metadata` one inside `wapor_update_metadata()`, so a
+      metadata refresh busts both caches together.
+- [ ] Optional hardening: fold a small schema-version tag into the disk
+      URL-cache key (`.wapor_url_hash()` in api_client.R) so a future API
+      response-shape change can't silently serve a stale-shaped payload for
+      up to 24h.
+
+---
+
+### 7.4 (Future, deferred) Split `metadata.R` / `wapor_metadata_cache.R` by responsibility
+**Priority**: LOW -- explicitly deferred; pure churn with no user-facing
+benefit until a maintainer wants it. *Correction, 2026-09-17*: this was
+originally justified as "package is on the version-0.9.9 release branch."
+That premise was checked this session and found stale: `DESCRIPTION` already
+says `Version: 1.0.0` (committed, not part of any uncommitted work) and
+`NEWS.md`'s top entry is `# Rwapor 1.0.0 (development)` -- the package is
+mid-development toward 1.0.0, not sitting on a frozen 0.9.9 release
+candidate. The git branch is still literally named `version-0.9.9`, which is
+just stale relative to that. Net effect: there is more room for this kind of
+churn than originally assumed, though staying conservative pre-1.0.0 release
+is still reasonable -- this remains a maintainer call, not upgraded to
+"do it now."
+**Effort**: 2-3 days
+**Files**: `R/metadata.R`, `R/wapor_metadata_cache.R`
+
+**Problem** (deep-module read): `metadata.R` (495 lines) mixes four
+concerns -- static data tables (`WAPOR3_VARS`, `AGERA5_VARS`, `L3_REGIONS`),
+live L3-region fetch, variable-metadata resolution with fallback, and public
+listing helpers. `wapor_metadata_cache.R` (382 lines) mixes disk-cache I/O,
+JSON normalization, and the `wapor_update_metadata()` fetch/write/manifest
+service. Two files, four-plus responsibilities, and a newcomer cannot tell
+from the filenames alone which file owns "how do I get a variable's units."
+`wapor_res_key.R` (135 lines, one exported function + one lookup table) is
+the shape to converge toward.
+
+**Not done now** -- captured as an option, not a commitment:
+- [ ] `R/wapor_metadata_static.R` -- `WAPOR3_VARS`, `AGERA5_VARS`,
+      `L3_REGIONS`, `wapor_l3_regions_to_df()`.
+- [ ] `R/wapor_metadata_resolve.R` -- `get_variable_metadata_internal()`,
+      `wapor_variable_metadata()`, `.wapor_resolve_level_fallback()` (7.1).
+- [ ] `R/wapor_metadata_service.R` (renamed from `wapor_metadata_cache.R`) --
+      `.load_metadata_catalog()`, `wapor_fetch_metadata()`,
+      `wapor_update_metadata()`, normalization helpers.
+- [ ] Consistent naming across the module going forward:
+      `wapor_<domain>_<role>.R` (e.g. `wapor_spatial_key.R` for
+      `wapor_res_key.R`, `wapor_temporal_plan.R` for
+      `plan_wapor_time_slices.R`, `wapor_url_builder.R` for the URL-building
+      half of `api_client.R`).
+- [ ] Requires a `Collate:` field in `DESCRIPTION` if any cross-file
+      load-order assumption is ever (re-)introduced -- none should be, but
+      pin it explicitly if this split happens, to prevent a repeat of 7.0's
+      `%||%` failure mode.
+
+**Acceptance criteria** (if/when undertaken): no exported function's
+signature or behavior changes; `git blame` history preserved via
+`git mv`; full suite stays `0 fail`.
 
 ---
 
