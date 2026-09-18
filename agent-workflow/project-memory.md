@@ -57,6 +57,33 @@ merge or remove stale entries rather than letting it grow unbounded._
   `wapor_save_raster_blobs()` fetches raw per-variable URLs directly and does
   not go through the planner.
 
+- **No `Collate:` field in `DESCRIPTION`**: R loads `R/*.R` alphabetically.
+  Two same-named top-level functions defined in different files is *not*
+  file-scoped in R (unlike a comment claiming "scoped to this file") — the
+  alphabetically-last file's definition silently wins for the whole package.
+  Found 2026-09-16: `%||%` was defined twice with different semantics
+  (`R/utils.R` vs `R/wapor_metadata_cache.R`); the stricter one had been
+  silently governing ~40 call sites. Before "deduplicating" any
+  same-named helper across files, diff the implementations for real
+  semantic differences first, then verify the surviving one against the
+  full test suite — don't assume the shorter/simpler version is safe to
+  keep. See `issues-log.md` ISS-20260916-002.
+- **The task tracker (`task-status.md`/`agents-board.json`/`IMPROVEMENT_PLAN.md`)
+  lags actual code state** — found 2026-09-17: 7 of ~20 "pending" tasks were
+  already substantially or fully implemented (2.2, 3.1, 1.6, 3.4, 5.1, 5.2,
+  6.1, 6.2 — see `issues-log.md` ISS-20260917-002). Before starting any task
+  from this tracker, grep the codebase for its named deliverable
+  (function/file names from the task's own spec) first — don't trust
+  "pending" status at face value.
+- **PowerShell's `Set-Content -Encoding utf8` always writes a UTF-8 BOM**,
+  which Python's `json.loads`/plain `utf-8` decoding rejects outright, and
+  which `python -m json.tool` also chokes on by default. Any Python tooling
+  that reads a file written by `board_claim.ps1` (or any PowerShell
+  `-Encoding utf8` write) must decode with `utf-8-sig`, and any ad hoc
+  `python -m json.tool` check on it needs `encoding='utf-8-sig'` too. Found
+  2026-09-17 when this silently broke the dashboard on every board update
+  since the tool was created — see `issues-log.md` ISS-20260917-001.
+
 ## Stable Project Constraints
 
 - Agent-tooling wiring: `agent-workflow/` (this folder) is the single

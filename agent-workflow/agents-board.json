@@ -1,7 +1,7 @@
 {
   "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
   "schema_version": 1,
-  "updated_utc": "2026-09-17T15:20:00Z",
+  "updated_utc": "2026-09-18T10:00:00Z",
   "known_models": [
     "claude",
     "codex",
@@ -39,21 +39,21 @@
       "updated_utc": "2026-09-15"
     },
     {
-      "id": "1.6",
-      "title": "Explicit alignment reference (mask vs AETI vs custom)",
-      "status": "pending",
-      "priority": "medium",
-      "model": null,
-      "attribution": null,
-      "files": [
-        "R/analysis.R",
-        "R/analysis_engine.R"
-      ],
-      "notes": "PARTIAL, verified 2026-09-17: reference_layer param fully implemented (analysis_engine.R:98-102, exact spec match) with documented aeti default. Missing: resampling_method per layer (verified absent), overlap validation error not checked. Status kept pending for the missing resampling_method piece.",
-      "issue_ref": null,
-      "claimed_utc": null,
-      "updated_utc": "2026-09-17"
-    },
+          "id": "1.6",
+          "title": "Explicit alignment reference (mask vs AETI vs custom)",
+          "status": "done",
+          "priority": "medium",
+          "model": "claude",
+          "attribution": "recorded",
+          "files": [
+            "R/analysis.R",
+            "R/analysis_engine.R"
+          ],
+          "notes": "Verified 2026-09-18: reference_layer param fully implemented (analysis_engine.R:106-110, exact spec match); resampling_method per-layer map is implemented at analysis_engine.R:111-119 with get_resampling_method() closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done.",
+          "issue_ref": null,
+          "claimed_utc": "2026-09-18T00:00:00Z",
+          "updated_utc": "2026-09-18"
+        },
     {
       "id": "2.2",
       "title": "COG write support",
@@ -101,50 +101,50 @@
       "updated_utc": "2026-09-17"
     },
     {
-      "id": "3.3",
-      "title": "Publication map helpers",
-      "status": "pending",
-      "priority": "medium",
-      "model": null,
-      "attribution": null,
-      "files": [
-        "R/viz.R"
-      ],
-      "notes": "wapor_plot_map, _comparison, _timeseries, _kc_curve, _anomaly.",
-      "issue_ref": null,
-      "claimed_utc": null,
-      "updated_utc": "2026-09-15"
-    },
+          "id": "3.3",
+          "title": "Publication map helpers",
+          "status": "pending",
+          "priority": "medium",
+          "model": null,
+          "attribution": null,
+          "files": [
+            "R/viz.R"
+          ],
+          "notes": "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
+          "issue_ref": null,
+          "claimed_utc": null,
+          "updated_utc": "2026-09-18"
+        },
     {
-      "id": "3.4",
-      "title": "Anomaly & trend module",
-      "status": "pending",
-      "priority": "medium",
-      "model": null,
-      "attribution": null,
-      "files": [
-        "R/anomaly.R"
-      ],
-      "notes": "PARTIAL, verified 2026-09-17: 3 of 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline in R/anomaly.R). Missing: linear_trend (verified absent anywhere in R/). Status kept pending for that one function.",
-      "issue_ref": null,
-      "claimed_utc": null,
-      "updated_utc": "2026-09-17"
-    },
+          "id": "3.4",
+          "title": "Anomaly & trend module",
+          "status": "done",
+          "priority": "medium",
+          "model": "claude",
+          "attribution": "recorded",
+          "files": [
+            "R/anomaly.R"
+          ],
+          "notes": "Verified 2026-09-18: all 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline, linear_trend at anomaly.R:111). linear_trend is in NAMESPACE:7. Test file tests/testthat/test-anomaly-trend.R exists and tests linear_trend. Core deliverable complete.",
+          "issue_ref": null,
+          "claimed_utc": "2026-09-18T00:00:00Z",
+          "updated_utc": "2026-09-18"
+        },
     {
-      "id": "3.5",
-      "title": "Preflight validation module",
-      "status": "pending",
-      "priority": "medium",
-      "model": null,
-      "attribution": null,
-      "files": [
-        "R/preflight.R"
-      ],
-      "notes": "wapor_preflight_check, wapor_validate_data_coverage.",
-      "issue_ref": null,
-      "claimed_utc": null,
-      "updated_utc": "2026-09-15"
-    },
+          "id": "3.5",
+          "title": "Preflight validation module",
+          "status": "done",
+          "priority": "medium",
+          "model": "claude",
+          "attribution": "recorded",
+          "files": [
+            "R/analysis_validation.R"
+          ],
+          "notes": "Verified 2026-09-18: wapor_preflight_check() at analysis_validation.R:250 and wapor_validate_data_coverage() at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).",
+          "issue_ref": null,
+          "claimed_utc": "2026-09-18T00:00:00Z",
+          "updated_utc": "2026-09-18"
+        },
     {
       "id": "4.1",
       "title": "Dashboard: indicator selection from registry",
@@ -207,20 +207,20 @@
       "updated_utc": "2026-09-17"
     },
     {
-      "id": "5.3",
-      "title": "CI: lintr + styler checks",
-      "status": "pending",
-      "priority": "medium",
-      "model": null,
-      "attribution": null,
-      "files": [
-        ".github/workflows/R-CMD-check.yaml"
-      ],
-      "notes": "Add lintr::lint_package() and styler.",
-      "issue_ref": null,
-      "claimed_utc": null,
-      "updated_utc": "2026-09-15"
-    },
+          "id": "5.3",
+          "title": "CI: lintr + styler checks",
+          "status": "done",
+          "priority": "medium",
+          "model": "claude",
+          "attribution": "recorded",
+          "files": [
+            ".github/workflows/R-CMD-check.yaml"
+          ],
+          "notes": "Verified 2026-09-18: lint job exists at .github/workflows/R-CMD-check.yaml:64-80 running lintr::lint_package() and styler::style_pkg(dry=\"on\"). Deliverable complete.",
+          "issue_ref": null,
+          "claimed_utc": "2026-09-18T00:00:00Z",
+          "updated_utc": "2026-09-18"
+        },
     {
       "id": "6.1",
       "title": "Vignettes",

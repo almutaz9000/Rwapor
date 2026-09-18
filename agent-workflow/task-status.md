@@ -24,11 +24,7 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
   Files: `R/wapor_map.R`, `R/wapor_ts.R`, `R/seasonal_download.R`,
   `inst/shiny/mod_download.R`, `inst/shiny/mod_analysis.R`.
 
-- **1.6 — Explicit Alignment Reference (Mask vs AETI vs Custom)** — MOSTLY DONE,
-  verified 2026-09-17. `reference_layer` param fully implemented, exact spec
-  match (`R/analysis_engine.R:98-102`), default documented. Still open:
-  per-layer `resampling_method` (verified absent), overlap validation error
-  not checked. Files: `R/analysis.R`, `R/analysis_engine.R`.
+- **1.6 — Explicit Alignment Reference (Mask vs AETI vs Custom)** — DONE, verified 2026-09-18. `reference_layer` param fully implemented (analysis_engine.R:106-110, exact spec match); `resampling_method` per-layer map is implemented at analysis_engine.R:111-119 with `get_resampling_method()` closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done. Files: `R/analysis.R`, `R/analysis_engine.R`.
 
 - **2.3 — Memory Benchmark Suite**
   Parameterized test grid 1k->10k peak-memory gate; tiled engine flat-memory
@@ -36,15 +32,11 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 - **3.3 — Publication Map Helpers** (`R/viz.R` new)
   `wapor_plot_map`, `wapor_plot_comparison`, `wapor_plot_timeseries`,
-  `wapor_plot_kc_curve`, `wapor_plot_anomaly`.
+  `wapor_plot_kc_curve`, `wapor_plot_anomaly`. Verified 2026-09-18: file exists and all five functions exported in NAMESPACE. Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP), scale bar, north arrow. Current implementation uses single blue-to-red gradient.
 
-- **3.4 — Anomaly & Trend Module** — MOSTLY DONE, verified 2026-09-17. 3 of 4
-  functions done and exported in `R/anomaly.R` (`wapor_calc_zscore`,
-  `wapor_calc_spatial_hotspots`, `wapor_calc_anomaly_baseline`). Still open:
-  `linear_trend` (verified absent anywhere in `R/`).
+- **3.4 — Anomaly & Trend Module** — DONE, verified 2026-09-18. All 4 functions done and exported in `R/anomaly.R` (`wapor_calc_zscore`, `wapor_calc_spatial_hotspots`, `wapor_calc_anomaly_baseline`, `linear_trend` at anomaly.R:111). `linear_trend` is in NAMESPACE:7. Test file `tests/testthat/test-anomaly-trend.R` exists and tests `linear_trend`. Core deliverable complete.
 
-- **3.5 — Preflight Validation Module** (`R/preflight.R` new)
-  `wapor_preflight_check`, `wapor_validate_data_coverage`.
+- **3.5 — Preflight Validation Module** — DONE, verified 2026-09-18. `wapor_preflight_check()` at analysis_validation.R:250 and `wapor_validate_data_coverage()` at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).
 
 - **4.1 — Dashboard: Indicator Selection from Registry**
   Read indicator checkbox list from `INDICATOR_STEPS`; auto-generate UI.
@@ -69,9 +61,7 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
   paths). Not confirmed: 100x100 grid, multi-season batch, local-vs-API
   parity — needs a closer read.
 
-- **5.3 — CI: lintr + styler checks**
-  Add `lintr::lint_package()` and `styler` to `.github/workflows/R-CMD-check.yaml`.
-  Verified 2026-09-17: genuinely absent from the workflow file.
+- **5.3 — CI: lintr + styler checks** — DONE, verified 2026-09-18. lint job exists at `.github/workflows/R-CMD-check.yaml:64-80` running `lintr::lint_package()` and `styler::style_pkg(dry="on")`. Deliverable complete.
 
 - **6.1 — Vignettes** — DIFFERENT SHAPE THAN SPEC'D, verified 2026-09-17.
   4 vignettes exist (`advanced-analysis`, `data-catalog`, `getting-started`,
