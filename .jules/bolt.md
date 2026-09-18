@@ -25,3 +25,7 @@
 ## 2026-09-17 - [Direct S4 pmin/pmax Dispatch for SpatRaster Indicators]
 **Learning:** In `terra`, using `terra::ifel(a <= b, a, b)` or `terra::ifel(diff > 0, diff, 0)` allocates intermediate boolean `SpatRaster` mask layers and performs conditional branch evaluation on every pixel. Calling `pmin(a, b)` or `pmax(diff, 0)` directly dispatches S4 methods to `terra::pmin()` / `terra::pmax()` (or base R `pmin()` / `pmax()` for numeric inputs), evaluating element-wise minimums/maximums natively in C++ without evaluating `ifel` logic or allocating intermediate boolean SpatRaster objects.
 **Action:** Prefer direct `pmin()` and `pmax()` calls over `terra::ifel()` conditional branches when calculating bounds or thresholds on `SpatRaster` and numeric objects.
+
+## 2026-10-15 - [Direct SpatRaster Boolean Arithmetic Over terra::ifel]
+**Learning:** In `terra`, using `terra::ifel(cond, true_val, false_val)` for binary masking or offset conditional logic (e.g., `end < start` DOY offsets or `is.na(mask)` layer weightings) incurs R-to-C++ dispatch and conditional evaluation overhead. Utilizing direct boolean SpatRaster arithmetic (`end_raster + ref_days * (end_raster < start_raster)` or `(!is.na(r)) * multipliers`) evaluates boolean masks as 0/1 SpatRasters directly in C++ algebra, avoiding `ifel` conditional branching overhead.
+**Action:** Replace `terra::ifel()` binary conditions with direct boolean raster arithmetic when converting masks to integer indicators or adding offset constants.

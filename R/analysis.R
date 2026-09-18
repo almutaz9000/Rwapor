@@ -441,9 +441,9 @@ wapor_build_season_weights <- function(start_date, end_date,
   # the raster stores raw day-of-year values that wrap around the year
   # boundary. Add the reference year's length to bring end into continuous
   # Julian day space before computing overlaps.
+  # Optimization: Direct SpatRaster boolean arithmetic avoids conditional branch evaluation overhead in terra::ifel
   ref_days <- ifelse(lubridate::leap_year(as.integer(reference_year)), 366L, 365L)
-  end_raster <- terra::ifel(end_raster < start_raster,
-                             end_raster + ref_days, end_raster)
+  end_raster <- end_raster + ref_days * (end_raster < start_raster)
 
   dekad_tbl <- build_dekad_table(start_date, end_date)
 
@@ -503,9 +503,9 @@ wapor_build_season_weights <- function(start_date, end_date,
 #' @export
 wapor_season_days <- function(start_raster, end_raster, reference_year = NULL) {
   if (!is.null(reference_year)) {
+    # Optimization: Direct SpatRaster boolean arithmetic avoids conditional branch evaluation overhead in terra::ifel
     ref_days <- ifelse(lubridate::leap_year(as.integer(reference_year)), 366L, 365L)
-    end_raster <- terra::ifel(end_raster < start_raster,
-                               end_raster + ref_days, end_raster)
+    end_raster <- end_raster + ref_days * (end_raster < start_raster)
   }
   end_raster - start_raster + 1L
 }
