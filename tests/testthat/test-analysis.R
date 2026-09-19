@@ -498,3 +498,38 @@ test_that("wapor_calc_green_water and wapor_calc_blue_water work for numeric and
   expect_equal(as.numeric(terra::values(green_r)), c(200, 150, 200, 200))
   expect_equal(as.numeric(terra::values(blue_r)), c(150, 0, 0, 200))
 })
+
+test_that("wapor_scan_local works with vectorized date parsing", {
+  tmp_dir <- tempfile("wapor_test_")
+  dir.create(tmp_dir, recursive = TRUE)
+  on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
+
+  # Nonexistent dir returns empty data frame
+  expect_equal(nrow(wapor_scan_local(file.path(tmp_dir, "nonexistent"))), 0)
+
+  # Create mock variable subfolders
+  aeti_dir <- file.path(tmp_dir, "L1-AETI-D")
+  agera_dir <- file.path(tmp_dir, "AGERA5-ET0-E")
+  dir.create(aeti_dir, recursive = TRUE)
+  dir.create(agera_dir, recursive = TRUE)
+
+  # Create dummy tif files
+  file.create(file.path(aeti_dir, "WAPOR.L1-AETI-D.2023-01-D1.tif"))
+  file.create(file.path(aeti_dir, "WAPOR.L1-AETI-D.2023-01-D2.tif"))
+  file.create(file.path(agera_dir, "AGERA5-ET0-E.2023-05-15.tif"))
+  file.create(file.path(agera_dir, "AGERA5-ET0-E.2023-05-20.tif"))
+
+  res <- wapor_scan_local(tmp_dir)
+  expect_equal(nrow(res), 2)
+  expect_true(all(c("L1-AETI-D", "AGERA5-ET0-E") %in% res$variable))
+
+  aeti_row <- res[res$variable == "L1-AETI-D", ]
+  expect_equal(aeti_row$file_count, 2)
+  expect_equal(aeti_row$min_date, "2023-01-01")
+  expect_equal(aeti_row$max_date, "2023-01-11")
+
+  agera_row <- res[res$variable == "AGERA5-ET0-E", ]
+  expect_equal(agera_row$file_count, 2)
+  expect_equal(agera_row$min_date, "2023-05-15")
+  expect_equal(agera_row$max_date, "2023-05-20")
+})
