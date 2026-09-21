@@ -25,3 +25,7 @@
 ## 2026-09-17 - [Direct S4 pmin/pmax Dispatch for SpatRaster Indicators]
 **Learning:** In `terra`, using `terra::ifel(a <= b, a, b)` or `terra::ifel(diff > 0, diff, 0)` allocates intermediate boolean `SpatRaster` mask layers and performs conditional branch evaluation on every pixel. Calling `pmin(a, b)` or `pmax(diff, 0)` directly dispatches S4 methods to `terra::pmin()` / `terra::pmax()` (or base R `pmin()` / `pmax()` for numeric inputs), evaluating element-wise minimums/maximums natively in C++ without evaluating `ifel` logic or allocating intermediate boolean SpatRaster objects.
 **Action:** Prefer direct `pmin()` and `pmax()` calls over `terra::ifel()` conditional branches when calculating bounds or thresholds on `SpatRaster` and numeric objects.
+
+## 2026-09-18 - [Vectorized Dekad Sequence Generation]
+**Learning:** Generating dekadal tables day-by-day via `while` loops with per-day `format()`, `sprintf()`, and `do.call(rbind, ...)` data frame appends creates substantial $O(N^2)$ memory copying and date-parsing overhead in R. Vectorizing sequence generation at the month level using `seq(..., by = "month")` and constructing atomic vectors for `dekad_start`, `dekad_end`, `dekad_key`, and `n_days` produces identical results in a single high-performance $O(N)$ pass.
+**Action:** Construct time slice tables natively using atomic vector sequences and date arithmetic instead of iterative day-by-day loops and `rbind` list accumulation.
