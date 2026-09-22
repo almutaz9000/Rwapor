@@ -3,7 +3,71 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-21 — WaPOR map progress bottleneck
+## Current Session — 2026-09-22 — GitHub repo cleanup, README overhaul, pkgdown site, wheat vignette
+
+**What happened**: User asked for a professional repo/README audit and
+cleanup, then several follow-ups. (1) Classified all 233 remote branches;
+deleted 184 (165 auto-agent `bolt-*`/`jules-*`/`copilot/*` + 6 already-merged
+named branches), converted the 14 `version-0.x` milestone branches to tags
+first. Discovered GitHub's actual default branch is `version-0.9.9`, not
+`main` (blocks deleting it; README's CI badge points at `main` — flagged,
+not changed). Left 46 named unmerged branches for manual review. (2)
+Untracked 31 duplicate per-AI-tool adapter files/dirs (`.cursor/`,
+`.windsurf/`, `GEMINI.md`, `QWEN.md`, etc. — all still on disk, gitignored);
+kept only `AGENTS.md` + `CLAUDE.md` tracked (also fixed `CLAUDE.md` itself
+being silently untracked). (3) Rewrote `README.md` Installation into a full
+Windows/macOS/Linux beginner walkthrough; fixed WaPOR L1 resolution claims
+against `inst/metadata/wapor_L1.json` (L1 imagery vars 300m not 250m;
+`L1-PCP-D` is actually 5km and `L1-RET-D` is actually 30km, not 300m —
+verified from metadata, not assumed); fixed the citation bibtex key
+(`rwapor2024` -> `Rwapor`). (4) Added
+`vignettes/wheat-water-productivity.Rmd`: a worked example (wheat mask,
+single/multi-season, CWP/BWP) with every config option's alternatives
+documented as inline comments (all verified against
+`R/analysis_engine.R`/`R/analysis_registry.R` source, e.g. `data_source`'s
+other value is `"api"`, full indicator code list from
+`.wapor_builtin_indicator_steps()`). Discovered and documented (with live
+verification, not just reading code) a previously-untested multi-season
+"Smart-Linking" feature: `config$folder/seasonal_masks/<SeasonName>_mask.tif`
+(and `_start.tif`/`_end.tif`) let each season in a multi-season
+`config$period` list use its own crop mask / per-pixel season dates,
+overriding even a global `use_crop_mask`/`use_season_rasters = FALSE`. (5)
+Set up an actual pkgdown site (previously never published — all vignette
+links were dead 404s): `.github/workflows/pkgdown.yaml`, `_pkgdown.yml`,
+enabled GitHub Pages via API. Hit and fixed 3 real CI failures (pkgdown
+defaulting into the already-tracked `docs/` folder; `build_site_github_pages()`'s
+own `dest_dir` arg overriding `_pkgdown.yml`; a tidyselect misparse on the
+`global-tiled` vignette slug in a custom `articles:` nav — dropped the
+custom nav rather than chase the root cause). Site is live and verified:
+https://almutaz9000.github.io/Rwapor/.
+
+**Concurrent-session note**: Codex was active throughout on a separate task
+(`seasonal-dashboard-semantics`) and switched the shared working directory's
+checked-out branch to a new `version-1.0.0` mid-session without warning.
+Every commit this session landed there first; each was verified to have no
+file overlap with Codex's active files, then cherry-picked onto `main` via
+an isolated `git worktree` (never touching the shared checkout) and pushed.
+If you're resuming this repo and the checked-out branch isn't what you
+expect, check `git branch --show-current` before trusting `git commit`'s
+target — don't assume it matches what you last set.
+
+**Verification**: all branch/tag operations confirmed via `git ls-remote`
+before/after; 2 live `devtools::load_all()` test runs for the Smart-Linking
+mask/season-raster behavior, formalized as
+`tests/testthat/test-analysis-engine-seasonal-masks.R` (7/7 assertions
+pass, run directly via `testthat::test_file()`); pkgdown site spot-checked
+live post-deploy (homepage, reference index, all 6 vignette article pages
+including wheat, all HTTP 200). Final `origin/main` tip: `ea02ef0`.
+
+**Next**: the 46 named unmerged branches left for manual triage (two flagged
+as recent/worth a look: `feat/publication-viz`, `docs/r4-github-hygiene`);
+the local-only `version-0.9-UNFAO-CG35038B0.8` branch (never pushed) was
+untouched; the README CI badge vs. actual default-branch (`version-0.9.9`)
+mismatch is unresolved — maintainer decision needed on whether to switch
+GitHub's default branch to `main` or update the badge/workflow triggers to
+match `version-0.9.9`.
+
+## Prior Session — 2026-09-21 — WaPOR map progress bottleneck
 
 **What happened**: User-reported L3-AETI-M retrieval was not a stalled remote
 open: a live 12-layer JVA stack opened in 2.81 seconds and the complete

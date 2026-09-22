@@ -1,0 +1,24 @@
+url: https://almutaz9000.github.io/Rwapor/
+
+# The repo already tracks a docs/ folder with unrelated internal
+# documentation (REPOSITORY_STRUCTURE.md, research notes, etc.), so build
+# the pkgdown site into its own directory instead of pkgdown's usual
+# docs/ default to avoid clobbering it. The CI workflow deploys this
+# directory to the separate gh-pages branch.
+destination: pkgdown-site
+
+template:
+  bootstrap: 5
+
+home:
+  title: "Rwapor: Satellite Data Ingestion & Water Productivity Analysis in R"
+  description: >
+    Download, stream, and analyze FAO WaPOR v3 and ECMWF AgERA5 satellite
+    data in R, with an interactive Shiny dashboard and FAO-56 crop water
+    productivity modeling.
+
+# No custom `articles:` grouping here: pkgdown's default auto-generated
+# articles index (listing every vignette in vignettes/) works reliably.
+# A hand-curated `contents:` list ran into pkgdown's tidyselect-based
+# topic matcher misparsing at least one hyphenated vignette slug as a
+# subtraction expression; not worth chasing for a nav grouping.
