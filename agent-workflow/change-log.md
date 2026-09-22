@@ -4,6 +4,30 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-22 — Repo cleanup, README overhaul, pkgdown site, wheat vignette
+
+- Deleted 184 of 233 remote branches (auto-agent `bolt-*`/`jules-*`/`copilot/*`
+  plus already-merged named branches); converted the 14 `version-0.x`
+  milestone branches to tags first, so history is preserved. GitHub's
+  default branch is `version-0.9.9`, not `main` (README CI badge mismatch
+  still open, unresolved).
+- Untracked 31 duplicate per-AI-tool adapter files (`.cursor/`, `.windsurf/`,
+  `GEMINI.md`, `QWEN.md`, `.rules`, etc.) via `.gitignore`; kept only
+  `AGENTS.md`/`CLAUDE.md` tracked as canonical pointers to
+  `agent-workflow/START-HERE.md`.
+- Rewrote `README.md` Installation into a full Windows/macOS/Linux beginner
+  guide; corrected the Data Catalog table's WaPOR Level 1 resolutions
+  against `inst/metadata/wapor_L1.json` (imagery vars 300m, `L1-PCP-D` 5km,
+  `L1-RET-D` 30km — previously all shown as 250m/300m uniformly).
+- Added `vignettes/wheat-water-productivity.Rmd` and
+  `tests/testthat/test-analysis-engine-seasonal-masks.R`: documents and
+  regression-tests the multi-season `config$folder/seasonal_masks/`
+  per-season crop-mask/season-raster override in
+  `wapor_run_seasonal_analysis()` (previously untested).
+- Published the pkgdown site for the first time
+  (`.github/workflows/pkgdown.yaml`, `_pkgdown.yml`, GitHub Pages enabled):
+  https://almutaz9000.github.io/Rwapor/.
+
 ## 2026-09-21 — WaPOR map progress visibility
 
 - Added per-chunk remote-open/crop/write progress to `wapor_map()` and
