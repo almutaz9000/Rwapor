@@ -62,7 +62,8 @@ Suggests:
     DBI,
     tidyterra,
     patchwork,
-    ggspatial
+    ggspatial,
+    pkgdown
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Config/roxygen2/version: 7.3.3
