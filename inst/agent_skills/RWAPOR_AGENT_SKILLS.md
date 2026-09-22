@@ -217,13 +217,24 @@ wapor_map(
   separate_files = FALSE
 )
 
-# Option 3: Seasonal aggregate (one output raster with seasonal sum)
+# Option 3: Seasonal aggregate (default is variable-aware weighted sum/mean)
 wapor_map(
   region   = c(36.0, 8.0, 38.5, 10.5),
   variable = "L1-AETI-D",
   period   = c("2023-10-01", "2024-05-31"),
   folder   = "data/seasonal",
-  seasonal = TRUE          # Aggregates to single seasonal total
+  seasonal = TRUE          # Aggregates to a single seasonal output
+)
+
+# Use an equal-step statistic: every overlapping source layer counts once.
+# Supported values: "mean", "std", "min", "max", and "median".
+wapor_map(
+  region   = c(36.0, 8.0, 38.5, 10.5),
+  variable = "L3-AETI-M",
+  period   = c("2023-10-01", "2024-05-31"),
+  folder   = "data/seasonal",
+  seasonal = TRUE,
+  fun      = "median"
 )
 ```
 

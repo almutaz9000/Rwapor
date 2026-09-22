@@ -22,6 +22,10 @@
 #'   * `"none"` preserves raw API values without temporal conversion
 #' @param seasonal Logical. If `TRUE`, calculates a single seasonal aggregate
 #'   (sum/mean) for each polygon over the entire period. Default is `FALSE`.
+#' @param fun Optional seasonal summary function. `NULL` (default) preserves
+#'   variable-aware weighted aggregation. Explicit `"sum"` remains weighted;
+#'   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
+#'   overlapping source layer once without scaling partial layers.
 #' @param download_locally Logical. Deprecated and ignored. Data are streamed
 #'   with `/vsicurl/`. Kept for backward compatibility.
 #' @param parallel Logical. If `TRUE`, attempts to use `future.apply` for parallel processing
@@ -103,7 +107,7 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE, on_batch_done = NULL) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE, on_batch_done = NULL, fun = NULL) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
@@ -130,6 +134,11 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     stop("'batch_size' must be a positive integer", call. = FALSE)
   }
   batch_size <- as.integer(batch_size)
+  seasonal_summary <- if (isTRUE(seasonal)) {
+    resolve_seasonal_summary_function(variable, fun)
+  } else {
+    NULL
+  }
   if (!is.null(l3_region)) {
     if (!is.character(l3_region) || length(l3_region) != 1 ||
         !nzchar(l3_region) || !grepl("^[A-Z]{3}$", l3_region)) {
@@ -163,7 +172,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           identifier = identifier, unit_conversion = unit_conversion,
           seasonal = seasonal, download_locally = download_locally,
           parallel = parallel, batching = batching, batch_size = batch_size,
-          partial = partial
+          partial = partial, fun = fun
         ))
       }
       l3_code <- selected_codes
@@ -195,10 +204,13 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           identifier = identifier,
           unit_conversion = "none",
           seasonal = TRUE,
+          fun = fun,
           parallel = parallel,
           batching = batching,
           batch_size = batch_size,
-          l3_region = l3_region
+          l3_region = l3_region,
+          l3_mode = l3_mode,
+          partial = partial
         )
         if (!is.null(window_res)) {
           window_res$season_name <- s_name
@@ -218,7 +230,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       return(final_multi_df)
     }
 
-    aggregation_rule <- get_seasonal_aggregation_rule(variable)
+    aggregation_rule <- seasonal_summary$aggregation_rule
 
     # Prepare region geometry for zonal stats
     vect_data <- NULL
@@ -251,16 +263,30 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     
     groups <- seasonal_data$groups
     plan <- seasonal_data$plan
-    aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+    if (!isTRUE(seasonal_summary$explicit)) {
+      aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+    }
     
     # Accumulate seasonal contributions and, when needed, mean denominators.
     sum_values <- rep(0, n_zones)
     total_weights <- if (identical(aggregation_rule, "weighted_mean")) rep(0, n_zones) else NULL
+    equal_step_values <- list()
+    included_layer_ids <- if (is.data.frame(plan) && all(c("period_id", "overlap_days") %in% names(plan))) {
+      as.character(plan$period_id[plan$overlap_days > 0])
+    } else {
+      NULL
+    }
     
     for (g_name in names(groups)) {
       g <- groups[[g_name]]
       r_group <- g$raster
       multipliers <- g$multipliers
+      if (!is.null(included_layer_ids) && !is.null(g$layer_ids)) {
+        selected_layers <- which(as.character(g$layer_ids) %in% included_layer_ids)
+        if (length(selected_layers) == 0) next
+        r_group <- r_group[[selected_layers]]
+        multipliers <- multipliers[selected_layers]
+      }
       n_lyr_group <- terra::nlyr(r_group)
       
       # Process entire group stack at once for better performance
@@ -272,14 +298,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           function() suppressWarnings(exactextractr::exact_extract(
             r_group, vect_data, "mean", progress = FALSE
           )),
-          label = sprintf("%s zonal extraction", var_for_code)
+          label = sprintf("%s zonal extraction", variable)
         )
         # exact_extract column naming: for n layers it returns "mean.1"..."mean.n"
         # or, when n==1, just "mean". Normalise to "mean.L1"..."mean.Ln".
         ncol_ex <- ncol(ex)
         if (ncol_ex == 0) {
           stop(sprintf("exact_extract returned no columns for %s (n_lyr=%d).",
-                       var_for_code, n_lyr_group), call. = FALSE)
+                       variable, n_lyr_group), call. = FALSE)
         }
         if (ncol_ex == 1 && "mean" %in% names(ex)) {
           names(ex)[names(ex) == "mean"] <- "mean.L1"
@@ -287,6 +313,10 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           names(ex) <- paste0("mean.L", seq_len(ncol_ex))
         }
         group_means_mat <- as.matrix(ex)
+        if (!isTRUE(seasonal_summary$weighted)) {
+          equal_step_values[[length(equal_step_values) + 1L]] <- group_means_mat
+          next
+        }
         group_means_mat[is.na(group_means_mat)] <- 0
 
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
@@ -300,7 +330,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
             function() suppressWarnings(exactextractr::exact_extract(
               not_na_stack, vect_data, "sum", progress = FALSE
             )),
-            label = sprintf("%s coverage extraction", var_for_code)
+            label = sprintf("%s coverage extraction", variable)
           )
           if (ncol(coverage_df) == 1 && "sum" %in% names(coverage_df)) {
             names(coverage_df)[names(coverage_df) == "sum"] <- "sum.L1"
@@ -315,9 +345,13 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         # Global stats for bbox/L3
         group_stats <- .wapor_retry_remote_operation(
           function() terra::global(r_group, fun = "mean", na.rm = TRUE),
-          label = sprintf("%s global reduction", var_for_code)
+          label = sprintf("%s global reduction", variable)
         )
         group_means <- group_stats$mean
+        if (!isTRUE(seasonal_summary$weighted)) {
+          equal_step_values[[length(equal_step_values) + 1L]] <- matrix(group_means, nrow = 1L)
+          next
+        }
         group_means[is.na(group_means)] <- 0
 
         sum_values <- sum_values + sum(group_means * multipliers)
@@ -330,12 +364,25 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       }
     }
 
-    seasonal_values <- if (is.null(total_weights)) {
+    seasonal_values <- if (!isTRUE(seasonal_summary$weighted)) {
+      if (length(equal_step_values) == 0) {
+        rep(NA_real_, n_zones)
+      } else {
+        value_matrix <- do.call(cbind, equal_step_values)
+        apply(value_matrix, 1, summarize_equal_step_seasonal_values, fun = seasonal_summary$fun)
+      }
+    } else if (is.null(total_weights)) {
       sum_values
     } else {
       ifelse(total_weights > 0, sum_values / total_weights, NA_real_)
     }
-    value_name <- if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean" else "seasonal_sum"
+    value_name <- if (isTRUE(seasonal_summary$explicit)) {
+      paste0("seasonal_", seasonal_summary$fun)
+    } else if (identical(aggregation_rule, "weighted_mean")) {
+      "seasonal_mean"
+    } else {
+      "seasonal_sum"
+    }
     
     # Build result data.frame
     result_df <- data.frame(
@@ -355,13 +402,16 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     # Determine final units from seasonal aggregation semantics.
     source_var_meta <- wapor_variable_metadata(variable)
     if (!is.null(source_var_meta)) {
-      attr(result_df, "units") <- get_seasonal_output_units(variable, aggregation_rule) %||% source_var_meta$units
+      attr(result_df, "units") <- get_seasonal_output_units(
+        variable,
+        if (isTRUE(seasonal_summary$weighted)) aggregation_rule else "weighted_mean"
+      ) %||% source_var_meta$units
       attr(result_df, "long_name") <- source_var_meta$long_name
     } else {
       attr(result_df, "units") <- "unknown"
     }
     attr(result_df, "plan") <- plan
-    attr(result_df, "aggregation_rule") <- aggregation_rule
+    attr(result_df, "aggregation_rule") <- if (isTRUE(seasonal_summary$explicit)) seasonal_summary$fun else aggregation_rule
     attr(result_df, "missing_periods") <- seasonal_data$missing_periods
 
     return(result_df)

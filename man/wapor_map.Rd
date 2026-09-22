@@ -20,7 +20,9 @@ wapor_map(
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
-  cog = FALSE
+  cog = FALSE,
+  on_batch_done = NULL,
+  fun = NULL
 )
 }
 \arguments{
@@ -85,6 +87,14 @@ coverage-bearing mosaic for every intersecting L3 region.}
 and recorded. Default \code{FALSE} fails the request.}
 
 \item{cog}{Logical. Write GeoTIFF outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
+
+\item{on_batch_done}{Optional function called after each processed batch with
+\verb{(batch_index, batch_count)}. Callback errors are ignored.}
+
+\item{fun}{Optional seasonal summary function. \code{NULL} (default) preserves
+variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted;
+\code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
+overlapping source layer once without scaling partial layers.}
 }
 \value{
 Character path to the output GeoTIFF file, or in seasonal mode with

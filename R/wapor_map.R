@@ -24,6 +24,10 @@
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
+#' @param fun Optional seasonal summary function. `NULL` (default) preserves
+#'   variable-aware weighted aggregation. Explicit `"sum"` remains weighted;
+#'   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
+#'   overlapping source layer once without scaling partial layers.
 #' @param separate_files Logical. If `TRUE`, writes each time step as a separate
 #'   GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
 #'   seasonal-plan component rasters into
@@ -114,7 +118,8 @@ wapor_map <- function(
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   cog = FALSE,
-  on_batch_done = NULL
+  on_batch_done = NULL,
+  fun = NULL
 ) {
   l3_mode <- match.arg(l3_mode)
   # Input validation
@@ -134,6 +139,17 @@ wapor_map <- function(
     stop("'batch_size' must be a positive integer", call. = FALSE)
   }
   batch_size <- as.integer(batch_size)
+
+  seasonal_summary <- NULL
+  if (isTRUE(seasonal)) {
+    if (length(variable) != 1L) {
+      stop(sprintf(
+        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
+        length(variable)
+      ), call. = FALSE)
+    }
+    seasonal_summary <- resolve_seasonal_summary_function(variable, fun)
+  }
 
   if (!is.list(period)) {
     if (as.Date(period[1]) > as.Date(period[2])) {
@@ -171,26 +187,19 @@ wapor_map <- function(
       filename = filename, separate_files = separate_files,
       unit_conversion = unit_conversion, seasonal = seasonal, mask = mask,
       parallel = parallel, batching = batching, batch_size = batch_size,
-      partial = partial, cog = cog
+      partial = partial, cog = cog, fun = fun
     ))
   }
 
   # --- Seasonal mode ---
   if (seasonal) {
-    if (length(variable) != 1L) {
-      stop(sprintf(
-        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
-        length(variable)
-      ), call. = FALSE)
-    }
-
     process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
       current_l3_code <- resolve_l3_code(var, current_period)
 
       t0_seasonal <- proc.time()
-      aggregation_rule <- get_seasonal_aggregation_rule(var)
+      aggregation_rule <- seasonal_summary$aggregation_rule
       seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
       
       # Smart-Linking for Timing Rasters:
@@ -221,14 +230,26 @@ wapor_map <- function(
       if (is.null(seasonal_data)) return(NULL)
       
       groups <- seasonal_data$groups
-      aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
-      seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
+      if (!isTRUE(seasonal_summary$explicit)) {
+        aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+      }
+      seasonal_output_units <- get_seasonal_output_units(
+        var,
+        if (isTRUE(seasonal_summary$weighted)) aggregation_rule else "weighted_mean"
+      )
       if (length(groups) == 0) return(NULL)
 
       running_value <- NULL
       running_weight <- NULL
       valid_count <- NULL
       component_paths <- character(0)
+      equal_step_layers <- list()
+      included_layer_ids <- if (is.data.frame(seasonal_data$plan) &&
+                                all(c("period_id", "overlap_days") %in% names(seasonal_data$plan))) {
+        as.character(seasonal_data$plan$period_id[seasonal_data$plan$overlap_days > 0])
+      } else {
+        NULL
+      }
 
       var_folder <- file.path(folder, paste0(var, "_seasonal"))
       if (!dir.exists(var_folder)) {
@@ -243,6 +264,30 @@ wapor_map <- function(
         # Clean NaNs and apply temperature conversion
         r_group <- terra::subst(r_group, NaN, NA)
         r_group <- wapor_convert_temperature(r_group, g$variable)
+
+        if (!is.null(included_layer_ids) && !is.null(g$layer_ids)) {
+          selected_layers <- which(as.character(g$layer_ids) %in% included_layer_ids)
+          if (length(selected_layers) == 0) next
+          r_group <- r_group[[selected_layers]]
+          multipliers <- multipliers[selected_layers]
+        }
+
+        if (!isTRUE(seasonal_summary$weighted)) {
+          equal_step_layers[[length(equal_step_layers) + 1L]] <- r_group
+
+          if (isTRUE(separate_files)) {
+            comp_dir <- file.path(var_folder, "components")
+            if (!dir.exists(comp_dir)) dir.create(comp_dir, recursive = TRUE, showWarnings = FALSE)
+            comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
+            reducer <- if (identical(seasonal_summary$fun, "std")) "sd" else seasonal_summary$fun
+            r_comp <- terra::app(r_group, fun = reducer, na.rm = TRUE)
+            r_comp <- terra::classify(r_comp, cbind(NA, -9999))
+            r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
+            suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+            component_paths <- c(component_paths, comp_fname)
+          }
+          next
+        }
 
         # Handle weighted sum/mean using terra::sum for performance and tree depth stability
         weighted_stack <- r_group * multipliers
@@ -285,14 +330,24 @@ wapor_map <- function(
         }
       }
 
-      seasonal_result <- if (identical(aggregation_rule, "weighted_mean")) {
+      seasonal_result <- if (!isTRUE(seasonal_summary$weighted)) {
+        if (length(equal_step_layers) == 0) return(NULL)
+        reducer <- if (identical(seasonal_summary$fun, "std")) "sd" else seasonal_summary$fun
+        terra::app(do.call(c, equal_step_layers), fun = reducer, na.rm = TRUE)
+      } else if (identical(aggregation_rule, "weighted_mean")) {
         terra::ifel(running_weight > 0, running_value / running_weight, NA)
       } else {
         terra::mask(running_value, valid_count, maskvalue = 0)
       }
       
       names(seasonal_result) <- paste0(
-        if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", 
+        if (isTRUE(seasonal_summary$explicit)) {
+          paste0("seasonal_", seasonal_summary$fun, "_")
+        } else if (identical(aggregation_rule, "weighted_mean")) {
+          "seasonal_mean_"
+        } else {
+          "seasonal_"
+        },
         current_period[1], "_", current_period[2]
       )
       
@@ -304,7 +359,7 @@ wapor_map <- function(
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
 
       log_msg(sprintf("Seasonal %s for %s saved to: %s",
-                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
+                      if (isTRUE(seasonal_summary$explicit)) seasonal_summary$fun else if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
                       var, out_path))
 
       if (isTRUE(separate_files) && length(component_paths) > 0) {
@@ -330,7 +385,11 @@ wapor_map <- function(
             }
           } else {
             prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
-            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+            if (isTRUE(seasonal_summary$explicit)) {
+              sprintf("%sWAPOR-3.%s.seasonal.%s.%s.%s_%s.tif", prefix_bb, v, seasonal_summary$fun, s_name, p[1], p[2])
+            } else {
+              sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+            }
           }
           
           log_msg(sprintf("Processing variable %s, season %s", v, s_name))
@@ -343,7 +402,11 @@ wapor_map <- function(
            if (length(variable) > 1) sub("\\.tif$", paste0(".", v, ".tif"), filename) else filename
         } else {
           prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
-          sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+          if (isTRUE(seasonal_summary$explicit)) {
+            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, seasonal_summary$fun, period[1], period[2])
+          } else {
+            sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+          }
         }
         all_results[[v]] <- process_seasonal_var(v, period, def_fname, s_name)
       }
