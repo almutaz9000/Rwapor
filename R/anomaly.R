@@ -101,3 +101,39 @@ wapor_calc_anomaly_baseline <- function(current, baseline_mean, baseline_sd = NU
   names(z_r) <- "anomaly_zscore"
   z_r
 }
+
+#' Calculate per-pixel temporal linear trend
+#'
+#' @param stack Multi-layer SpatRaster ordered in time.
+#' @param times Optional numeric time values, defaulting to layer sequence.
+#' @return A list containing SpatRaster layers `slope`, `intercept`, and `r2`.
+#' @export
+linear_trend <- function(stack, times = NULL) {
+  if (!inherits(stack, "SpatRaster")) stop("'stack' must be a SpatRaster", call. = FALSE)
+  n <- terra::nlyr(stack)
+  if (n < 2L) stop("'stack' must contain at least two layers", call. = FALSE)
+  t <- if (is.null(times)) seq_len(n) else as.numeric(times)
+  if (length(t) != n || anyNA(t) || anyDuplicated(t)) stop("'times' must contain unique, non-missing values for every layer", call. = FALSE)
+  fit <- function(v) {
+    ok <- is.finite(v) & is.finite(t)
+    if (sum(ok) < 2L) return(c(NA_real_, NA_real_, NA_real_))
+    tt <- t[ok]; yy <- v[ok]
+    xbar <- mean(tt); ybar <- mean(yy)
+    den <- sum((tt - xbar)^2)
+    if (den == 0) return(c(NA_real_, NA_real_, NA_real_))
+    slope <- sum((tt - xbar) * (yy - ybar)) / den
+    intercept <- ybar - slope * xbar
+    fitted <- intercept + slope * tt
+    ss_tot <- sum((yy - ybar)^2)
+    r2 <- if (ss_tot == 0) NA_real_ else 1 - sum((yy - fitted)^2) / ss_tot
+    c(slope, intercept, r2)
+  }
+  out <- terra::app(stack, fit)
+  names(out) <- c("slope", "intercept", "r2")
+  stats::setNames(as.list(out), names(out))
+}
+
+# Compatibility names matching the public design specification.
+zscore_anomaly <- wapor_calc_zscore
+spatial_hotspots <- wapor_calc_spatial_hotspots
+anomaly_vs_baseline <- wapor_calc_anomaly_baseline

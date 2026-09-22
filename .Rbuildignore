@@ -68,3 +68,9 @@
 ^skills$
 ^IMPROVEMENT_PLAN\.md$
 ^\.hermes$
+^STATE\.md$
+^NUL$
+^\.git$
+^\.\.?Rcheck$
+^\.Rproj\.user$
+^\.pytest_cache$

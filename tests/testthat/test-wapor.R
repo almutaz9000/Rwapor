@@ -449,26 +449,54 @@ test_that("wapor_ts works with bounding box", {
   expect_false(is.null(attr(df, "units")))
 })
 
-test_that("wapor_map handles multiple variables in seasonal mode", {
-  skip_if_no_live_api()
-  
-  region   <- c(35.75, 33.70, 35.82, 33.75)
-  variables <- c("L1-AETI-D", "NB-PCP-D")
-  period   <- c("2021-01-01", "2021-01-31")
-  tmp_dir  <- tempfile("wapor_test_multi")
+test_that("wapor_map rejects multiple variables in seasonal mode", {
+  # Seasonal mode is single-variable-per-call by design (see wapor_map.R):
+  # calling with more than one variable is a caller error, not something
+  # wapor_map() fans out internally. This is a pure input-validation check
+  # and does not require network access.
+  region    <- c(35.75, 33.70, 35.82, 33.75)
+  variables <- c("L1-AETI-D", "L1-PCP-D")
+  period    <- c("2021-01-01", "2021-01-31")
+  tmp_dir   <- tempfile("wapor_test_multi")
   dir.create(tmp_dir)
-  
-  results <- wapor_map(
-    region = region,
-    variable = variables,
-    period = period,
-    folder = tmp_dir,
-    seasonal = TRUE
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  expect_error(
+    wapor_map(
+      region = region,
+      variable = variables,
+      period = period,
+      folder = tmp_dir,
+      seasonal = TRUE
+    ),
+    "seasonal mode requires a single variable"
   )
-  
+})
+
+test_that("wapor_map handles multiple variables in seasonal mode via separate calls", {
+  skip_if_no_live_api()
+
+  region    <- c(35.75, 33.70, 35.82, 33.75)
+  variables <- c("L1-AETI-D", "L1-PCP-D")
+  period    <- c("2021-01-01", "2021-01-31")
+  tmp_dir   <- tempfile("wapor_test_multi")
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  results <- lapply(variables, function(var) {
+    wapor_map(
+      region = region,
+      variable = var,
+      period = period,
+      folder = tmp_dir,
+      seasonal = TRUE
+    )
+  })
+
   expect_type(results, "list")
   expect_length(results, 2)
-  expect_true(all(vapply(results, file.exists, logical(1))))
-  
-  unlink(tmp_dir, recursive = TRUE)
+  extract_path <- function(res) {
+    if (is.list(res) && !is.null(res$seasonal_aggregate)) res$seasonal_aggregate else res
+  }
+  expect_true(all(vapply(results, function(r) file.exists(extract_path(r)), logical(1))))
 })

@@ -17,6 +17,23 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
 mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons = shiny::reactive(list())) {
   shiny::moduleServer(id, function(input, output, session) {
+    # Generate indicator controls from the registry so new steps become
+    # selectable without editing dashboard UI code.
+    output$an_indicator_registry_ui <- shiny::renderUI({
+      ids <- Rwapor::wapor_list_indicator_steps()
+      ids <- ids[nzchar(ids)]
+      labels <- vapply(ids, function(step) {
+        fn <- Rwapor::wapor_get_indicator_step(step)
+        desc <- attr(fn, "description") %||% ""
+        if (nzchar(desc)) desc else gsub("_", " ", tools::toTitleCase(step))
+      }, character(1))
+      defaults <- intersect(c("agg_pcp", "agg_ret", "agg_aeti", "agg_npp", "etc", "adequacy_etc", "yield_npp"), ids)
+      shiny::checkboxGroupInput(session$ns("an_agg_vars"), NULL,
+        choiceNames = unname(labels), choiceValues = ids,
+        selected = defaults, inline = TRUE
+      )
+    })
+
     # Phase 2: Missing data state
     temp_missing_info <- shiny::reactiveVal(NULL)
     
@@ -624,9 +641,12 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         input$an_t_var %||% ""
       )
       any_l3 <- any(grepl("^L3-", vars_to_check[nzchar(vars_to_check)]))
-      l3_code <- if (any_l3 && nzchar(input$an_l3_region %||% "")) input$an_l3_region else NULL
-
-      if (is.null(l3_code) && any_l3) {
+      selected_l3 <- input$an_l3_region %||% ""
+      l3_mode <- input$an_l3_mode %||% "select"
+      l3_code <- if (any_l3 && nzchar(selected_l3) && !identical(selected_l3, "__MOSAIC_ALL__")) selected_l3 else NULL
+      l3_codes <- NULL
+      if (any_l3 && identical(l3_mode, "mosaic_all")) {
+        # Resolve all intersecting L3 codes for mosaic_all policy
         cand_reg <- reg
         if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
           cm_rast <- an_crop_mask_rast()
@@ -639,7 +659,31 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
           }, error = function(e) NULL)
         }
-
+        if (!is.null(cand_reg)) {
+          guess <- tryCatch({
+            reg_info_guess <- Rwapor::wapor_parse_region(cand_reg)
+            Rwapor::wapor_guess_region(input$an_aeti_var, reg_info_guess, period_context)
+          }, error = function(e) NULL)
+          if (length(guess) > 0) l3_codes <- guess
+        }
+        # If user selected a specific code in mosaic_all mode, use just that one
+        if (nzchar(selected_l3) && selected_l3 %in% (l3_codes %||% c())) {
+          l3_codes <- selected_l3
+        }
+        l3_code <- l3_codes
+      } else if (is.null(l3_code) && any_l3) {
+        cand_reg <- reg
+        if (is.null(cand_reg) && isTRUE(input$an_use_crop_mask) && !is.null(an_crop_mask_rast())) {
+          cm_rast <- an_crop_mask_rast()
+          tryCatch({
+            cm_ext <- terra::ext(cm_rast)
+            cm_poly <- terra::as.polygons(cm_ext, crs = terra::crs(cm_rast))
+            terra::values(cm_poly) <- NULL
+            cm_poly_4326 <- Rwapor::wapor_safe_project(cm_poly, "EPSG:4326")
+            e_4326 <- terra::ext(cm_poly_4326)
+            cand_reg <- c(e_4326$xmin, e_4326$ymin, e_4326$xmax, e_4326$ymax)
+          }, error = function(e) NULL)
+        }
         if (!is.null(cand_reg)) {
           guess <- tryCatch({
             reg_info_guess <- Rwapor::wapor_parse_region(cand_reg)
@@ -659,6 +703,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         t_var = input$an_t_var,
           data_source = input$an_data_source,
           l3_code = l3_code,
+          l3_mode = l3_mode,
           folder = folder,
           output_folder = output_folder,
           indicators = indicators,

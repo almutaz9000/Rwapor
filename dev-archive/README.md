@@ -14,3 +14,8 @@ Use production paths for active work:
 - `agent-workflow/` for current task and issue state.
 
 Historical files may be deleted only after their information has been incorporated into active documentation or a tracked decision record.
+
+Removed 2026-09-15: `graphify-out/` (a code-graph analysis tool's cache output,
+~1.4 MB / 121 files) was tracked in git by mistake despite `.Rbuildignore`
+already excluding it. It contained no durable project information (AST/
+semantic caches regenerated on demand) and has been untracked and deleted.

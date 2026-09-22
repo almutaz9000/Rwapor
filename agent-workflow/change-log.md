@@ -4,6 +4,12 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-21 — WaPOR map progress visibility
+
+- Added per-chunk remote-open/crop/write progress to `wapor_map()` and
+  batch-level Shiny download detail updates; verified with focused tests and a
+  live 12-layer JVA output run.
+
 ## 2026-09-17 — Remote COG streaming hardening
 
 - Added complete-operation retry coverage for remote raster crop, zonal

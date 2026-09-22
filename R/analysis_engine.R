@@ -85,6 +85,14 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   npp_var     <- config$npp_var
   t_var       <- config$t_var
   l3_code     <- config$l3_code
+  l3_mode     <- config$l3_mode %||% "select"
+  # Normalize l3_code: for mosaic_all with a vector of codes, use NULL so
+  # wapor_generate_urls returns all intersecting region data; for select mode
+  # with a single code, pass it through; for mosaic_all with a single selected
+  # code, pass the single code.
+  if (identical(l3_mode, "mosaic_all") && is.character(l3_code) && length(l3_code) > 1L) {
+    l3_code <- NULL
+  }
   indicators  <- wapor_normalize_analysis_indicators(config$indicators)
   use_local   <- config$data_source == "local"
   folder      <- config$folder
@@ -100,7 +108,16 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     reference_layer,
     c("aeti", "crop_mask", "ret", "pcp", "npp", "template")
   )
-  
+  resampling_method <- config$resampling_method %||% c(
+    aeti = "bilinear", crop_mask = "near", ret = "bilinear",
+    pcp = "bilinear", npp = "bilinear", t = "bilinear",
+    season_start = "near", season_end = "near"
+  )
+  get_resampling_method <- function(layer, default = "bilinear") {
+    value <- if (is.list(resampling_method)) resampling_method[[layer]] else resampling_method[[layer]]
+    value %||% default
+  }
+
   if (identical(reference_layer, "crop_mask")) {
     if (is.null(rasters$crop_mask) || !inherits(rasters$crop_mask, "SpatRaster")) {
       stop("reference_layer = \"crop_mask\" requires rasters$crop_mask.", call. = FALSE)
@@ -125,7 +142,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     } else {
       urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
       if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
-      template_r <- terra::rast(paste0("/vsicurl/", urls[1]))
+      template_r <- terra::rast(.wapor_resolve_remote_sources(urls[1])[[1]])
     }
   }
   
@@ -140,7 +157,9 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   
   # Harmonize mask
   h_mask <- if (isTRUE(config$use_crop_mask)) {
-    wapor_harmonize_crop_mask(rasters$crop_mask, template_r)
+    Rwapor::wapor_harmonize_raster(
+      rasters$crop_mask, template_r, method = get_resampling_method("crop_mask", "near")
+    )
   } else {
     # If no mask used, treat entire area as class 1
     template_r[[1]] * 0 + 1L
@@ -148,13 +167,13 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   
   # Harmonize season rasters
   h_start <- if (isTRUE(config$use_season_rasters)) {
-    Rwapor::wapor_harmonize_raster(rasters$season_start, template_r, method = "near")
+    Rwapor::wapor_harmonize_raster(rasters$season_start, template_r, method = get_resampling_method("season_start", "near"))
   } else {
     template_r * 0 + Rwapor::wapor_continuous_julian(period[1], ref_year)
   }
   
   h_end <- if (isTRUE(config$use_season_rasters)) {
-    Rwapor::wapor_harmonize_raster(rasters$season_end, template_r, method = "near")
+    Rwapor::wapor_harmonize_raster(rasters$season_end, template_r, method = get_resampling_method("season_end", "near"))
   } else {
     template_r * 0 + Rwapor::wapor_continuous_julian(period[2], ref_year)
   }
@@ -179,10 +198,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     } else {
       urls <- Rwapor::wapor_generate_urls(var, l3_region = l3_code, period = period)
       if (length(urls) == 0) return(NULL)
-      paste0("/vsicurl/", urls)
+      urls <- .wapor_resolve_remote_sources(urls)
     }
   }
-  
+
   .load_and_harmonize <- function(var, paths, template, reg_info, method = "near") {
     if (is.null(paths)) return(NULL)
     stack <- terra::rast(paths)
@@ -226,27 +245,27 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if (any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators)) {
     progress_callback(0.25, sprintf("Loading %s...", aeti_var %||% "AETI"))
     p <- .resolve_paths(aeti_var, use_local, folder, period, l3_code)
-    stacks$aeti <- .align_to_weights(.load_and_harmonize(aeti_var, p, template_r, reg_info, "bilinear"), target_dates)
+    stacks$aeti <- .align_to_weights(.load_and_harmonize(aeti_var, p, template_r, reg_info, get_resampling_method("aeti", "bilinear")), target_dates)
   }
   if (any(c("agg_ret", "etc", "adequacy_etc") %in% indicators)) {
     progress_callback(0.30, sprintf("Loading %s...", ret_var %||% "RET"))
     p <- .resolve_paths(ret_var, use_local, folder, period, l3_code)
-    stacks$ret <- .align_to_weights(.load_and_harmonize(ret_var, p, template_r, reg_info), target_dates)
+    stacks$ret <- .align_to_weights(.load_and_harmonize(ret_var, p, template_r, reg_info, get_resampling_method("ret", "bilinear")), target_dates)
   }
   if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators)) {
     progress_callback(0.35, sprintf("Loading %s...", precip_var %||% "PCP"))
     p <- .resolve_paths(precip_var, use_local, folder, period, l3_code)
-    stacks$precip <- .align_to_weights(.load_and_harmonize(precip_var, p, template_r, reg_info), target_dates)
+    stacks$precip <- .align_to_weights(.load_and_harmonize(precip_var, p, template_r, reg_info, get_resampling_method("pcp", "bilinear")), target_dates)
   }
   if (any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators)) {
     progress_callback(0.40, sprintf("Loading %s...", npp_var %||% "NPP"))
     p <- .resolve_paths(npp_var, use_local, folder, period, l3_code)
-    stacks$npp <- .align_to_weights(.load_and_harmonize(npp_var, p, template_r, reg_info), target_dates)
+    stacks$npp <- .align_to_weights(.load_and_harmonize(npp_var, p, template_r, reg_info, get_resampling_method("npp", "bilinear")), target_dates)
   }
   if (any(c("agg_t", "beneficial_fraction") %in% indicators)) {
     progress_callback(0.42, sprintf("Loading %s...", t_var %||% "Transpiration"))
     p <- .resolve_paths(t_var, use_local, folder, period, l3_code)
-    stacks$t <- .align_to_weights(.load_and_harmonize(t_var, p, template_r, reg_info, "bilinear"), target_dates)
+    stacks$t <- .align_to_weights(.load_and_harmonize(t_var, p, template_r, reg_info, get_resampling_method("t", "bilinear")), target_dates)
   }
 
   # 5. Calculations

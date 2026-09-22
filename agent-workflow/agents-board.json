@@ -700,9 +700,9 @@
     {
       "id": "8.1",
       "title": "Remote COG streaming hardening",
-      "status": "active",
+      "status": "done",
       "priority": "high",
-      "model": "hermes",
+      "model": "codex",
       "attribution": "recorded",
       "files": [
         "R/utils.R",
@@ -714,22 +714,41 @@
         "tests/testthat/test-streaming-hardening.R",
         "docs/plans/2026-09-17-rwapor-cog-streaming-hardening.md"
       ],
-      "notes": "Implemented complete-operation retry boundaries for pixel I/O, default refusal of incomplete non-seasonal results, explicit partial metadata, bounded datatype sampling, and accurate fallback documentation. Parse and direct helper checks pass. Terra-dependent tests are blocked because the current environment lacks terra, devtools, and testthat. Remaining: local capability probe, tiled duplicate remote-read cleanup, and full terra/GDAL verification.",
+      "notes": "Completed by Codex on 2026-09-21. Live timing showed the 12-file remote open completes in 2.81 seconds; the unreported crop-and-write phase made the request look frozen. Added granular map status and Shiny batch updates. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed. The 72-layer temporary probe emitted chunk 1 and 2 status but did not provide a completion line in this tool session.",
       "issue_ref": "ISS-20260917-003",
-      "claimed_utc": "2026-09-17T15:45:00Z",
-      "updated_utc": "2026-09-17"
+      "claimed_utc": "2026-09-21T15:03:30Z",
+      "updated_utc": "2026-09-21T15:23:00Z"
+    },
+    {
+      "id": "seasonal-dashboard-semantics",
+      "title": "Dashboard seasonal summary semantics",
+      "status": "active",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "files": [
+        "R/utils.R",
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "inst/shiny/mod_download.R",
+        "inst/shiny/mod_timeseries.R"
+      ],
+      "notes": "Expose variable-aware seasonal summary controls, reject explicit state/rate sums, and preserve equal-step non-sum semantics.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-22T00:00:00Z",
+      "updated_utc": "2026-09-22"
     }
   ],
   "issues": [
     {
       "id": "ISS-20260917-003",
       "title": "Remote COG streaming retries stopped before pixel I/O",
-      "status": "active",
-      "model": "hermes",
+      "status": "resolved",
+      "model": "codex",
       "attribution": "recorded",
-      "owner": "hermes",
+      "owner": "codex",
       "where": "R/utils.R, R/seasonal_download.R, R/wapor_map.R, R/wapor_ts.R, R/analysis_tiled.R, R/wapor_cog.R",
-      "summary": "Added complete-operation retries, incomplete-result guards, bounded datatype sampling, and accurate fallback documentation. Full terra/GDAL verification is blocked in the current environment; local capability probing and tiled duplicate-read cleanup remain open."
+      "summary": "Existing retry, completeness, and datatype safeguards are retained. Live timing showed the remote open is not the bottleneck; Codex added granular map and Shiny progress for the formerly silent crop-and-write phase. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed."
     },
     {
       "id": "ISS-20260917-001",

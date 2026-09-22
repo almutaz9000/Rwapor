@@ -357,68 +357,67 @@ get_variable_metadata_internal <- function(variable) {
     stop("'variable' must be a single character string", call. = FALSE)
   }
 
-  # 1. Try metadata from static lists
-  if (variable %in% names(WAPOR3_VARS)) {
-    return(WAPOR3_VARS[[variable]])
-  }
-  if (variable %in% names(AGERA5_VARS)) {
-    return(AGERA5_VARS[[variable]])
-  }
-
-  # 2. Level-based Fallback (ETa/RET and PCP are only L1 at dekadal scale)
-  # Check for L2/L3 variables that we know must use L1 sources
-  parts <- strsplit(variable, "-")[[1]]
-  if (length(parts) >= 2) {
-    level <- parts[1]
-    if (level %in% c("L2", "L3") && grepl("-(RET|PCP)-", variable)) {
-      fallback_var <- sub("^L[23]-", "L1-", variable)
-      # Check if fallback is already in static list
-      if (fallback_var %in% names(WAPOR3_VARS)) {
-         return(WAPOR3_VARS[[fallback_var]])
-      }
-      # If not in static list, continue to fetch from API - BUT for the L1 version
-      variable <- fallback_var
+  requested_code <- variable
+  catalog <- .load_metadata_catalog("all")
+  if (nrow(catalog)) {
+    hit <- catalog[catalog$code == variable, , drop = FALSE]
+    if (nrow(hit)) {
+      record <- as.list(hit[1, , drop = FALSE])
+      record$spatial_extent <- hit$spatial_extent[[1]]
+      record$fallback_used <- FALSE
+      return(record)
     }
   }
 
-  # 3. Dynamic fetch from API
-  message("Variable '", variable, "' not in static list. Fetching metadata from API...")
+  resolved_code <- .wapor_resolve_level_fallback(variable)
 
-  level <- parts[1]
-  base_url <- if (level %in% c("L1", "L2")) {
-    "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
-  } else if (level == "L3") {
-    "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets"
-  } else if (level == "AGERA5") {
-    "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/C3S/mapsets"
-  } else {
-    warning("Unknown level for variable: ", variable, call. = FALSE)
-    return(NULL)
+  if (nrow(catalog)) {
+    hit <- catalog[catalog$code == resolved_code, , drop = FALSE]
+    if (nrow(hit)) {
+      record <- as.list(hit[1, , drop = FALSE])
+      record$spatial_extent <- hit$spatial_extent[[1]]
+      record$requested_code <- requested_code
+      record$resolved_code <- resolved_code
+      record$fallback_used <- !identical(requested_code, resolved_code)
+      return(record)
+    }
   }
 
-  mapset_id <- if (level == "AGERA5" && grepl("-E$", variable)) sub("-E$", "", variable) else variable
-  url <- paste0(base_url, "/", mapset_id)
-
-  tryCatch({
-    resp <- httr2::request(url) |>
-      httr2::req_timeout(30) |>
-      httr2::req_perform() |>
-      httr2::resp_body_json()
-
-    data <- resp$response
-
-    meta <- list(
-      long_name = if (!is.null(data$measureCaption)) data$measureCaption else "Unknown",
-      units = if (!is.null(data$measureUnit)) data$measureUnit else "unknown",
-      scale = if (!is.null(data$scale)) as.numeric(data$scale) else 1.0
+  if (resolved_code %in% names(WAPOR3_VARS)) {
+    record <- .normalize_metadata_item(
+      c(WAPOR3_VARS[[resolved_code]], list(code = resolved_code)),
+      level = strsplit(resolved_code, "-", fixed = TRUE)[[1]][1],
+      source = "static", requested_code = requested_code
     )
+    record$fallback_used <- !identical(requested_code, resolved_code)
+    return(record)
+  }
+  if (resolved_code %in% names(AGERA5_VARS)) {
+    return(.normalize_metadata_item(
+      c(AGERA5_VARS[[resolved_code]], list(code = resolved_code)),
+      level = "AGERA5", source = "static", requested_code = requested_code
+    ))
+  }
 
-    return(meta)
+  api_record <- .fetch_metadata_api_variable(resolved_code)
+  if (is.null(api_record)) return(NULL)
+  api_record$requested_code <- requested_code
+  api_record$resolved_code <- resolved_code
+  api_record$fallback_used <- !identical(requested_code, resolved_code)
+  api_record
+}
 
-  }, error = function(e) {
-    warning("Failed to fetch metadata for ", variable, ": ", e$message, call. = FALSE)
-    return(NULL)
-  })
+.fetch_metadata_api_variable <- function(variable) {
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  level <- parts[1]
+  base_url <- .wapor_level_workspace_url(level)
+  if (is.null(base_url)) return(NULL)
+  records <- tryCatch(.fetch_all_pages(base_url, level), error = function(e) NULL)
+  if (!length(records)) return(NULL)
+  hit <- Filter(function(x) identical(x$code, variable), records)
+  if (!length(hit)) return(NULL)
+  hit[[1]]$source <- "api"
+  hit[[1]]
 }
 
 #' Get Variable Metadata
@@ -465,3 +464,20 @@ get_variable_metadata_internal <- function(variable) {
 #' meta$units
 #' # [1] "mm/day"
 wapor_variable_metadata <- memoise::memoise(get_variable_metadata_internal)
+
+#' List available WaPOR and AgERA5 variables
+#'
+#' Uses the validated bundled/user metadata catalogue for WaPOR and the
+#' curated AgERA5 registry as an offline-compatible fallback.
+#' @param include_agera5 Logical. Include AgERA5 variables.
+#' @return Sorted character vector of variable codes.
+#' @export
+wapor_available_variables <- function(include_agera5 = TRUE) {
+  if (!is.logical(include_agera5) || length(include_agera5) != 1L || is.na(include_agera5)) {
+    stop("'include_agera5' must be a single logical value", call. = FALSE)
+  }
+  catalog <- tryCatch(.load_metadata_catalog("all"), error = function(e) NULL)
+  vars <- if (!is.null(catalog) && nrow(catalog)) catalog$code else names(WAPOR3_VARS)
+  if (isTRUE(include_agera5)) vars <- c(vars, names(AGERA5_VARS))
+  sort(unique(vars))
+}

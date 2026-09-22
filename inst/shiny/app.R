@@ -1,6 +1,35 @@
 # Rwapor Shiny Dashboard - Modularized Version
 # Main entry point that assembles the various modules
 
+# ── Dependency guard ───────────────────────────────────────────────────────────
+# All packages listed here are in Suggests. Check them before attaching so
+# that a missing package gives a clear, actionable error instead of a cryptic
+# "there is no package called X" buried inside module code.
+.RWAPOR_SHINY_PKGS <- c(
+  "shiny", "bslib", "leaflet", "terra", "sf",
+  "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce",
+  "ggplot2", "dplyr", "DT", "shinycssloaders",
+  "future", "promises", "future.apply", "Rwapor"
+)
+
+.check_shiny_deps <- function(pkgs) {
+  missing_pkgs <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing_pkgs)) {
+    stop(
+      "Rwapor dashboard requires the following package(s) that are not installed:\n  ",
+      paste(missing_pkgs, collapse = ", "), "\n\n",
+      "Install them with:\n  install.packages(",
+      "c(", paste0("\"", missing_pkgs, "\"", collapse = ", "), "))",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+.check_shiny_deps(.RWAPOR_SHINY_PKGS)
+
+# Attach after the guard passes — search-path attachment is needed for Shiny
+# reactive contexts and for formula-based ggplot2 / dplyr pipelines in modules.
 library(shiny)
 library(bslib)
 library(leaflet)
@@ -69,13 +98,14 @@ runtime_state$restore <- function() {
 .wapor_source_app_module("mod_aoi.R")
 .wapor_source_app_module("mod_download.R")
 .wapor_source_app_module("mod_visualisation.R")
+.wapor_source_app_module("mod_dual_map.R")
 .wapor_source_app_module("mod_analysis.R")
 .wapor_source_app_module("mod_timeseries.R")
 .wapor_source_app_module("mod_monitoring.R")
 
 # --- Global / Static Configuration ---
 # Build variable list from package metadata
-all_vars <- unname(sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))))
+all_vars <- Rwapor::wapor_available_variables(include_agera5 = TRUE)
 default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else if (length(all_vars) > 0) all_vars[1] else NULL
 if (is.na(default_var)) default_var <- NULL
 
@@ -140,6 +170,22 @@ ui <- bslib::page_navbar(
       .bslib-sidebar-layout .help-block,
       .bslib-sidebar-layout .shiny-input-container > .help-block {
         font-size: 0.77rem; color: #6c757d; margin-top: 2px; }
+
+      /* ── Numbered step wizard accordion (Download tab) ──── */
+      .wizard-step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        border-radius: 50%;
+        background: #2c3e50;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        margin-right: 8px;
+      }
 
       /* ── Reusable utility classes ────────────────────────── */
       .ctrl-group-label {
@@ -310,6 +356,9 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Visualisation", icon = shiny::icon("chart-area"),
     mod_visualisation_ui("vis")
   ),
+  bslib::nav_panel("Dual Compare", icon = shiny::icon("columns"),
+    mod_dual_map_ui("dualmap")
+  ),
   bslib::nav_panel("Timeseries", icon = shiny::icon("chart-line"),
     mod_timeseries_ui("ts")
   ),
@@ -365,6 +414,12 @@ server <- function(input, output, session) {
                           an_start_rast = an_out$start_rast,
                           an_end_rast = an_out$end_rast,
                           an_crop_params = an_out$crop_params)
+
+  # 3b. Dual Compare Module
+  # Synchronized side-by-side raster comparison, shares the download folder
+  mod_dual_map_server("dualmap",
+                     global_folder = dl_out$folder,
+                     aoi_region    = dl_out$region)
   
   # 4. Timeseries Module
   # Uses the shared folder and AOI from the download tab

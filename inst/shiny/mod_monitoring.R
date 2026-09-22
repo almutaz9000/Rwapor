@@ -16,7 +16,7 @@ source(system.file("shiny", "monitoring_helpers.R", package = "Rwapor"), local =
 .MON_L3_DEFAULT_VARS <- c("L3-AETI-D", "L3-T-D", "L3-E-D", "L3-NPP-D")
 
 # API vars that are useful for field monitoring.
-.MON_ALL_VARS <- unname(sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))))
+.MON_ALL_VARS <- Rwapor::wapor_available_variables(include_agera5 = TRUE)
 
 .MON_AETI_D_VARS <- grep("-AETI-D$", .MON_ALL_VARS, value = TRUE)
 .MON_RET_D_VARS  <- grep("-RET-D$",  .MON_ALL_VARS, value = TRUE)
@@ -302,9 +302,41 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
               "Removes pixels below this percentile (e.g., 5% removes bare soil).",
               style = "font-size:0.77rem; color:#6c757d;"
             ),
-            
+
             shiny::tags$hr(class = "ctrl-divider"),
-            
+
+            # ── User-adjustable stress thresholds (S5) ──────────────────────
+            # Different crop types have different stress sensitivities; these
+            # defaults match the package constants but can be changed per-project.
+            # Chosen values are saved to the DuckDB monitoring_metadata table so
+            # they become part of the analysis provenance.
+            shiny::tags$span("Stress thresholds (ETa/ETp ratio)", class = "ctrl-group-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::numericInput(
+                  ns("stress_threshold_high"),
+                  "Moderate stress below",
+                  value = 0.8, min = 0.1, max = 1.0, step = 0.05
+                )
+              ),
+              shiny::div(
+                class = "flex-1",
+                shiny::numericInput(
+                  ns("stress_threshold_severe"),
+                  "Severe stress below",
+                  value = 0.6, min = 0.0, max = 0.9, step = 0.05
+                )
+              )
+            ),
+            shiny::helpText(
+              "Citrus: 0.8 / 0.6. Wheat: 0.7 / 0.5. Sugarbeet: 0.75 / 0.55. Thresholds are saved to the project database.",
+              style = "font-size:0.77rem; color:#6c757d;"
+            ),
+
+            shiny::tags$hr(class = "ctrl-divider"),
+
             shiny::actionButton(
               ns("btn_recalculate"), "Recalculate Stats with Threshold",
               icon  = shiny::icon("calculator"),
@@ -314,18 +346,19 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
               "Recalculates zonal stats from saved rasters using new threshold.",
               style = "font-size:0.77rem; color:#6c757d;"
             ),
-            
+
             shiny::tags$hr(class = "ctrl-divider"),
-            
+
             shiny::actionButton(
               ns("btn_plot_rasters"), "Plot Raster Time Series",
               icon  = shiny::icon("chart-line"),
               class = "btn-outline-info w-100 btn-sm"
             ),
             shiny::helpText(
-              "View time series with mean ± std ribbons for selected farm.",
+              "View time series with mean +/- std ribbons for selected farm.",
               style = "font-size:0.77rem; color:#6c757d;"
             ),
+
             
             shiny::tags$hr(class = "ctrl-divider"),
             
@@ -1922,18 +1955,24 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
         }
         df <- df[df$farm_id %in% farms, ]
         df$start_date <- as.Date(df$start_date)
+        # Read user-adjustable stress thresholds from the UI inputs;
+        # fall back to the package-level constants when not available.
+        stress_high   <- as.numeric(input$stress_threshold_high   %||% .MON_STRESS_HIGH)
+        stress_severe <- as.numeric(input$stress_threshold_severe %||% .MON_STRESS_SEVERE)
+        if (is.na(stress_high))   stress_high   <- .MON_STRESS_HIGH
+        if (is.na(stress_severe)) stress_severe <- .MON_STRESS_SEVERE
         p <- ggplot2::ggplot(df, ggplot2::aes(x = start_date, y = eta_etp,
                                                colour = farm_id, group = farm_id)) +
           ggplot2::geom_line(linewidth = 0.8) +
           ggplot2::geom_point(size = 1.5) +
-          ggplot2::geom_hline(yintercept = .MON_STRESS_HIGH,   linetype = "dashed",
+          ggplot2::geom_hline(yintercept = stress_high,   linetype = "dashed",
                               colour = "#e67e22", linewidth = 0.6) +
-          ggplot2::geom_hline(yintercept = .MON_STRESS_SEVERE, linetype = "dashed",
+          ggplot2::geom_hline(yintercept = stress_severe, linetype = "dashed",
                               colour = "#c0392b", linewidth = 0.6) +
-          ggplot2::annotate("text", x = -Inf, y = .MON_STRESS_HIGH + 0.02,
+          ggplot2::annotate("text", x = -Inf, y = stress_high + 0.02,
                             label = "Moderate stress threshold", hjust = -0.05,
                             size = 3, colour = "#e67e22") +
-          ggplot2::annotate("text", x = -Inf, y = .MON_STRESS_SEVERE + 0.02,
+          ggplot2::annotate("text", x = -Inf, y = stress_severe + 0.02,
                             label = "Severe stress threshold", hjust = -0.05,
                             size = 3, colour = "#c0392b") +
           ggplot2::labs(title = "ETa/ETp – Water Stress Index",
@@ -2349,11 +2388,16 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
       # Rename
       if ("mean_val" %in% names(result)) names(result)[names(result) == "mean_val"] <- "cum_aeti_mm"
       if (!is.null(eta_etp_df) && "eta_etp" %in% names(result)) {
+        # Use user-adjustable thresholds; fall back to package constants
+        thr_high   <- as.numeric(input$stress_threshold_high   %||% .MON_STRESS_HIGH)
+        thr_severe <- as.numeric(input$stress_threshold_severe %||% .MON_STRESS_SEVERE)
+        if (is.na(thr_high))   thr_high   <- .MON_STRESS_HIGH
+        if (is.na(thr_severe)) thr_severe <- .MON_STRESS_SEVERE
         result$stress_class <- dplyr::case_when(
-          result$eta_etp >= .MON_STRESS_HIGH   ~ "Good",
-          result$eta_etp >= .MON_STRESS_SEVERE ~ "Moderate stress",
-          !is.na(result$eta_etp)               ~ "Severe stress",
-          TRUE                                  ~ "N/A"
+          result$eta_etp >= thr_high   ~ "Good",
+          result$eta_etp >= thr_severe ~ "Moderate stress",
+          !is.na(result$eta_etp)       ~ "Severe stress",
+          TRUE                          ~ "N/A"
         )
       }
 

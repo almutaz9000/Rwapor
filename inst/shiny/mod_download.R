@@ -4,105 +4,89 @@
 mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
   ns <- shiny::NS(id)
 
+  step_title <- function(n, label) {
+    shiny::tagList(
+      shiny::tags$span(as.character(n), class = "wizard-step-num"),
+      label
+    )
+  }
+
   bslib::layout_sidebar(
     fillable = TRUE,
     sidebar = bslib::sidebar(
       width = 305,
       open  = TRUE,
       title = "Download Configuration",
-      # ── Project Folder — always visible at top of sidebar ─────────────
-      shiny::div(
-        class = "folder-header-strip",
-        shiny::tags$span(
-          shiny::icon("folder-open"), " Project Folder",
-          class = "ctrl-group-label req-label"
-        ),
-        shiny::div(
-          class = "inline-row",
-          shiny::div(
-            class = "flex-1",
-            shiny::textInput(
-              ns("folder"), NULL,
-              value       = file.path(getwd(), "wapor_project"),
-              placeholder = "Path to output folder"
-            )
-          ),
-          shiny::uiOutput(ns("favorite_btn_ui")),
-          shinyFiles::shinyDirButton(
-            ns("browse_folder"), label = "",
-            icon  = shiny::icon("folder-open"),
-            title = "Browse for folder (Desktop / Downloads / Documents and all drives are available as starting points)",
-            class = "btn-outline-secondary btn-sm",
-            style = "padding:0.37rem 0.6rem;"
-          )
-        ),
-        shiny::div(
-          class = "d-flex align-items-center justify-content-between",
-          style = "min-height: 24px; margin-bottom: 4px;",
-          shiny::uiOutput(ns("folder_status_ui")),
-          shinyjs::hidden(
-            shiny::actionButton(
-              ns("create_folder_btn"), "Create",
-              icon  = shiny::icon("folder-plus"),
-              class = "btn-outline-success btn-sm",
-              style = "padding: 0.1rem 0.5rem; font-size: 0.75rem;"
-            )
-          )
-        ),
-        shiny::uiOutput(ns("favorites_ui"))
-      ),
       shiny::div(
         class = "sidebar-scroll-area",
         bslib::accordion(
-          id     = ns("download_accordion"),
-          open   = c("Data Selection"),
+          id     = ns("download_wizard"),
+          open   = "1",
 
-          # ── 1. Data Selection ────────────────────────────────────────
+          # ── Step 1. Project ──────────────────────────────────────────
           bslib::accordion_panel(
-            "Data Selection", icon = shiny::icon("database"),
+            value = "1", title = step_title(1, "Project"), icon = shiny::icon("folder-open"),
 
+            shiny::tags$span("Project Folder", class = "ctrl-group-label req-label"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(
+                class = "flex-1",
+                shiny::textInput(
+                  ns("folder"), NULL,
+                  value       = file.path(getwd(), "wapor_project"),
+                  placeholder = "Path to output folder"
+                )
+              ),
+              shiny::uiOutput(ns("favorite_btn_ui")),
+              shinyFiles::shinyDirButton(
+                ns("browse_folder"), label = "",
+                icon  = shiny::icon("folder-open"),
+                title = "Browse for folder (Desktop / Downloads / Documents and all drives are available as starting points)",
+                class = "btn-outline-secondary btn-sm",
+                style = "padding:0.37rem 0.6rem;"
+              )
+            ),
+            shiny::div(
+              class = "d-flex align-items-center justify-content-between",
+              style = "min-height: 24px; margin-bottom: 4px;",
+              shiny::uiOutput(ns("folder_status_ui")),
+              shinyjs::hidden(
+                shiny::actionButton(
+                  ns("create_folder_btn"), "Create",
+                  icon  = shiny::icon("folder-plus"),
+                  class = "btn-outline-success btn-sm",
+                  style = "padding: 0.1rem 0.5rem; font-size: 0.75rem;"
+                )
+              )
+            ),
+            shiny::uiOutput(ns("favorites_ui")),
+
+            shiny::tags$hr(class = "ctrl-divider"),
             shiny::tags$span("Area of Interest", class = "ctrl-group-label req-label"),
             shiny::helpText("Define AOI first to filter L3 regions automatically."),
-            mod_aoi_ui(ns("aoi")),
-            
-            shiny::tags$hr(class = "ctrl-divider"),
+            mod_aoi_ui(ns("aoi"))
+          ),
+
+          # ── Step 2. Variables ────────────────────────────────────────
+          bslib::accordion_panel(
+            value = "2", title = step_title(2, "Variables"), icon = shiny::icon("list-check"),
+
             shiny::tags$span("Variables", class = "ctrl-group-label req-label"),
             shiny::selectizeInput(
               ns("dn_variables"), NULL,
-              choices  = all_vars,
+              choices  = wapor_grouped_var_choices(all_vars),
               selected = default_var,
               multiple = TRUE,
               options  = list(placeholder = "Select one or more WaPOR / AgERA5 variables")
             ),
-            shiny::conditionalPanel(
-              condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
-              ns = ns,
-              shiny::selectInput(
-                ns("l3_region"), "L3 Region",
-                choices = l3_region_choices
-              ),
-              shiny::uiOutput(ns("l3_region_message")),
-              shiny::helpText("Required for L3-level variables."),
-              shiny::tags$details(
-                shiny::tags$summary("📍 Help: Find L3 Regions"),
-                shiny::div(
-                  style = "font-size: 0.85rem; margin-top: 0.5rem; padding: 0.5rem;",
-                  shiny::tags$p(
-                    "If auto-detection doesn't work, you can:",
-                    shiny::br(),
-                    "1. Run in R: ",
-                    shiny::tags$code("Filter(function(r) r$country == 'Tunisia', Rwapor::L3_REGIONS)"),
-                    shiny::br(),
-                    "2. Find the region code (e.g., JEN for Jendouba)",
-                    shiny::br(),
-                    "3. Select it manually from the dropdown",
-                    style = "font-size: 0.8rem; color: #666;"
-                  )
-                )
-              )
-            ),
+            shiny::helpText("L3-level variables enable the L3 Region step below.")
+          ),
 
-            shiny::tags$hr(class = "ctrl-divider"),
+          # ── Step 3. Period ───────────────────────────────────────────
+          bslib::accordion_panel(
+            value = "3", title = step_title(3, "Period"), icon = shiny::icon("calendar-days"),
+
             shiny::div(
               class = "flex-row-center-between",
               shiny::tags$span("Time Period", class = "ctrl-group-label req-label"),
@@ -149,9 +133,51 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             )
           ),
 
-          # ── 2. Output Settings ──────────────────────────────────────
+          # ── Step 4. L3 Region ────────────────────────────────────────
           bslib::accordion_panel(
-            "Output Settings", icon = shiny::icon("gear"),
+            value = "4", title = step_title(4, "L3 Region"), icon = shiny::icon("map-location-dot"),
+
+            shiny::conditionalPanel(
+              condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
+              ns = ns,
+              shiny::selectInput(
+                ns("l3_region"), "L3 Region",
+                choices = l3_region_choices
+              ),
+              shiny::uiOutput(ns("l3_region_message")),
+              shiny::helpText("Required for L3-level variables."),
+              shiny::tags$details(
+                shiny::tags$summary("📍 Help: Find L3 Regions"),
+                shiny::div(
+                  style = "font-size: 0.85rem; margin-top: 0.5rem; padding: 0.5rem;",
+                  shiny::tags$p(
+                    "If auto-detection doesn't work, you can:",
+                    shiny::br(),
+                    "1. Run in R: ",
+                    shiny::tags$code("Filter(function(r) r$country == 'Tunisia', Rwapor::L3_REGIONS)"),
+                    shiny::br(),
+                    "2. Find the region code (e.g., JEN for Jendouba)",
+                    shiny::br(),
+                    "3. Select it manually from the dropdown",
+                    style = "font-size: 0.8rem; color: #666;"
+                  )
+                )
+              )
+            ),
+            shiny::conditionalPanel(
+              condition = "!(input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-')))",
+              ns = ns,
+              shiny::tags$p(
+                class = "text-muted mb-0",
+                style = "font-size:0.8rem;",
+                shiny::icon("circle-info"), " No L3 variables selected. This step is not required."
+              )
+            )
+          ),
+
+          # ── Step 5. Run ──────────────────────────────────────────────
+          bslib::accordion_panel(
+            value = "5", title = step_title(5, "Run"), icon = shiny::icon("play"),
 
             shiny::tags$span("File options", class = "ctrl-group-label"),
             shiny::div(
@@ -181,14 +207,19 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
               selected = "unit_conversion"
             ),
 
-            shiny::tags$hr(class = "ctrl-divider")
+            shiny::tags$hr(class = "ctrl-divider"),
+            shiny::actionButton(
+              ns("download_btn"), "Download Data",
+              class = "btn-primary w-100",
+              icon  = shiny::icon("cloud-arrow-down")
+            )
           )
         )
       ),
       shiny::div(
         class = "sidebar-sticky-footer",
         shiny::actionButton(
-          ns("download_btn"), "Download Data",
+          ns("download_btn_footer"), "Download Data",
           class = "btn-primary w-100",
           icon  = shiny::icon("cloud-arrow-down")
         )
@@ -707,9 +738,18 @@ mod_download_server <- function(id, l3_regions_meta) {
     })
     iv$enable()
 
-    # Control download button state
+    # Control download button state (both the Step 5 button and the sticky
+    # footer shortcut button share the same enable/disable condition)
     shiny::observe({
       shinyjs::toggleState("download_btn", condition = iv$is_valid())
+      shinyjs::toggleState("download_btn_footer", condition = iv$is_valid())
+    })
+
+    # Sticky footer button is a convenience shortcut: jump the accordion to
+    # the Run step and let the user press the in-step button, keeping a
+    # single source of truth for the actual download trigger.
+    shiny::observeEvent(input$download_btn_footer, {
+      bslib::accordion_panel_open(id = "download_wizard", values = "5", session = session)
     })
 
     shinyFiles::shinyDirChoose(input, "browse_folder", roots = roots, session = session)
@@ -944,6 +984,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           folder_safe,
           unit_conv,
           input$seasonal,
+          fun_str,
           input$separate_files,
           mask_str
         )
@@ -998,6 +1039,15 @@ mod_download_server <- function(id, l3_regions_meta) {
             } else {
               as.character(input$period)
             }
+            batch_progress <- function(batch_index, batch_count) {
+              shiny::incProgress(
+                0,
+                detail = sprintf(
+                  "Downloaded batch %d of %d for %s...",
+                  batch_index, batch_count, v
+                )
+              )
+            }
 
             # Dual-stage if both selected
             if (isTRUE(input$seasonal) && isTRUE(input$separate_files)) {
@@ -1036,8 +1086,10 @@ mod_download_server <- function(id, l3_regions_meta) {
                 folder = input$folder,
                 unit_conversion = unit_conv,
                 seasonal = input$seasonal,
+                fun = seasonal_fun,
                 separate_files = input$separate_files,
-                mask = aoi$mask()
+                mask = aoi$mask(),
+                on_batch_done = batch_progress
               )
             }
             

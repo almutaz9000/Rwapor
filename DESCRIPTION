@@ -6,6 +6,8 @@ Authors@R: c(
     person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
     person("FAO", role = "cph")
   )
+Author: Almutaz Mohammed [aut, cre], WaPOR-DL Contributors [aut], FAO [cph]
+Maintainer: Almutaz Mohammed <almutaz.mohammed@fao.org>
 Description: Downloads and processes WaPOR (Water Productivity Open-access portal)
     and AgERA5 raster data from the FAO GIS Manager API. Provides functions for
     extracting time series, calculating zonal statistics for regions and polygons,
