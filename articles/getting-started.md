@@ -1,0 +1,180 @@
+# Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction
+
+## Introduction
+
+The **Rwapor** package provides a high-performance R interface for
+querying, downloading, and analyzing satellite datasets from the **FAO
+WaPOR v3** (Water Productivity Open-access portal) and **ECMWF AgERA5**
+agro-meteorological datasets.
+
+This vignette covers: 1. Connecting to the FAO GISMGR API and streaming
+Cloud-Optimized GeoTIFFs (COGs). 2. Downloading spatial raster maps for
+bounding boxes, vector polygons, and Level 3 schemes. 3. Extracting
+time-series statistics for agricultural field boundaries. 4. Managing
+disk caching and automatic unit conversions.
+
+------------------------------------------------------------------------
+
+## 1. Installation
+
+Install `Rwapor` directly from GitHub:
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("almutaz9000/Rwapor")
+
+library(Rwapor)
+```
+
+------------------------------------------------------------------------
+
+## 2. API Streaming & Disk Caching
+
+Rwapor optimizes GDAL `/vsicurl/` settings automatically on package load
+(using 10 MB chunk reads instead of GDAL’s default 16 KB), cutting HTTP
+round-trips by up to 1000×.
+
+Additionally, API endpoint responses are automatically cached to disk
+with a 24-hour Time-To-Live (TTL) under your user cache directory. You
+can purge this cache at any time:
+
+``` r
+
+# Clear cached API URLs and catalog responses
+wapor_clear_url_cache()
+```
+
+------------------------------------------------------------------------
+
+## 3. Data Catalog Exploration
+
+Explore available variables in WaPOR v3 and AgERA5:
+
+``` r
+
+# List WaPOR v3 variable codes
+names(WAPOR3_VARS)
+
+# Retrieve metadata for a specific variable
+get_variable_metadata("L2-AETI-D")
+# $long_name: "Actual EvapoTranspiration and Interception"
+# $units: "mm/day"
+# $scale: 0.1
+# $spatial_resolution: "~100m"
+
+# Explore sub-national Level 3 irrigation schemes
+head(L3_REGIONS)
+```
+
+------------------------------------------------------------------------
+
+## 4. Downloading Raster Maps (`wapor_map`)
+
+### 4.1 Using a Bounding Box
+
+``` r
+
+# Download dekadal AETI for January 2023 (converted to mm/dekad)
+output_file <- wapor_map(
+  region   = c(35.0, 33.0, 36.0, 34.0), # Bounding box: c(xmin, ymin, xmax, ymax)
+  variable = "L1-AETI-D",
+  period   = c("2023-01-01", "2023-01-31"),
+  folder   = "output_rasters"
+)
+
+# Load with terra
+library(terra)
+r <- rast(output_file)
+plot(r[[1]], main = "AETI - 2023-01-01 (mm/dekad)")
+```
+
+### 4.2 Using a Vector Polygon Boundary
+
+``` r
+
+# Download raster cropped and masked to a polygon shapefile
+map_path <- wapor_map(
+  region   = "study_area.geojson",
+  variable = "L2-NPP-M",
+  period   = c("2023-01-01", "2023-12-31"),
+  folder   = "output_rasters"
+)
+```
+
+### 4.3 Using Level 3 Irrigation Scheme Codes
+
+``` r
+
+# Download Awash Basin Level 3 data (Ethiopia)
+awa_path <- wapor_map(
+  region   = "AWA",
+  variable = "L3-AETI-D",
+  period   = c("2023-06-01", "2023-06-30"),
+  folder   = "output_rasters"
+)
+```
+
+### 4.4 Seasonal Summary Functions
+
+In seasonal mode, leave `fun = NULL` for the variable-aware default:
+weighted sum for accumulative products and weighted mean for state/rate
+products. Use `"mean"`, `"std"`, `"min"`, `"max"`, or `"median"` when
+every overlapping source raster should count equally. This is especially
+useful for annual, monthly, or dekadal observations. A product such as
+root-zone soil moisture cannot be summed; use one of the non-sum
+summaries instead.
+
+``` r
+
+seasonal_median <- wapor_map(
+  region   = "study_area.geojson",
+  variable = "L3-AETI-M",
+  period   = c("2023-03-01", "2024-02-29"),
+  folder   = "output_rasters",
+  seasonal = TRUE,
+  fun      = "median"
+)
+```
+
+------------------------------------------------------------------------
+
+## 5. Extracting Field Time-Series (`wapor_ts`)
+
+Extract polygon zonal statistics (mean, min, max, standard deviation)
+for multiple agricultural plots:
+
+``` r
+
+library(future)
+
+# Enable parallel processing
+plan(multisession, workers = 4)
+
+ts_df <- wapor_ts(
+  region          = "farm_plots.geojson",
+  variable        = "L2-AETI-D",
+  period          = c("2023-01-01", "2023-12-31"),
+  identifier      = "plot_id",
+  unit_conversion = "unit_conversion" # Automatically converts daily rate to dekadal total
+)
+
+head(ts_df)
+# Plot time series
+library(ggplot2)
+ggplot(ts_df, aes(x = start_date, y = mean, group = plot_id, color = plot_id)) +
+  geom_line() +
+  labs(x = "Date", y = "AETI (mm/dekad)", title = "Seasonal AETI across Farm Plots")
+```
+
+------------------------------------------------------------------------
+
+## 6. Next Steps
+
+- Explore the **[Interactive Shiny Dashboard
+  Guide](https://almutaz9000.github.io/Rwapor/articles/shiny-dashboard.md)**
+  for point-and-click workflows.
+- See the **[Advanced Analysis
+  Vignette](https://almutaz9000.github.io/Rwapor/articles/advanced-analysis.md)**
+  for seasonal water productivity modeling ($`ET_c, CWP, BWP`$), custom
+  crop parameter creation, and out-of-core tiled raster processing.

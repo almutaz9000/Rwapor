@@ -1,0 +1,223 @@
+# Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics
+
+This guide covers advanced programmatic workflows for the `Rwapor`
+package, including seasonal crop water productivity analysis, custom
+crop factor modeling, out-of-core tiled processing, spatial water stress
+anomaly detection, and DuckDB monitoring cubes.
+
+------------------------------------------------------------------------
+
+## 1. Custom Crop Growth Parameters & Factors
+
+While `Rwapor` includes standard FAO-56 crop defaults for 12 major
+crops, agricultural projects often require custom crop coefficients
+($`K_c`$), stage durations, harvest indices, or moisture contents.
+
+### 1.1 Creating a Custom Crop from Scratch
+
+Use
+[`wapor_create_crop_params()`](https://almutaz9000.github.io/Rwapor/reference/wapor_create_crop_params.md)
+to construct a validated parameter row:
+
+``` r
+
+library(Rwapor)
+
+custom_wheat <- wapor_create_crop_params(
+  class_value  = 1L,
+  crop_name    = "Local Irrigated Durum Wheat",
+  kc_ini       = 0.35,
+  kc_mid       = 1.25,
+  kc_end       = 0.30,
+  l_ini_days   = 25L,
+  l_mid_days   = 50L,
+  l_late_days  = 30L,
+  max_height_m = 0.9,
+  HI           = 0.50, # Harvest Index
+  MC           = 0.12  # Moisture Content
+)
+```
+
+### 1.2 Overriding Specific Factors from an FAO Profile
+
+Use
+[`wapor_custom_crop()`](https://almutaz9000.github.io/Rwapor/reference/wapor_custom_crop.md)
+to inherit default values from an FAO profile while modifying specific
+fields:
+
+``` r
+
+# Customize Maize for a high-density pivot
+custom_maize <- wapor_custom_crop(
+  base_crop   = "Maize",
+  class_value = 2L,
+  crop_name   = "High-Yield Hybrid Maize",
+  kc_mid      = 1.30,  # Overridden
+  HI          = 0.55   # Overridden
+)
+```
+
+### 1.3 Combining Multi-Crop Class Tables
+
+Merge individual crop definitions into a multi-class table for seasonal
+analysis:
+
+``` r
+
+crop_params <- wapor_combine_crop_params(custom_wheat, custom_maize)
+```
+
+------------------------------------------------------------------------
+
+## 2. Seasonal Crop Water Productivity Analysis
+
+The unified engine
+[`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)
+executes seasonal aggregations ($`AETI, RET, PCP, NPP, T`$), potential
+crop water requirements ($`ET_c`$), adequacy ratios, and crop/biomass
+water productivity ($`CWP / BWP`$).
+
+### 2.1 Single Season Analysis with Latitude-Aware Area Weighting
+
+``` r
+
+config <- list(
+  period        = c("2023-10-01", "2024-05-31"),
+  ref_year      = 1970,
+  aeti_var      = "L2-AETI-D",
+  ret_var       = "L1-RET-D",
+  precip_var    = "L1-PCP-D",
+  npp_var       = "L2-NPP-D",
+  t_var         = "L2-T-D",
+  data_source   = "local",
+  folder        = "wapor_data",
+  area_weighted = TRUE, # Exact cos(lat) ellipsoidal pixel weighting
+  indicators    = c("agg_aeti", "agg_t", "etc", "adequacy_etc", "peff", "cwp_bwp", "beneficial_fraction")
+)
+
+rasters <- list(crop_mask = terra::rast("crop_mask.tif"))
+
+results <- wapor_run_seasonal_analysis(
+  config      = config,
+  crop_params = crop_params,
+  rasters     = rasters
+)
+
+# Export all rasters and summary tables
+wapor_export_analysis_outputs(
+  results      = results,
+  folder       = "outputs/Winter2023",
+  indicators   = config$indicators,
+  season_label = "Winter2023"
+)
+```
+
+### 2.2 Multi-Year Batch Processing
+
+Pass a named list of periods to loop through multiple seasons
+automatically:
+
+``` r
+
+periods <- list(
+  "Winter2021" = c("2020-10-01", "2021-05-31"),
+  "Winter2022" = c("2021-10-01", "2022-05-31"),
+  "Winter2023" = c("2022-10-01", "2023-05-31")
+)
+
+config$period <- periods
+
+all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
+```
+
+------------------------------------------------------------------------
+
+## 3. Tiled Processing for Large Extents
+
+For regional or continental extents, use
+[`wapor_run_seasonal_analysis_tiled()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis_tiled.md).
+It windows sources onto square tiles, writes a versioned run manifest,
+and assembles tile GeoTIFFs with a VRT. Peak memory is bounded by tile
+size, not the full AOI. Resume a previous run with `resume = TRUE` when
+the manifest matches the current configuration.
+
+``` r
+
+tiled_out <- wapor_run_seasonal_analysis_tiled(
+  config      = config,
+  crop_params = crop_params,
+  rasters     = rasters,
+  output_dir  = "tiled_outputs",
+  tile_size   = 1024L,
+  cog         = TRUE,
+  resume      = TRUE
+)
+
+tiled_out$saved_files$seasonal_aeti
+tiled_out$manifest_path
+```
+
+------------------------------------------------------------------------
+
+## 4. Spatial Anomaly & Water Stress Hotspots
+
+Identify spatial water stress patterns using temporal standard
+normalized anomalies ($`Z`$-score) and statistical threshold
+classification:
+
+``` r
+
+library(terra)
+
+# 1. Stack multi-year seasonal AETI rasters
+aeti_stack <- c(
+  rast("aeti_2021.tif"),
+  rast("aeti_2022.tif"),
+  rast("aeti_2023.tif")
+)
+
+# 2. Compute pixel-wise temporal Z-score
+z_score_stack <- wapor_calc_zscore(aeti_stack)
+
+# 3. Classify spatial hotspots for the current season (+/- 1.96 = 95% confidence)
+hotspots_2023 <- wapor_calc_spatial_hotspots(
+  zscore_layer = z_score_stack[[3]],
+  low          = -1.96,
+  high         = 1.96
+)
+
+# Classes: -2 (Severe Deficit), -1 (Moderate Deficit), 0 (Normal), 1 (Moderate Surplus), 2 (Severe Surplus)
+plot(hotspots_2023)
+```
+
+------------------------------------------------------------------------
+
+## 5. Continuous Farm Monitoring with Embedded DuckDB
+
+Maintain a synchronized local data cube for agricultural parcels:
+
+``` r
+
+library(DBI)
+library(duckdb)
+
+con <- dbConnect(duckdb::duckdb(), dbdir = "monitoring.duckdb")
+pivots <- sf::st_read("farm_parcels.geojson")
+
+# Sync only new data from API
+wapor_run_monitoring(
+  con          = con,
+  farms_sf     = pivots,
+  variables    = c("L3-AETI-D", "L1-RET-D"),
+  period       = c("2020-01-01", "2024-04-20"),
+  save_rasters = TRUE
+)
+
+# Query time series directly with SQL
+stats_df <- dbGetQuery(con, "
+  SELECT farm_id, date, aeti_mean_mm, ret_mean_mm
+  FROM farm_stats
+  WHERE date >= '2023-01-01'
+  ORDER BY farm_id, date
+")
+```
