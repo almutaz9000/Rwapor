@@ -8,7 +8,7 @@
 
 **Rwapor** is a high-performance R package for streaming, analyzing, and visualizing satellite data from [**FAO WaPOR v3**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) (Water Productivity Open-access portal) and [**ECMWF AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) agro-meteorological indicators.
 
-It provides both a complete **programmatic R API** and an **interactive Shiny dashboard** with full offline DuckDB analytics, out-of-core tiled raster processing, agronomic crop modeling (FAO-56), and spatial water stress anomaly detection.
+It provides both a complete **programmatic R API** and an **interactive Shiny dashboard** with DuckDB analytics, tiled raster processing, agronomic crop modeling (FAO-56), and spatial water stress anomaly detection.
 
 ---
 
@@ -20,7 +20,7 @@ It provides both a complete **programmatic R API** and an **interactive Shiny da
 * 🌐 **Latitude-Aware Area Weighting**: Exact ellipsoidal pixel area calculation (`wapor_pixel_area_ha()`) ensuring latitude-unbiased class and AOI statistics on geographic (`EPSG:4326`) grids.
 * 🧩 **Extensible Step Registry**: Modular indicator architecture allowing custom calculation steps to be registered and executed seamlessly.
 * 🖥️ **Interactive Shiny Dashboard**: Point-and-click UI with interactive Leaflet map drawing, automatic Level 3 region detection, multi-season batch execution, and split-screen swipe map visualization.
-* 📦 **Out-of-Core Tiled Engine**: Windowed raster engine (`wapor_run_seasonal_analysis_tiled()`) to process large regional or continental extents without memory overflow.
+* 📦 **Tiled Seasonal Engine**: `wapor_run_seasonal_analysis_tiled()` windows sources onto square tiles, writes a versioned run manifest, and assembles GeoTIFF/COG products with a VRT. Peak memory is bounded by tile size, not the full AOI.
 * ⚡ **High-Throughput Vector Extraction**: Fast polygon zonal statistics powered by `exactextractr` and embedded `DuckDB` storage for multi-year farm monitoring.
 
 ---

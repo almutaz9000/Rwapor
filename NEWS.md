@@ -1,3 +1,26 @@
+# Rwapor 1.0.0 (development)
+
+## Core geospatial processing
+
+* Tiled seasonal engine now uses deterministic square tiles, a versioned
+  `run_manifest.json`, per-tile GeoTIFF/COG assets, checksums, and VRT
+  assembly. Completed tiles can be resumed; mismatched manifests are refused.
+* Source rasters are windowed onto each tile before analysis so the engine
+  does not load the full AOI stack. Tile-local block reducers compute AETI,
+  RET, PCP, Peff, ETc, adequacy, biomass, and related indicators one layer at
+  a time. Remote-COG fixtures and a tile-vs-AOI memory benchmark cover
+  `/vsicurl/` windowing.
+* Incomplete seasonal coverage now fails unless `partial = TRUE`.
+* `mosaic_all` supports multiple variables and periods, and `wapor_ts()`
+  extracts every intersecting L3 source. Shiny no longer preselects the
+  first of several L3 codes and offers mosaic-all.
+* Closing a dashboard browser tab no longer calls `stopApp()`.
+* `wapor_write_cog()` publishes atomically through a `.partial.tif` file and
+  applies LZW compression, datatype predictors, overviews, and a BigTIFF
+  policy.
+
+---
+
 # Rwapor 0.9.9
 
 ## Download Robustness

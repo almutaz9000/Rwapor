@@ -24,6 +24,10 @@
 #' @param seasonal Logical. If `TRUE`, downloads and aggregates data for the
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
+#' @param fun Optional seasonal summary function. `NULL` (default) preserves
+#'   variable-aware weighted aggregation. Explicit `"sum"` remains weighted;
+#'   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
+#'   overlapping source layer once without scaling partial layers.
 #' @param separate_files Logical. If `TRUE`, writes each time step as a separate
 #'   GeoTIFF file instead of a multi-band stack. In seasonal mode, this saves
 #'   seasonal-plan component rasters into
@@ -38,6 +42,15 @@
 #'   If `FALSE`, loads all layers at once.
 #' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
 #'   Lower values reduce memory pressure for long periods. Default is `12L`.
+#' @param l3_region Optional L3 code to use for an L3 variable and spatial AOI.
+#' @param l3_mode L3 coverage policy: `"select"` requires one selected L3 code
+#'   when several regions intersect; `"mosaic_all"` writes source assets and a
+#'   coverage-bearing mosaic for every intersecting L3 region.
+#' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
+#'   and recorded. Default `FALSE` fails the request.
+#' @param cog Logical. Write GeoTIFF outputs with [wapor_write_cog()]. Default `FALSE`.
+#' @param on_batch_done Optional function called after each processed batch with
+#'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
 #' @return Character path to the output GeoTIFF file, or in seasonal mode with
 #'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
@@ -100,8 +113,15 @@ wapor_map <- function(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L
+  batch_size = 12L,
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  cog = FALSE,
+  on_batch_done = NULL,
+  fun = NULL
 ) {
+  l3_mode <- match.arg(l3_mode)
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -120,6 +140,17 @@ wapor_map <- function(
   }
   batch_size <- as.integer(batch_size)
 
+  seasonal_summary <- NULL
+  if (isTRUE(seasonal)) {
+    if (length(variable) != 1L) {
+      stop(sprintf(
+        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
+        length(variable)
+      ), call. = FALSE)
+    }
+    seasonal_summary <- resolve_seasonal_summary_function(variable, fun)
+  }
+
   if (!is.list(period)) {
     if (as.Date(period[1]) > as.Date(period[2])) {
       stop("'period' start date must be <= end date", call. = FALSE)
@@ -135,34 +166,40 @@ wapor_map <- function(
   reg_info <- wapor_parse_region(region)
   l3_code <- if (reg_info$type == "l3_code") reg_info$value else NULL
 
+  resolve_l3_code <- function(var, current_period) {
+    if (!grepl("^L3-", var)) return(NULL)
+    if (!is.null(l3_code)) return(l3_code)
+    detected <- wapor_guess_region(var, reg_info, current_period)
+    selected <- wapor_resolve_l3_selection(detected, l3_region, l3_mode)
+    selected[[1]]
+  }
+
   get_current_unit_conv <- function(var, u_conv) {
     resolve_output_unit_conversion(var, u_conv)
   }
 
+  if (identical(l3_mode, "mosaic_all") && any(grepl("^L3-", variable))) {
+    if (!is.null(l3_code)) {
+      stop("'mosaic_all' requires a spatial AOI, not a single L3 code region.", call. = FALSE)
+    }
+    return(wapor_map_mosaic_all(
+      region = region, variable = variable, period = period, folder = folder,
+      filename = filename, separate_files = separate_files,
+      unit_conversion = unit_conversion, seasonal = seasonal, mask = mask,
+      parallel = parallel, batching = batching, batch_size = batch_size,
+      partial = partial, cog = cog, fun = fun
+    ))
+  }
+
   # --- Seasonal mode ---
   if (seasonal) {
-    if (length(variable) != 1L) {
-      stop(sprintf(
-        "seasonal mode requires a single variable; got %d. Call wapor_map() separately for each variable.",
-        length(variable)
-      ), call. = FALSE)
-    }
-
     process_seasonal_var <- function(var, current_period, current_filename, s_name = "seasonal") {
       log_msg(sprintf("Processing seasonal variable: %s", var))
       
-      current_l3_code <- l3_code
-      if (is.null(current_l3_code) && grepl("^L3-", var)) {
-         guessed_codes <- wapor_guess_region(var, reg_info, current_period)
-         if (is.null(guessed_codes)) {
-            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
-            return(NULL)
-         }
-         current_l3_code <- guessed_codes[1]
-      }
+      current_l3_code <- resolve_l3_code(var, current_period)
 
       t0_seasonal <- proc.time()
-      aggregation_rule <- get_seasonal_aggregation_rule(var)
+      aggregation_rule <- seasonal_summary$aggregation_rule
       seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
       
       # Smart-Linking for Timing Rasters:
@@ -182,8 +219,9 @@ wapor_map <- function(
       }
 
       seasonal_data <- tryCatch({
-        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder, 
-                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster)
+        download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder,
+                                  do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster,
+                                  partial = partial)
       }, error = function(e) {
         warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
         return(NULL)
@@ -192,14 +230,26 @@ wapor_map <- function(
       if (is.null(seasonal_data)) return(NULL)
       
       groups <- seasonal_data$groups
-      aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
-      seasonal_output_units <- get_seasonal_output_units(var, aggregation_rule)
+      if (!isTRUE(seasonal_summary$explicit)) {
+        aggregation_rule <- seasonal_data$aggregation_rule %||% aggregation_rule
+      }
+      seasonal_output_units <- get_seasonal_output_units(
+        var,
+        if (isTRUE(seasonal_summary$weighted)) aggregation_rule else "weighted_mean"
+      )
       if (length(groups) == 0) return(NULL)
 
       running_value <- NULL
       running_weight <- NULL
       valid_count <- NULL
       component_paths <- character(0)
+      equal_step_layers <- list()
+      included_layer_ids <- if (is.data.frame(seasonal_data$plan) &&
+                                all(c("period_id", "overlap_days") %in% names(seasonal_data$plan))) {
+        as.character(seasonal_data$plan$period_id[seasonal_data$plan$overlap_days > 0])
+      } else {
+        NULL
+      }
 
       var_folder <- file.path(folder, paste0(var, "_seasonal"))
       if (!dir.exists(var_folder)) {
@@ -214,6 +264,30 @@ wapor_map <- function(
         # Clean NaNs and apply temperature conversion
         r_group <- terra::subst(r_group, NaN, NA)
         r_group <- wapor_convert_temperature(r_group, g$variable)
+
+        if (!is.null(included_layer_ids) && !is.null(g$layer_ids)) {
+          selected_layers <- which(as.character(g$layer_ids) %in% included_layer_ids)
+          if (length(selected_layers) == 0) next
+          r_group <- r_group[[selected_layers]]
+          multipliers <- multipliers[selected_layers]
+        }
+
+        if (!isTRUE(seasonal_summary$weighted)) {
+          equal_step_layers[[length(equal_step_layers) + 1L]] <- r_group
+
+          if (isTRUE(separate_files)) {
+            comp_dir <- file.path(var_folder, "components")
+            if (!dir.exists(comp_dir)) dir.create(comp_dir, recursive = TRUE, showWarnings = FALSE)
+            comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
+            reducer <- if (identical(seasonal_summary$fun, "std")) "sd" else seasonal_summary$fun
+            r_comp <- terra::app(r_group, fun = reducer, na.rm = TRUE)
+            r_comp <- terra::classify(r_comp, cbind(NA, -9999))
+            r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
+            suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+            component_paths <- c(component_paths, comp_fname)
+          }
+          next
+        }
 
         # Handle weighted sum/mean using terra::sum for performance and tree depth stability
         weighted_stack <- r_group * multipliers
@@ -256,14 +330,24 @@ wapor_map <- function(
         }
       }
 
-      seasonal_result <- if (identical(aggregation_rule, "weighted_mean")) {
+      seasonal_result <- if (!isTRUE(seasonal_summary$weighted)) {
+        if (length(equal_step_layers) == 0) return(NULL)
+        reducer <- if (identical(seasonal_summary$fun, "std")) "sd" else seasonal_summary$fun
+        terra::app(do.call(c, equal_step_layers), fun = reducer, na.rm = TRUE)
+      } else if (identical(aggregation_rule, "weighted_mean")) {
         terra::ifel(running_weight > 0, running_value / running_weight, NA)
       } else {
         terra::mask(running_value, valid_count, maskvalue = 0)
       }
       
       names(seasonal_result) <- paste0(
-        if (identical(aggregation_rule, "weighted_mean")) "seasonal_mean_" else "seasonal_", 
+        if (isTRUE(seasonal_summary$explicit)) {
+          paste0("seasonal_", seasonal_summary$fun, "_")
+        } else if (identical(aggregation_rule, "weighted_mean")) {
+          "seasonal_mean_"
+        } else {
+          "seasonal_"
+        },
         current_period[1], "_", current_period[2]
       )
       
@@ -275,7 +359,7 @@ wapor_map <- function(
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
 
       log_msg(sprintf("Seasonal %s for %s saved to: %s",
-                      if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
+                      if (isTRUE(seasonal_summary$explicit)) seasonal_summary$fun else if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
                       var, out_path))
 
       if (isTRUE(separate_files) && length(component_paths) > 0) {
@@ -301,7 +385,11 @@ wapor_map <- function(
             }
           } else {
             prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
-            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+            if (isTRUE(seasonal_summary$explicit)) {
+              sprintf("%sWAPOR-3.%s.seasonal.%s.%s.%s_%s.tif", prefix_bb, v, seasonal_summary$fun, s_name, p[1], p[2])
+            } else {
+              sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, s_name, p[1], p[2])
+            }
           }
           
           log_msg(sprintf("Processing variable %s, season %s", v, s_name))
@@ -314,7 +402,11 @@ wapor_map <- function(
            if (length(variable) > 1) sub("\\.tif$", paste0(".", v, ".tif"), filename) else filename
         } else {
           prefix_bb <- if (reg_info$type == "bbox") "bb_" else ""
-          sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+          if (isTRUE(seasonal_summary$explicit)) {
+            sprintf("%sWAPOR-3.%s.seasonal.%s.%s_%s.tif", prefix_bb, v, seasonal_summary$fun, period[1], period[2])
+          } else {
+            sprintf("%sWAPOR-3.%s.seasonal.%s_%s.tif", prefix_bb, v, period[1], period[2])
+          }
         }
         all_results[[v]] <- process_seasonal_var(v, period, def_fname, s_name)
       }
@@ -349,19 +441,7 @@ wapor_map <- function(
       log_msg(sprintf("Variable %s is temperature. Automatically converting from Kelvin to Celsius.", var))
     }
 
-    current_l3_code <- l3_code
-    if (is.null(current_l3_code) && grepl("^L3-", var)) {
-        guessed_codes <- wapor_guess_region(var, reg_info, period)
-        if (is.null(guessed_codes)) {
-            warning(sprintf("Region does not intersect with any available WaPOR L3 data for %s. Skipping.", var), call. = FALSE)
-            return(NULL)
-        }
-        current_l3_code <- guessed_codes[1]
-        if (length(guessed_codes) > 1) {
-            warning(sprintf("Region intersects multiple L3 areas (%s). Only downloading data from %s for %s.", 
-                            paste(guessed_codes, collapse=", "), current_l3_code, var), call. = FALSE)
-        }
-    }
+    current_l3_code <- resolve_l3_code(var, period)
 
     # Get URLs
     urls <- wapor_generate_urls(var, l3_region = current_l3_code, period = period)
@@ -384,7 +464,7 @@ wapor_map <- function(
     prefix <- if (reg_info$type == "bbox") "bb_" else ""
 
     # Use GDAL virtual file system
-    urls <- ifelse(grepl("^/vsicurl/", urls), urls, paste0("/vsicurl/", urls))
+    urls <- .wapor_prefix_vsicurl(urls)
     log_msg(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", var))
     
     tres_code <- strsplit(var, "-")[[1]][3]
@@ -398,6 +478,7 @@ wapor_map <- function(
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {
       r <- NULL
+      err <- NULL
       max_retries <- 3
       for (attempt in seq_len(max_retries)) {
         r <- tryCatch({
@@ -407,25 +488,40 @@ wapor_map <- function(
             Sys.sleep(attempt * 2)
             return(NULL)
           } else {
-            warning(sprintf("Failed to load chunk %d raster data after %d attempts: %s", 
-                            chunk_idx, max_retries, e$message), call. = FALSE)
-            return(NULL)
+            return(e)
           }
         })
+        if (inherits(r, "error")) {
+          err <- r
+          r <- NULL
+        }
         if (!is.null(r)) break
       }
-      
-      if (is.null(r)) return(NULL)
 
-      # Crop to region; optionally mask to polygon boundary
-      r <- wapor_crop_to_region(r, reg_info, do_mask = mask)
+      if (is.null(r)) {
+        return(list(
+          status = "failed",
+          chunk_idx = chunk_idx,
+          urls = chunk_urls,
+          error = if (is.null(err)) "unknown" else conditionMessage(err),
+          paths = character(0),
+          layer_names = character(0)
+        ))
+      }
+
+      # Crop to region; optionally mask to polygon boundary. Crop can force
+      # remote pixel I/O, so keep it inside the retry boundary.
+      r <- .wapor_retry_remote_operation(
+        function() wapor_crop_to_region(r, reg_info, do_mask = mask),
+        label = sprintf("%s crop", var)
+      )
 
       # Unit Conversion
       if (current_unit_conv != "none") {
         r <- wapor_convert_raster(r, var, chunk_urls, current_unit_conv)
       }
 
-      # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
+      # Temperature Conversion (Kelvin to Celsius for AgERA5 variables)
       r <- wapor_convert_temperature(r, var)
 
       # Standardize layer names to "YYYY-MM-DD"
@@ -435,26 +531,30 @@ wapor_map <- function(
       names(r) <- layer_names
 
       if (separate_files) {
-        # Save individual files directly
         chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
-          # Finalize raster with metadata AFTER all transformations (like classify)
           r_out <- terra::classify(r[[i]], cbind(NA, -9999))
           r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
-          
-          suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+          .wapor_retry_remote_operation(
+            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999),
+            label = sprintf("%s output", var)
+          )
           out_path
         }, character(1))
-        return(list(type = "separate", paths = chunk_paths))
+        return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
+                    paths = chunk_paths, layer_names = layer_names))
       } else {
-        # Save chunk to tempfile for later stacking
         tmp_path <- tempfile(fileext = ".tif")
         r_out <- terra::classify(r, cbind(NA, -9999))
-        suppressWarnings(terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999))
-        return(list(type = "stack", filepath = tmp_path, layer_names = layer_names))
+        .wapor_retry_remote_operation(
+          function() terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999),
+          label = sprintf("%s temporary output", var)
+        )
+        return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
+                    filepath = tmp_path, layer_names = layer_names))
       }
     }
-    
+
     # Process all chunks, using future_lapply if parallel is TRUE
     if (parallel) {
       log_msg("  Processing chunks in parallel...")
@@ -463,29 +563,52 @@ wapor_map <- function(
       }, future.seed = TRUE)
     } else {
       chunk_results <- lapply(seq_along(url_chunks), function(i) {
-        process_chunk(url_chunks[[i]], i)
+        result <- process_chunk(url_chunks[[i]], i)
+        if (is.function(on_batch_done)) {
+          tryCatch(on_batch_done(i, length(url_chunks)), error = function(e) NULL)
+        }
+        result
       })
     }
-    
-    # Filter out any failed chunks
-    chunk_results <- Filter(Negate(is.null), chunk_results)
-    
-    if (length(chunk_results) == 0) {
-      warning("All chunks failed to process.", call. = FALSE)
-      return(NULL)
+
+    # Classify results: ok chunks and failed chunks
+    ok_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "ok"), logical(1))]
+    failed_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "failed"), logical(1))]
+
+    if (length(ok_chunks) == 0) {
+      failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
+      warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
+                      var, length(failed_urls)), call. = FALSE)
+      return(list(
+        status = "failed",
+        variable = var,
+        output_paths = character(0),
+        failed_layers = failed_urls,
+        n_ok_chunks = 0L,
+        n_failed_chunks = length(chunk_results)
+      ))
+    }
+
+    failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
+    if (length(failed_urls) > 0 && !isTRUE(partial)) {
+      stop(sprintf(
+        "%d raster batch(es) failed for %s; refusing incomplete output. Set partial = TRUE to allow it.",
+        length(failed_chunks), var
+      ), call. = FALSE)
+    }
+    if (length(failed_urls) > 0 && isTRUE(partial)) {
+      warning(sprintf("Returning partial output for %s: %d raster layer(s) failed.",
+                      var, length(failed_urls)), call. = FALSE)
     }
 
     if (separate_files) {
-      # Combine paths from all chunks
-      output_paths <- unlist(lapply(chunk_results, function(res) res$paths))
+      output_paths <- unlist(lapply(ok_chunks, function(res) res$paths))
     } else {
-      # Combine temporary files into a single stack
-      temp_files <- vapply(chunk_results, function(res) res$filepath, character(1))
-      on.exit(unlink(temp_files), add = TRUE)  # ensure cleanup even if merge errors
-      all_names <- unlist(lapply(chunk_results, function(res) res$layer_names))
+      temp_files <- vapply(ok_chunks, function(res) res$filepath, character(1))
+      on.exit(unlink(temp_files), add = TRUE)
+      all_names <- unlist(lapply(ok_chunks, function(res) res$layer_names))
 
       log_msg("  Merging chunks into final multi-band stack...")
-      # Load all temp files logically
       r_all <- suppressWarnings(terra::rast(temp_files))
       names(r_all) <- all_names
 
@@ -502,12 +625,33 @@ wapor_map <- function(
       r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
 
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
-
       output_paths <- out_path
     }
-    
-    log_msg(sprintf("  Variable %s completed in %.1f seconds", var, (proc.time() - t0_var)[["elapsed"]]))
-    return(output_paths)
+
+    if (length(failed_urls) > 0) {
+      failed_csv <- file.path(var_folder, paste0(var, "_failed_layers.csv"))
+      utils::write.csv(
+        data.frame(
+          variable = var,
+          failed_url = failed_urls,
+          stringsAsFactors = FALSE
+        ),
+        failed_csv, row.names = FALSE, quote = TRUE
+      )
+      log_msg(sprintf("  %d layer(s) failed for %s; logged to %s",
+                      length(failed_urls), var, failed_csv))
+    }
+
+    log_msg(sprintf("  Variable %s completed in %.1f seconds",
+                    var, (proc.time() - t0_var)[["elapsed"]]))
+    return(list(
+      status = "ok",
+      variable = var,
+      output_paths = output_paths,
+      failed_layers = failed_urls,
+      n_ok_chunks = length(ok_chunks),
+      n_failed_chunks = length(failed_chunks)
+    ))
   }
 
   # Process all variables

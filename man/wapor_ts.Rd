@@ -15,7 +15,11 @@ wapor_ts(
   parallel = FALSE,
   batching = TRUE,
   batch_size = 12L,
-  l3_region = NULL
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  on_batch_done = NULL,
+  fun = NULL
 )
 }
 \arguments{
@@ -65,6 +69,20 @@ Default is \code{12L} (~4 months of dekadal data).}
 is an L3 product and \code{region} is a spatial AOI. This keeps polygon/bbox
 extraction against the supplied AOI while constraining source rasters to
 the selected L3 mosaic.}
+
+\item{l3_mode}{L3 coverage policy. \code{"select"} requires one selected region
+for a multi-L3 AOI; \code{"mosaic_all"} extracts every intersecting L3 source.}
+
+\item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
+and recorded. Default \code{FALSE} fails the request.}
+
+\item{on_batch_done}{Optional function called after each processed batch with
+\verb{(batch_index, batch_count)}. Callback errors are ignored.}
+
+\item{fun}{Optional seasonal summary function. \code{NULL} (default) preserves
+variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted;
+\code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
+overlapping source layer once without scaling partial layers.}
 }
 \value{
 A data.frame with columns:

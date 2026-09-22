@@ -16,7 +16,13 @@ wapor_map(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L
+  batch_size = 12L,
+  l3_region = NULL,
+  l3_mode = c("select", "mosaic_all"),
+  partial = FALSE,
+  cog = FALSE,
+  on_batch_done = NULL,
+  fun = NULL
 )
 }
 \arguments{
@@ -70,6 +76,25 @@ If \code{FALSE}, loads all layers at once.}
 
 \item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
 Lower values reduce memory pressure for long periods. Default is \code{12L}.}
+
+\item{l3_region}{Optional L3 code to use for an L3 variable and spatial AOI.}
+
+\item{l3_mode}{L3 coverage policy: \code{"select"} requires one selected L3 code
+when several regions intersect; \code{"mosaic_all"} writes source assets and a
+coverage-bearing mosaic for every intersecting L3 region.}
+
+\item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
+and recorded. Default \code{FALSE} fails the request.}
+
+\item{cog}{Logical. Write GeoTIFF outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
+
+\item{on_batch_done}{Optional function called after each processed batch with
+\verb{(batch_index, batch_count)}. Callback errors are ignored.}
+
+\item{fun}{Optional seasonal summary function. \code{NULL} (default) preserves
+variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted;
+\code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
+overlapping source layer once without scaling partial layers.}
 }
 \value{
 Character path to the output GeoTIFF file, or in seasonal mode with

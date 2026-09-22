@@ -2,11 +2,14 @@
 #'
 #' @param x Primary value.
 #' @param y Fallback value.
-#' @return `x` when it is not `NULL`, otherwise `y`.
+#' @return `x` when it is neither `NULL` nor zero-length, otherwise `y`.
+#'   The zero-length check matters for values round-tripped through
+#'   `jsonlite`: a `NULL` list element written with `write_json()` and read
+#'   back with `fromJSON()` becomes an empty (non-`NULL`) list, not `NULL`.
 #' @keywords internal
 #' @noRd
 `%||%` <- function(x, y) {
-  if (is.null(x)) y else x
+  if (is.null(x) || length(x) == 0) y else x
 }
 
 #' Load the Rwapor Agent Skills Reference
@@ -335,6 +338,65 @@ get_seasonal_aggregation_rule <- function(variable) {
   }
 
   "weighted_sum"
+}
+
+#' Resolve a Seasonal Summary Function
+#'
+#' @param variable Character variable code.
+#' @param fun Optional seasonal summary function.
+#' @return A list describing the requested aggregation semantics.
+#' @keywords internal
+#' @noRd
+resolve_seasonal_summary_function <- function(variable, fun = NULL) {
+  allowed <- c("sum", "mean", "std", "min", "max", "median")
+
+  if (!is.null(fun) &&
+      (!is.character(fun) || length(fun) != 1L || is.na(fun) || !(fun %in% allowed))) {
+    stop(
+      sprintf("'fun' must be NULL or one of: %s.", paste(sprintf("'%s'", allowed), collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  if (is.null(fun)) {
+    aggregation_rule <- get_seasonal_aggregation_rule(variable)
+    return(list(
+      fun = if (identical(aggregation_rule, "weighted_mean")) "mean" else "sum",
+      aggregation_rule = aggregation_rule,
+      weighted = TRUE,
+      explicit = FALSE
+    ))
+  }
+
+  list(
+    fun = fun,
+    aggregation_rule = if (identical(fun, "sum")) "weighted_sum" else fun,
+    weighted = identical(fun, "sum"),
+    explicit = TRUE
+  )
+}
+
+#' Summarize Equal-Step Seasonal Values
+#'
+#' @param values Numeric vector of source-layer values.
+#' @param fun Character summary function returned by
+#'   [resolve_seasonal_summary_function()].
+#' @return A scalar summary, or `NA_real_` when there are insufficient values.
+#' @keywords internal
+#' @noRd
+summarize_equal_step_seasonal_values <- function(values, fun) {
+  values <- values[!is.na(values)]
+  if (length(values) == 0) return(NA_real_)
+
+  switch(
+    fun,
+    mean = mean(values),
+    std = if (length(values) < 2L) NA_real_ else stats::sd(values),
+    min = min(values),
+    max = max(values),
+    median = stats::median(values),
+    stop(sprintf("Unsupported equal-step seasonal function: %s", fun), call. = FALSE)
+  )
 }
 
 #' Compute Seasonal Multipliers for Planned Raster Slices
@@ -677,7 +739,7 @@ wapor_l3_extent <- function(url, code) {
   }
 
   # Fetch from remote
-  vsi_url <- paste0("/vsicurl/", url)
+  vsi_url <- .wapor_prefix_vsicurl(url)
   r <- tryCatch({
     suppressWarnings(terra::rast(vsi_url))
   }, error = function(e) NULL)
@@ -777,6 +839,42 @@ wapor_guess_region <- function(variable, reg_info, period) {
 }
 
 
+#' Resolve L3 coverage selection
+#'
+#' Converts discovered L3 region codes into an explicit caller choice. Multiple
+#' matches never silently fall back to the first code.
+#'
+#' @param detected_codes Character vector of intersecting L3 codes.
+#' @param l3_region Optional selected L3 code.
+#' @param l3_mode One of `"select"` or `"mosaic_all"`.
+#' @return A single code for `select`, or all detected codes for `mosaic_all`.
+#' @keywords internal
+#' @noRd
+wapor_resolve_l3_selection <- function(detected_codes, l3_region = NULL,
+                                       l3_mode = c("select", "mosaic_all")) {
+  l3_mode <- match.arg(l3_mode)
+  detected_codes <- sort(unique(as.character(detected_codes)))
+  detected_codes <- detected_codes[grepl("^[A-Z]{3}$", detected_codes)]
+  if (!length(detected_codes)) {
+    stop("The AOI does not intersect an available L3 region.", call. = FALSE)
+  }
+  if (identical(l3_mode, "mosaic_all")) return(detected_codes)
+  if (!is.null(l3_region)) {
+    if (!is.character(l3_region) || length(l3_region) != 1L || !l3_region %in% detected_codes) {
+      stop(sprintf("'l3_region' must be one of: %s", paste(detected_codes, collapse = ", ")), call. = FALSE)
+    }
+    return(l3_region)
+  }
+  if (length(detected_codes) == 1L) return(detected_codes)
+  stop(
+    sprintf(
+      "The AOI intersects multiple L3 regions (%s). Supply 'l3_region' or set l3_mode = 'mosaic_all'.",
+      paste(detected_codes, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
 #' Crop (and Optionally Mask) a Raster to a Parsed Region
 #'
 #' Internal helper that handles CRS alignment, cropping, and optional masking
@@ -860,6 +958,67 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
   }
   
   split(urls, ceiling(seq_along(urls) / batch_size))
+}
+
+#' Prefix URLs for GDAL virtual file system access
+#'
+#' Ensures every URL in `urls` begins with `/vsicurl/` exactly once. URLs that
+#' already start with `/vsicurl/` are returned unchanged; bare filenames and
+#' absolute `https://` URLs get the prefix prepended. This centralises the
+#' prefix logic so all streaming call sites behave identically and never double
+#' prefix.
+#'
+#' @param urls Character vector of URLs or filenames.
+#' @return Character vector of the same length, each element starting with
+#'   `/vsicurl/`.
+#' @keywords internal
+#' @noRd
+.wapor_prefix_vsicurl <- function(urls) {
+  if (!is.character(urls) || length(urls) == 0) return(character(0))
+  needs_prefix <- !grepl("^/vsicurl/", urls)
+  out <- urls
+  out[needs_prefix] <- paste0("/vsicurl/", urls[needs_prefix])
+  out
+}
+
+#' Retry a complete remote raster operation
+#'
+#' The operation must include all work that forces pixel I/O. Retrying only
+#' terra::rast() is insufficient because rast() can return a lazy reference.
+#' @param operation Zero-argument function that performs the complete operation.
+#' @param label Short label used in retry messages.
+#' @param max_retries Positive integer number of attempts.
+#' @param retry_delay Numeric base delay in seconds; delay grows linearly.
+#' @return The value returned by `operation()`.
+#' @keywords internal
+#' @noRd
+.wapor_retry_remote_operation <- function(operation, label = "remote raster operation",
+                                           max_retries = 3L, retry_delay = 2) {
+  if (!is.function(operation)) stop("'operation' must be a function", call. = FALSE)
+  if (length(max_retries) != 1L || is.na(max_retries) || max_retries < 1) {
+    stop("'max_retries' must be a positive integer", call. = FALSE)
+  }
+  if (length(retry_delay) != 1L || is.na(retry_delay) || retry_delay < 0) {
+    stop("'retry_delay' must be a non-negative number", call. = FALSE)
+  }
+  max_retries <- as.integer(max_retries)
+  last_error <- NULL
+  for (attempt in seq_len(max_retries)) {
+    result <- tryCatch(operation(), error = function(e) {
+      last_error <<- e
+      NULL
+    })
+    if (!is.null(result)) return(result)
+    if (attempt < max_retries) {
+      delay <- retry_delay * attempt
+      message(sprintf("Attempt %d/%d failed for %s; retrying in %.1f seconds: %s",
+                      attempt, max_retries, label, delay,
+                      conditionMessage(last_error)))
+      if (delay > 0) Sys.sleep(delay)
+    }
+  }
+  stop(sprintf("%s failed after %d attempt(s): %s", label, max_retries,
+              conditionMessage(last_error)), call. = FALSE)
 }
 
 #' Log Message with Timestamp
