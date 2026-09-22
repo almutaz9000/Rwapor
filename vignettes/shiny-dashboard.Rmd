@@ -62,7 +62,7 @@ The application automatically opens in your default web browser.
    - **Upload Spatial File**: Ingest Shapefiles (`.shp` in `.zip`), GeoJSON, KML, GeoPackage (`.gpkg`), or GeoTIFF templates.
    - **Smart L3 Region Auto-Detection**: When Level 3 variables are selected, the app intersects your AOI geometry with all 30+ sub-national WaPOR Level 3 irrigation schemes in Africa and the Near East, filtering and auto-selecting the appropriate scheme.
 3. **Variable Selection & Date Ranges**:
-   - Choose from 100+ WaPOR v3 and AgERA5 variables across Level 1 (~250m), Level 2 (~100m), and Level 3 (~20m).
+   - Choose from 100+ WaPOR v3 and AgERA5 variables across Level 1 (~300m), Level 2 (~100m), and Level 3 (~20m).
    - Set custom start and end dates.
 4. **Execution**:
    - Stream raster data directly into local GeoTIFFs or extract polygon zonal time series in parallel.
