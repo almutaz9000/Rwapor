@@ -148,17 +148,33 @@ wheat mask built in Step 1:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">config</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  period        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2023-10-15"</span>, <span class="st">"2024-05-31"</span><span class="op">)</span>,  <span class="co"># single-season start/end</span></span>
-<span>  ref_year      <span class="op">=</span> <span class="fl">1970</span>,</span>
-<span>  aeti_var      <span class="op">=</span> <span class="st">"L2-AETI-D"</span>,</span>
-<span>  ret_var       <span class="op">=</span> <span class="st">"L1-RET-D"</span>,</span>
-<span>  precip_var    <span class="op">=</span> <span class="st">"L1-PCP-D"</span>,</span>
-<span>  npp_var       <span class="op">=</span> <span class="st">"L2-NPP-D"</span>,</span>
-<span>  t_var         <span class="op">=</span> <span class="st">"L2-T-D"</span>,</span>
-<span>  data_source   <span class="op">=</span> <span class="st">"local"</span>,</span>
-<span>  folder        <span class="op">=</span> <span class="st">"wapor_data"</span>,</span>
-<span>  area_weighted <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  indicators    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"agg_aeti"</span>, <span class="st">"agg_t"</span>, <span class="st">"etc"</span>, <span class="st">"adequacy_etc"</span>,</span>
-<span>                     <span class="st">"peff"</span>, <span class="st">"cwp_bwp"</span>, <span class="st">"beneficial_fraction"</span><span class="op">)</span></span>
+<span>  ref_year      <span class="op">=</span> <span class="fl">1970</span>,           <span class="co"># baseline year for internal day-of-year math;</span></span>
+<span>                                   <span class="co"># leave as-is unless you need calendar-year-aligned output</span></span>
+<span>  aeti_var      <span class="op">=</span> <span class="st">"L2-AETI-D"</span>,    <span class="co"># or "L1-AETI-D" (~300 m, global) / "L3-AETI-D"</span></span>
+<span>                                   <span class="co"># (~20 m, Level 3 irrigation schemes only) -- see vignette("data-catalog")</span></span>
+<span>  ret_var       <span class="op">=</span> <span class="st">"L1-RET-D"</span>,     <span class="co"># RET is only published at Level 1 (~30 km, reanalysis-based)</span></span>
+<span>  precip_var    <span class="op">=</span> <span class="st">"L1-PCP-D"</span>,     <span class="co"># PCP is only published at Level 1 (~5 km, gridded precipitation)</span></span>
+<span>  npp_var       <span class="op">=</span> <span class="st">"L2-NPP-D"</span>,     <span class="co"># or "L1-NPP-D" (~300 m, global)</span></span>
+<span>  t_var         <span class="op">=</span> <span class="st">"L2-T-D"</span>,       <span class="co"># or "L1-T-D" (~300 m, global)</span></span>
+<span>  data_source   <span class="op">=</span> <span class="st">"local"</span>,        <span class="co"># or "api" to stream directly from the WaPOR API</span></span>
+<span>                                   <span class="co"># instead of reading files already downloaded into `folder`</span></span>
+<span>  folder        <span class="op">=</span> <span class="st">"wapor_data"</span>,   <span class="co"># local directory for data_source = "local";</span></span>
+<span>                                   <span class="co"># ignored when data_source = "api"</span></span>
+<span>  area_weighted <span class="op">=</span> <span class="cn">TRUE</span>,           <span class="co"># or FALSE for simple unweighted pixel means; TRUE</span></span>
+<span>                                   <span class="co"># corrects for latitude-dependent pixel-area distortion</span></span>
+<span>                                   <span class="co"># on geographic (EPSG:4326) grids</span></span>
+<span>  indicators    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"agg_aeti"</span>, <span class="st">"agg_t"</span>, <span class="st">"etc"</span>, <span class="st">"adequacy_etc"</span>, <span class="st">"peff"</span>, <span class="st">"cwp_bwp"</span>, <span class="st">"beneficial_fraction"</span></span>
+<span>    <span class="co"># other available indicator codes (see wapor_list_indicator_steps() for the</span></span>
+<span>    <span class="co"># full, always-current list):</span></span>
+<span>    <span class="co">#   "agg_ret", "agg_pcp", "agg_npp"                 -- raw seasonal aggregates</span></span>
+<span>    <span class="co">#   "adequacy_p95"                                  -- adequacy vs. the 95th</span></span>
+<span>    <span class="co">#                                                       percentile AETI instead of ETc</span></span>
+<span>    <span class="co">#   "green_water", "blue_water"                     -- water-source partitioning</span></span>
+<span>    <span class="co">#   "yield_npp", "agg_biomass_kg", "agg_biomass_t"  -- yield/biomass from NPP</span></span>
+<span>    <span class="co">#   "variability", "cv_aeti", "theil_aeti"          -- spatial uniformity/inequality,</span></span>
+<span>    <span class="co">#                                                       used by wapor_compare_seasons()</span></span>
+<span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">rasters</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">wheat_mask</span><span class="op">)</span></span>
@@ -187,13 +203,59 @@ area only.</p>
 <hr>
 </div>
 <div class="section level2">
-<h2 id="multi-season-wheat-analysis">4. Multi-Season Wheat Analysis<a class="anchor" aria-label="anchor" href="#multi-season-wheat-analysis"></a>
+<h2 id="per-pixel-season-startend-masks-optional">4. Per-Pixel Season Start/End Masks (Optional)<a class="anchor" aria-label="anchor" href="#per-pixel-season-startend-masks-optional"></a>
+</h2>
+<p><code>config$period</code> gives every pixel the <em>same</em> season
+window. Real wheat fields don’t always sow/harvest on the same calendar
+day — soil type, irrigation scheduling, or elevation can shift timing by
+days to weeks across one AOI. For that, pass <strong>per-pixel</strong>
+<code>season_start</code>/<code>season_end</code> rasters instead: each
+pixel stores its own start/end day, as a “continuous Julian day” count
+from <code>config$ref_year</code> (day 1 = Jan 1 of
+<code>ref_year</code>).</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Build per-pixel start/end rasters (values are days-from-ref_year, matching</span></span>
+<span><span class="co"># wapor_continuous_julian()). Here two zones sow 20 days apart -- replace</span></span>
+<span><span class="co"># with your own field-survey or remote-sensing-derived phenology data.</span></span>
+<span><span class="va">season_start</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rspatial.github.io/terra/reference/classify.html" class="external-link">classify</a></span><span class="op">(</span></span>
+<span>  <span class="va">wheat_mask</span>,           <span class="co"># any raster on the same grid as wheat_mask</span></span>
+<span>  rcl <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">288</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>  <span class="co"># e.g. Oct 15, ref_year = 2023</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">season_end</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rspatial.github.io/terra/reference/classify.html" class="external-link">classify</a></span><span class="op">(</span></span>
+<span>  <span class="va">wheat_mask</span>,</span>
+<span>  rcl <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">517</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>  <span class="co"># e.g. May 31, 2024 (day 517 from 2023-01-01)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">config</span><span class="op">$</span><span class="va">use_season_rasters</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span>   <span class="co"># or FALSE (default) to use config$period for every pixel instead</span></span>
+<span></span>
+<span><span class="va">wheat_season_custom_dates</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span></span>
+<span>  config      <span class="op">=</span> <span class="va">config</span>,</span>
+<span>  crop_params <span class="op">=</span> <span class="va">wheat_params</span>,</span>
+<span>  rasters     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    crop_mask    <span class="op">=</span> <span class="va">wheat_mask</span>,</span>
+<span>    season_start <span class="op">=</span> <span class="va">season_start</span>,</span>
+<span>    season_end   <span class="op">=</span> <span class="va">season_end</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>I verified this against the package source and a live test run
+(<code>R/analysis_engine.R</code>): setting
+<code>config$use_season_rasters = TRUE</code> and providing per-pixel
+<code>season_start</code>/<code>season_end</code> measurably changes the
+seasonal aggregation window per pixel — a shortened per-pixel season
+produces a proportionally smaller seasonal
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mi>E</mi><mi>T</mi><mi>I</mi></mrow><annotation encoding="application/x-tex">AETI</annotation></semantics></math>
+than the full <code>config$period</code> window, exactly as
+expected.</p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="multi-season-wheat-analysis">5. Multi-Season Wheat Analysis<a class="anchor" aria-label="anchor" href="#multi-season-wheat-analysis"></a>
 </h2>
 <p>To track wheat water productivity across several years, pass a
 <strong>named list</strong> of season start/end pairs instead of a
 single vector — the same <code>wheat_mask</code> and
 <code>wheat_params</code> apply to every season:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">wheat_periods</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  <span class="st">"Wheat_Winter2021"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2020-10-15"</span>, <span class="st">"2021-05-31"</span><span class="op">)</span>,</span>
 <span>  <span class="st">"Wheat_Winter2022"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2021-10-15"</span>, <span class="st">"2022-05-31"</span><span class="op">)</span>,</span>
@@ -217,9 +279,58 @@ multi-season output.</p>
 <hr>
 </div>
 <div class="section level2">
-<h2 id="summarize-results">5. Summarize Results<a class="anchor" aria-label="anchor" href="#summarize-results"></a>
+<h2 id="a-different-wheat-mask-and-startend-dates-per-season">6. A Different Wheat Mask (and Start/End Dates) per Season<a class="anchor" aria-label="anchor" href="#a-different-wheat-mask-and-startend-dates-per-season"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<p>The wheat-growing area often changes year to year — crop rotation,
+newly irrigated land, or a shrinking/expanding scheme. Rather than
+reusing one <code>wheat_mask</code> for every season,
+<code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> will automatically look for
+<strong>season-specific</strong> files: for every season name in
+<code>config$period</code>, it checks
+<code>config$folder/seasonal_masks/</code> (or
+<code>config$folder</code> directly) for files named
+<code>&lt;SeasonName&gt;_mask.tif</code>,
+<code>&lt;SeasonName&gt;_start.tif</code>, and
+<code>&lt;SeasonName&gt;_end.tif</code>, where
+<code>&lt;SeasonName&gt;</code> matches the list name exactly. A season
+with a matching file uses it in place of the shared <code>rasters</code>
+value; a season with no file falls back to whatever you passed in
+<code>rasters</code> — you don’t need a file for every season.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Directory layout expected by this "Smart-Linking" (season names below</span></span>
+<span><span class="co"># match the config$period names used in wheat_periods from Step 5):</span></span>
+<span><span class="co"># wapor_data/</span></span>
+<span><span class="co">#   L2-AETI-D/ ...                     (downloaded WaPOR rasters, as before)</span></span>
+<span><span class="co">#   seasonal_masks/</span></span>
+<span><span class="co">#     Wheat_Winter2021_mask.tif        # wheat extent that actually grew in 2021</span></span>
+<span><span class="co">#     Wheat_Winter2022_mask.tif        # wheat extent that actually grew in 2022</span></span>
+<span><span class="co">#     # Wheat_Winter2023: no file here -&gt; falls back to rasters$crop_mask below</span></span>
+<span></span>
+<span><span class="va">wheat_by_season_mask</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span></span>
+<span>  config      <span class="op">=</span> <span class="va">config</span>,   <span class="co"># config$period already set to wheat_periods (Step 5)</span></span>
+<span>  crop_params <span class="op">=</span> <span class="va">wheat_params</span>,</span>
+<span>  <span class="co"># rasters$crop_mask here is only the FALLBACK for seasons without their</span></span>
+<span>  <span class="co"># own *_mask.tif (Wheat_Winter2023 in this example)</span></span>
+<span>  rasters     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">wheat_mask</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>I verified this “Smart-Linking” behavior directly
+(<code>R/analysis_engine.R</code>) with a synthetic multi-season test:
+two seasons were given non-overlapping masks (one covering the left half
+of the grid, one the right half) via this exact
+<code>seasonal_masks/</code> convention, and each season’s result
+correctly used only its own mask — a third season with no
+season-specific file correctly fell back to the shared mask passed in
+<code>rasters</code>. The same convention applies to
+<code>&lt;SeasonName&gt;_start.tif</code>/<code>&lt;SeasonName&gt;_end.tif</code>:
+a season-specific file overrides <code>config$use_season_rasters</code>
+to <code>TRUE</code> for that season alone, even when the global config
+default is <code>FALSE</code>.</p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="summarize-results">7. Summarize Results<a class="anchor" aria-label="anchor" href="#summarize-results"></a>
+</h2>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Seasonal CWP/BWP zonal summary for a single season</span></span>
 <span><span class="va">wheat_season</span><span class="op">$</span><span class="va">summary_table</span></span>
 <span></span>
