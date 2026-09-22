@@ -30,11 +30,10 @@ These scripts are intentionally outside package runtime paths and are not includ
 
 Contains historical development artifacts moved from the repository root, including:
 
-- graph snapshots and generated analysis (`graphify-out/`)
 - old archived reports (`archived_reports/`)
 - implementation notes and plans (`improvements/`)
 - project-specific snapshots (`project-snapshots-Savola/`)
-- ad hoc local databases (`*.duckdb`)
+- ad hoc local databases (`*.duckdb`, gitignored, not committed)
 
 ## Usage Rules
 

@@ -204,12 +204,37 @@ wapor_gdal_settings <- function() {
 }
 
 
-# Applied automatically only if RWAPOR_AUTO_CONFIG="true".
-# Otherwise, users should call wapor_configure_gdal() manually.
+# Applied automatically on package load. The env variable RWAPOR_AUTO_CONFIG
+# is kept for backward compatibility but is no longer the sole trigger: GDAL
+# settings are always applied so vsicurl range requests work efficiently
+# without the user having to call wapor_configure_gdal() manually.
 .onLoad <- function(libname, pkgname) {
-  if (Sys.getenv("RWAPOR_AUTO_CONFIG") == "true") {
-    # Fix PROJ first to prevent GDAL initialization errors
-    wapor_fix_proj(verbose = FALSE)
-    wapor_configure_gdal(verbose = FALSE)
+  # Fix PROJ first to prevent GDAL initialization errors on Windows systems
+  # that have PostGIS in their PATH.
+  wapor_fix_proj(verbose = FALSE)
+  wapor_configure_gdal(verbose = FALSE)
+
+  # Quiet capability check: warn once if GDAL appears to lack curl/COG support.
+  .wapor_check_gdal_capabilities()
+}
+
+.wapor_check_gdal_capabilities <- function() {
+  # Only emit one warning per session, even if the package is reloaded.
+  if (isTRUE(getOption("Rwapor.gdal_checked", FALSE))) return(invisible(NULL))
+  options(Rwapor.gdal_checked = TRUE)
+
+  gdal_drivers <- tryCatch(terra::gdal(drivers = TRUE), error = function(e) NULL)
+  has_cog <- !is.null(gdal_drivers) && "COG" %in% gdal_drivers$name
+  has_curl <- !is.null(gdal_drivers) && any(grepl("vsicurl", gdal_drivers$longname, ignore.case = TRUE))
+
+  if (!has_curl || !has_cog) {
+    msg <- c(
+      "Rwapor: GDAL does not appear to support /vsicurl/ streaming and/or the COG driver.",
+      if (!has_curl) "  - vsicurl (curl) support is missing" else NULL,
+      if (!has_cog)  "  - COG driver is missing" else NULL,
+      "  Streaming functions (wapor_map, wapor_ts, analysis engine) will fail at the first remote read."
+    )
+    warning(paste(msg, collapse = "\n"), call. = FALSE, immediate. = TRUE)
   }
+  invisible(NULL)
 }

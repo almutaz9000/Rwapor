@@ -1,3 +1,6 @@
+# Network guard: skip when WaPOR API is not reachable (CI offline, air-gapped)
+skip_if_wapor_offline()
+
 # Tests for wapor_plan_time_slices()
 # ==============================================================================
 

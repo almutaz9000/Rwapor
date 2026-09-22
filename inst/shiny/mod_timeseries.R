@@ -39,7 +39,7 @@
 
 # ── All API variables (computed once at source time) ──────────────────────────
 .ts_all_api_vars <- tryCatch(
-  sort(unique(c(names(Rwapor::WAPOR3_VARS), names(Rwapor::AGERA5_VARS)))),
+  Rwapor::wapor_available_variables(include_agera5 = TRUE),
   error = function(e) character(0)
 )
 
@@ -982,14 +982,12 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
     }
 
     .units <- function(var_code) {
-      m <- Rwapor::WAPOR3_VARS[[var_code]]
-      if (is.null(m)) m <- Rwapor::AGERA5_VARS[[var_code]]
+      m <- tryCatch(Rwapor::wapor_variable_metadata(var_code), error = function(e) NULL)
       if (!is.null(m) && !is.null(m$units)) m$units else ""
     }
 
     .long <- function(var_code) {
-      m <- Rwapor::WAPOR3_VARS[[var_code]]
-      if (is.null(m)) m <- Rwapor::AGERA5_VARS[[var_code]]
+      m <- tryCatch(Rwapor::wapor_variable_metadata(var_code), error = function(e) NULL)
       if (!is.null(m) && !is.null(m$long_name)) m$long_name else var_code
     }
 
@@ -1423,12 +1421,15 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
       if (!is.null(rv$seasonal_data) && nrow(rv$seasonal_data) > 0) {
         df_s <- rv$seasonal_data
+        summary_col <- grep("^seasonal_", names(df_s), value = TRUE)[1]
+        req(!is.na(summary_col), nzchar(summary_col))
         cat("\u2550\u2550 Seasonal Summary ",
             paste(rep("\u2550", 40), collapse = ""), "\n\n", sep = "")
         for (v in unique(df_s$variable)) {
           sub <- df_s[df_s$variable == v, ]
-          cat(sprintf("  %s : %d geometries  |  mean = %.3f %s\n",
-                      v, nrow(sub), mean(sub$mean, na.rm = TRUE), .units(v)))
+          cat(sprintf("  %s : %d geometries  |  %s = %.3f %s\n",
+                      v, nrow(sub), sub("^seasonal_", "", summary_col),
+                      mean(sub[[summary_col]], na.rm = TRUE), .units(v)))
         }
       }
     })

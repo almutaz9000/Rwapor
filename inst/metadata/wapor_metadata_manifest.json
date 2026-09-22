@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-09-16 14:24:34 UTC",
+  "workspace": "WAPOR-3",
+  "levels": {
+    "L1": {
+      "records": 23,
+      "endpoint": "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
+    },
+    "L2": {
+      "records": 15,
+      "endpoint": "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
+    },
+    "L3": {
+      "records": 21,
+      "endpoint": "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets"
+    }
+  }
+}

@@ -315,10 +315,15 @@ wapor_plan_time_slices <- function(start_date, end_date,
 #' Get Available Temporal Codes for a Variable
 #'
 #' Determines which temporal resolutions (annual, monthly, dekadal, daily)
-#' are available for a given WaPOR or AgERA5 variable by checking the
-#' static metadata lists. For L3 variables, checks L2 equivalents as fallback.
+#' are available for a given WaPOR or AgERA5 variable from the validated
+#' metadata catalogue. For L3 variables with a region and period, it also
+#' checks actual URLs for region-specific availability.
 #'
 #' @param variable Character. Variable name (e.g., `"L2-AETI-D"`, `"L1-NPP-M"`).
+#' @param l3_region Optional L3 region code. When supplied with `period`,
+#'   availability is checked against that region's actual URLs.
+#' @param period Optional character date range `c(start_date, end_date)` used
+#'   for region-specific L3 availability checks.
 #'
 #' @return Character vector of available temporal codes (e.g., `c("A", "M", "D")`),
 #'   ordered from coarsest to finest.
@@ -333,45 +338,66 @@ wapor_plan_time_slices <- function(start_date, end_date,
 #' wapor_temporal_codes("L2-NPP-D")
 #' # [1] "M" "D"
 #' }
-wapor_temporal_codes <- function(variable) {
+wapor_temporal_codes <- function(variable, l3_region = NULL, period = NULL) {
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
   }
-
-  parts <- strsplit(variable, "-")[[1]]
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
   if (length(parts) < 3) {
     stop(sprintf("Invalid variable format '%s'. Expected 'LEVEL-VAR-TRES'", variable),
          call. = FALSE)
   }
+  if (!is.null(l3_region) && (!is.character(l3_region) || length(l3_region) != 1 ||
+                               !nzchar(l3_region))) {
+    stop("'l3_region' must be a non-empty character string", call. = FALSE)
+  }
+  if (!is.null(period) && (!is.character(period) || length(period) != 2)) {
+    stop("'period' must be a character vector of length 2", call. = FALSE)
+  }
+
   base <- paste(parts[-length(parts)], collapse = "-")
-
-  all_vars <- c(names(WAPOR3_VARS), names(AGERA5_VARS))
+  level <- parts[1]
+  catalog <- tryCatch(.load_metadata_catalog(level), error = function(e) NULL)
   avail <- character(0)
-  for (code in c("A", "M", "D", "E")) {
-    if (paste0(base, "-", code) %in% all_vars) {
-      avail <- c(avail, code)
-    }
+  if (!is.null(catalog) && nrow(catalog)) {
+    codes <- catalog$code[startsWith(catalog$code, paste0(base, "-"))]
+    avail <- sort(unique(sub("^.*-", "", codes)), index.return = FALSE)
+    avail <- avail[avail %in% c("A", "M", "D", "E")]
   }
 
-  # Fallback for L3: check L2 equivalents
-  if (length(avail) == 0 && parts[1] == "L3") {
+  if (!length(avail)) {
+    static_codes <- c(names(WAPOR3_VARS), names(AGERA5_VARS))
+    static_hits <- static_codes[startsWith(static_codes, paste0(base, "-"))]
+    avail <- sort(unique(sub("^.*-", "", static_hits)))
+    avail <- avail[avail %in% c("A", "M", "D", "E")]
+  }
+
+  # The catalogue establishes product-level availability. For L3, the actual
+  # region and period establish whether that product has usable raster slices.
+  if (level == "L3" && !is.null(l3_region) && !is.null(period) && length(avail)) {
+    avail <- avail[vapply(avail, function(code) {
+      urls <- tryCatch(
+        wapor_generate_urls(paste0(base, "-", code), l3_region = l3_region,
+                             period = period),
+        error = function(e) character(0)
+      )
+      length(urls) > 0
+    }, logical(1))]
+  }
+
+  if (!length(avail) && level == "L3") {
     base_l2 <- sub("^L3", "L2", base)
-    for (code in c("A", "M", "D", "E")) {
-      if (paste0(base_l2, "-", code) %in% all_vars) {
-        avail <- c(avail, code)
-      }
+    if (!is.null(catalog) && nrow(catalog)) {
+      codes <- catalog$code[startsWith(catalog$code, paste0(base_l2, "-"))]
+      avail <- sort(unique(sub("^.*-", "", codes)))
+      avail <- avail[avail %in% c("A", "M", "D", "E")]
     }
   }
-
-  # Final fallback: use only the current temporal code
-  if (length(avail) == 0) {
-    tres <- parts[length(parts)]
-    if (tres %in% c("A", "M", "D", "E")) {
-      avail <- tres
-    }
+  if (!length(avail)) {
+    current <- parts[length(parts)]
+    if (current %in% c("A", "M", "D", "E")) avail <- current
   }
-
-  avail
+  avail[order(match(avail, c("A", "M", "D", "E")))]
 }
 
 

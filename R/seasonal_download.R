@@ -118,7 +118,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     # Retry the complete operation because terra::rast() may return a lazy
     # reference and pixel I/O occurs during crop, conversion, or later use.
     t_code <- proc.time()
-    vsicurl_urls <- .wapor_prefix_vsicurl(matched_urls)
+    vsicurl_urls <- .wapor_resolve_remote_sources(matched_urls)
     r <- tryCatch(
       .wapor_retry_remote_operation(function() {
         out <- terra::rast(vsicurl_urls)

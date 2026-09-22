@@ -11,8 +11,8 @@ wapor_update_metadata(level = "all", dest = NULL)
 Defaults to \code{"all"}.}
 
 \item{dest}{Character. Directory to write JSON files to. Defaults to the
-package's own \verb{inst/metadata/} folder (useful during development). In
-production, users can point this to any writable directory.}
+writable user cache. Set this explicitly to \verb{inst/metadata/} only when
+refreshing package-bundled snapshots during development.}
 }
 \value{
 Invisibly, a named character vector of file paths that were written

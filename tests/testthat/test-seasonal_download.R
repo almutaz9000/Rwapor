@@ -1,3 +1,6 @@
+# Network guard: skip when WaPOR API is not reachable (CI offline, air-gapped)
+skip_if_wapor_offline()
+
 test_that("download_seasonal_rasters reports no missing_periods when all groups load successfully", {
   skip_if_not_installed("terra")
 

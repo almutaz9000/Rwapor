@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rwapor module flowchart</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f3f1ed; color: #51483f; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width: 2000px; margin: 0 auto; padding: 28px 32px 36px; }
+  header { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 25px; font-weight: 500; letter-spacing: -0.02em; }
+  .subtitle { margin: 7px 0 0; color: #81766b; font-size: 13px; }
+  .meta { color: #958a80; font-size: 12px; text-align: right; white-space: nowrap; }
+  .canvas { overflow: auto; background: #fbfaf7; border: 1px solid #d7cec3; border-radius: 12px; box-shadow: 0 8px 24px rgba(85, 70, 54, .07); }
+  svg { display: block; width: 100%; min-width: 1100px; height: auto; }
+  .group-title { font-size: 16px; fill: #685b50; font-weight: 500; }
+  .node-label { font-size: 12px; fill: #5f554d; }
+  .note { font-size: 11px; fill: #92867a; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .card { background: #fbfaf7; border: 1px solid #d7cec3; border-radius: 9px; padding: 14px 16px; }
+  .card h2 { margin: 0 0 7px; font-size: 13px; font-weight: 600; color: #675b50; }
+  .card p { margin: 0; color: #81766b; font-size: 12px; line-height: 1.5; }
+  footer { margin-top: 14px; color: #9a8e82; font-size: 11px; }
+  @media (max-width: 800px) { main { padding: 16px; } header { display: block; } .meta { text-align: left; margin-top: 8px; } .cards { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><h1>Rwapor module flowchart</h1><p class="subtitle">Source-grounded dependency map for package code, Shiny modules, and processing layers</p></div>
+  <div class="meta">40 mapped modules · 82 displayed strong edges<br>Generated from current source inventory</div>
+</header>
+<section class="canvas"><svg viewBox="0 0 1900 1250" role="img" aria-label="Rwapor module dependency flowchart">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#85796d"/></marker><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#eee8df" stroke-width="1"/></pattern></defs>
+<rect width="1900" height="1250" fill="#fbfaf7"/><rect width="1900" height="1250" fill="url(#grid)"/>
+<path d="M 245.0,702.0 C 867.0,702.0 867.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 269.0,702.0 C 257.0,702.0 257.0,702.0 245.0,702.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 269.0,702.0 C 269.0,739.0 245.0,739.0 245.0,776.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 359.0,724.0 C 359.0,739.0 359.0,739.0 359.0,754.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,702.0 C 449.0,739.0 473.0,739.0 473.0,776.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,702.0 C 969.0,702.0 969.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,702.0 C 359.0,702.0 359.0,702.0 245.0,702.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,702.0 C 359.0,702.0 359.0,776.0 245.0,776.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,724.0 C 563.0,739.0 563.0,739.0 563.0,754.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,702.0 C 1071.0,702.0 1071.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,702.0 C 969.0,702.0 969.0,117.0 1285.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,776.0 C 473.0,739.0 449.0,739.0 449.0,702.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,776.0 C 653.0,446.5 1285.0,446.5 1285.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,850.0 C 473.0,776.0 449.0,776.0 449.0,702.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 904.0,117.0 C 892.0,117.0 892.0,117.0 880.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1579.0,894.0 C 1579.0,516.5 1579.0,516.5 1579.0,139.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 904.0,442.0 C 892.0,442.0 892.0,442.0 880.0,442.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1084.0,442.0 C 1184.5,442.0 1184.5,265.0 1285.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1084.0,442.0 C 1286.5,442.0 1286.5,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1465.0,265.0 C 1477.0,265.0 1477.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1489.0,265.0 C 1184.5,265.0 1184.5,442.0 880.0,442.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1465.0,117.0 C 1465.0,191.0 1489.0,191.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,139.0 C 1375.0,154.0 1375.0,154.0 1375.0,169.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1465.0,117.0 C 1465.0,154.0 1489.0,154.0 1489.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1285.0,191.0 C 1285.0,316.5 1084.0,316.5 1084.0,442.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,213.0 C 1375.0,228.0 1375.0,228.0 1375.0,243.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1465.0,191.0 C 1465.0,228.0 1489.0,228.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,169.0 C 1375.0,154.0 1375.0,154.0 1375.0,139.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1285.0,191.0 C 969.0,191.0 969.0,265.0 653.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 790.0,169.0 C 790.0,154.0 790.0,154.0 790.0,139.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1285.0,842.0 C 765.0,842.0 765.0,702.0 245.0,702.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,820.0 C 1375.0,553.5 1375.0,553.5 1375.0,287.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,820.0 C 1375.0,553.5 1579.0,553.5 1579.0,287.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,820.0 C 1375.0,479.5 1375.0,479.5 1375.0,139.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1375.0,820.0 C 1375.0,516.5 1579.0,516.5 1579.0,213.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1285.0,842.0 C 765.0,842.0 765.0,339.0 245.0,339.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 994.0,213.0 C 994.0,316.5 790.0,316.5 790.0,420.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1489.0,191.0 C 1286.5,191.0 1286.5,442.0 1084.0,442.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1489.0,191.0 C 1489.0,228.0 1465.0,228.0 1465.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1579.0,213.0 C 1579.0,228.0 1579.0,228.0 1579.0,243.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1489.0,191.0 C 1489.0,154.0 1465.0,154.0 1465.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 1489.0,191.0 C 1071.0,191.0 1071.0,265.0 653.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 574.5,117.0 574.5,117.0 904.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 359.0,117.0 359.0,191.0 473.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 359.0,117.0 359.0,117.0 473.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 245.0,154.0 269.0,154.0 269.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 245.0,191.0 269.0,191.0 269.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 155.0,139.0 C 155.0,191.0 155.0,191.0 155.0,243.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 155.0,139.0 C 155.0,154.0 155.0,154.0 155.0,169.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,117.0 C 359.0,117.0 359.0,265.0 473.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,446.5 155.0,446.5 155.0,680.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,446.5 359.0,446.5 359.0,680.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,483.5 359.0,483.5 359.0,754.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,483.5 563.0,483.5 563.0,754.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,520.5 155.0,520.5 155.0,828.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,520.5 563.0,520.5 563.0,828.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,191.0 C 1071.0,191.0 1071.0,842.0 1489.0,842.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,191.0 C 1071.0,191.0 1071.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,191.0 C 969.0,191.0 969.0,117.0 1285.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,191.0 C 969.0,191.0 969.0,191.0 1285.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,191.0 C 473.0,265.0 449.0,265.0 449.0,339.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,191.0 C 473.0,265.0 449.0,265.0 449.0,339.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)" stroke-dasharray="4,4"/>
+<path d="M 563.0,213.0 C 563.0,265.0 563.0,265.0 563.0,317.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,213.0 C 563.0,265.0 563.0,265.0 563.0,317.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)" stroke-dasharray="4,4"/>
+<path d="M 563.0,213.0 C 563.0,228.0 563.0,228.0 563.0,243.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,117.0 C 969.0,117.0 969.0,842.0 1489.0,842.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,117.0 C 1071.0,117.0 1071.0,842.0 1489.0,842.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,117.0 C 1071.0,117.0 1071.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,117.0 C 969.0,117.0 969.0,117.0 1285.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,117.0 C 969.0,117.0 969.0,191.0 1285.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 473.0,117.0 C 461.0,117.0 461.0,117.0 449.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,139.0 C 563.0,191.0 563.0,191.0 563.0,243.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,265.0 C 676.5,265.0 676.5,117.0 904.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,265.0 C 969.0,265.0 969.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,265.0 C 867.0,265.0 867.0,842.0 1285.0,842.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 269.0,265.0 C 269.0,302.0 245.0,302.0 245.0,339.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 449.0,265.0 C 461.0,265.0 461.0,265.0 473.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,265.0 C 574.5,265.0 574.5,117.0 904.0,117.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,265.0 C 574.5,265.0 574.5,191.0 904.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 245.0,265.0 C 867.0,265.0 867.0,191.0 1489.0,191.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 563.0,287.0 C 563.0,557.5 155.0,557.5 155.0,828.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M 653.0,265.0 C 1071.0,265.0 1071.0,265.0 1489.0,265.0" fill="none" stroke="#a79b8e" stroke-width="1.25" marker-end="url(#arrow)"/>
+<rect x="35" y="55" width="550" height="352" rx="10" fill="#f8f1e5" fill-opacity="0.32" stroke="#a78b6f" stroke-width="1.25"/>
+<text x="310.0" y="79" text-anchor="middle" class="group-title">Shiny app (inst/shiny)</text>
+<rect x="670" y="55" width="530" height="204" rx="10" fill="#f5eee2" fill-opacity="0.32" stroke="#9c876d" stroke-width="1.25"/>
+<text x="935.0" y="79" text-anchor="middle" class="group-title">API &amp; metadata</text>
+<rect x="670" y="380" width="530" height="204" rx="10" fill="#f8f0df" fill-opacity="0.32" stroke="#a98e63" stroke-width="1.25"/>
+<text x="935.0" y="404" text-anchor="middle" class="group-title">Planning &amp; download</text>
+<rect x="1255" y="55" width="610" height="278" rx="10" fill="#f2eee7" fill-opacity="0.32" stroke="#8f8579" stroke-width="1.25"/>
+<text x="1560.0" y="79" text-anchor="middle" class="group-title">Geospatial access</text>
+<rect x="35" y="640" width="1160" height="352" rx="10" fill="#f4ece5" fill-opacity="0.32" stroke="#9b806e" stroke-width="1.25"/>
+<text x="615.0" y="664" text-anchor="middle" class="group-title">Analysis engine</text>
+<rect x="1255" y="780" width="610" height="278" rx="10" fill="#f3eee9" fill-opacity="0.32" stroke="#96867b" stroke-width="1.25"/>
+<text x="1560.0" y="804" text-anchor="middle" class="group-title">Monitoring &amp; support</text>
+<rect x="65" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="155.0" y="122" text-anchor="middle" class="node-label">app.R</text>
+<rect x="269" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="359.0" y="122" text-anchor="middle" class="node-label">mod_aoi.R</text>
+<rect x="473" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="563.0" y="122" text-anchor="middle" class="node-label">mod_download.R</text>
+<rect x="65" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="155.0" y="196" text-anchor="middle" class="node-label">mod_visualisation.R</text>
+<rect x="269" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="359.0" y="196" text-anchor="middle" class="node-label">mod_dual_map.R</text>
+<rect x="473" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="563.0" y="196" text-anchor="middle" class="node-label">mod_analysis.R</text>
+<rect x="65" y="243" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="155.0" y="270" text-anchor="middle" class="node-label">mod_timeseries.R</text>
+<rect x="269" y="243" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="359.0" y="270" text-anchor="middle" class="node-label">mod_monitoring.R</text>
+<rect x="473" y="243" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="563.0" y="270" text-anchor="middle" class="node-label">utils_shiny.R</text>
+<rect x="65" y="317" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="155.0" y="344" text-anchor="middle" class="node-label">monitoring_helpers.R</text>
+<rect x="269" y="317" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="359.0" y="344" text-anchor="middle" class="node-label">mod_analysis_ui_body.R</text>
+<rect x="473" y="317" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a78b6f" stroke-width="1.1"/>
+<text x="563.0" y="344" text-anchor="middle" class="node-label">mod_analysis_ui_sidebar.R</text>
+<rect x="700" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9c876d" stroke-width="1.1"/>
+<text x="790.0" y="122" text-anchor="middle" class="node-label">api_client.R</text>
+<rect x="904" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9c876d" stroke-width="1.1"/>
+<text x="994.0" y="122" text-anchor="middle" class="node-label">metadata.R</text>
+<rect x="700" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9c876d" stroke-width="1.1"/>
+<text x="790.0" y="196" text-anchor="middle" class="node-label">wapor_metadata_cache.R</text>
+<rect x="904" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9c876d" stroke-width="1.1"/>
+<text x="994.0" y="196" text-anchor="middle" class="node-label">wapor_res_key.R</text>
+<rect x="700" y="420" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a98e63" stroke-width="1.1"/>
+<text x="790.0" y="447" text-anchor="middle" class="node-label">plan_wapor_time_slices.R</text>
+<rect x="904" y="420" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a98e63" stroke-width="1.1"/>
+<text x="994.0" y="447" text-anchor="middle" class="node-label">seasonal_download.R</text>
+<rect x="700" y="494" width="180" height="44" rx="5" fill="#f7efe2" stroke="#a98e63" stroke-width="1.1"/>
+<text x="790.0" y="521" text-anchor="middle" class="node-label">interval_helpers.R</text>
+<rect x="1285" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1375.0" y="122" text-anchor="middle" class="node-label">wapor_cog.R</text>
+<rect x="1489" y="95" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1579.0" y="122" text-anchor="middle" class="node-label">gdal_config.R</text>
+<rect x="1285" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1375.0" y="196" text-anchor="middle" class="node-label">wapor_map.R</text>
+<rect x="1489" y="169" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1579.0" y="196" text-anchor="middle" class="node-label">wapor_ts.R</text>
+<rect x="1285" y="243" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1375.0" y="270" text-anchor="middle" class="node-label">unit_convertor.R</text>
+<rect x="1489" y="243" width="180" height="44" rx="5" fill="#f7efe2" stroke="#8f8579" stroke-width="1.1"/>
+<text x="1579.0" y="270" text-anchor="middle" class="node-label">utils.R</text>
+<rect x="65" y="680" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="155.0" y="707" text-anchor="middle" class="node-label">analysis.R</text>
+<rect x="269" y="680" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="359.0" y="707" text-anchor="middle" class="node-label">analysis_engine.R</text>
+<rect x="473" y="680" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="563.0" y="707" text-anchor="middle" class="node-label">analysis_tiled.R</text>
+<rect x="65" y="754" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="155.0" y="781" text-anchor="middle" class="node-label">analysis_indicators.R</text>
+<rect x="269" y="754" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="359.0" y="781" text-anchor="middle" class="node-label">analysis_registry.R</text>
+<rect x="473" y="754" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="563.0" y="781" text-anchor="middle" class="node-label">analysis_utils.R</text>
+<rect x="65" y="828" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="155.0" y="855" text-anchor="middle" class="node-label">analysis_validation.R</text>
+<rect x="269" y="828" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="359.0" y="855" text-anchor="middle" class="node-label">indicators_math.R</text>
+<rect x="473" y="828" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="563.0" y="855" text-anchor="middle" class="node-label">crop_defaults.R</text>
+<rect x="65" y="902" width="180" height="44" rx="5" fill="#f7efe2" stroke="#9b806e" stroke-width="1.1"/>
+<text x="155.0" y="929" text-anchor="middle" class="node-label">anomaly.R</text>
+<rect x="1285" y="820" width="180" height="44" rx="5" fill="#f7efe2" stroke="#96867b" stroke-width="1.1"/>
+<text x="1375.0" y="847" text-anchor="middle" class="node-label">wapor_monitoring.R</text>
+<rect x="1489" y="820" width="180" height="44" rx="5" fill="#f7efe2" stroke="#96867b" stroke-width="1.1"/>
+<text x="1579.0" y="847" text-anchor="middle" class="node-label">rwapor_favorites.R</text>
+<rect x="1285" y="894" width="180" height="44" rx="5" fill="#f7efe2" stroke="#96867b" stroke-width="1.1"/>
+<text x="1375.0" y="921" text-anchor="middle" class="node-label">viz.R</text>
+<rect x="1489" y="894" width="180" height="44" rx="5" fill="#f7efe2" stroke="#96867b" stroke-width="1.1"/>
+<text x="1579.0" y="921" text-anchor="middle" class="node-label">run_dashboard.R</text>
+<rect x="1285" y="968" width="180" height="44" rx="5" fill="#f7efe2" stroke="#96867b" stroke-width="1.1"/>
+<text x="1375.0" y="995" text-anchor="middle" class="node-label">diagnose.R</text>
+<text x="35" y="1212" class="note">Solid edges = resolved function calls; dashed edges = literal source() relationships. Weak filename references are omitted.</text>
+</svg></section>
+<section class="cards">
+  <article class="card"><h2>Package core</h2><p>API and metadata discovery feed temporal planning, raster access, and the seasonal analysis engine.</p></article>
+  <article class="card"><h2>Analysis path</h2><p>Seasonal, tiled, indicator, validation, crop, and anomaly modules converge around the analysis engine.</p></article>
+  <article class="card"><h2>User interface</h2><p>The Shiny application connects AOI, download, dual-map, visualisation, analysis, time-series, and monitoring workflows to package functions.</p></article>
+</section>
+<footer>Rwapor repository review artifact. The diagram reflects resolvable calls and literal source relationships found in R/ and inst/shiny/; weak filename-only references are intentionally excluded.</footer>
+</main>
+</body>
+</html>

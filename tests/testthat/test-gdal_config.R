@@ -118,3 +118,25 @@ test_that("Package defaults are applied (chunk size is not the GDAL 16 KB defaul
   expect_false(chunk == "" || chunk == "16384",
                info = "GDAL default 16 KB chunk size is still set — .onLoad may not have fired")
 })
+
+test_that("remote capability probe returns a stable contract", {
+  caps <- wapor_remote_capabilities(refresh = TRUE)
+  expect_true(is.list(caps))
+  expect_true(all(c("has_curl", "has_cog", "streaming", "message") %in% names(caps)))
+  expect_type(caps$streaming, "logical")
+})
+
+test_that("remote source resolver has explicit error and stream modes", {
+  old <- getOption("Rwapor.remote_fallback")
+  on.exit(options(Rwapor.remote_fallback = old), add = TRUE)
+  options(Rwapor.remote_fallback = "error")
+  expect_error(
+    Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
+    "Remote COG streaming is unavailable"
+  )
+  options(Rwapor.remote_fallback = "stream")
+  expect_identical(
+    Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
+    "/vsicurl/https://example.invalid/test.tif"
+  )
+})
