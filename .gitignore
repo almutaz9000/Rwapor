@@ -20,6 +20,7 @@
 # Package
 *.tar.gz
 *.check/
+*.Rcheck/
 src/*.o
 src/*.so
 
@@ -37,13 +38,37 @@ nul
 # docs/superpowers/specs/2026-05-11-agent-workflow-design.md), and
 # .github/workflows/ holds the actual CI definitions, which must be tracked
 # for GitHub Actions to run at all.
+# AGENTS.md and CLAUDE.md stay tracked as the canonical, short entry-point
+# pointers (both just point to agent-workflow/START-HERE.md). Every other
+# per-tool adapter below carries a full duplicate copy of the same guidance
+# for tools that can't load a shared skill, and is dev-local only.
 .github/*
 !.github/workflows/
 .claude/
 .agents/
 .agent/
 .jules/
-CLAUDE.md
+.gemini/
+.augment/
+.clinerules/
+.continue/
+.cursor/
+.kilocode/
+.kiro/
+.openhands/
+.roo/
+.trae/
+.windsurf/
+.junie/
+.hermes/
+.rules
+.goosehints
+CONVENTIONS.md
+GEMINI.md
+QWEN.md
+WARP.md
+replit.md
+skills/
 graphify-out/
 .vscode/
 memories/
@@ -69,3 +94,11 @@ tests/l3_urls.txt
 *.duckdb
 *.duckdb.wal
 .positai
+
+# agent-workflow/dashboard (Streamlit) -- app.py, requirements.txt and
+# agents-board.json ARE tracked (shared coordination layer); local Python
+# cache/venv/config are not.
+agent-workflow/dashboard/__pycache__/
+agent-workflow/dashboard/*.pyc
+agent-workflow/dashboard/.venv/
+.streamlit/

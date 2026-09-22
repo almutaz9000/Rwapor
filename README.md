@@ -2,13 +2,30 @@
 
 <!-- badges: start -->
 [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
-[![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg?branch=version-0.9.9)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg?branch=main)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <!-- badges: end -->
 
 **Rwapor** is a high-performance R package for streaming, analyzing, and visualizing satellite data from [**FAO WaPOR v3**](https://www.fao.org/in-action/remote-sensing-for-water-productivity/en/) (Water Productivity Open-access portal) and [**ECMWF AgERA5**](https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators) agro-meteorological indicators.
 
 It provides both a complete **programmatic R API** and an **interactive Shiny dashboard** with DuckDB analytics, tiled raster processing, agronomic crop modeling (FAO-56), and spatial water stress anomaly detection.
+
+No programming experience? The [Installation](#installation) guide below walks you through everything from scratch, and the [Quick Start](#quick-start-launch-the-interactive-dashboard) section gets you to a point-and-click dashboard with no coding at all.
+
+---
+
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start: Launch the Interactive Dashboard](#quick-start-launch-the-interactive-dashboard)
+- [Programmatic Workflows & Code Examples](#programmatic-workflows--code-examples)
+- [Supported Agricultural & Water Indicators](#supported-agricultural--water-indicators)
+- [Data Catalog Overview](#data-catalog-overview)
+- [Documentation & Vignettes](#documentation--vignettes)
+- [Getting Help](#getting-help)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
@@ -27,42 +44,163 @@ It provides both a complete **programmatic R API** and an **interactive Shiny da
 
 ## Installation
 
-### Prerequisites
+This guide assumes **no prior R experience**. Follow the steps in order for your
+operating system. The whole process takes about 10–15 minutes.
 
-Rwapor utilizes modern R geospatial libraries (`terra`, `sf`, `exactextractr`).
+> **Already have R and RStudio installed?** Skip to
+> [Step 3: Install Rwapor](#step-3-install-rwapor).
 
-* **Windows / macOS**: Binary packages include all GDAL and PROJ requirements automatically.
-* **Linux (Ubuntu/Debian)**: Install GDAL, PROJ, and GEOS system libraries:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y libgdal-dev libproj-dev libgeos-dev libudunits2-dev
-  ```
+### Step 1: Install R
 
-### Install Required CRAN Packages
+R is the free statistical programming language Rwapor runs on.
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+1. Go to [cran.r-project.org/bin/windows/base](https://cran.r-project.org/bin/windows/base/).
+2. Click the top link (**Download R-x.x.x for Windows**) and run the installer.
+3. Accept all the default options.
+
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+1. Go to [cran.r-project.org/bin/macosx](https://cran.r-project.org/bin/macosx/).
+2. Download the `.pkg` installer that matches your Mac: **arm64** for Apple
+   Silicon (M1/M2/M3/M4, most Macs sold since late 2020) or the Intel build
+   for older machines. If unsure, check **Apple menu → About This Mac**.
+3. Open the downloaded `.pkg` file and follow the installer.
+
+</details>
+
+<details>
+<summary><b>🐧 Linux (Ubuntu/Debian)</b></summary>
+
+Open a terminal and run:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends r-base r-base-dev
+```
+
+For Fedora/RHEL/CentOS, use `sudo dnf install R` instead.
+
+</details>
+
+### Step 2: Install RStudio (strongly recommended)
+
+RStudio is a free, beginner-friendly application for writing and running R
+code — you'll use it for everything below. It works identically on Windows,
+macOS, and Linux.
+
+1. Go to [posit.co/download/rstudio-desktop](https://posit.co/download/rstudio-desktop/).
+2. Download the installer for your operating system and run it, accepting the
+   defaults.
+3. Open **RStudio** (not "R" — RStudio is the application you'll actually use).
+   You should see a window with a text-input pane called the **Console**.
+   Every code block below is typed or pasted directly into that Console,
+   followed by <kbd>Enter</kbd>.
+
+### Step 3: Install Rwapor
+
+Copy each code block below into the RStudio Console, one at a time, pressing
+<kbd>Enter</kbd> after each. If a popup asks whether to update other
+packages, choose **"All"** (or press <kbd>a</kbd> then <kbd>Enter</kbd> if
+asked in the Console).
+
+**3.1 — Install system geospatial libraries (Linux only)**
+
+Rwapor depends on `terra` and `sf`, which need the GDAL, PROJ, and GEOS
+geospatial libraries. Windows and macOS CRAN packages already include these,
+so **Windows and macOS users can skip straight to 3.2**.
+
+<details>
+<summary><b>🐧 Linux (Ubuntu/Debian)</b></summary>
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libgdal-dev libproj-dev libgeos-dev libudunits2-dev libssl-dev libcurl4-openssl-dev
+```
+
+(Fedora/RHEL: `sudo dnf install gdal-devel proj-devel geos-devel udunits2-devel openssl-devel libcurl-devel`)
+
+</details>
+
+**3.2 — Install the required R packages**
+
+In the RStudio Console:
 
 ```r
 install.packages(c(
   # Geospatial & API Core
-  "terra", "sf", "httr2", "jsonlite", "dplyr", "purrr", "remotes",
-  "lubridate", "exactextractr", "memoise", "future", "future.apply",
-  
+  "terra", "sf", "httr2", "jsonlite", "dplyr", "purrr",
+  "lubridate", "exactextractr", "memoise", "future", "future.apply", "digest",
+
   # Interactive Dashboard & Database
   "shiny", "bslib", "leaflet", "leaflet.extras", "leaflet.extras2",
-  "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce", "DT", 
+  "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce", "DT",
   "shinycssloaders", "promises", "duckdb", "DBI",
-  
+
   # Visualization & Data
-  "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite", 
+  "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite",
   "RColorBrewer", "arrow"
 ))
 ```
 
-### Install Rwapor
+This step downloads and compiles several packages, so it can take a few
+minutes the first time — that's normal.
+
+**3.3 — Install Rwapor from GitHub**
 
 ```r
-# install.packages("remotes")
-remotes::install_github("almutaz9000/Rwapor")
+install.packages("remotes")  # if not already installed
+remotes::install_github("almutaz9000/Rwapor", build_vignettes = TRUE)
 ```
+
+### Step 4: Verify the installation
+
+```r
+library(Rwapor)
+wapor_variable_metadata("L1-AETI-D")
+```
+
+If this prints a table of variable metadata with no errors, Rwapor is
+installed correctly. Jump to [Quick Start](#quick-start-launch-the-interactive-dashboard)
+to launch the point-and-click dashboard.
+
+### Troubleshooting
+
+<details>
+<summary>"package 'terra'/'sf' is not available" or a compilation error</summary>
+
+- **Windows**: install [Rtools](https://cran.r-project.org/bin/windows/Rtools/)
+  (matching your R version) so packages without a ready-made binary can be
+  built from source, then retry Step 3.2.
+- **macOS**: install Apple's command-line developer tools by running
+  `xcode-select --install` in the **Terminal** app, then retry.
+- **Linux**: make sure Step 3.1 completed without errors — a missing
+  `-dev`/`-devel` system library is the most common cause.
+
+</details>
+
+<details>
+<summary>RStudio can't find R / asks which R version to use</summary>
+
+Restart RStudio after installing R (Step 1) so it detects the new
+installation. On Windows/macOS this is automatic; on Linux, confirm with
+`R --version` in a terminal that R is on your `PATH`.
+
+</details>
+
+<details>
+<summary>Still stuck?</summary>
+
+Open a [GitHub issue](https://github.com/almutaz9000/Rwapor/issues) with your
+operating system, R version (`R.version.string` in the Console), and the
+full error message — see [Getting Help](#getting-help).
+
+</details>
 
 ---
 
@@ -277,10 +415,32 @@ Explore available variables inside R:
 
 ## Documentation & Vignettes
 
-* **[Getting Started Vignette](https://almutaz9000.github.io/Rwapor/articles/getting-started.html)**: Comprehensive introductory tutorial.
+Browse locally after installation:
+
+```r
+browseVignettes("Rwapor")
+# or open a specific one:
+vignette("getting-started", package = "Rwapor")
+vignette("shiny-dashboard", package = "Rwapor")
+vignette("advanced-analysis", package = "Rwapor")
+vignette("data-catalog", package = "Rwapor")
+```
+
+If the [pkgdown site](https://almutaz9000.github.io/Rwapor/) is published for
+this repository, the same vignettes are also available online:
+
+* **[Getting Started](https://almutaz9000.github.io/Rwapor/articles/getting-started.html)**: Comprehensive introductory tutorial.
 * **[Shiny Dashboard Guide](https://almutaz9000.github.io/Rwapor/articles/shiny-dashboard.html)**: Step-by-step walkthrough of all dashboard features.
 * **[Advanced Analysis & Monitoring](https://almutaz9000.github.io/Rwapor/articles/advanced-analysis.html)**: Tiled processing, DuckDB integration, and custom math extensions.
 * **[Data Catalog](https://almutaz9000.github.io/Rwapor/articles/data-catalog.html)**: Complete variable definitions, scale factors, and units.
+
+---
+
+## Getting Help
+
+* **Bug reports & feature requests**: [open a GitHub issue](https://github.com/almutaz9000/Rwapor/issues).
+* **Usage questions**: check the [vignettes](#documentation--vignettes) first — most workflows are covered end-to-end with runnable examples.
+* **Function-level help**: every exported function has built-in documentation, e.g. `?wapor_ts` or `?run_wapor` from the R console.
 
 ---
 
@@ -294,7 +454,7 @@ If you use `Rwapor` in academic publications or operational water accounting pro
   author = {Mohammed, Almutaz},
   year   = {2024},
   url    = {https://github.com/almutaz9000/Rwapor},
-  note   = {R package version 0.9.9}
+  note   = {R package version 1.0.0}
 }
 ```
 
