@@ -1,5 +1,12 @@
 url: https://almutaz9000.github.io/Rwapor/
 
+# The repo already tracks a docs/ folder with unrelated internal
+# documentation (REPOSITORY_STRUCTURE.md, research notes, etc.), so build
+# the pkgdown site into its own directory instead of pkgdown's usual
+# docs/ default to avoid clobbering it. The CI workflow deploys this
+# directory to the separate gh-pages branch.
+destination: pkgdown-site
+
 template:
   bootstrap: 5
 
