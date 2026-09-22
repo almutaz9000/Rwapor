@@ -4,7 +4,7 @@
 \alias{wapor_write_cog}
 \title{Write a Cloud-Optimized GeoTIFF}
 \usage{
-wapor_write_cog(x, filename, overwrite = TRUE, ...)
+wapor_write_cog(x, filename, overwrite = TRUE, datatype = NULL, ...)
 }
 \arguments{
 \item{x}{SpatRaster to write.}
@@ -13,6 +13,12 @@ wapor_write_cog(x, filename, overwrite = TRUE, ...)
 
 \item{overwrite}{Logical. Overwrite an existing file. Default \code{TRUE}.}
 
+\item{datatype}{Character. Output GDAL datatype: one of \code{"INT1U"}, \code{"INT1S"},
+\code{"INT2U"}, \code{"INT2S"}, \code{"INT4U"}, \code{"INT4S"}, \code{"FLT4S"}, \code{"FLT8S"}. If \code{NULL}
+(default), the datatype is probed from the actual cell values of the first
+layer: integer-valued rasters within the INT4 range are written as \code{"INT4S"},
+everything else as \code{"FLT4S"}.}
+
 \item{...}{Passed to \code{\link[terra:writeRaster]{terra::writeRaster()}} (for example \code{NAflag}).}
 }
 \value{
@@ -20,8 +26,9 @@ The \code{filename}, invisibly.
 }
 \description{
 Writes \code{x} with the GDAL COG driver when available. If that driver is
-missing, falls back to a tiled GeoTIFF with internal overviews so the
-file is still range-request friendly.
+missing, falls back to a tiled, compressed GeoTIFF. The fallback remains
+readable and can support efficient range access, but is not guaranteed to
+satisfy the complete COG overview specification.
 }
 \examples{
 \dontrun{

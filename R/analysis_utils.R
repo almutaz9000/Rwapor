@@ -110,10 +110,10 @@ wapor_filter_class_stats <- function(res) {
 
 #' Per-pixel area in hectares
 #'
-#' For geographic (lon/lat) grids, area varies with latitude: a 2-D raster is
-#' returned with one value per cell. For projected grids a constant cell area
-#' is used. Matches the waporbox `pixel_area_ha` convention
-#' (`111320 m/deg * cos(lat)`).
+#' For geographic (lon/lat) grids, area varies with latitude. Uses `terra::area()`
+#' when available (correct spherical-area computation) and falls back to the
+#' lon/lat approximation `111320 m/deg * cos(lat)` only when `terra::area()` is
+#' unavailable. For projected grids a constant cell area is used.
 #'
 #' @param x SpatRaster. Template whose geometry defines the area raster.
 #' @return A SpatRaster of per-pixel area in hectares.
@@ -124,13 +124,24 @@ wapor_pixel_area_ha <- function(x) {
   }
   res_xy <- terra::res(x)
   out <- x[[1]]
+
   if (isTRUE(terra::is.lonlat(x))) {
-    ext_r <- terra::ext(x)
-    height <- terra::nrow(x)
-    width <- terra::ncol(x)
-    lat <- as.numeric(ext_r$ymax) - (seq_len(height) - 0.5) * res_xy[2]
-    area_row <- (res_xy[1] * 111320) * (res_xy[2] * 111320 * cos(lat * pi / 180)) / 10000
-    terra::values(out) <- rep(area_row, each = width)
+    area_m2 <- tryCatch(
+      terra::area(x),
+      error = function(e) NULL
+    )
+    if (!is.null(area_m2) && inherits(area_m2, "SpatRaster")) {
+      terra::values(out) <- as.numeric(area_m2) / 10000
+    } else {
+      # Fallback: approximate 111320 m/deg * cos(lat), only on y-axis.
+      ext_r <- terra::ext(x)
+      height <- terra::nrow(x)
+      width <- terra::ncol(x)
+      lat <- as.numeric(ext_r$ymax) - (seq_len(height) - 0.5) * res_xy[2]
+      area_row <- (res_xy[1] * 111320 * cos(lat * pi / 180)) *
+                   (res_xy[2] * 111320) / 10000
+      terra::values(out) <- rep(area_row, each = width)
+    }
   } else {
     terra::values(out) <- (res_xy[1] * res_xy[2]) / 10000
   }

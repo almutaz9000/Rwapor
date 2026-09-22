@@ -85,17 +85,33 @@
 wapor_res_key <- function(variable) {
   stopifnot(is.character(variable), length(variable) == 1L)
 
-  # 1. Try "LEVEL-VARNAME" prefix  (strip trailing temporal suffix: -D, -M, -A, -E)
-  lv_prefix <- sub("-[ADME]$", "", variable)   # e.g. "L1-AETI-D" -> "L1-AETI"
-  if (lv_prefix %in% names(.WAPOR_RES_LOOKUP))
+  # The metadata catalogue is authoritative for spatial resolution.  Temporal
+  # resolution is deliberately ignored here; it belongs to the final code
+  # segment and is handled by wapor_temporal_codes().
+  meta <- tryCatch(wapor_variable_metadata(variable), error = function(e) NULL)
+  spatial_m <- if (!is.null(meta)) meta$spatial_resolution_m else NULL
+  spatial <- if (!is.null(meta)) meta$spatial_resolution else NULL
+  level <- if (!is.null(meta)) meta$level else sub("-.*", "", variable)
+  if (!is.null(spatial_m) && length(spatial_m) == 1L && is.finite(spatial_m)) {
+    return(paste0(level, "_", format(spatial_m, trim = TRUE, scientific = FALSE), "m"))
+  }
+  if (!is.null(spatial) && length(spatial) == 1L && !is.na(spatial) && nzchar(spatial)) {
+    value <- suppressWarnings(as.numeric(sub("[^0-9.].*", "", spatial)))
+    unit <- tolower(sub("^[0-9.]+\\s*", "", spatial))
+    if (!is.na(value)) {
+      metres <- if (startsWith(unit, "km")) value * 1000 else value
+      return(paste0(level, "_", format(metres, trim = TRUE, scientific = FALSE), "m"))
+    }
+  }
+
+  lv_prefix <- sub("-[ADME]$", "", variable)
+  if (lv_prefix %in% names(.WAPOR_RES_LOOKUP)) {
     return(unname(.WAPOR_RES_LOOKUP[lv_prefix]))
-
-  # 2. Try level-only prefix
-  lev_prefix <- sub("-.*", "", variable)        # e.g. "L1-AETI-D" -> "L1"
-  if (lev_prefix %in% names(.WAPOR_RES_LOOKUP))
+  }
+  lev_prefix <- sub("-.*", "", variable)
+  if (lev_prefix %in% names(.WAPOR_RES_LOOKUP)) {
     return(unname(.WAPOR_RES_LOOKUP[lev_prefix]))
-
-  # 3. Unknown variable — return itself so it is never batched with others
+  }
   variable
 }
 

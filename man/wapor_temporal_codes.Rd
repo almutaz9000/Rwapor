@@ -4,10 +4,16 @@
 \alias{wapor_temporal_codes}
 \title{Get Available Temporal Codes for a Variable}
 \usage{
-wapor_temporal_codes(variable)
+wapor_temporal_codes(variable, l3_region = NULL, period = NULL)
 }
 \arguments{
 \item{variable}{Character. Variable name (e.g., \code{"L2-AETI-D"}, \code{"L1-NPP-M"}).}
+
+\item{l3_region}{Optional L3 region code. When supplied with \code{period},
+availability is checked against that region's actual URLs.}
+
+\item{period}{Optional character date range \code{c(start_date, end_date)} used
+for region-specific L3 availability checks.}
 }
 \value{
 Character vector of available temporal codes (e.g., \code{c("A", "M", "D")}),
@@ -15,8 +21,9 @@ ordered from coarsest to finest.
 }
 \description{
 Determines which temporal resolutions (annual, monthly, dekadal, daily)
-are available for a given WaPOR or AgERA5 variable by checking the
-static metadata lists. For L3 variables, checks L2 equivalents as fallback.
+are available for a given WaPOR or AgERA5 variable from the validated
+metadata catalogue. For L3 variables with a region and period, it also
+checks actual URLs for region-specific availability.
 }
 \examples{
 \dontrun{

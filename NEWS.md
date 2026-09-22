@@ -19,6 +19,60 @@
   applies LZW compression, datatype predictors, overviews, and a BigTIFF
   policy.
 
+## Monitoring database (DuckDB)
+
+* `wapor_save_raster_blobs()` rewritten: pending dates are resolved from URL
+  metadata before any network open (avoids redundant vsicurl calls for
+  already-saved dates), and remaining layers for one variable are opened as
+  a single batched `/vsicurl/` multi-band stack instead of one dataset
+  handle per layer.
+* Each saved raster now writes both the existing in-memory compressed
+  GeoTIFF blob (backward-compatible read path) and a file-backed COG under a
+  new sibling `<db>_raster_store/` directory, recorded in
+  `monitoring_rasters.raster_path` together with `gdal_version`,
+  `terra_version`, and `band_count` provenance columns.
+* `monitoring_metadata` now carries a `schema_version` with an automatic
+  migration path (`.wapor_monitoring_migrate()`), and a `raster_grid_registry`
+  table rejects mixed-resolution writes for the same variable.
+* `farm_timeseries` gained a `season_id` column (part of the primary key) and
+  now upserts via `INSERT OR REPLACE` instead of failing on overlapping
+  reruns.
+
+## Shiny dashboard
+
+* The Download tab sidebar is now a 5-step numbered accordion wizard
+  (Project, Variables, Period, L3 Region, Run) instead of a flat two-panel
+  layout.
+* New **Dual Compare** tab (`mod_dual_map.R`): two independent Leaflet maps
+  kept in pan/zoom sync via `leaflet.extras2::addLeafletsync()`, for
+  side-by-side raster comparison distinct from the existing single-map
+  overlay "Dual Compare" mode inside the Visualisation tab.
+* `app.R` now guards all Shiny/dashboard package dependencies with a clear
+  install message instead of a bare `library()` failure, and `.onLoad`
+  configures GDAL unconditionally rather than only when an environment
+  variable is set.
+* Dashboard: grouped variable choices, save/load analysis configuration to
+  JSON, and user-adjustable stress thresholds for the monitoring module.
+
+## Testing & documentation
+
+* All network-dependent test files are guarded with `skip_if_wapor_offline()`
+  so a machine without internet access gets a clean skip instead of a
+  false failure.
+* Fixed a stale live-API test (`wapor_map` no longer accepts multiple
+  variables in seasonal mode by design; the test now asserts the documented
+  error and exercises the multi-variable workflow via one `wapor_map()` call
+  per variable).
+* Removed a redundant intermediate warning in `download_seasonal_rasters()`
+  that duplicated information already in the final aggregated "INCOMPLETE"
+  warning/error.
+* Regenerated stale `man/` pages that had drifted from code (`wapor_ts`,
+  `wapor_map`, `wapor_init_monitoring_db`, `wapor_save_raster_blobs`,
+  `wapor_suggest_tile_size`).
+* README installation section restructured to the install -> verify -> quick
+  start convention, with a fixed CI badge branch reference and citation
+  version bump to 1.0.0.
+
 ---
 
 # Rwapor 0.9.9

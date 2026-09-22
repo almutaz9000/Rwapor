@@ -1,3 +1,6 @@
+# Network guard: skip when WaPOR API is not reachable (CI offline, air-gapped)
+skip_if_wapor_offline()
+
 test_that("wapor_map mosaic_all accepts multiple variables and periods", {
   skip_if_not_installed("terra")
 

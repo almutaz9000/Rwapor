@@ -425,7 +425,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Use GDAL virtual file system for efficient streaming
-  urls <- .wapor_prefix_vsicurl(urls)
+  urls <- .wapor_resolve_remote_sources(urls)
   message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
 
   message(sprintf("Found %d files for %s. Processing...", length(urls), variable))

@@ -172,9 +172,19 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
   partial time-series results carry `partial` and `failed_layers` attributes;
   datatype probing uses a bounded `readValues()` window; fallback output is
   documented as tiled compressed GeoTIFF when the COG driver is unavailable.
-- **Verification**: all scoped R files parse; direct retry-helper execution
-  passes; `git diff --check` passes. Full R tests are blocked in this working
-  environment because `terra`, `devtools`, and `testthat` are not installed.
+  - **Verification**: all scoped R files parse; direct retry-helper execution
+    passes; `git diff --check` passes. Full R tests are blocked in this working
+    environment because `terra`, `devtools`, and `testthat` are not installed.
+
+  - **2026-09-21 resolution (Codex)**: User reassigned ownership. A real local
+    `terra`/GDAL environment is available. A live 12-layer JVA monthly stack
+    opened in 2.81 seconds, so the 10 MB range-cache setting was not the
+    observed bottleneck. The reported run looked frozen because no status was
+    emitted during the later crop-and-write phase; granular console and Shiny
+    progress were added. Parse, Shiny construction, 138 focused assertions,
+    and a 12-layer live output run passed. A 72-layer temporary probe emitted
+    chunk 1 and 2 progress but did not provide a completion line in this tool
+    session; it is not claimed as a complete end-to-end result.
 - **Remaining**: run the complete suite and local HTTP range fixture on an R
   environment with terra/GDAL; replace driver-table curl detection with a
   dedicated local capability probe; remove tiled-source duplicate remote reads.

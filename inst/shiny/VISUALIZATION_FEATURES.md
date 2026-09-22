@@ -168,7 +168,10 @@ When comparing rasters with different extents or resolutions:
 ## Limitations and Considerations
 
 ### Current Limitations
-- Side-by-side display mode not yet implemented (uses overlay instead)
+- "Side-by-Side" display mode inside this tab still falls back to overlay
+  mode. For true independently-scrollable side-by-side comparison, use the
+  separate **Dual Compare** tab (`mod_dual_map.R`), which renders two
+  view-synchronized Leaflet maps instead of one overlay map.
 - Query expressions must use exact syntax (Raster1/Raster2)
 - Maximum complexity: Two rasters per query
 - Large rasters may take time to process
@@ -191,7 +194,9 @@ When comparing rasters with different extents or resolutions:
 ## Future Enhancements
 
 Planned features for future versions:
-- [ ] Side-by-side map panels for true comparison view
+- [x] Side-by-side map panels for true comparison view — implemented as the
+      separate **Dual Compare** tab (`mod_dual_map.R`, view-synchronized via
+      `leaflet.extras2::addLeafletsync()`)
 - [ ] Query builder UI with dropdown operators
 - [ ] Support for more than 2 rasters in queries
 - [ ] Export query results as new GeoTIFF

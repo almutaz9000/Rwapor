@@ -72,5 +72,29 @@ try {
     Write-Host "(could not read issues-log.md)"
 }
 
+$boardPath = Join-Path $hubRoot 'agents-board.json'
+Write-Host "`n--- agents-board.json: other models' claims ---" -ForegroundColor Yellow
+if (Test-Path $boardPath -PathType Leaf) {
+    try {
+        $board = Get-Content -Path $boardPath -Raw | ConvertFrom-Json
+        $active = $board.tasks | Where-Object { $_.status -eq 'active' }
+        if ($active) {
+            Write-Host "ACTIVE elsewhere right now -- do not duplicate:" -ForegroundColor Red
+            $active | ForEach-Object { Write-Host ("  [{0}] {1} -- {2}" -f $_.model, $_.id, $_.title) }
+        } else {
+            Write-Host "No task currently marked active by any model."
+        }
+        $byModel = $board.tasks | Where-Object { $_.status -eq 'done' -and $_.model } | Group-Object model
+        if ($byModel) {
+            Write-Host "Completed-task count by model: $(($byModel | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ', ')"
+        }
+    } catch {
+        Write-Host "(could not parse agents-board.json: $($_.Exception.Message))" -ForegroundColor Red
+    }
+} else {
+    Write-Host "(agents-board.json not found -- cross-model coordination file is missing)" -ForegroundColor Red
+}
+
 Write-Host "`n=== Reminder ===" -ForegroundColor Cyan
 Write-Host "Before editing, produce the digest required by START-HERE.md: Mode, Scope, Relevant open task, Relevant open issue, Validation plan, Exit criteria."
+Write-Host "Claim your task in agents-board.json before starting: .\agent-workflow\scripts\board_claim.ps1 -Id <id> -Model <your-model-slug> -Status active"

@@ -54,7 +54,7 @@ def task_frame(tasks: list[dict]) -> pd.DataFrame:
     return frame
 
 
-def make_module_graph_figure(modules: dict):
+def make_module_graph_figure(modules: dict, focus: str | None = None):
     """Layered flowchart SVG, styled after the reference lineage-diagram look.
 
     Pure inline SVG built with networkx layering only -- no Mermaid, no CDN
@@ -161,12 +161,18 @@ def make_module_graph_figure(modules: dict):
     for node, (x, y) in pos.items():
         kind = graph.nodes[node].get("kind", "r")
         stroke, fill = colors.get(kind, colors["r"])
+        if focus and node == focus:
+            stroke = "#b7791f"
+            fill = "#fffaf0"
+            stroke_width = "3"
+        else:
+            stroke_width = "1.4"
         label = Path(node).name
         degree = graph.in_degree(node) + graph.out_degree(node)
         svg_parts.append(
             f'<g><title>{escape(node)} (in+out: {degree})</title>'
             f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_h}" rx="4" '
-            f'fill="{fill}" stroke="{stroke}" stroke-width="1.4"/>'
+            f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}"/>'
             f'<rect x="{x}" y="{y}" width="4" height="{box_h}" fill="{stroke}"/>'
             f'<text x="{x + 14}" y="{y + box_h / 2 + 4}" font-size="11.5" fill="#1a202c">{escape(label)}</text>'
             f'</g>'
@@ -285,6 +291,23 @@ with tab_focus:
         st.write(selected.get("notes") or "No notes recorded.")
         st.caption("Files: " + (", ".join(selected.get("files") or []) or "none"))
 
+    st.subheader("Current verified issues and proposed fixes")
+    st.caption("These findings come from the final verification pass. They are read-only review signals; promote them to agents-board.json only after assigning an owner and scope.")
+    current_review = snapshot.get("current_review", [])
+    active_review = [item for item in current_review if item.get("status") != "resolved"]
+    review_cols = st.columns(4)
+    review_cols[0].metric("Active findings", len(active_review))
+    review_cols[1].metric("Critical", sum(item["severity"] == "critical" for item in active_review))
+    review_cols[2].metric("High", sum(item["severity"] == "high" for item in active_review))
+    review_cols[3].metric("Verified tests", "22 dashboard + R pass")
+    for finding in active_review:
+        color = PRIORITY_COLORS.get(finding["severity"], "#718096")
+        with st.expander(f"{finding['id']} · {finding['title']} · {finding['status']}", expanded=finding["severity"] == "critical"):
+            st.markdown(badge(f"{finding['severity']} · {finding['status']}", color), unsafe_allow_html=True)
+            st.markdown(f"**Evidence**: {finding['evidence']}")
+            st.markdown(f"**Proposed fix**: {finding['fix']}")
+            st.caption(f"Verification: {finding['verification']} · Files: {', '.join(finding['files'])}")
+
 with tab_issues:
     st.subheader("Open issues, warnings, and resolved fixes")
     issue_state = st.multiselect("Show issue state", ["open", "resolved"], default=["open", "resolved"])
@@ -303,11 +326,68 @@ with tab_issues:
 with tab_modules:
     st.subheader("R and Shiny module connection map")
 
+    # Module control layer: the map remains visual, while this selector provides
+    # deterministic drill-down into the canonical board and issue ledger.
+    module_control = snapshot.get("module_control", [])
+    module_options = [record["path"] for record in module_control]
+    selected_focus = st.selectbox(
+        "Focus module",
+        ["All modules"] + module_options,
+        help="Select a source module to highlight in the detailed map and inspect its tasks, issues, and review-derived next steps.",
+    )
+    focused_record = next((record for record in module_control if record["path"] == selected_focus), None)
+    if focused_record:
+        st.markdown(f"### {focused_record['label']} <span class=\"muted\">({focused_record['group']})</span>", unsafe_allow_html=True)
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        mc1.metric("State", focused_record["status"])
+        mc2.metric("Related tasks", focused_record["task_count"])
+        mc3.metric("Open tasks", focused_record["open_task_count"])
+        mc4.metric("Open issues", focused_record["open_issue_count"])
+        detail_left, detail_right = st.columns(2)
+        with detail_left:
+            st.markdown("**Tasks linked to this module**")
+            if focused_record["tasks"]:
+                st.dataframe(
+                    pd.DataFrame(focused_record["tasks"])[["id", "title", "status", "priority"]],
+                    hide_index=True, use_container_width=True,
+                )
+            else:
+                st.caption("No canonical board task is linked to this module.")
+            st.markdown("**Issues linked to this module**")
+            if focused_record["issues"]:
+                for issue in focused_record["issues"]:
+                    st.warning(f"{issue.get('id')}: {issue.get('title')} ({issue.get('status')})")
+                    st.caption(issue.get("summary", ""))
+            else:
+                st.caption("No board issue is linked to this module.")
+        with detail_right:
+            st.markdown("**Next proposed steps from the critical review**")
+            recommendations = focused_record["recommendations"]
+            if recommendations:
+                for rec in recommendations:
+                    color = PRIORITY_COLORS.get(rec["priority"], "#718096")
+                    with st.expander(f"{rec['id']} · {rec['title']}", expanded=rec["priority"] == "critical"):
+                        st.markdown(badge(rec["priority"], color), unsafe_allow_html=True)
+                        st.write(rec["detail"])
+                        st.caption(f"Evidence: {rec['evidence']}")
+                        st.caption("Candidate files: " + ", ".join(rec["files"]))
+            else:
+                st.caption("No review-derived recommendation is currently mapped to this module.")
+    else:
+        st.caption("Select a module to highlight it in the detailed map and inspect its linked work state.")
+
+    st.markdown("#### Module status overview")
+    overview_rows = [
+        {"module": r["label"], "group": r["group"], "state": r["status"], "open_tasks": r["open_task_count"], "open_issues": r["open_issue_count"]}
+        for r in module_control
+    ]
+    st.dataframe(pd.DataFrame(overview_rows), hide_index=True, use_container_width=True, height=240)
+
     # Mermaid diagram (like waporbox) - completion % colored
     if show_mermaid:
         st.caption("Nodes colored by completion % from task board. Green = done, yellow = in progress, red = not started. Solid arrows = module dependencies.")
-        tasks = board.get("tasks", [])
-        module_pct = compute_module_completion(tasks)
+        board_tasks = board.get("tasks", [])
+        module_pct = compute_module_completion(board_tasks)
         mermaid_diag = build_mermaid_diagram(module_pct)
         mermaid_html_content = mermaid_html(mermaid_diag, height=500)
         
@@ -343,7 +423,7 @@ with tab_modules:
             "Orange = Shiny module (inst/shiny/), green = core R package file (R/). "
             "The table remains the authoritative evidence when the graph is dense."
         )
-        result = make_module_graph_figure(filtered_modules)
+        result = make_module_graph_figure(filtered_modules, focus=None if selected_focus == "All modules" else selected_focus)
         if result is None:
             st.info("No module nodes found.")
         else:

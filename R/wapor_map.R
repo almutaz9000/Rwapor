@@ -465,7 +465,7 @@ wapor_map <- function(
     prefix <- if (reg_info$type == "bbox") "bb_" else ""
 
     # Use GDAL virtual file system
-    urls <- .wapor_prefix_vsicurl(urls)
+    urls <- .wapor_resolve_remote_sources(urls)
     log_msg(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", var))
     
     tres_code <- strsplit(var, "-")[[1]][3]
@@ -478,6 +478,11 @@ wapor_map <- function(
     
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {
+      chunk_label <- sprintf("Chunk %d/%d", chunk_idx, length(url_chunks))
+      if (!parallel) {
+        log_msg(sprintf("  %s: opening %d remote layer(s)...", chunk_label, length(chunk_urls)))
+      }
+      t0_chunk_open <- proc.time()
       r <- NULL
       err <- NULL
       max_retries <- 3
@@ -510,6 +515,13 @@ wapor_map <- function(
         ))
       }
 
+      if (!parallel) {
+        log_msg(sprintf(
+          "  %s: remote layers opened in %.1f seconds; cropping AOI...",
+          chunk_label, (proc.time() - t0_chunk_open)[["elapsed"]]
+        ))
+      }
+
       # Crop to region; optionally mask to polygon boundary. Crop can force
       # remote pixel I/O, so keep it inside the retry boundary.
       r <- .wapor_retry_remote_operation(
@@ -533,6 +545,12 @@ wapor_map <- function(
 
       if (separate_files) {
         chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
+          if (!parallel) {
+            log_msg(sprintf(
+              "  %s: writing layer %d/%d (%s)...",
+              chunk_label, i, terra::nlyr(r), names(r)[i]
+            ))
+          }
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
           r_out <- terra::classify(r[[i]], cbind(NA, -9999))
           r_out <- assign_raster_metadata(r_out, var, current_unit_conv)

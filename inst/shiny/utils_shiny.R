@@ -105,3 +105,82 @@ get_shinyfiles_roots <- function() {
     c(Project = getwd(), Home = normalizePath("~", winslash = "/"))
   })
 }
+
+# ── Variable grouping for selectInput optgroups ────────────────────────────────
+# Groups all WaPOR/AgERA5 variable codes into product families so the UI
+# selector is navigable for water productivity users.  Returns a named list
+# of named lists, suitable for shiny::selectInput(choices = ...).
+#
+# Usage in UI:
+#   shiny::selectInput("var", "Variable", choices = wapor_grouped_var_choices(all_vars))
+wapor_grouped_var_choices <- function(all_vars) {
+  groups <- list(
+    "ETa - Actual Evapotranspiration"     = grep("AETI", all_vars, value = TRUE),
+    "ETp - Reference Evapotranspiration"  = grep("-RET-", all_vars, value = TRUE),
+    "Transpiration"                       = grep("-T-[DMA]$", all_vars, value = TRUE),
+    "Soil Evaporation"                    = grep("-E-[DMA]$", all_vars, value = TRUE),
+    "Interception"                        = grep("-I-[DMA]$", all_vars, value = TRUE),
+    "Net Primary Productivity"            = grep("NPP", all_vars, value = TRUE),
+    "Precipitation"                       = grep("PCP|PREC", all_vars, value = TRUE),
+    "Biomass / Water Productivity"        = grep("GBWP|NBWP", all_vars, value = TRUE),
+    "AgERA5 ETo"                          = grep("AGERA5.*ET0", all_vars, value = TRUE),
+    "AgERA5 Temperature"                  = grep("TMIN|TMAX|TDEW", all_vars, value = TRUE),
+    "AgERA5 Other"                        = grep("^AGERA5-", all_vars, value = TRUE)
+  )
+  # Remove empty groups and track which vars are assigned to avoid duplicates
+  assigned <- character(0)
+  result <- list()
+  for (grp_name in names(groups)) {
+    grp_vars <- setdiff(groups[[grp_name]], assigned)
+    if (length(grp_vars) > 0) {
+      result[[grp_name]] <- stats::setNames(grp_vars, grp_vars)
+      assigned <- c(assigned, grp_vars)
+    }
+  }
+  # Catch-all for any uncategorized variables
+  remaining <- setdiff(all_vars, assigned)
+  if (length(remaining) > 0) {
+    result[["Other"]] <- stats::setNames(remaining, remaining)
+  }
+  result
+}
+
+# ── Analysis configuration save / load ────────────────────────────────────────
+# Save the current analysis configuration to a JSON file.
+# config must be a list compatible with wapor_validate_analysis_config().
+wapor_save_analysis_config <- function(config, path) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required to save analysis configuration.", call. = FALSE)
+  }
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  config$saved_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  config$rwapor_version <- tryCatch(
+    as.character(utils::packageVersion("Rwapor")),
+    error = function(e) "unknown"
+  )
+  jsonlite::write_json(config, path, pretty = TRUE, auto_unbox = TRUE)
+  invisible(path)
+}
+
+# Load an analysis configuration from a JSON file.
+# Returns a validated list or stops with a clear message.
+wapor_load_analysis_config <- function(path) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required to load analysis configuration.", call. = FALSE)
+  }
+  if (!file.exists(path)) {
+    stop(sprintf("Configuration file not found: %s", path), call. = FALSE)
+  }
+  cfg <- tryCatch(
+    jsonlite::read_json(path, simplifyVector = TRUE),
+    error = function(e) stop(sprintf("Failed to read configuration file: %s", e$message), call. = FALSE)
+  )
+  # Validate using the package validator if available
+  tryCatch(
+    Rwapor::wapor_validate_analysis_config(cfg),
+    error = function(e) warning(
+      sprintf("Loaded config has validation warnings: %s", e$message), call. = FALSE
+    )
+  )
+  cfg
+}

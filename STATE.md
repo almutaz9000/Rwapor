@@ -3,6 +3,80 @@ Session: 2026-09-15 (session 2, CLOSED)
 Tier: FULL | Domain: CODE
 Agent: Claude Code (claude-sonnet-5)
 
+## Current Session — 2026-09-22 — Dashboard seasonal summary semantics
+
+**Goal:** Surface seasonal `sum`/`mean`/`std`/`min`/`max`/`median` controls in
+the Download and API Time Series dashboards while rejecting sums for
+non-accumulative variables.
+
+**Done means:**
+- [x] Backend rejects explicit sums for existing weighted-mean products.
+- [x] Both dashboard paths forward the selected function independently for
+  each variable and make the mixed-resolution/equal-step rule visible.
+- [x] Dashboard prevents Weighted sum when root-zone soil moisture or another
+  non-summable variable is selected.
+- [x] Regression tests, Shiny construction, documentation, and agent guidance
+  verify the contract.
+- [ ] Changes are reviewed, committed, and pushed without unrelated files.
+
+**Plan:**
+- [x] 1. Inspect product semantics and dashboard map/time-series call paths.
+- [x] 2. Add shared backend classification and explicit-sum guard.
+- [x] 3. Add Download and Time Series controls plus semantic guidance.
+- [x] 4. Test forwarding, restrictions, package/Shiny construction, and docs.
+- [ ] 5. Update task records and reusable agent guidance; review, commit, push.
+
+## Current Session — 2026-09-22 — Seasonal summary functions
+
+**Goal:** Add `fun` to seasonal `wapor_map()` and `wapor_ts()` without changing
+the existing variable-aware default.
+
+**Done means:**
+- [x] `fun = NULL` retains the current weighted sum/weighted mean behavior.
+- [x] Explicit `sum`, `mean`, `std`, `min`, `max`, and `median` are validated
+  before download and implemented for maps and seasonal time series.
+- [x] Equal-step summaries include each overlapping source layer once; `std`
+  uses the sample definition and returns `NA` for fewer than two values.
+- [x] Generated documentation and agent examples describe the contract.
+- [x] Focused synthetic and surrounding regression tests pass.
+- [x] Commit only verified feature files and push (`de52e8f`).
+
+**Verification:** `devtools::test(filter = 'seasonal-summary-functions')`
+passed after exercising all map functions, default compatibility, filenames,
+units, partial overlap, missing layers, and invalid input. The surrounding
+`plan_wapor_time_slices`, `l3-mosaic-all`, and `wapor` suites passed with five
+expected live API skips.
+
+## Current Session — 2026-09-21 — WaPOR raster first-chunk bottleneck
+
+**Goal:** Prevent `wapor_map()` from appearing frozen while it opens the first
+batch of remote WaPOR COGs, without changing raster values or aggregation.
+
+**Done means:**
+- [x] The remote-open phase emits a chunk-specific status before blocking I/O.
+- [x] Retained the 10 MB GDAL range-cache chunk: a live 12-layer open took
+  2.81 seconds, so changing it was not supported by evidence.
+- [x] Focused configuration and map tests pass in the installed R environment
+  (33 GDAL assertions; 97 map assertions; 5 expected CRAN skips).
+
+**Plan:**
+- [x] 1. Inspect the reported path and existing streaming task. The pause is in
+  `terra::rast(chunk_urls)` immediately after the split log.
+- [x] 2. Take ownership of task 8.1 after explicit user confirmation.
+- [x] 3. Add remote-open, crop, and per-layer write diagnostics; retain the
+  existing range-cache setting after the live timing result.
+- [x] 4. Retain existing focused tests: the public function contract did not
+  change; add map/Shiny status wiring without a documentation API change.
+- [x] 5. Run focused tests, Shiny construction, live 12-layer output probe,
+  and diff review. A 72-layer temporary probe emitted chunk 1 and 2 status
+  but did not provide a completion line in this tool session; it is not
+  claimed as a passed end-to-end test.
+
+**Key discovery:** A 72-layer call opens 12 COGs per chunk. The existing 10 MB
+`CPL_VSIL_CURL_CHUNK_SIZE` was not the observed gate: a live 12-layer open
+completed in 2.81 seconds. The silent crop-and-write phase made the running
+request look frozen.
+
 ## Session 1 Outcome: 13/18 items completed (see agent-workflow/task-status.md)
 
 ## Session 2 Outcome: all 3 handoff priority items complete

@@ -82,9 +82,20 @@ wapor_harmonize_raster <- function(x, template, method = "near") {
     stop("'template' must be a SpatRaster", call. = FALSE)
   }
 
-  # Short-circuit if geometries already match
+  # Short-circuit if geometries already match.
+  # NOTE: compare_geom checks CRS, extent, resolution, and origin; if it returns
+  # TRUE the two rasters are on the same grid. However we still assert that the
+  # CRS strings match, because two rasters can share extent/resolution/origin on
+  # different CRS (e.g. different UTM zones) and compare_geom may pass in some
+  # GDAL versions. If the CRS differs, fall through to the resample path below
+  # rather than returning x in the wrong CRS.
   if (compare_geom(x, template)) {
-    return(x)
+    x_crs <- terra::crs(x)
+    t_crs <- terra::crs(template)
+    if (nzchar(x_crs) && nzchar(t_crs) && x_crs == t_crs) {
+      return(x)
+    }
+    # CRS mismatch despite geometry match: continue to the reproject path.
   }
 
   # Ensure CRS is set on both rasters
@@ -1030,7 +1041,7 @@ wapor_check_local <- function(urls, var, folder) {
     }
 
     if (!found) {
-      optimized_paths[i] <- if (grepl("^/vsicurl/", u)) u else paste0("/vsicurl/", u)
+      optimized_paths[i] <- .wapor_resolve_remote_sources(u)[[1]]
       missing_dates <- c(missing_dates, dash_date)
     }
   }

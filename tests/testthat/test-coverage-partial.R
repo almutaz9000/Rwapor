@@ -1,3 +1,6 @@
+# Network guard: skip when WaPOR API is not reachable (CI offline, air-gapped)
+skip_if_wapor_offline()
+
 test_that("incomplete seasonal coverage fails unless partial = TRUE", {
   local_mocked_bindings(
     wapor_temporal_codes = function(variable) "D",

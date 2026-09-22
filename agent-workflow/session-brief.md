@@ -3,6 +3,21 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
+## Current Session — 2026-09-21 — WaPOR map progress bottleneck
+
+**What happened**: User-reported L3-AETI-M retrieval was not a stalled remote
+open: a live 12-layer JVA stack opened in 2.81 seconds and the complete
+crop/write run took 13.4 seconds. The map implementation was silent during
+that work, making the first 72-layer batch appear frozen. `wapor_map()` now
+reports chunk opening, crop transition, and every write; Shiny refreshes its
+download detail after each finished batch.
+
+**Verification**: Parse passed; Shiny app construction passed; focused tests
+passed (GDAL config 33, map 97 with 5 expected CRAN skips, streaming 8); the
+live 12-layer map wrote 12/12 temporary output files. A 72-layer temporary
+probe emitted chunks 1–2 status but did not provide a completion line in this
+tool session, so it remains unverified as a complete run.
+
 ## Current Session — 2026-09-17 — Remote COG streaming hardening
 
 **What happened**: Added complete-operation retry boundaries for remote raster

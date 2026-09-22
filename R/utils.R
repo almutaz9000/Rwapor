@@ -801,7 +801,7 @@ wapor_l3_extent <- function(url, code) {
   }
 
   # Fetch from remote
-  vsi_url <- .wapor_prefix_vsicurl(url)
+  vsi_url <- .wapor_resolve_remote_sources(url)[[1]]
   r <- tryCatch({
     suppressWarnings(terra::rast(vsi_url))
   }, error = function(e) NULL)

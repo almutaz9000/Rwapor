@@ -4,13 +4,19 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
-- **8.1 — Remote COG streaming hardening** — IMPLEMENTED, verification blocked
-  for terra-dependent tests in the current environment. Added complete-operation
-  retry boundaries, default refusal of incomplete non-seasonal results, bounded
-  COG datatype sampling, and accurate fallback documentation. Plan:
-  `docs/plans/2026-09-17-rwapor-cog-streaming-hardening.md`. Remaining local
-  capability probe, remote-read duplication cleanup, and full terra/GDAL test
-  gate are explicitly open.
+- **Seasonal summary semantics in the dashboard** — Add the shared
+  variable-aware `sum`/`mean`/`std`/`min`/`max`/`median` contract to both
+  Shiny paths and reject invalid state/rate sums. Status: Active. Owner:
+  Codex. Design: `docs/superpowers/specs/2026-09-22-dashboard-seasonal-summary-design.md`.
+
+- **8.1 — Remote COG streaming hardening** — DONE (Codex, 2026-09-21).
+  A live 12-file `/vsicurl/` open completed in 2.81 seconds; the actual
+  issue was the formerly silent crop-and-write phase. `wapor_map()` now logs
+  chunk opening, crop transition, and every layer write; the Shiny download
+  panel refreshes its detail after each batch. Verified parse, Shiny app
+  construction, 138 focused assertions, and a 12-layer live run with all
+  output files present. A 72-layer temporary probe emitted chunk 1 and 2
+  progress but did not produce a completion line in this tool session.
 
 - None open as of 2026-09-15.
 

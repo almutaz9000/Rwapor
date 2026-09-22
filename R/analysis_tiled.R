@@ -233,7 +233,7 @@ wapor_suggest_tile_size <- function(n_layers,
     if (!length(urls)) {
       return(character(0))
     }
-    .wapor_prefix_vsicurl(urls)
+    .wapor_resolve_remote_sources(urls)
   }
 }
 
@@ -366,7 +366,7 @@ wapor_suggest_tile_size <- function(n_layers,
   total
 }
 
-.wapor_reduce_tile_indicators <- function(config, crop_params, rasters, win, template) {
+.wapor_reduce_tile_indicators <- function(config, crop_params, rasters, win, template, source_paths = NULL) {
   indicators <- wapor_normalize_analysis_indicators(config$indicators)
   tile_template <- .wapor_crop_raster_window(template, win)
   h_mask <- if (isTRUE(config$use_crop_mask) && inherits(rasters$crop_mask, "SpatRaster")) {
@@ -391,28 +391,34 @@ wapor_suggest_tile_size <- function(n_layers,
   weight_layers <- lapply(seq_len(terra::nlyr(sw$weights)), function(i) sw$weights[[i]])
   valid_mask <- terra::ifel(is.na(h_mask), NA, 1L)
 
+  tile_paths <- function(var) {
+    if (!is.null(source_paths) && !is.null(source_paths[[var]])) {
+      return(as.character(source_paths[[var]]))
+    }
+    .wapor_resolve_source_paths(config, var)
+  }
   aeti_paths <- if (!is.null(config$aeti_var) && nzchar(config$aeti_var)) {
-    .wapor_align_paths_to_dekads(.wapor_resolve_source_paths(config, config$aeti_var), dekad_table$dekad_key)
+    .wapor_align_paths_to_dekads(tile_paths(config$aeti_var), dekad_table$dekad_key)
   } else {
     character(0)
   }
   ret_paths <- if (!is.null(config$ret_var) && nzchar(config$ret_var)) {
-    .wapor_align_paths_to_dekads(.wapor_resolve_source_paths(config, config$ret_var), dekad_table$dekad_key)
+    .wapor_align_paths_to_dekads(tile_paths(config$ret_var), dekad_table$dekad_key)
   } else {
     character(0)
   }
   precip_paths <- if (!is.null(config$precip_var) && nzchar(config$precip_var)) {
-    .wapor_align_paths_to_dekads(.wapor_resolve_source_paths(config, config$precip_var), dekad_table$dekad_key)
+    .wapor_align_paths_to_dekads(tile_paths(config$precip_var), dekad_table$dekad_key)
   } else {
     character(0)
   }
   npp_paths <- if (!is.null(config$npp_var) && nzchar(config$npp_var)) {
-    .wapor_align_paths_to_dekads(.wapor_resolve_source_paths(config, config$npp_var), dekad_table$dekad_key)
+    .wapor_align_paths_to_dekads(tile_paths(config$npp_var), dekad_table$dekad_key)
   } else {
     character(0)
   }
   t_paths <- if (!is.null(config$t_var) && nzchar(config$t_var)) {
-    .wapor_align_paths_to_dekads(.wapor_resolve_source_paths(config, config$t_var), dekad_table$dekad_key)
+    .wapor_align_paths_to_dekads(tile_paths(config$t_var), dekad_table$dekad_key)
   } else {
     character(0)
   }
@@ -885,7 +891,8 @@ wapor_run_seasonal_analysis_tiled <- function(
       crop_params = crop_params,
       rasters = rasters,
       win = win,
-      template = template
+      template = template,
+      source_paths = tile_sources$sources
     )
 
     snap_to_tile <- function(r) {

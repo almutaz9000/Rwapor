@@ -70,6 +70,34 @@ wapor_clear_url_cache <- function() {
   invisible(length(files))
 }
 
+.wapor_validate_catalog_response <- function(resp, url) {
+  if (!is.list(resp) || !is.list(resp$response)) {
+    stop(sprintf("API response from '%s' has no valid 'response' envelope.", url), call. = FALSE)
+  }
+  data <- resp$response
+  if (!is.null(data$items) && !is.list(data$items)) {
+    stop(sprintf("API response from '%s' has malformed 'items'.", url), call. = FALSE)
+  }
+  if (!is.null(data$items)) {
+    invalid <- which(!vapply(data$items, is.list, logical(1)))
+    if (length(invalid)) {
+      stop(sprintf("API response from '%s' has malformed item %d.", url, invalid[[1]]), call. = FALSE)
+    }
+  }
+  if (!is.null(data$links) && !is.list(data$links)) {
+    stop(sprintf("API response from '%s' has malformed 'links'.", url), call. = FALSE)
+  }
+  if (!is.null(data$links)) {
+    for (link in data$links) {
+      if (!is.list(link) || length(link$rel) != 1L || length(link$href) != 1L ||
+          !nzchar(as.character(link$rel)) || !nzchar(as.character(link$href))) {
+        stop(sprintf("API response from '%s' has a malformed pagination link.", url), call. = FALSE)
+      }
+    }
+  }
+  data
+}
+
 #' Collect Responses from GISMGR API with Pagination
 #'
 #' Internal function to paginate through FAO GISMGR API responses
@@ -84,14 +112,14 @@ wapor_clear_url_cache <- function() {
 #' @importFrom purrr map
 #' @keywords internal
 #' @noRd
-collect_responses <- function(url, info = "downloadUrl") {
+collect_responses <- function(url, info = "downloadUrl", use_cache = TRUE, request_fn = NULL) {
   if (!is.character(url) || length(url) != 1 || nchar(url) == 0) {
     stop("'url' must be a non-empty character string", call. = FALSE)
   }
 
   ttl_seconds <- getOption("Rwapor.cache_ttl", 86400) # Default 24h
   cache_file <- NULL
-  if (is.numeric(ttl_seconds) && ttl_seconds > 0) {
+  if (isTRUE(use_cache) && is.numeric(ttl_seconds) && ttl_seconds > 0) {
     cache_key <- .wapor_url_hash(paste0(url, "::", paste(info, collapse = ",")))
     cache_file <- file.path(.wapor_url_cache_dir(), paste0(cache_key, ".rds"))
     if (file.exists(cache_file)) {
@@ -109,11 +137,16 @@ collect_responses <- function(url, info = "downloadUrl") {
 
   while (!is.null(next_url)) {
     resp <- tryCatch({
-      httr2::request(next_url) |>
-        httr2::req_timeout(60) |>
-        .wapor_req_retry() |>
-        httr2::req_perform() |>
-        httr2::resp_body_json()
+      if (is.null(request_fn)) {
+        httr2::request(next_url) |>
+          httr2::req_timeout(60) |>
+          .wapor_req_retry() |>
+          httr2::req_perform() |>
+          httr2::resp_body_json()
+      } else {
+        if (!is.function(request_fn)) stop("'request_fn' must be a function", call. = FALSE)
+        request_fn(next_url)
+      }
     }, error = function(e) {
       stop(
         sprintf("API request failed for URL '%s': %s", next_url, e$message),
@@ -121,7 +154,7 @@ collect_responses <- function(url, info = "downloadUrl") {
       )
     })
 
-    data <- resp$response
+    data <- .wapor_validate_catalog_response(resp, next_url)
 
     if (is.null(data)) {
       warning("Empty response from API", call. = FALSE)
@@ -155,11 +188,55 @@ collect_responses <- function(url, info = "downloadUrl") {
     next_url <- next_link
   }
 
-  if (!is.null(cache_file) && length(all_items) > 0) {
+  if (isTRUE(use_cache) && !is.null(cache_file) && length(all_items) > 0) {
     tryCatch(saveRDS(all_items, cache_file), error = function(e) NULL)
   }
 
   return(all_items)
+}
+
+#' Resolve the GISMGR/C3S catalogue workspace URL for a level
+#'
+#' Single source of truth for which FAO catalogue workspace and product type
+#' (mapset vs mosaicset) serves a given level. Used both to build per-variable
+#' raster-listing URLs (by appending a path suffix) and to list all items at a
+#' level for metadata refresh.
+#'
+#' @param level Character scalar: one of "L1", "L2", "L3", "AGERA5".
+#' @return Character scalar base catalogue URL, or `NULL` if `level` is not
+#'   recognised.
+#' @keywords internal
+#' @noRd
+.wapor_level_workspace_url <- function(level) {
+  switch(
+    level,
+    L1 = "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets",
+    L2 = "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets",
+    L3 = "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets",
+    AGERA5 = "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/C3S/mapsets",
+    NULL
+  )
+}
+
+#' Resolve the RET/PCP level-fallback rule
+#'
+#' RET and PCP are only published at L1; an L2 or L3 request for either
+#' resolves to the equivalent L1 code. Single source of truth for this rule,
+#' used both when building download URLs and when resolving variable
+#' metadata.
+#'
+#' @param variable Character scalar variable code, e.g. `"L2-RET-D"`.
+#' @return Character scalar: the L1-substituted code when `variable` is an
+#'   L2/L3 RET or PCP request, otherwise `variable` unchanged.
+#' @keywords internal
+#' @noRd
+.wapor_resolve_level_fallback <- function(variable) {
+  parts <- strsplit(variable, "-", fixed = TRUE)[[1]]
+  if (length(parts) >= 2 && parts[1] %in% c("L2", "L3") &&
+      grepl("-(RET|PCP)-", variable)) {
+    return(sub("^L[23]-", "L1-", variable))
+  }
+  variable
 }
 
 wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NULL) {
@@ -216,27 +293,22 @@ wapor_generate_urls_internal <- function(variable, l3_region = NULL, period = NU
 
   # Determine base URL based on level
   if (level %in% c("L1", "L2")) {
-    base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
-    mapset_id <- variable
-    
+    base_url <- .wapor_level_workspace_url("L1")
     # Fallback to L1 for variables that don't exist at L2 (RET, PCP)
-    if (level == "L2" && grepl("-(RET|PCP)-", variable)) {
-      mapset_id <- sub("^L2-", "L1-", variable)
-    }
+    mapset_id <- .wapor_resolve_level_fallback(variable)
   } else if (level == "L3") {
-    base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mosaicsets"
-    mapset_id <- variable
-    
     # Fallback to L1 for variables that don't exist at L3 (RET, PCP)
-    if (grepl("-(RET|PCP)-", variable)) {
-      base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
-      mapset_id <- sub("^L3-", "L1-", variable)
+    mapset_id <- .wapor_resolve_level_fallback(variable)
+    base_url <- if (!identical(mapset_id, variable)) {
+      .wapor_level_workspace_url("L1")
+    } else {
+      .wapor_level_workspace_url("L3")
     }
     if (is.null(l3_region)) {
       warning("L3 variable specified without l3_region - results may include all regions", call. = FALSE)
     }
   } else if (level == "AGERA5") {
-    base_url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/C3S/mapsets"
+    base_url <- .wapor_level_workspace_url("AGERA5")
     # Special case: AgERA5 daily variables don't have -E suffix in mapset ID
     mapset_id <- if (grepl("-E$", variable)) sub("-E$", "", variable) else variable
   } else {

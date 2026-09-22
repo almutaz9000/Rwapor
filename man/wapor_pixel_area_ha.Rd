@@ -13,8 +13,8 @@ wapor_pixel_area_ha(x)
 A SpatRaster of per-pixel area in hectares.
 }
 \description{
-For geographic (lon/lat) grids, area varies with latitude: a 2-D raster is
-returned with one value per cell. For projected grids a constant cell area
-is used. Matches the waporbox \code{pixel_area_ha} convention
-(\verb{111320 m/deg * cos(lat)}).
+For geographic (lon/lat) grids, area varies with latitude. Uses \code{terra::area()}
+when available (correct spherical-area computation) and falls back to the
+lon/lat approximation \verb{111320 m/deg * cos(lat)} only when \code{terra::area()} is
+unavailable. For projected grids a constant cell area is used.
 }

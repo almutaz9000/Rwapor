@@ -132,29 +132,16 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             shiny::div(class = "flex-1", style = "visibility: hidden;")
           ),
           
+          shiny::tags$span("L3 Coverage Policy", class = "ctrl-group-label"),
+          shiny::selectInput(ns("an_l3_region"), "L3 region", choices = l3_region_choices,
+                             selected = NULL),
+          shiny::selectInput(ns("an_l3_mode"), "When AOI intersects multiple L3 regions",
+                             choices = c("Select one" = "select", "Mosaic all intersecting regions" = "mosaic_all"),
+                             selected = "select"),
+          shiny::helpText("For L3 products, choose a source explicitly or use the mosaic policy."),
           shiny::tags$hr(class = "ctrl-divider"),
           shiny::tags$span("Seasonal Aggregation", class = "ctrl-group-label"),
-          shiny::checkboxGroupInput(
-            ns("an_agg_vars"), NULL,
-            choiceNames = list("PCP Total", "RET Total", "AETI Total", "Biomass (t/ha)"),
-            choiceValues = list("agg_pcp", "agg_ret", "agg_aeti", "agg_biomass_t"),
-            selected = c("agg_pcp", "agg_ret", "agg_aeti", "agg_biomass_t"),
-            inline = TRUE
-          ),
-
-          shiny::tags$hr(class = "ctrl-divider"),
-          shiny::tags$span("Calculated Indicators", class = "ctrl-group-label"),
-          shiny::checkboxGroupInput(
-            ns("an_derived_vars"), NULL,
-            choiceNames = list(
-              "Peff (Effective Precip)", "ETc (Crop ET)", "Adequacy (ETc based)", 
-              "CWP/BWP (Water Prod.)", "Yield (NPP based)", "Beneficial Fraction"
-            ),
-            choiceValues = list(
-              "peff", "etc", "adequacy_etc", "cwp_bwp", "yield_npp", "beneficial_fraction"
-            ),
-            selected = c("etc", "adequacy_etc", "yield_npp")
-          )
+          shiny::uiOutput(ns("an_indicator_registry_ui"))
         ),
 
         # ── TAB 5: Output Folder ─────────────────────────────────

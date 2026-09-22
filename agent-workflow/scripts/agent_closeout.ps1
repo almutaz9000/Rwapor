@@ -59,5 +59,7 @@ if ($WorkPerformed) {
 Write-Host "`n=== Closeout checklist ===" -ForegroundColor Cyan
 Write-Host "1. Update session-brief.md (replace the 'Last Session' section, don't append)."
 Write-Host "2. Update task-status.md and issues-log.md if state changed."
-Write-Host "3. Append one short line to change-log.md if this was a meaningful workflow/repo change."
-Write-Host "4. Add to project-memory.md only if a durable, confirmed lesson was found."
+Write-Host "3. Set your task(s) to done/pending/blocked in agents-board.json:"
+Write-Host "   .\agent-workflow\scripts\board_claim.ps1 -Id <id> -Model <your-model-slug> -Status done -Notes '...'"
+Write-Host "4. Append one short line to change-log.md if this was a meaningful workflow/repo change."
+Write-Host "5. Add to project-memory.md only if a durable, confirmed lesson was found."
