@@ -9,6 +9,8 @@
 - [Getting Started with Rwapor: Data Ingestion, Streaming, and
   Time-Series
   Extraction](https://almutaz9000.github.io/Rwapor/articles/getting-started.md):
+- [Global Tiled Seasonal
+  Analysis](https://almutaz9000.github.io/Rwapor/articles/global-tiled.md):
 - [Interactive Web GIS & Agricultural Analytics with the Rwapor Shiny
   Dashboard](https://almutaz9000.github.io/Rwapor/articles/shiny-dashboard.md):
 - [Worked Example: Wheat Seasonal & Multi-Season Water

@@ -19,9 +19,9 @@ wapor_update_metadata(level = "all", dest = NULL)
 
 - dest:
 
-  Character. Directory to write JSON files to. Defaults to the package's
-  own `inst/metadata/` folder (useful during development). In
-  production, users can point this to any writable directory.
+  Character. Directory to write JSON files to. Defaults to the writable
+  user cache. Set this explicitly to `inst/metadata/` only when
+  refreshing package-bundled snapshots during development.
 
 ## Value
 

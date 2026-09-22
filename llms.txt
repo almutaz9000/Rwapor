@@ -608,6 +608,8 @@ of the United Nations.
   : WaPOR v3 Variable Metadata
 - [`.check_raster_overlap()`](https://almutaz9000.github.io/Rwapor/reference/dot-check_raster_overlap.md)
   : Check Raster Spatial Overlap
+- [`linear_trend()`](https://almutaz9000.github.io/Rwapor/reference/linear_trend.md)
+  : Calculate per-pixel temporal linear trend
 - [`run_wapor()`](https://almutaz9000.github.io/Rwapor/reference/run_wapor.md)
   : Run the Rwapor Shiny Dashboard
 - [`wapor_add_favorite()`](https://almutaz9000.github.io/Rwapor/reference/wapor_add_favorite.md)
@@ -620,6 +622,8 @@ of the United Nations.
   : Aggregate Precipitation to Monthly Totals
 - [`wapor_apply_seasonal_mask_recalc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_seasonal_mask_recalc.md)
   : Apply Seasonal Adaptive Mask and Recalculate Stats
+- [`wapor_available_variables()`](https://almutaz9000.github.io/Rwapor/reference/wapor_available_variables.md)
+  : List available WaPOR and AgERA5 variables
 - [`wapor_build_crop_assignments()`](https://almutaz9000.github.io/Rwapor/reference/wapor_build_crop_assignments.md)
   : Build Crop Assignment Table
 - [`wapor_build_kc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_build_kc.md)
@@ -748,10 +752,22 @@ of the United Nations.
   : Parse Region Argument
 - [`wapor_pixel_area_ha()`](https://almutaz9000.github.io/Rwapor/reference/wapor_pixel_area_ha.md)
   : Per-pixel area in hectares
+- [`wapor_plot_anomaly()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_anomaly.md)
+  : Plot a z-score anomaly raster
+- [`wapor_plot_comparison()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_comparison.md)
+  : Plot several raster indicators side by side
+- [`wapor_plot_kc_curve()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_kc_curve.md)
+  : Plot a crop coefficient curve
+- [`wapor_plot_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.md)
+  : Plot a raster indicator
+- [`wapor_plot_timeseries()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_timeseries.md)
+  : Plot a grouped time series
 - [`wapor_preflight_check()`](https://almutaz9000.github.io/Rwapor/reference/wapor_preflight_check.md)
   : Pre-Flight Analysis Validation
 - [`wapor_register_indicator_step()`](https://almutaz9000.github.io/Rwapor/reference/wapor_register_indicator_step.md)
   : Register an Indicator Step
+- [`wapor_remote_capabilities()`](https://almutaz9000.github.io/Rwapor/reference/wapor_remote_capabilities.md)
+  : Report GDAL capabilities required for remote WaPOR rasters
 - [`wapor_remove_favorite()`](https://almutaz9000.github.io/Rwapor/reference/wapor_remove_favorite.md)
   : Remove a Path from Favorites
 - [`wapor_run_indicator_steps()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_indicator_steps.md)
@@ -768,6 +784,8 @@ of the United Nations.
   : Scan Local Folder for Available Variables
 - [`wapor_seasonal_summary_options()`](https://almutaz9000.github.io/Rwapor/reference/wapor_seasonal_summary_options.md)
   : Get Available Seasonal Summary Options
+- [`wapor_suggest_tile_size()`](https://almutaz9000.github.io/Rwapor/reference/wapor_suggest_tile_size.md)
+  : Suggest a safe tile size for the tiled seasonal analysis engine
 - [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
   : Extract Time Series with Zonal Statistics
 - [`wapor_validate_analysis_config()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_analysis_config.md)
@@ -782,6 +800,8 @@ of the United Nations.
   : Write a Cloud-Optimized GeoTIFF
 - [`wapor_write_l3_mosaic()`](https://almutaz9000.github.io/Rwapor/reference/wapor_write_l3_mosaic.md)
   : Write an L3 mosaic and coverage manifest
+- [`write_raster_cog()`](https://almutaz9000.github.io/Rwapor/reference/write_raster_cog.md)
+  : Write a Cloud-Optimized GeoTIFF
 
 # Articles
 
@@ -794,6 +814,8 @@ of the United Nations.
 - [Getting Started with Rwapor: Data Ingestion, Streaming, and
   Time-Series
   Extraction](https://almutaz9000.github.io/Rwapor/articles/getting-started.md):
+- [Global Tiled Seasonal
+  Analysis](https://almutaz9000.github.io/Rwapor/articles/global-tiled.md):
 - [Interactive Web GIS & Agricultural Analytics with the Rwapor Shiny
   Dashboard](https://almutaz9000.github.io/Rwapor/articles/shiny-dashboard.md):
 - [Worked Example: Wheat Seasonal & Multi-Season Water

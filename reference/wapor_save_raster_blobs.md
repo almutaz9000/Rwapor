@@ -1,6 +1,12 @@
 # Save clipped WaPOR raster blobs to a monitoring database
 
-Save clipped WaPOR raster blobs to a monitoring database
+Writes each cropped seasonal/dekadal layer both as an in-memory
+compressed GeoTIFF blob (backward-compatible, unchanged read path) and
+as a file-backed COG under `.wapor_monitoring_raster_store_dir()`,
+recorded in the raster_path column together with gdal_version,
+terra_version, and band_count provenance. Remote layers for one variable
+are opened as a single batched /vsicurl/ stack rather than one GDAL
+dataset handle per layer, cutting per-layer header round-trips.
 
 ## Usage
 

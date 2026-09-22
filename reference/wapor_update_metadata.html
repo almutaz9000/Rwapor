@@ -25,6 +25,7 @@ cache up to date when FAO adds new datasets."></head><body>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -67,8 +68,8 @@ Defaults to <code>"all"</code>.</p></dd>
 
 <dt id="arg-dest">dest<a class="anchor" aria-label="anchor" href="#arg-dest"></a></dt>
 <dd><p>Character. Directory to write JSON files to. Defaults to the
-package's own <code>inst/metadata/</code> folder (useful during development). In
-production, users can point this to any writable directory.</p></dd>
+writable user cache. Set this explicitly to <code>inst/metadata/</code> only when
+refreshing package-bundled snapshots during development.</p></dd>
 
 </dl></div>
     <div class="section level2">

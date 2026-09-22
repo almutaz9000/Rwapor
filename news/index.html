@@ -21,6 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -52,6 +53,32 @@
 <li>Closing a dashboard browser tab no longer calls <code>stopApp()</code>.</li>
 <li>
 <code><a href="../reference/wapor_write_cog.html">wapor_write_cog()</a></code> publishes atomically through a <code>.partial.tif</code> file and applies LZW compression, datatype predictors, overviews, and a BigTIFF policy.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="monitoring-database-duckdb-1-0-0">Monitoring database (DuckDB)<a class="anchor" aria-label="anchor" href="#monitoring-database-duckdb-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/wapor_save_raster_blobs.html">wapor_save_raster_blobs()</a></code> rewritten: pending dates are resolved from URL metadata before any network open (avoids redundant vsicurl calls for already-saved dates), and remaining layers for one variable are opened as a single batched <code>/vsicurl/</code> multi-band stack instead of one dataset handle per layer.</li>
+<li>Each saved raster now writes both the existing in-memory compressed GeoTIFF blob (backward-compatible read path) and a file-backed COG under a new sibling <code>&lt;db&gt;_raster_store/</code> directory, recorded in <code>monitoring_rasters.raster_path</code> together with <code>gdal_version</code>, <code>terra_version</code>, and <code>band_count</code> provenance columns.</li>
+<li>
+<code>monitoring_metadata</code> now carries a <code>schema_version</code> with an automatic migration path (<code>.wapor_monitoring_migrate()</code>), and a <code>raster_grid_registry</code> table rejects mixed-resolution writes for the same variable.</li>
+<li>
+<code>farm_timeseries</code> gained a <code>season_id</code> column (part of the primary key) and now upserts via <code>INSERT OR REPLACE</code> instead of failing on overlapping reruns.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="shiny-dashboard-1-0-0">Shiny dashboard<a class="anchor" aria-label="anchor" href="#shiny-dashboard-1-0-0"></a></h3>
+<ul><li>The Download tab sidebar is now a 5-step numbered accordion wizard (Project, Variables, Period, L3 Region, Run) instead of a flat two-panel layout.</li>
+<li>New <strong>Dual Compare</strong> tab (<code>mod_dual_map.R</code>): two independent Leaflet maps kept in pan/zoom sync via <code><a href="https://trafficonese.github.io/leaflet.extras2/reference/addLeafletsync.html" class="external-link">leaflet.extras2::addLeafletsync()</a></code>, for side-by-side raster comparison distinct from the existing single-map overlay “Dual Compare” mode inside the Visualisation tab.</li>
+<li>
+<code>app.R</code> now guards all Shiny/dashboard package dependencies with a clear install message instead of a bare <code><a href="https://rdrr.io/r/base/library.html" class="external-link">library()</a></code> failure, and <code>.onLoad</code> configures GDAL unconditionally rather than only when an environment variable is set.</li>
+<li>Dashboard: grouped variable choices, save/load analysis configuration to JSON, and user-adjustable stress thresholds for the monitoring module.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="testing--documentation-1-0-0">Testing &amp; documentation<a class="anchor" aria-label="anchor" href="#testing--documentation-1-0-0"></a></h3>
+<ul><li>All network-dependent test files are guarded with <code>skip_if_wapor_offline()</code> so a machine without internet access gets a clean skip instead of a false failure.</li>
+<li>Fixed a stale live-API test (<code>wapor_map</code> no longer accepts multiple variables in seasonal mode by design; the test now asserts the documented error and exercises the multi-variable workflow via one <code><a href="../reference/wapor_map.html">wapor_map()</a></code> call per variable).</li>
+<li>Removed a redundant intermediate warning in <code>download_seasonal_rasters()</code> that duplicated information already in the final aggregated “INCOMPLETE” warning/error.</li>
+<li>Regenerated stale <code>man/</code> pages that had drifted from code (<code>wapor_ts</code>, <code>wapor_map</code>, <code>wapor_init_monitoring_db</code>, <code>wapor_save_raster_blobs</code>, <code>wapor_suggest_tile_size</code>).</li>
+<li>README installation section restructured to the install -&gt; verify -&gt; quick start convention, with a fixed CI badge branch reference and citation version bump to 1.0.0.</li>
 </ul><hr></div>
 </div>
     <div class="section level2">
