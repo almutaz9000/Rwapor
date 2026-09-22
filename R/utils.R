@@ -340,6 +340,65 @@ get_seasonal_aggregation_rule <- function(variable) {
   "weighted_sum"
 }
 
+#' Resolve a Seasonal Summary Function
+#'
+#' @param variable Character variable code.
+#' @param fun Optional seasonal summary function.
+#' @return A list describing the requested aggregation semantics.
+#' @keywords internal
+#' @noRd
+resolve_seasonal_summary_function <- function(variable, fun = NULL) {
+  allowed <- c("sum", "mean", "std", "min", "max", "median")
+
+  if (!is.null(fun) &&
+      (!is.character(fun) || length(fun) != 1L || is.na(fun) || !(fun %in% allowed))) {
+    stop(
+      sprintf("'fun' must be NULL or one of: %s.", paste(sprintf("'%s'", allowed), collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  if (is.null(fun)) {
+    aggregation_rule <- get_seasonal_aggregation_rule(variable)
+    return(list(
+      fun = if (identical(aggregation_rule, "weighted_mean")) "mean" else "sum",
+      aggregation_rule = aggregation_rule,
+      weighted = TRUE,
+      explicit = FALSE
+    ))
+  }
+
+  list(
+    fun = fun,
+    aggregation_rule = if (identical(fun, "sum")) "weighted_sum" else fun,
+    weighted = identical(fun, "sum"),
+    explicit = TRUE
+  )
+}
+
+#' Summarize Equal-Step Seasonal Values
+#'
+#' @param values Numeric vector of source-layer values.
+#' @param fun Character summary function returned by
+#'   [resolve_seasonal_summary_function()].
+#' @return A scalar summary, or `NA_real_` when there are insufficient values.
+#' @keywords internal
+#' @noRd
+summarize_equal_step_seasonal_values <- function(values, fun) {
+  values <- values[!is.na(values)]
+  if (length(values) == 0) return(NA_real_)
+
+  switch(
+    fun,
+    mean = mean(values),
+    std = if (length(values) < 2L) NA_real_ else stats::sd(values),
+    min = min(values),
+    max = max(values),
+    median = stats::median(values),
+    stop(sprintf("Unsupported equal-step seasonal function: %s", fun), call. = FALSE)
+  )
+}
+
 #' Compute Seasonal Multipliers for Planned Raster Slices
 #'
 #' @param variable Character variable code for the slices being downloaded.

@@ -17,7 +17,9 @@ wapor_ts(
   batch_size = 12L,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
-  partial = FALSE
+  partial = FALSE,
+  on_batch_done = NULL,
+  fun = NULL
 )
 }
 \arguments{
@@ -73,6 +75,14 @@ for a multi-L3 AOI; \code{"mosaic_all"} extracts every intersecting L3 source.}
 
 \item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
 and recorded. Default \code{FALSE} fails the request.}
+
+\item{on_batch_done}{Optional function called after each processed batch with
+\verb{(batch_index, batch_count)}. Callback errors are ignored.}
+
+\item{fun}{Optional seasonal summary function. \code{NULL} (default) preserves
+variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted;
+\code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
+overlapping source layer once without scaling partial layers.}
 }
 \value{
 A data.frame with columns:

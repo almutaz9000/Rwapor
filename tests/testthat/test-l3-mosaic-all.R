@@ -16,7 +16,7 @@ test_that("wapor_map mosaic_all accepts multiple variables and periods", {
                          seasonal = FALSE, mask = FALSE, parallel = FALSE,
                          batching = TRUE, batch_size = 12L,
                          l3_region = NULL, l3_mode = c("select", "mosaic_all"),
-                         partial = FALSE, cog = FALSE) {
+                         partial = FALSE, cog = FALSE, fun = NULL) {
       path <- file.path(folder, sprintf("%s_%s.tif", variable, l3_region))
       dir.create(folder, recursive = TRUE, showWarnings = FALSE)
       r <- if (identical(l3_region, "AAA")) left else right
@@ -46,7 +46,7 @@ test_that("wapor_ts mosaic_all extracts from every intersecting L3 source", {
                         download_locally = FALSE, parallel = FALSE,
                         batching = TRUE, batch_size = 12L,
                         l3_region = NULL, l3_mode = c("select", "mosaic_all"),
-                        partial = FALSE) {
+                        partial = FALSE, fun = NULL) {
       data.frame(
         date = as.Date("2023-01-01"),
         value = if (identical(l3_region, "AAA")) 1 else 2,

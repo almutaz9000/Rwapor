@@ -214,7 +214,7 @@ wapor_map_mosaic_all <- function(region, variable, period, folder, filename = NU
                                  separate_files = FALSE, unit_conversion = NULL,
                                  seasonal = FALSE, mask = FALSE, parallel = FALSE,
                                  batching = TRUE, batch_size = 12L,
-                                 partial = FALSE, cog = FALSE) {
+                                 partial = FALSE, cog = FALSE, fun = NULL) {
   periods <- .wapor_period_list(period)
   results <- list()
   for (var in variable) {
@@ -233,7 +233,7 @@ wapor_map_mosaic_all <- function(region, variable, period, folder, filename = NU
           seasonal = seasonal, mask = mask, parallel = parallel,
           batching = batching, batch_size = batch_size,
           l3_region = code, l3_mode = "select",
-          partial = partial, cog = cog
+          partial = partial, cog = cog, fun = fun
         )
         if (is.list(path) && !is.null(path$seasonal_aggregate)) path <- path$seasonal_aggregate
         if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
@@ -254,7 +254,7 @@ wapor_ts_mosaic_all <- function(region, variable, period, identifier = NULL,
                                 unit_conversion = NULL, seasonal = FALSE,
                                 download_locally = FALSE, parallel = FALSE,
                                 batching = TRUE, batch_size = 12L,
-                                partial = FALSE) {
+                                partial = FALSE, fun = NULL) {
   codes <- wapor_resolve_l3_selection(
     wapor_guess_region(variable, wapor_parse_region(region), period),
     l3_mode = "mosaic_all"
@@ -265,7 +265,7 @@ wapor_ts_mosaic_all <- function(region, variable, period, identifier = NULL,
       identifier = identifier, unit_conversion = unit_conversion,
       seasonal = seasonal, download_locally = download_locally,
       parallel = parallel, batching = batching, batch_size = batch_size,
-      l3_region = code, l3_mode = "select", partial = partial
+      l3_region = code, l3_mode = "select", partial = partial, fun = fun
     )
     df$l3_region <- code
     df
