@@ -198,6 +198,11 @@ mod_timeseries_ui <- function(id) {
                 format = "yyyy-mm-dd"
               ),
 
+              shiny::conditionalPanel(
+                condition = sprintf("input['%s'] == 'api'", ns("data_source")),
+                shiny::uiOutput(ns("seasonal_summary_ts_ui"))
+              ),
+
             ),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'saved'", ns("data_source")),
@@ -547,6 +552,34 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       )
     })
 
+    output$seasonal_summary_ts_ui <- renderUI({
+      options <- Rwapor::wapor_seasonal_summary_options(
+        input$vars_ts %||% character()
+      )
+      selected <- input$seasonal_fun_ts %||% ""
+      if (!(selected %in% unname(options$choices))) selected <- ""
+
+      shiny::tagList(
+        shiny::tags$hr(class = "ctrl-divider"),
+        shiny::selectInput(
+          ns("seasonal_fun_ts"), "Seasonal summary",
+          choices = options$choices, selected = selected
+        ),
+        if (length(options$non_summable) > 0) {
+          shiny::tags$div(
+            class = "alert alert-warning py-2 mb-2",
+            shiny::icon("triangle-exclamation"), " Weighted sum is unavailable: ",
+            paste(options$non_summable, collapse = ", "),
+            " is a state or rate product. Use mean, standard deviation, minimum, maximum, or median."
+          )
+        },
+        shiny::helpText(
+          "Non-sum summaries treat every overlapping annual, monthly, or dekadal raster as one observation. " ,
+          "Variables are extracted independently; matching temporal resolutions can be requested together."
+        )
+      )
+    })
+
     # ── 1a. Scan folder for available variables (local mode) ─────────────────
     .do_scan_folder <- function(folder) {
       req(nzchar(folder), dir.exists(folder))
@@ -802,9 +835,14 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       # Capture everything needed by the future (no reactive reads inside)
       .vec_sf    <- vec_sf
       .vars_ts   <- vars_ts
-      .seas_vars <- unique(c(x_var, y_var))
+      .seas_vars <- .vars_ts
       .period    <- period
       .id_col    <- id_col
+      .seasonal_fun <- if (nzchar(input$seasonal_fun_ts %||% "")) {
+        input$seasonal_fun_ts
+      } else {
+        NULL
+      }
 
       promises::future_promise({
         # ── Time series extraction (parallel across variables) ──────────────
@@ -844,7 +882,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
                 variable   = v,
                 period     = .period,
                 identifier = .id_col,
-                seasonal   = TRUE
+                seasonal   = TRUE,
+                fun        = .seasonal_fun
               )
               df$variable <- v
               df
@@ -1080,7 +1119,7 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
     # ── 9. Seasonal Values Plot ──────────────────────────────────────────────
     .make_seasonal_plot <- function() {
-      df_all  <- rv$ts_data
+      df_all  <- rv$seasonal_data
       req(df_all, nrow(df_all) > 0)
 
       sel_var <- input$seas_var_sel
@@ -1102,26 +1141,16 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       colors <- stats::setNames(.ts_pal(n_ids, pal), ids)
 
       u      <- .units(sel_var)
-      title  <- sprintf("Seasonal values \u00b7 %s", .long(sel_var))
-      is_accum <- grepl("-AETI|-PCP|-NPP|-TBP|-E-|-T-|-I-", sel_var)
-
-      df_seas <- df |>
-        dplyr::group_by(.data[[id_col]], variable) |>
-        dplyr::summarise(
-          seas_total = if ("number_of_days" %in% names(df))
-                         sum(mean * number_of_days, na.rm = TRUE)
-                       else sum(mean, na.rm = TRUE),
-          seas_mean  = mean(mean, na.rm = TRUE),
-          q25        = stats::quantile(mean, 0.25, na.rm = TRUE),
-          q75        = stats::quantile(mean, 0.75, na.rm = TRUE),
-          n_obs      = dplyr::n(),
-          .groups    = "drop"
-        )
-      df_seas$plot_val <- if (is_accum) df_seas$seas_total else df_seas$seas_mean
-      y_lab <- if (is_accum) {
-        if (nzchar(u)) sprintf("Seasonal total (%s)", u) else "Seasonal total"
+      value_col <- grep("^seasonal_", names(df), value = TRUE)[1]
+      req(!is.na(value_col), nzchar(value_col))
+      summary_label <- sub("^seasonal_", "", value_col)
+      title  <- sprintf("Seasonal %s \u00b7 %s", summary_label, .long(sel_var))
+      df_seas <- df
+      df_seas$plot_val <- df_seas[[value_col]]
+      y_lab <- if (nzchar(u)) {
+        sprintf("Seasonal %s (%s)", summary_label, u)
       } else {
-        if (nzchar(u)) sprintf("Mean (%s)", u) else "Mean"
+        sprintf("Seasonal %s", summary_label)
       }
 
       base_theme <- .ts_theme(gg_theme, base_size) +
@@ -1140,35 +1169,25 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
             ggplot2::aes(x = .data[[id_col]], y = plot_val, fill = .data[[id_col]])
           ) +
           ggplot2::geom_col(width = 0.72, colour = NA) +
-          ggplot2::geom_errorbar(
-            ggplot2::aes(ymin = q25, ymax = q75),
-            width = 0.2, colour = "grey30", linewidth = 0.6
-          ) +
           ggplot2::geom_text(
             ggplot2::aes(label = format(round(plot_val, 1), big.mark = ",")),
             vjust = -0.5, size = base_size / 4.5, colour = "grey30"
           ) +
           ggplot2::scale_fill_manual(values = colors) +
           ggplot2::labs(title = title, x = NULL, y = y_lab,
-                        caption = "Error bars = IQR  \u00b7  Rwapor") +
+                        caption = "One selected seasonal summary per geometry  \u00b7  Rwapor") +
           base_theme +
           ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 35, hjust = 1))
 
       } else if (plot_type == "box") {
         p <- ggplot2::ggplot(
-            df,
-            ggplot2::aes(x = .data[[id_col]], y = mean, fill = .data[[id_col]])
+            df_seas,
+            ggplot2::aes(x = .data[[id_col]], y = plot_val, colour = .data[[id_col]])
           ) +
-          ggplot2::geom_boxplot(
-            notch         = FALSE,
-            outlier.shape = 21,
-            outlier.size  = 1.4,
-            colour        = "grey25",
-            linewidth     = 0.45
-          ) +
-          ggplot2::scale_fill_manual(values = colors) +
+          ggplot2::geom_point(size = 4.2) +
+          ggplot2::scale_colour_manual(values = colors) +
           ggplot2::labs(title = title, x = NULL,
-                        y = if (nzchar(u)) sprintf("Per-timestep value (%s)", u) else "Value") +
+                        y = y_lab) +
           base_theme
 
       } else {
@@ -1221,15 +1240,17 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
 
       df_x <- df_seas[df_seas$variable == x_var, ]
       df_y <- df_seas[df_seas$variable == y_var, ]
+      summary_col <- grep("^seasonal_", names(df_seas), value = TRUE)[1]
+      req(!is.na(summary_col), nzchar(summary_col))
 
       join_col <- if (id_col %in% names(df_x) && id_col %in% names(df_y)) id_col else "ID"
-      cols_x   <- intersect(c(join_col, "mean"), names(df_x))
-      cols_y   <- intersect(c(join_col, "mean"), names(df_y))
+      cols_x   <- intersect(c(join_col, summary_col), names(df_x))
+      cols_y   <- intersect(c(join_col, summary_col), names(df_y))
 
       df_x2 <- df_x[, cols_x, drop = FALSE]
       df_y2 <- df_y[, cols_y, drop = FALSE]
-      names(df_x2)[names(df_x2) == "mean"] <- "x_val"
-      names(df_y2)[names(df_y2) == "mean"] <- "y_val"
+      names(df_x2)[names(df_x2) == summary_col] <- "x_val"
+      names(df_y2)[names(df_y2) == summary_col] <- "y_val"
 
       df_join <- merge(df_x2, df_y2, by = join_col)
       req(nrow(df_join) >= 2)
@@ -1321,9 +1342,11 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       y_var    <- input$vars_reg_y;  req(!is.null(y_var), nzchar(y_var))
       id_col   <- .id_col(df_seas)
       join_col <- if (id_col %in% names(df_seas)) id_col else "ID"
+      summary_col <- grep("^seasonal_", names(df_seas), value = TRUE)[1]
+      req(!is.na(summary_col), nzchar(summary_col))
 
-      df_x <- df_seas[df_seas$variable == x_var, c(join_col, "mean")]
-      df_y <- df_seas[df_seas$variable == y_var, c(join_col, "mean")]
+      df_x <- df_seas[df_seas$variable == x_var, c(join_col, summary_col)]
+      df_y <- df_seas[df_seas$variable == y_var, c(join_col, summary_col)]
       names(df_x)[2] <- "x_val";  names(df_y)[2] <- "y_val"
       df_j <- merge(df_x, df_y, by = join_col)
       req(nrow(df_j) >= 3)

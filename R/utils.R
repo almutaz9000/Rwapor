@@ -340,6 +340,58 @@ get_seasonal_aggregation_rule <- function(variable) {
   "weighted_sum"
 }
 
+#' Check Whether a Variable Can Be Seasonally Summed
+#'
+#' A seasonal sum is meaningful only for products whose source values represent
+#' accumulations. State and rate products (for example root-zone soil moisture)
+#' use the package's weighted-mean seasonal rule and cannot be explicitly
+#' summed.
+#'
+#' @param variable Character vector of WaPOR or AgERA5 variable codes.
+#' @return A logical vector, `TRUE` for variables that can be seasonally summed.
+#' @export
+wapor_is_seasonally_summable <- function(variable) {
+  if (!is.character(variable) || anyNA(variable) || any(!nzchar(variable))) {
+    stop("'variable' must be a non-missing character vector of variable codes.", call. = FALSE)
+  }
+
+  vapply(variable, function(x) {
+    identical(get_seasonal_aggregation_rule(x), "weighted_sum")
+  }, logical(1))
+}
+
+#' Get Available Seasonal Summary Options
+#'
+#' Returns the seasonal summary choices that are valid for every supplied
+#' variable. A weighted sum is available only when all variables represent
+#' accumulations; equal-step summaries are always available.
+#'
+#' @param variable Character vector of WaPOR or AgERA5 variable codes.
+#' @return A list containing named `choices` suitable for a user interface and
+#'   `non_summable`, the supplied variables that cannot be seasonally summed.
+#' @export
+wapor_seasonal_summary_options <- function(variable) {
+  summable <- wapor_is_seasonally_summable(variable)
+  non_summable <- variable[!summable]
+  choices <- c("Automatic (variable-aware)" = "")
+
+  if (length(non_summable) == 0) {
+    choices <- c(choices, "Weighted sum" = "sum")
+  }
+
+  list(
+    choices = c(
+      choices,
+      "Mean" = "mean",
+      "Standard deviation" = "std",
+      "Minimum" = "min",
+      "Maximum" = "max",
+      "Median" = "median"
+    ),
+    non_summable = unname(non_summable)
+  )
+}
+
 #' Resolve a Seasonal Summary Function
 #'
 #' @param variable Character variable code.
@@ -354,6 +406,16 @@ resolve_seasonal_summary_function <- function(variable, fun = NULL) {
       (!is.character(fun) || length(fun) != 1L || is.na(fun) || !(fun %in% allowed))) {
     stop(
       sprintf("'fun' must be NULL or one of: %s.", paste(sprintf("'%s'", allowed), collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  if (identical(fun, "sum") && !wapor_is_seasonally_summable(variable)) {
+    stop(
+      sprintf(
+        "Variable '%s' is a state or rate product and cannot be seasonally summed. Use NULL, 'mean', 'std', 'min', 'max', or 'median'.",
+        variable
+      ),
       call. = FALSE
     )
   }

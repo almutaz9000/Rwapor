@@ -117,6 +117,26 @@ awa_path <- wapor_map(
 )
 ```
 
+### 4.4 Seasonal Summary Functions
+
+In seasonal mode, leave `fun = NULL` for the variable-aware default: weighted
+sum for accumulative products and weighted mean for state/rate products. Use
+`"mean"`, `"std"`, `"min"`, `"max"`, or `"median"` when every overlapping
+source raster should count equally. This is especially useful for annual,
+monthly, or dekadal observations. A product such as root-zone soil moisture
+cannot be summed; use one of the non-sum summaries instead.
+
+```r
+seasonal_median <- wapor_map(
+  region   = "study_area.geojson",
+  variable = "L3-AETI-M",
+  period   = c("2023-03-01", "2024-02-29"),
+  folder   = "output_rasters",
+  seasonal = TRUE,
+  fun      = "median"
+)
+```
+
 ---
 
 ## 5. Extracting Field Time-Series (`wapor_ts`)
