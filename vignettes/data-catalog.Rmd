@@ -24,6 +24,10 @@ WaPOR provides data at three levels of detail. Most variables follow a standard 
 Global coverage. `L1-PCP` and `L1-RET` are auxiliary meteorological inputs at
 their own coarser native resolution (5 km and 30 km respectively, per
 `inst/metadata/wapor_L1.json`) — all other Level 1 variables below are ~300 m.
+The **Native Resolution** column applies to a variable across all of its
+listed temporal resolutions — e.g. `L1-AETI-D`, `L1-AETI-M`, and `L1-AETI-A`
+are all ~300 m, and `L1-PCP-E`/`-D`/`-M`/`-A` are all ~5 km; only the
+temporal frequency changes, not the spatial resolution.
 
 | Category | Variable Name | ID | Native Resolution | Temporal | Units | Scale | Period | Portal |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
