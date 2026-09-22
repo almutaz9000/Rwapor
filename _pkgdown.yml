@@ -1,0 +1,25 @@
+url: https://almutaz9000.github.io/Rwapor/
+
+template:
+  bootstrap: 5
+
+home:
+  title: "Rwapor: Satellite Data Ingestion & Water Productivity Analysis in R"
+  description: >
+    Download, stream, and analyze FAO WaPOR v3 and ECMWF AgERA5 satellite
+    data in R, with an interactive Shiny dashboard and FAO-56 crop water
+    productivity modeling.
+
+articles:
+  - title: Get Started
+    contents:
+      - getting-started
+      - shiny-dashboard
+  - title: Worked Examples
+    contents:
+      - wheat-water-productivity
+  - title: Advanced
+    contents:
+      - advanced-analysis
+      - global-tiled
+      - data-catalog
