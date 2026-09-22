@@ -21,6 +21,7 @@
 *.tar.gz
 *.check/
 *.Rcheck/
+pkgdown-site/
 src/*.o
 src/*.so
 
