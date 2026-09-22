@@ -164,3 +164,34 @@ test_that("seasonal summary function validation fails before download", {
     "'fun' must be NULL or one of"
   )
 })
+
+test_that("state and rate products cannot be explicitly seasonally summed", {
+  expect_true(wapor_is_seasonally_summable("L3-AETI-M"))
+  expect_false(wapor_is_seasonally_summable("L3-RSM-D"))
+
+  options <- wapor_seasonal_summary_options(c("L3-AETI-M", "L3-RSM-D"))
+  expect_false("sum" %in% unname(options$choices))
+  expect_equal(options$non_summable, "L3-RSM-D")
+
+  expect_error(
+    resolve_seasonal_summary_function("L3-RSM-D", "sum"),
+    "cannot be seasonally summed"
+  )
+  expect_error(
+    wapor_map(
+      region = c(35, 33, 36, 34), variable = "L3-RSM-D",
+      period = c("2023-01-01", "2023-01-10"), folder = tempdir(),
+      seasonal = TRUE, fun = "sum"
+    ),
+    "cannot be seasonally summed"
+  )
+  expect_error(
+    wapor_ts(
+      region = c(35, 33, 36, 34), variable = "L3-RSM-D",
+      period = c("2023-01-01", "2023-01-10"), seasonal = TRUE, fun = "sum"
+    ),
+    "cannot be seasonally summed"
+  )
+  expect_equal(resolve_seasonal_summary_function("L3-RSM-D", NULL)$fun, "mean")
+  expect_equal(resolve_seasonal_summary_function("L3-RSM-D", "std")$fun, "std")
+})

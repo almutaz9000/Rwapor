@@ -106,6 +106,8 @@ Examples: `L1-AETI-D` (L1, Actual ET, Dekadal), `L1-RET-D`, `L3-AETI-E` (Daily)
 
 > **Automatic Temporal Scaling for Dekadal Data**: To simplify water productivity calculations, whenever you query any WaPOR dekadal (`-D`) variable (e.g., `L1-AETI-D`), the package automatically multiplies the raw daily rates (`mm/day` or `gC/m²/day`) by the exact number of days in each specific dekad (D1 and D2 have 10 days, D3 has 8–11 days depending on the calendar month and leap year status). This produces dekadal totals (`mm/dekad` or `gC/m²/dekad`). If you specifically require daily rates, use `unit_conversion = "day"`.
 
+> **AGENT RULE — seasonal product semantics**: Before choosing `fun = "sum"`, call `wapor_is_seasonally_summable(variable)`. Accumulative products may use the weighted seasonal sum. State/rate products, including root-zone soil moisture (`*-RSM-*`) and temperature/humidity products, cannot be summed; use `NULL` (the variable-aware default), `"mean"`, `"std"`, `"min"`, `"max"`, or `"median"`. The non-sum functions give every overlapping annual, monthly, or dekadal source raster equal weight, even in a mixed-temporal plan. Process each variable independently; do not merge products into one seasonal statistic merely because they share a temporal resolution.
+
 **Discover all available variables**:
 ```r
 library(Rwapor)

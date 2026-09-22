@@ -164,6 +164,11 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
               ns = ns,
               shiny::helpText("Both checked: dekadal/daily files + one seasonal aggregate.")
             ),
+            shiny::conditionalPanel(
+              condition = "input.seasonal",
+              ns = ns,
+              shiny::uiOutput(ns("seasonal_summary_ui"))
+            ),
 
             shiny::tags$hr(class = "ctrl-divider"),
             shiny::tags$span("Unit Conversion", class = "ctrl-group-label"),
@@ -444,6 +449,33 @@ mod_download_server <- function(id, l3_regions_meta) {
     current_l3_region <- shiny::reactive({
       vars <- input$dn_variables %||% ""
       if (any(grepl("^L3-", vars))) input$l3_region else NULL
+    })
+
+    output$seasonal_summary_ui <- shiny::renderUI({
+      options <- Rwapor::wapor_seasonal_summary_options(
+        input$dn_variables %||% character()
+      )
+      selected <- input$seasonal_fun %||% ""
+      if (!(selected %in% unname(options$choices))) selected <- ""
+
+      shiny::tagList(
+        shiny::selectInput(
+          ns("seasonal_fun"), "Seasonal summary",
+          choices = options$choices, selected = selected
+        ),
+        if (length(options$non_summable) > 0) {
+          shiny::tags$div(
+            class = "alert alert-warning py-2 mb-2",
+            shiny::icon("triangle-exclamation"), " Weighted sum is unavailable: ",
+            paste(options$non_summable, collapse = ", "),
+            " is a state or rate product. Use mean, standard deviation, minimum, maximum, or median."
+          )
+        },
+        shiny::helpText(
+          "Non-sum summaries treat every overlapping annual, monthly, or dekadal raster as one observation. " ,
+          "Variables are processed independently; selected variables with the same temporal resolution run in the same job."
+        )
+      )
     })
 
     aoi <- mod_aoi_server(
@@ -832,6 +864,11 @@ mod_download_server <- function(id, l3_regions_meta) {
       
       unit_conv <- sprintf("\"%s\"", input$unit_conversion)
       mask_str <- if (isTRUE(aoi$mask())) "TRUE" else "FALSE"
+      fun_str <- if (isTRUE(input$seasonal) && nzchar(input$seasonal_fun %||% "")) {
+        sprintf("\"%s\"", input$seasonal_fun)
+      } else {
+        "NULL"
+      }
 
       var_list_str <- if (length(input$dn_variables) > 1) {
         paste0("c(\"", paste(input$dn_variables, collapse = "\", \""), "\")")
@@ -866,6 +903,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "  folder = folder,\n",
             "  unit_conversion = %s,\n",
             "  seasonal = TRUE,\n",
+            "  fun = %s,\n",
             "  separate_files = FALSE,\n",
             "  mask = %s\n",
             ")"
@@ -877,6 +915,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           unit_conv,
           mask_str,
           unit_conv,
+          fun_str,
           mask_str
         )
       } else {
@@ -894,6 +933,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "  folder = folder,\n",
             "  unit_conversion = %s,\n",
             "  seasonal = %s,\n",
+            "  fun = %s,\n",
             "  separate_files = %s,\n",
             "  mask = %s\n",
             ")"
@@ -933,6 +973,11 @@ mod_download_server <- function(id, l3_regions_meta) {
         tryCatch({
           n_vars <- length(vars)
           unit_conv <- input$unit_conversion
+          seasonal_fun <- if (isTRUE(input$seasonal) && nzchar(input$seasonal_fun %||% "")) {
+            input$seasonal_fun
+          } else {
+            NULL
+          }
           all_out_paths <- list()
 
           for (i in seq_along(vars)) {
@@ -965,7 +1010,8 @@ mod_download_server <- function(id, l3_regions_meta) {
                 unit_conversion = unit_conv,
                 seasonal = FALSE,
                 separate_files = TRUE,
-                mask = aoi$mask()
+                mask = aoi$mask(),
+                on_batch_done = batch_progress
               )
               
               shiny::incProgress(0, detail = sprintf("Stage 2 of 2: Seasonal aggregation for %s...", v))
@@ -976,8 +1022,10 @@ mod_download_server <- function(id, l3_regions_meta) {
                 folder = input$folder,
                 unit_conversion = unit_conv,
                 seasonal = TRUE,
+                fun = seasonal_fun,
                 separate_files = FALSE,
-                mask = aoi$mask()
+                mask = aoi$mask(),
+                on_batch_done = batch_progress
               )
               out_path <- c(unlist(out_path_ind), unlist(out_path_sea))
             } else {

@@ -92,7 +92,8 @@ and recorded. Default \code{FALSE} fails the request.}
 \verb{(batch_index, batch_count)}. Callback errors are ignored.}
 
 \item{fun}{Optional seasonal summary function. \code{NULL} (default) preserves
-variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted;
+variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted for
+accumulative products and is rejected for state/rate products;
 \code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
 overlapping source layer once without scaling partial layers.}
 }

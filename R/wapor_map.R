@@ -25,7 +25,8 @@
 #'   entire period into a single seasonal raster (sum/mean).
 #'   Default is `FALSE`.
 #' @param fun Optional seasonal summary function. `NULL` (default) preserves
-#'   variable-aware weighted aggregation. Explicit `"sum"` remains weighted;
+#'   variable-aware weighted aggregation. Explicit `"sum"` remains weighted for
+#'   accumulative products and is rejected for state/rate products;
 #'   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
 #'   overlapping source layer once without scaling partial layers.
 #' @param separate_files Logical. If `TRUE`, writes each time step as a separate
