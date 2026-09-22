@@ -445,10 +445,19 @@ same multi-season pattern plus year-over-year CWP comparison.
 
 | Level | Spatial Resolution | Coverage | Key Variables |
 |---|---|---|---|
-| **Level 1** | ~300 m | Global | `L1-AETI-D`, `L1-E-D`, `L1-I-D`, `L1-NPP-D`, `L1-PCP-D`, `L1-RET-D`, `L1-T-D` |
+| **Level 1** (remote-sensing based) | ~300 m | Global | `L1-AETI-D`, `L1-E-D`, `L1-I-D`, `L1-NPP-D`, `L1-T-D` |
+| **Level 1 — Precipitation** | ~5 km | Global | `L1-PCP-D` |
+| **Level 1 — Reference ET** | ~30 km | Global | `L1-RET-D` |
 | **Level 2** | ~100 m | Africa & Near East | `L2-AETI-D`, `L2-E-D`, `L2-I-D`, `L2-NPP-D`, `L2-T-D`, `L2-GBWP-A`, `L2-NBWP-A` |
 | **Level 3** | ~20 m | 30+ Irrigation Schemes | `L3-AETI-D`, `L3-E-D`, `L3-I-D`, `L3-NPP-D`, `L3-T-D` (e.g. Awash, Bekaa, Gezira, Nile) |
 | **AgERA5** | 0.1° (~10 km) | Global | `AGERA5-ET0-E`, `AGERA5-TMIN-E`, `AGERA5-TMAX-E`, `AGERA5-PRECIP-E` |
+
+> `L1-PCP-D` (precipitation) and `L1-RET-D` (reference evapotranspiration)
+> are auxiliary meteorological inputs sourced from coarser gridded/reanalysis
+> products, not the 300 m PROBA-V/MODIS-derived imagery used for the other
+> Level 1 evapotranspiration and productivity variables. Resolutions above
+> are the variables' native source resolution, as recorded in the package's
+> own metadata (`inst/metadata/wapor_L1.json`).
 
 Explore available variables inside R:
 ```r

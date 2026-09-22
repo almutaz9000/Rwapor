@@ -20,20 +20,22 @@ This catalog provides a comprehensive overview of the geospatial datasets access
 
 WaPOR provides data at three levels of detail. Most variables follow a standard scaling of **0.1** to convert integer storage to physical units (e.g., mm).
 
-### Level 1: Continental (300m / 5km)
-Global coverage.
+### Level 1: Continental (300 m imagery; 5 km precipitation; 30 km reference ET)
+Global coverage. `L1-PCP` and `L1-RET` are auxiliary meteorological inputs at
+their own coarser native resolution (5 km and 30 km respectively, per
+`inst/metadata/wapor_L1.json`) — all other Level 1 variables below are ~300 m.
 
-| Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Water** | Precipitation | `L1-PCP` | E, D, M, A | mm | 0.1 | 1981+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-PCP-E) |
-| **Water** | Reference ET | `L1-RET` | E, D | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RET-E) |
-| **Water** | Actual ET & Int. | `L1-AETI` | D, M, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-AETI-D) |
-| **Water** | Evaporation | `L1-E` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-E-D) |
-| **Water** | Transpiration | `L1-T` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-T-D) |
-| **Water** | Interception | `L1-I` | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-I-D) |
-| **Biomass** | Net Primary Prod. | `L1-NPP` | D, M | gC/m² | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-NPP-D) |
-| **Biomass** | Total Biomass Prod. | `L1-TBP` | A | kg/ha | 1.0 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-TBP-A) |
-| **Moisture** | Rel. Soil Moisture | `L1-RSM` | D | % | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RSM-D) |
+| Category | Variable Name | ID | Native Resolution | Temporal | Units | Scale | Period | Portal |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Water** | Precipitation | `L1-PCP` | 5 km | E, D, M, A | mm | 0.1 | 1981+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-PCP-E) |
+| **Water** | Reference ET | `L1-RET` | 30 km | E, D | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RET-E) |
+| **Water** | Actual ET & Int. | `L1-AETI` | 300 m | D, M, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-AETI-D) |
+| **Water** | Evaporation | `L1-E` | 300 m | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-E-D) |
+| **Water** | Transpiration | `L1-T` | 300 m | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-T-D) |
+| **Water** | Interception | `L1-I` | 300 m | D, A | mm | 0.1 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-I-D) |
+| **Biomass** | Net Primary Prod. | `L1-NPP` | 300 m | D, M | gC/m² | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-NPP-D) |
+| **Biomass** | Total Biomass Prod. | `L1-TBP` | 300 m | A | kg/ha | 1.0 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-TBP-A) |
+| **Moisture** | Rel. Soil Moisture | `L1-RSM` | 300 m | D | % | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L1-RSM-D) |
 
 ### Level 2: National (100m)
 Country-level monitoring for selected countries.
