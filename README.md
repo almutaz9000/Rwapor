@@ -20,6 +20,9 @@ No programming experience? The [Installation](#installation) guide below walks y
 - [Installation](#installation)
 - [Quick Start: Launch the Interactive Dashboard](#quick-start-launch-the-interactive-dashboard)
 - [Programmatic Workflows & Code Examples](#programmatic-workflows--code-examples)
+- [Worked Examples by Crop/Use Case](#worked-examples-by-cropuse-case)
+  - [Wheat: Single-Season Water Productivity](#wheat-single-season-water-productivity)
+  - [Wheat: Multi-Season Water Productivity](#wheat-multi-season-water-productivity)
 - [Supported Agricultural & Water Indicators](#supported-agricultural--water-indicators)
 - [Data Catalog Overview](#data-catalog-overview)
 - [Documentation & Vignettes](#documentation--vignettes)
@@ -377,6 +380,49 @@ plot(hotspots_2023, col = c("#d7191c", "#fdae61", "#ffffbf", "#a6d96a", "#1a9641
 
 ---
 
+## Worked Examples by Crop/Use Case
+
+Full, applied case studies live in their own vignettes so this page stays
+short — each one builds a crop mask, defines crop coefficients, and runs the
+complete indicator chain through to Crop/Biomass Water Productivity.
+
+### Wheat: Single-Season Water Productivity
+
+Build a wheat-only mask from a crop-type raster, define wheat's $K_c$
+profile, and run one season's start-to-end analysis (AETI → ETc → Adequacy →
+CWP/BWP):
+
+```r
+wheat_mask   <- terra::classify(crop_type, rcl = matrix(c(11, 1), ncol = 2), othersNA = TRUE)
+wheat_params <- wapor_custom_crop(base_crop = "Winter Wheat", class_value = 1L, crop_name = "Irrigated Winter Wheat")
+
+config$period <- c("2023-10-15", "2024-05-31")  # this season's start/end
+wheat_season  <- wapor_run_seasonal_analysis(config, wheat_params, rasters = list(crop_mask = wheat_mask))
+```
+
+**Full walkthrough**: `vignette("wheat-water-productivity")` — includes
+building the mask from either a classified raster or a field-boundary
+vector, and exporting CWP/BWP rasters and summary tables.
+
+### Wheat: Multi-Season Water Productivity
+
+Same wheat mask and crop parameters, applied across several years by passing
+a named list of season start/end pairs instead of one:
+
+```r
+config$period <- list(
+  "Wheat_Winter2021" = c("2020-10-15", "2021-05-31"),
+  "Wheat_Winter2022" = c("2021-10-15", "2022-05-31"),
+  "Wheat_Winter2023" = c("2022-10-15", "2023-05-31")
+)
+wheat_all_seasons <- wapor_run_seasonal_analysis(config, wheat_params, rasters = list(crop_mask = wheat_mask))
+```
+
+**Full walkthrough**: `vignette("wheat-water-productivity")` — covers the
+same multi-season pattern plus year-over-year CWP comparison.
+
+---
+
 ## Supported Agricultural & Water Indicators
 
 | Indicator | Code | Description | Formula / Method |
@@ -399,7 +445,7 @@ plot(hotspots_2023, col = c("#d7191c", "#fdae61", "#ffffbf", "#a6d96a", "#1a9641
 
 | Level | Spatial Resolution | Coverage | Key Variables |
 |---|---|---|---|
-| **Level 1** | ~250 m | Global | `L1-AETI-D`, `L1-E-D`, `L1-I-D`, `L1-NPP-D`, `L1-PCP-D`, `L1-RET-D`, `L1-T-D` |
+| **Level 1** | ~300 m | Global | `L1-AETI-D`, `L1-E-D`, `L1-I-D`, `L1-NPP-D`, `L1-PCP-D`, `L1-RET-D`, `L1-T-D` |
 | **Level 2** | ~100 m | Africa & Near East | `L2-AETI-D`, `L2-E-D`, `L2-I-D`, `L2-NPP-D`, `L2-T-D`, `L2-GBWP-A`, `L2-NBWP-A` |
 | **Level 3** | ~20 m | 30+ Irrigation Schemes | `L3-AETI-D`, `L3-E-D`, `L3-I-D`, `L3-NPP-D`, `L3-T-D` (e.g. Awash, Bekaa, Gezira, Nile) |
 | **AgERA5** | 0.1° (~10 km) | Global | `AGERA5-ET0-E`, `AGERA5-TMIN-E`, `AGERA5-TMAX-E`, `AGERA5-PRECIP-E` |
@@ -423,6 +469,7 @@ browseVignettes("Rwapor")
 vignette("getting-started", package = "Rwapor")
 vignette("shiny-dashboard", package = "Rwapor")
 vignette("advanced-analysis", package = "Rwapor")
+vignette("wheat-water-productivity", package = "Rwapor")
 vignette("data-catalog", package = "Rwapor")
 ```
 
@@ -432,6 +479,7 @@ this repository, the same vignettes are also available online:
 * **[Getting Started](https://almutaz9000.github.io/Rwapor/articles/getting-started.html)**: Comprehensive introductory tutorial.
 * **[Shiny Dashboard Guide](https://almutaz9000.github.io/Rwapor/articles/shiny-dashboard.html)**: Step-by-step walkthrough of all dashboard features.
 * **[Advanced Analysis & Monitoring](https://almutaz9000.github.io/Rwapor/articles/advanced-analysis.html)**: Tiled processing, DuckDB integration, and custom math extensions.
+* **[Wheat Water Productivity (Worked Example)](https://almutaz9000.github.io/Rwapor/articles/wheat-water-productivity.html)**: Wheat mask + single-season and multi-season indicator chains through to CWP/BWP.
 * **[Data Catalog](https://almutaz9000.github.io/Rwapor/articles/data-catalog.html)**: Complete variable definitions, scale factors, and units.
 
 ---
@@ -449,7 +497,7 @@ this repository, the same vignettes are also available online:
 If you use `Rwapor` in academic publications or operational water accounting projects, please cite:
 
 ```bibtex
-@software{rwapor2024,
+@software{Rwapor,
   title  = {{Rwapor}: An {R} Package for Downloading and Analyzing {FAO WaPOR} Data},
   author = {Mohammed, Almutaz},
   year   = {2024},

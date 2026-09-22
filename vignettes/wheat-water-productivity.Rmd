@@ -1,0 +1,171 @@
+---
+title: "Worked Example: Wheat Seasonal & Multi-Season Water Productivity"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Worked Example: Wheat Seasonal & Multi-Season Water Productivity}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This is an applied, end-to-end case study for a single crop: building a wheat
+mask from a crop-type/land-cover raster, defining wheat's crop coefficients,
+and running the full indicator chain — seasonal $AETI$, $ET_c$, Water
+Adequacy, and Crop/Biomass Water Productivity ($CWP$/$BWP$) — for both a
+single wheat season and a multi-year batch of wheat seasons. It builds on the
+concepts in `vignette("advanced-analysis")`; read that first if you haven't.
+
+---
+
+## 1. Build a Wheat-Only Crop Mask
+
+`Rwapor`'s seasonal engine expects a `crop_mask` raster whose pixel values are
+class codes matching `class_value` in your crop parameters table. If you
+already have a crop-type or land-cover raster (e.g. from a national crop
+inventory, ESA WorldCover, or a classified Sentinel-2 mosaic), isolate wheat
+by keeping only its class code and setting everything else to `NA`:
+
+```r
+library(Rwapor)
+library(terra)
+
+# Any classified crop-type/land-cover raster aligned to your AOI
+crop_type <- rast("crop_type_classified.tif")
+
+# Example: wheat is class code 11 in this classification
+wheat_mask <- classify(
+  crop_type,
+  rcl = matrix(c(11, 1), ncol = 2, byrow = TRUE),
+  othersNA = TRUE
+)
+```
+
+`wheat_mask` now has value `1` on wheat pixels and `NA` everywhere else —
+exactly what `wapor_run_seasonal_analysis()` expects in `rasters$crop_mask`.
+
+If you only have a **field-boundary vector** (e.g. a shapefile of wheat
+parcels) rather than a classified raster, rasterize it onto the same grid as
+your WaPOR data instead:
+
+```r
+wheat_fields <- vect("wheat_parcels.geojson")
+template     <- rast("L2-AETI-D_sample.tif")  # any downloaded WaPOR raster for the grid/CRS
+
+wheat_mask <- rasterize(wheat_fields, template, field = 1, background = NA)
+```
+
+---
+
+## 2. Define Wheat's Crop Coefficients
+
+Override the FAO default **Winter Wheat** profile for your local variety, or
+build one from scratch with `wapor_create_crop_params()` as shown in
+`vignette("advanced-analysis")`:
+
+```r
+wheat_params <- wapor_custom_crop(
+  base_crop   = "Winter Wheat",
+  class_value = 1L,            # matches the value used in wheat_mask above
+  crop_name   = "Irrigated Winter Wheat",
+  kc_ini      = 0.35,
+  kc_mid      = 1.15,
+  kc_end      = 0.30,
+  HI          = 0.45,          # Harvest Index
+  MC          = 0.13           # Moisture Content
+)
+```
+
+---
+
+## 3. Single-Season Wheat Analysis
+
+A typical winter wheat season runs from sowing in autumn to harvest the
+following spring. Set `config$period` to that single season's start/end
+dates and point `rasters$crop_mask` at the wheat mask built in Step 1:
+
+```r
+config <- list(
+  period        = c("2023-10-15", "2024-05-31"),  # single-season start/end
+  ref_year      = 1970,
+  aeti_var      = "L2-AETI-D",
+  ret_var       = "L1-RET-D",
+  precip_var    = "L1-PCP-D",
+  npp_var       = "L2-NPP-D",
+  t_var         = "L2-T-D",
+  data_source   = "local",
+  folder        = "wapor_data",
+  area_weighted = TRUE,
+  indicators    = c("agg_aeti", "agg_t", "etc", "adequacy_etc",
+                     "peff", "cwp_bwp", "beneficial_fraction")
+)
+
+rasters <- list(crop_mask = wheat_mask)
+
+wheat_season <- wapor_run_seasonal_analysis(
+  config      = config,
+  crop_params = wheat_params,
+  rasters     = rasters
+)
+
+# Export seasonal rasters, dekadal stacks, and CSV summaries (incl. CWP/BWP)
+wapor_export_analysis_outputs(
+  results      = wheat_season,
+  folder       = "outputs/Wheat_Winter2023",
+  indicators   = config$indicators,
+  season_label = "Wheat_Winter2023"
+)
+```
+
+`wheat_season` includes seasonal $AETI$, $ET_c$, Water Adequacy, Beneficial
+Fraction, and — because `"cwp_bwp"` is in `indicators` — both **Crop Water
+Productivity** and **Biomass Water Productivity** rasters and zonal summaries
+for the wheat-masked area only.
+
+---
+
+## 4. Multi-Season Wheat Analysis
+
+To track wheat water productivity across several years, pass a **named list**
+of season start/end pairs instead of a single vector — the same
+`wheat_mask` and `wheat_params` apply to every season:
+
+```r
+wheat_periods <- list(
+  "Wheat_Winter2021" = c("2020-10-15", "2021-05-31"),
+  "Wheat_Winter2022" = c("2021-10-15", "2022-05-31"),
+  "Wheat_Winter2023" = c("2022-10-15", "2023-05-31")
+)
+
+config$period <- wheat_periods
+
+wheat_all_seasons <- wapor_run_seasonal_analysis(
+  config      = config,
+  crop_params = wheat_params,
+  rasters     = rasters
+)
+```
+
+`wheat_all_seasons` is a named list of per-season results (same structure as
+Step 3's single-season output), ready for year-over-year comparison with
+`wapor_compare_seasons()` — see `vignette("advanced-analysis")` for spatial
+uniformity ($CV$, Theil Index) and anomaly-detection functions that work
+directly on this multi-season output.
+
+---
+
+## 5. Summarize Results
+
+```r
+# Seasonal CWP/BWP zonal summary for a single season
+wheat_season$summary_table
+
+# CWP trend across all wheat seasons
+sapply(wheat_all_seasons, function(s) s$summary_table$cwp_bwp_mean)
+```
