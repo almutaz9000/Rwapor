@@ -1,0 +1,717 @@
+---
+title: "Water Productivity Analysis with Rwapor"
+subtitle: "Training Notebook — Worked Examples for Citrus and Wheat"
+author: "Rwapor Training Series"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+    code-tools: true
+    df-print: paged
+    theme: flatly
+    fig-width: 8
+    fig-height: 5.5
+execute:
+  warning: false
+  message: false
+---
+
+# About This Notebook
+
+This is a **standalone, independent Quarto notebook** — it is not part of the `Rwapor`
+package build (vignettes, `R CMD check`, and pkgdown never see it). It calls only
+**exported** `Rwapor` functions; nothing in the package itself is modified. Its purpose
+is training: every step below downloads or computes something real, shows you the
+result as a plot, map, or summary table, and explains in plain language — with the
+underlying equation — what just happened.
+
+Two worked examples run end-to-end:
+
+| | Part A — Citrus | Part B — Wheat |
+|---|---|---|
+| Input | A single polygon layer used as **both** the mask and the AOI | A **cereal mask raster** (may hold several crop classes) plus a **separate AOI boundary** polygon |
+| Season | 2024-03-01 → 2025-02-28 (one year, spans the calendar year-end) | 2023-11-01 → 2024-05-31 (a single winter-wheat season) |
+| Crop parameters | Built from scratch (`Rwapor` ships no built-in Citrus Kc profile — see §2.2) | Reused from `Rwapor`'s built-in "Winter Wheat" FAO-56 profile |
+| Indicators | Full chain: AETI, T, RET, PCP, NPP, ETc, both Adequacy ratios, Beneficial Fraction, Green/Blue water, Yield, Biomass, CWP, BWP | Same full chain |
+
+::: {.callout-important}
+## Before you run this
+
+Every file path below (`citrus_fields.geojson`, `cereal_mask.tif`, `wheat_aoi.geojson`,
+…) is a **placeholder**. Replace the values in the "Point to your input files" chunk at
+the start of each Part with your own data before running. Everything downstream reads
+those variables — nothing else in the notebook needs to change.
+
+You'll also need a working internet connection: both examples stream data live from the
+FAO WaPOR v3 API (`data_source = "api"`), so every plot and table you see is computed
+from real, freshly-downloaded rasters, not mock data. No API key is required.
+:::
+
+::: {.callout-note collapse="true"}
+## Two things I verified against the package source while building this notebook
+
+**1. `aoi_region` matters for API runs.** `wapor_run_seasonal_analysis()` takes an
+optional `aoi_region` argument that scopes *every* raster it streams to your AOI before
+loading it into memory. If you omit it, the function still runs — but it downloads the
+**full extent** of whatever WaPOR tile covers your variable/period (e.g. an entire L2
+tile) before your `crop_mask` ever gets a chance to narrow it down, which is slow and
+memory-heavy. This notebook always passes `aoi_region` explicitly.
+
+**2. The indicator code for effective precipitation is `"agg_peff"`, not `"peff"`.**
+(`R/analysis_engine.R` checks for the string `"agg_peff"`.) This notebook uses the
+working code throughout.
+:::
+
+---
+
+# 1. Installation and Setup
+
+## 1.1 Install `Rwapor` and Supporting Packages
+
+```{r}
+#| label: install
+#| eval: false
+
+# install.packages("remotes")
+remotes::install_github("almutaz9000/Rwapor")
+
+# Supporting packages used only by this training notebook (all already
+# Suggested by Rwapor itself, except sf/dplyr/ggplot2 which are Imports)
+install.packages(c("terra", "sf", "dplyr", "ggplot2", "leaflet", "patchwork"))
+```
+
+## 1.2 Load Packages
+
+```{r}
+#| label: setup
+
+library(Rwapor)
+library(terra)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(leaflet)
+library(patchwork)
+```
+
+`Rwapor` tunes GDAL's `/vsicurl/` streaming settings automatically on load (larger
+chunk reads instead of GDAL's tiny default), which is what makes streaming individual
+WaPOR dekads directly from the API practical instead of downloading everything first.
+
+---
+
+# 2. Part A — Citrus Water Productivity
+
+## 2.1 Point to Your Input Files
+
+```{r}
+#| label: citrus-config
+
+# --- EDIT THESE THREE LINES FOR YOUR OWN DATA -------------------------------
+citrus_polygon_path <- "data/citrus/citrus_fields.geojson"  # used as BOTH mask and AOI
+citrus_period        <- c("2024-03-01", "2025-02-28")        # 1 Mar -> end of Feb (next yr)
+citrus_download_dir  <- "wapor_data/citrus"
+# -----------------------------------------------------------------------------
+
+citrus_output_dir <- "outputs/Citrus_2024_2025"
+```
+
+::: {.callout-note}
+## Why one file for both mask and AOI?
+
+For Citrus you told us the same polygon layer plays two roles: it defines **where** to
+download data (the AOI) and **which pixels count as citrus** (the mask). `wapor_map()`
+and `wapor_run_seasonal_analysis()` both accept a vector file directly for this, so
+`citrus_polygon_path` is reused unchanged in every step below — no rasterizing is needed
+until §2.4, and even then it's rasterizing the *same* file.
+:::
+
+## 2.2 Explore the Citrus AOI on an Interactive Map
+
+```{r}
+#| label: citrus-explore-aoi
+#| fig-cap: "Citrus field boundaries used as the AOI/mask"
+
+citrus_poly <- sf::st_read(citrus_polygon_path, quiet = TRUE)
+citrus_poly <- sf::st_transform(citrus_poly, 4326)  # leaflet expects WGS84
+
+leaflet(citrus_poly) |>
+  addProviderTiles(providers$Esri.WorldImagery) |>
+  addPolygons(
+    color = "#e6b800", weight = 2, fillOpacity = 0.15,
+    label = ~as.character(seq_len(nrow(citrus_poly)))
+  ) |>
+  addLegend(colors = "#e6b800", labels = "Citrus field boundary", position = "bottomright")
+```
+
+```{r}
+#| label: citrus-aoi-summary
+
+data.frame(
+  n_polygons  = nrow(citrus_poly),
+  crs         = sf::st_crs(citrus_poly)$input,
+  area_ha     = round(sum(as.numeric(sf::st_area(citrus_poly))) / 10000, 1)
+)
+```
+
+## 2.3 Define Citrus Crop Water-Use Parameters
+
+::: {.callout-note}
+## Why we can't just reuse an FAO default here
+
+`Rwapor`'s built-in `FAO_CROP_DEFAULTS` table (`wapor_list_crops()`) ships profiles for
+Winter Wheat, Maize, Rice, Cotton, Potato, and eight other annual/perennial field crops
+— but **not Citrus**. `wapor_custom_crop(base_crop = "Citrus", ...)` would fail with
+*"Base crop not found"*. So instead we build the profile from scratch with
+`wapor_create_crop_params()`, sourcing real numbers rather than guessing:
+
+- **Kc values** — FAO Irrigation & Drainage Paper 56, Table 6.2, "Citrus, 70% canopy, no
+  ground cover": $K_{c,ini}=0.75$, $K_{c,mid}=0.70$, $K_{c,end}=0.75$.
+- **Growth-stage lengths** — this repo's own `fao_growth_stages.csv` already has a
+  Citrus row (Mediterranean region): $L_{ini}=60$, $L_{dev}=90$, $L_{mid}=120$,
+  $L_{late}=95$ days (365-day total). `Rwapor`'s engine only needs $L_{ini}$, $L_{mid}$,
+  $L_{late}$ — it derives $L_{dev}$ itself as whatever remains of the *actual* season
+  length once those three are subtracted, so it self-adjusts to your real season.
+:::
+
+```{r}
+#| label: citrus-crop-params
+
+citrus_params <- wapor_create_crop_params(
+  class_value  = 1L,                # matches the value we'll rasterize the mask to
+  crop_name    = "Citrus (70% canopy, no ground cover)",
+  kc_ini       = 0.75,
+  kc_mid       = 0.70,
+  kc_end       = 0.75,
+  l_ini_days   = 60L,
+  l_mid_days   = 120L,
+  l_late_days  = 95L,
+  max_height_m = 3.0,                # typical mature citrus tree height
+  HI           = 0.55,               # Harvest Index: fruit mass / total tree biomass increment
+  MC           = 0.85,               # Moisture Content of fresh fruit at harvest
+  fc           = 0.70,               # ground-cover fraction used in the Kc table above
+  AOT          = 0.8,                # above-ground / total biomass ratio (perennial default)
+  region       = "Mediterranean",
+  notes        = "FAO-56 Table 6.2 (Kc) + fao_growth_stages.csv (stage lengths); no built-in FAO_CROP_DEFAULTS profile exists for Citrus"
+)
+
+citrus_params
+```
+
+### The Crop Coefficient (Kc) Curve
+
+`Rwapor` builds a **four-stage daily Kc curve** — flat at $K_{c,ini}$, linear ramp up
+through the development stage, flat at $K_{c,mid}$, linear ramp down to $K_{c,end}$ —
+and this is what drives crop water demand ($ET_c$, §2.6) all season long:
+
+```{r}
+#| label: citrus-kc-curve
+#| fig-cap: "Daily Kc curve for Citrus over a 365-day season"
+
+citrus_l_dev <- 365L - (citrus_params$l_ini_days + citrus_params$l_mid_days + citrus_params$l_late_days)
+
+citrus_kc_daily <- wapor_build_kc(
+  kc_ini = citrus_params$kc_ini, kc_mid = citrus_params$kc_mid, kc_end = citrus_params$kc_end,
+  l_ini  = citrus_params$l_ini_days, l_dev = citrus_l_dev,
+  l_mid  = citrus_params$l_mid_days, l_late = citrus_params$l_late_days
+)
+
+wapor_plot_kc_curve(citrus_kc_daily) +
+  ggplot2::labs(title = "Citrus Kc Curve", subtitle = "FAO-56 four-stage model")
+```
+
+## 2.4 Obtain the Seasonal AETI Raster Map
+
+This is the step you specifically asked for: download WaPOR's dekadal Actual
+EvapoTranspiration and Interception ($AETI$, mm/day) for the citrus AOI and season, and
+let `wapor_map()` aggregate every overlapping dekad into a **single seasonal total**
+(mm over the whole season).
+
+::: {.callout-note}
+## What "seasonal aggregation" actually does
+
+$AETI$ is a *flux* variable (mm/**day**) — `Rwapor` knows this from its variable
+metadata and therefore **weighted-sums** it, not averages it: each dekadal raster is
+multiplied by however many days of the season it overlaps, then all dekads are summed.
+A 10-day dekad reading 2.5 mm/day contributes $2.5 \times 10 = 25$ mm to the seasonal
+total. This is the same "aggregation rule" logic that decides whether any WaPOR/AgERA5
+variable should be summed (fluxes like AETI, NPP, PCP) or averaged (state variables
+like RSM, temperature).
+:::
+
+```{r}
+#| label: citrus-seasonal-aeti-map
+#| fig-cap: "Seasonal AETI (mm) for the citrus AOI, Mar 2024 -- Feb 2025"
+
+citrus_aeti_seasonal_path <- wapor_map(
+  region    = citrus_polygon_path,
+  variable  = "L2-AETI-D",
+  period    = citrus_period,
+  folder    = citrus_download_dir,
+  seasonal  = TRUE,
+  mask      = TRUE
+)
+
+citrus_aeti_r <- terra::rast(citrus_aeti_seasonal_path)
+wapor_plot_map(citrus_aeti_r, indicator = "Seasonal AETI (mm)", title = "Citrus — Seasonal AETI")
+```
+
+```{r}
+#| label: citrus-seasonal-aeti-leaflet
+#| fig-cap: "Interactive view of the seasonal AETI raster over the citrus AOI"
+
+aeti_pal <- colorNumeric("YlGnBu", terra::values(citrus_aeti_r), na.color = "transparent")
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addRasterImage(citrus_aeti_r, colors = aeti_pal, opacity = 0.85) |>
+  addPolygons(data = citrus_poly, fill = FALSE, color = "black", weight = 1) |>
+  addLegend(pal = aeti_pal, values = terra::values(citrus_aeti_r), title = "AETI (mm)")
+```
+
+## 2.5 Rasterize the Citrus Mask
+
+We already have a WaPOR-grid raster from the step above (`citrus_aeti_r`) — it makes a
+ready-made template (same resolution, extent, and CRS) to rasterize the citrus polygons
+onto:
+
+```{r}
+#| label: citrus-rasterize-mask
+#| fig-cap: "Citrus crop mask (class 1) on the WaPOR grid"
+
+citrus_vect <- terra::vect(citrus_poly)
+citrus_mask <- terra::rasterize(citrus_vect, citrus_aeti_r, field = 1, background = NA)
+names(citrus_mask) <- "crop_mask"
+
+wapor_plot_map(citrus_mask, indicator = "Citrus mask (class 1)", title = "Citrus Crop Mask")
+```
+
+## 2.6 Run the Full Seasonal Water Productivity Analysis
+
+### The Indicators and Their Equations
+
+| Indicator | Code | Equation |
+|---|---|---|
+| Seasonal AETI, T, RET, PCP, NPP | `agg_aeti`, `agg_t`, `agg_ret`, `agg_pcp`, `agg_npp` | Weighted seasonal sum of each dekadal flux (see §2.4 callout) |
+| Crop Evapotranspiration | `etc` | $ET_c(t) = K_c(t) \times RET(t)$, summed over the season using the Kc curve built in §2.3 |
+| ETc-based Adequacy | `adequacy_etc` | $Adequacy_{ETc} = AETI_{seasonal} / ET_{c,seasonal}$ — a ratio near 1 means actual water consumption matched crop demand; well below 1 flags likely water stress |
+| P95-based Adequacy | `adequacy_p95` | $Adequacy_{P95} = AETI_{seasonal} / P_{95}(AETI_{seasonal})$ within the crop mask — compares every pixel to the *best-performing 5%* of the same field(s), independent of any Kc assumption |
+| Beneficial Fraction | `beneficial_fraction` | $BF = T_{seasonal} / AETI_{seasonal}$ — the share of consumed water that went to productive plant transpiration ($T$) rather than non-productive soil evaporation/interception |
+| Effective Precipitation | `agg_peff` | USDA-SCS method: $P_{eff} = P\cdot\frac{125 - 0.2P}{125}$ if $P \le 250$ mm/month, else $P_{eff} = 125 + 0.1P$ |
+| Green Water | `green_water` | $\min(AETI_{seasonal}, P_{eff,seasonal})$ — the part of consumption met by rainfall |
+| Blue Water | `blue_water` | $\max(0,\ AETI_{seasonal} - P_{eff,seasonal})$ — the part met by irrigation/other blue-water sources |
+| Biomass (Dry Matter Production) | `agg_biomass_kg`/`agg_biomass_t` | $DMP = NPP_{gC/m^2} \times 22.222$ (WaPOR's standard gC → dry-matter conversion) |
+| Yield | `yield_npp` | $AGBM = \dfrac{AOT \times f_c \times DMP / (1-MC)}{1000}$ (t/ha), then $Yield = HI \times AGBM$ |
+| Crop Water Productivity | `cwp_bwp` (CWP) | $CWP = \dfrac{Yield_{kg/ha}}{AETI_{mm} \times 10}$ kg/m³ (the ×10 converts mm over 1 ha into m³) — productivity of the **harvestable** product |
+| Biomass Water Productivity | `cwp_bwp` (BWP) | Same formula, using total $DMP$ instead of harvestable $Yield$ — productivity of **all** biomass grown |
+
+```{r}
+#| label: citrus-all-indicators
+
+all_indicators <- c(
+  "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
+  "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
+  "green_water", "blue_water", "cwp_bwp", "yield_npp",
+  "agg_biomass_kg", "agg_biomass_t"
+)
+```
+
+```{r}
+#| label: citrus-run-analysis
+
+citrus_config <- list(
+  period        = citrus_period,
+  ref_year      = 1970,             # internal day-of-year baseline; leave as-is
+  aeti_var      = "L2-AETI-D",      # or "L1-AETI-D" (~300 m, global) / "L3-AETI-D" (~20 m, L3 schemes only)
+  ret_var       = "L1-RET-D",       # RET is only published at Level 1 (~5 km, reanalysis-based)
+  precip_var    = "L1-PCP-D",       # PCP is only published at Level 1 (~5 km, gridded precipitation)
+  npp_var       = "L2-NPP-D",       # or "L1-NPP-D" (~300 m, global)
+  t_var         = "L2-T-D",         # or "L1-T-D" (~300 m, global)
+  data_source   = "api",            # or "local" to read files already downloaded into `folder`
+  folder        = citrus_download_dir,
+  area_weighted = TRUE,             # corrects for latitude-dependent pixel-area distortion (EPSG:4326)
+  indicators    = all_indicators
+)
+
+citrus_season <- wapor_run_seasonal_analysis(
+  config      = citrus_config,
+  crop_params = citrus_params,
+  rasters     = list(crop_mask = citrus_mask),
+  aoi_region  = citrus_polygon_path   # keeps every downloaded raster scoped to the AOI (see intro callout)
+)
+
+names(citrus_season)
+```
+
+## 2.7 Explore the Outputs, Step by Step
+
+### Seasonal AETI and Transpiration
+
+```{r}
+#| label: citrus-out-aeti-t
+#| fig-cap: "Seasonal AETI and Transpiration (T) for the citrus fields"
+
+p1 <- wapor_plot_map(citrus_season$seasonal_aeti$raster, indicator = "AETI (mm)", title = "Seasonal AETI")
+p2 <- wapor_plot_map(citrus_season$seasonal_t$raster, indicator = "T (mm)", title = "Seasonal Transpiration")
+patchwork::wrap_plots(p1, p2)
+
+citrus_season$seasonal_aeti_by_class
+```
+
+### Crop Water Demand (ETc) and Adequacy
+
+```{r}
+#| label: citrus-out-etc-adequacy
+#| fig-cap: "Water adequacy: AETI vs. crop water demand"
+
+citrus_etc <- citrus_season$etc_by_class[["1"]]$etc_seasonal
+wapor_plot_map(citrus_etc, indicator = "ETc (mm)", title = "Seasonal Crop Water Demand (ETc)")
+
+wapor_plot_map(citrus_season$adequacy_etc, indicator = "Adequacy", title = "Water Adequacy (AETI / ETc)")
+
+data.frame(
+  mean_etc_mm          = round(terra::global(citrus_etc, "mean", na.rm = TRUE)[1, 1], 1),
+  mean_adequacy_etc    = round(terra::global(citrus_season$adequacy_etc, "mean", na.rm = TRUE)[1, 1], 2),
+  mean_adequacy_p95    = round(terra::global(citrus_season$adequacy_p95, "mean", na.rm = TRUE)[1, 1], 2)
+)
+```
+
+### Beneficial Fraction
+
+```{r}
+#| label: citrus-out-bf
+#| fig-cap: "Fraction of consumed water that was productive transpiration"
+
+wapor_plot_map(citrus_season$beneficial_fraction, indicator = "T/AETI", title = "Beneficial Fraction")
+```
+
+A beneficial fraction well below ~0.6–0.7 for a mature orchard usually points to a lot
+of water being lost to soil evaporation or interception rather than going through the
+trees themselves — worth cross-checking with an irrigation/mulching survey on the
+ground.
+
+### Water Source: Green vs. Blue Water
+
+```{r}
+#| label: citrus-out-green-blue
+#| fig-cap: "Rainfall-sourced (green) vs. irrigation-sourced (blue) water consumption"
+
+p3 <- wapor_plot_map(citrus_season$green_water, indicator = "Green water (mm)", title = "Green Water")
+p4 <- wapor_plot_map(citrus_season$blue_water, indicator = "Blue water (mm)", title = "Blue Water")
+patchwork::wrap_plots(p3, p4)
+
+data.frame(
+  mean_green_mm = round(terra::global(citrus_season$green_water, "mean", na.rm = TRUE)[1, 1], 1),
+  mean_blue_mm  = round(terra::global(citrus_season$blue_water, "mean", na.rm = TRUE)[1, 1], 1)
+)
+```
+
+### Yield, Biomass, and Water Productivity
+
+```{r}
+#| label: citrus-out-productivity
+#| fig-cap: "Citrus yield raster (t/ha)"
+
+wapor_plot_map(citrus_season$yield_raster, indicator = "Yield (t/ha)", title = "Estimated Citrus Yield")
+
+data.frame(
+  indicator = c("CWP (kg/m3)", "BWP (kg/m3)"),
+  value     = round(c(citrus_season$cwp, citrus_season$bwp), 3)
+)
+```
+
+$CWP$ tells you how much harvestable fruit you got per m³ of water consumed; $BWP$
+tells you the same thing for *all* biomass the tree grew (wood, leaves, and fruit
+together) — comparing the two is a quick check on how much of the tree's total growth
+ended up as marketable product.
+
+## 2.8 Export All Outputs
+
+```{r}
+#| label: citrus-export
+
+wapor_export_analysis_outputs(
+  results      = citrus_season,
+  folder       = citrus_output_dir,
+  indicators   = all_indicators,
+  season_label = "Citrus_2024_2025"
+)
+```
+
+---
+
+# 3. Part B — Wheat Water Productivity
+
+## 3.1 Point to Your Input Files
+
+```{r}
+#| label: wheat-config
+
+# --- EDIT THESE FOR YOUR OWN DATA --------------------------------------------
+cereal_mask_path <- "data/wheat/cereal_mask.tif"     # a raster; may hold several crop classes
+wheat_aoi_path    <- "data/wheat/wheat_aoi.geojson"   # a SEPARATE study-area boundary
+wheat_class_code  <- 1L                               # the class code for wheat in cereal_mask_path
+wheat_period      <- c("2023-11-01", "2024-05-31")
+wheat_download_dir <- "wapor_data/wheat"
+# -------------------------------------------------------------------------------
+
+wheat_output_dir <- "outputs/Wheat_Winter2023_2024"
+```
+
+::: {.callout-note}
+## Why Wheat is a different shape of input than Citrus
+
+You told us you already have a **cereal mask raster** (possibly covering several
+cereal crops, each with its own class code) and a **separate AOI boundary**. That's a
+more common real-world setup than Citrus's single polygon: the AOI defines the download
+extent, and the mask raster — after we isolate wheat's class code — decides which
+pixels the seasonal engine treats as wheat.
+:::
+
+## 3.2 Explore the AOI and the Cereal Mask
+
+```{r}
+#| label: wheat-explore-inputs
+#| fig-cap: "Study-area AOI and the raw cereal mask (all classes)"
+
+wheat_aoi <- sf::st_read(wheat_aoi_path, quiet = TRUE) |> sf::st_transform(4326)
+cereal_mask_raw <- terra::rast(cereal_mask_path)
+
+# Which class codes actually exist in this mask, and how many pixels each has:
+terra::freq(cereal_mask_raw)
+```
+
+```{r}
+#| label: wheat-leaflet-inputs
+#| fig-cap: "Interactive view: AOI boundary over the raw cereal mask"
+
+class_pal <- colorNumeric("Set2", terra::values(cereal_mask_raw), na.color = "transparent")
+
+leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addRasterImage(cereal_mask_raw, colors = class_pal, opacity = 0.7) |>
+  addPolygons(data = wheat_aoi, fill = FALSE, color = "black", weight = 2) |>
+  addLegend(pal = class_pal, values = terra::values(cereal_mask_raw), title = "Cereal class code")
+```
+
+Use the frequency table above to confirm `wheat_class_code` in §3.1 actually matches
+wheat's legend entry before continuing.
+
+## 3.3 Define Wheat's Crop Water-Use Parameters
+
+Unlike Citrus, `Rwapor` does ship a built-in **Winter Wheat** profile
+(`wapor_list_crops()`), so we reuse it directly instead of building one from scratch:
+
+```{r}
+#| label: wheat-crop-params
+
+wheat_params <- wapor_custom_crop(
+  base_crop   = "Winter Wheat",
+  class_value = wheat_class_code,   # must match the isolated mask below
+  crop_name   = "Irrigated Winter Wheat",
+  kc_ini      = 0.35,
+  kc_mid      = 1.15,
+  kc_end      = 0.30,
+  HI          = 0.45,               # Harvest Index (grain mass / total biomass)
+  MC          = 0.13                # Moisture Content of grain at harvest
+)
+
+wheat_params
+```
+
+```{r}
+#| label: wheat-kc-curve
+#| fig-cap: "Daily Kc curve for Winter Wheat over the 2023-11-01 to 2024-05-31 season"
+
+wheat_total_days <- as.integer(as.Date(wheat_period[2]) - as.Date(wheat_period[1])) + 1L
+wheat_l_dev <- wheat_total_days - (wheat_params$l_ini_days + wheat_params$l_mid_days + wheat_params$l_late_days)
+
+wheat_kc_daily <- wapor_build_kc(
+  kc_ini = wheat_params$kc_ini, kc_mid = wheat_params$kc_mid, kc_end = wheat_params$kc_end,
+  l_ini  = wheat_params$l_ini_days, l_dev = wheat_l_dev,
+  l_mid  = wheat_params$l_mid_days, l_late = wheat_params$l_late_days
+)
+
+wapor_plot_kc_curve(wheat_kc_daily) +
+  ggplot2::labs(title = "Winter Wheat Kc Curve", subtitle = "FAO-56 four-stage model, fitted to a 212-day season")
+```
+
+## 3.4 Obtain the Seasonal AETI Raster Map
+
+```{r}
+#| label: wheat-seasonal-aeti-map
+#| fig-cap: "Seasonal AETI (mm) over the wheat study area, Nov 2023 -- May 2024"
+
+wheat_aeti_seasonal_path <- wapor_map(
+  region    = wheat_aoi_path,   # the AOI boundary, NOT the crop mask
+  variable  = "L2-AETI-D",
+  period    = wheat_period,
+  folder    = wheat_download_dir,
+  seasonal  = TRUE,
+  mask      = TRUE
+)
+
+wheat_aeti_r <- terra::rast(wheat_aeti_seasonal_path)
+wapor_plot_map(wheat_aeti_r, indicator = "Seasonal AETI (mm)", title = "Wheat Study Area — Seasonal AETI")
+```
+
+## 3.5 Isolate the Wheat Class and Harmonize the Mask
+
+```{r}
+#| label: wheat-isolate-mask
+#| fig-cap: "Wheat-only mask, harmonized to the WaPOR grid"
+
+wheat_mask_raw <- terra::classify(
+  cereal_mask_raw,
+  rcl = matrix(c(wheat_class_code, 1L), ncol = 2, byrow = TRUE),
+  othersNA = TRUE
+)
+
+# Align to the same grid as the seasonal AETI raster we just downloaded
+wheat_mask <- terra::resample(wheat_mask_raw, wheat_aeti_r, method = "near")
+names(wheat_mask) <- "crop_mask"
+
+wapor_plot_map(wheat_mask, indicator = "Wheat mask (class 1)", title = "Wheat Crop Mask")
+```
+
+## 3.6 Run the Full Seasonal Water Productivity Analysis
+
+The indicators and equations are exactly the ones explained in §2.6 for Citrus — same
+math, new crop and season.
+
+```{r}
+#| label: wheat-run-analysis
+
+wheat_config <- list(
+  period        = wheat_period,
+  ref_year      = 1970,
+  aeti_var      = "L2-AETI-D",      # or "L1-AETI-D" (~300 m, global) / "L3-AETI-D" (~20 m, L3 schemes only)
+  ret_var       = "L1-RET-D",
+  precip_var    = "L1-PCP-D",
+  npp_var       = "L2-NPP-D",       # or "L1-NPP-D" (~300 m, global)
+  t_var         = "L2-T-D",
+  data_source   = "api",
+  folder        = wheat_download_dir,
+  area_weighted = TRUE,
+  indicators    = all_indicators    # defined in §2.6
+)
+
+wheat_season <- wapor_run_seasonal_analysis(
+  config      = wheat_config,
+  crop_params = wheat_params,
+  rasters     = list(crop_mask = wheat_mask),
+  aoi_region  = wheat_aoi_path
+)
+
+names(wheat_season)
+```
+
+## 3.7 Explore the Outputs, Step by Step
+
+```{r}
+#| label: wheat-out-aeti-etc
+#| fig-cap: "Seasonal AETI and crop water demand (ETc) for wheat"
+
+p5 <- wapor_plot_map(wheat_season$seasonal_aeti$raster, indicator = "AETI (mm)", title = "Seasonal AETI")
+wheat_etc <- wheat_season$etc_by_class[[as.character(wheat_class_code)]]$etc_seasonal
+p6 <- wapor_plot_map(wheat_etc, indicator = "ETc (mm)", title = "Seasonal ETc")
+patchwork::wrap_plots(p5, p6)
+
+wheat_season$seasonal_aeti_by_class
+```
+
+```{r}
+#| label: wheat-out-adequacy-bf
+#| fig-cap: "Water adequacy and beneficial fraction for wheat"
+
+p7 <- wapor_plot_map(wheat_season$adequacy_etc, indicator = "Adequacy", title = "Adequacy (AETI / ETc)")
+p8 <- wapor_plot_map(wheat_season$beneficial_fraction, indicator = "T/AETI", title = "Beneficial Fraction")
+patchwork::wrap_plots(p7, p8)
+```
+
+```{r}
+#| label: wheat-out-green-blue
+#| fig-cap: "Green (rainfall) vs. blue (irrigation) water for wheat"
+
+p9  <- wapor_plot_map(wheat_season$green_water, indicator = "Green water (mm)", title = "Green Water")
+p10 <- wapor_plot_map(wheat_season$blue_water, indicator = "Blue water (mm)", title = "Blue Water")
+patchwork::wrap_plots(p9, p10)
+```
+
+A winter wheat season sown in November and harvested in May usually shows a much
+higher green-water share than an irrigated summer crop, simply because it overlaps the
+wet season — a useful sanity check on the numbers you get back.
+
+```{r}
+#| label: wheat-out-productivity
+#| fig-cap: "Wheat yield raster (t/ha)"
+
+wapor_plot_map(wheat_season$yield_raster, indicator = "Yield (t/ha)", title = "Estimated Wheat Yield")
+
+data.frame(
+  indicator = c("CWP (kg/m3)", "BWP (kg/m3)"),
+  value     = round(c(wheat_season$cwp, wheat_season$bwp), 3)
+)
+```
+
+## 3.8 Export All Outputs
+
+```{r}
+#| label: wheat-export
+
+wapor_export_analysis_outputs(
+  results      = wheat_season,
+  folder       = wheat_output_dir,
+  indicators   = all_indicators,
+  season_label = "Wheat_Winter2023_2024"
+)
+```
+
+---
+
+# 4. Comparing the Two Crops
+
+::: {.callout-important}
+Citrus is a perennial tree crop grown over a full calendar year; wheat is an annual
+cereal grown over roughly seven months in the wet season. Their $CWP$/$BWP$ values are
+**not directly comparable as a measure of "which crop is more efficient"** — different
+crop physiology, season length, and climate overlap all drive real differences. Treat
+this chart as a way to sanity-check both runs side by side, not a ranking.
+:::
+
+```{r}
+#| label: crop-comparison
+#| fig-cap: "Crop and Biomass Water Productivity: Citrus vs. Wheat"
+
+comparison_df <- data.frame(
+  crop = rep(c("Citrus", "Wheat"), each = 2),
+  indicator = rep(c("CWP", "BWP"), times = 2),
+  value_kg_m3 = c(citrus_season$cwp, citrus_season$bwp, wheat_season$cwp, wheat_season$bwp)
+)
+
+ggplot(comparison_df, aes(x = crop, y = value_kg_m3, fill = indicator)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Water Productivity by Crop",
+    x = NULL, y = "kg / m3", fill = NULL
+  ) +
+  theme_minimal()
+```
+
+---
+
+# 5. Next Steps
+
+- `vignette("advanced-analysis")` — custom crop tables for multiple classes at once,
+  spatial anomaly/hotspot detection across years, tiled processing for large extents.
+- `vignette("wheat-water-productivity")` — multi-year batch seasons and per-season
+  "Smart-Linking" masks (a different wheat mask/dates for every year automatically).
+- `vignette("data-catalog")` — full WaPOR v3 / AgERA5 variable table, including which
+  variables exist at which spatial resolution (L1/L2/L3).
+- `wapor_calc_zscore()`, `wapor_calc_spatial_hotspots()`, and `wapor_calc_anomaly_baseline()`
+  — once you have more than one season of results (e.g. a multi-year wheat batch), these
+  compute pixel-wise temporal anomalies and classify spatial water-stress hotspots across
+  years; see `vignette("advanced-analysis")` §4 for the worked example.
