@@ -2,31 +2,37 @@
 # =============================================================================
 # Out-of-Core Tiled / Windowed Seasonal Analysis Engine
 # =============================================================================
+#
+# Tiling itself lives in the shared kernel (R/processing_kernel.R). This file
+# keeps the tile-window geometry, run-manifest helpers, test fixtures, and the
+# exported wrapper that forces tiled mode.
 
 #' Suggest a safe tile size for the tiled seasonal analysis engine
 #'
 #' Computes the largest square tile (in pixels) that fits within
-#' `target_ram_mb` of working memory, given the number of raster layers and
-#' parallel workers.  Use the returned value as the `tile_size` argument of
+#' `target_ram_mb` of working memory, given the number of raster layers,
+#' variables and parallel workers. [wapor_plan_processing()] chooses a tile
+#' size automatically; use this helper to pick one by hand for
 #' [wapor_run_seasonal_analysis_tiled()].
 #'
 #' @param n_layers Integer. Number of raster layers to hold in memory at once
 #'   (e.g. total dekadal layers in the season).
 #' @param n_workers Integer. Number of parallel tile workers. Each worker
 #'   holds one tile in RAM simultaneously. Default `1L`.
-#' @param bytes_per_val Integer. Bytes per raster cell. Float32 COGs = 4.
-#'   Default `4L`.
+#' @param bytes_per_val Integer. Bytes per cell in memory. terra holds values
+#'   as 8-byte doubles, so the default is `8L`.
 #' @param target_ram_mb Numeric. RAM budget in megabytes. Default `4096` (4 GB).
 #' @param min_tile Integer. Minimum tile size to return. Default `64L`.
 #' @param max_tile Integer. Maximum tile size to return. Default `4096L`.
+#' @param n_vars Integer. Number of variables read per tile. Default `1L`.
+#' @param overhead Numeric. Multiplier for temporaries. Default `2.5`.
 #'
 #' @return A single integer: recommended tile side length in pixels.
 #'
 #' @details
 #' Formula:
-#'   bytes_per_tile = tile_size^2 * n_layers * bytes_per_val
+#'   bytes_per_tile = tile_size^2 * n_layers * n_vars * bytes_per_val * overhead
 #'   total_bytes    = bytes_per_tile * n_workers
-#'   max_tile_size  = floor(sqrt(target_ram_mb * 1024^2 / (n_layers * bytes_per_val * n_workers)))
 #'
 #' The result is clamped to \[min_tile, max_tile\] so extreme inputs produce
 #' a usable value rather than an error.
@@ -38,26 +44,30 @@
 #' @export
 wapor_suggest_tile_size <- function(n_layers,
                                     n_workers    = 1L,
-                                    bytes_per_val = 4L,
+                                    bytes_per_val = 8L,
                                     target_ram_mb = 4096,
                                     min_tile      = 64L,
-                                    max_tile      = 4096L) {
+                                    max_tile      = 4096L,
+                                    n_vars        = 1L,
+                                    overhead      = 2.5) {
   n_layers      <- max(1L, as.integer(n_layers))
   n_workers     <- max(1L, as.integer(n_workers))
   bytes_per_val <- max(1L, as.integer(bytes_per_val))
   target_ram_mb <- max(1, as.numeric(target_ram_mb))
   min_tile      <- max(1L, as.integer(min_tile))
   max_tile      <- max(min_tile, as.integer(max_tile))
+  n_vars        <- max(1L, as.integer(n_vars))
+  overhead      <- max(1, as.numeric(overhead))
 
   budget_bytes <- target_ram_mb * 1024^2
-  tile_sq      <- budget_bytes / (as.numeric(n_layers) * as.numeric(bytes_per_val) * as.numeric(n_workers))
-  raw_tile     <- floor(sqrt(tile_sq))
+  per_cell     <- as.numeric(n_layers) * n_vars * bytes_per_val * overhead * n_workers
+  raw_tile     <- floor(sqrt(budget_bytes / per_cell))
   tile         <- as.integer(max(min_tile, min(max_tile, raw_tile)))
 
   message(sprintf(
-    "wapor_suggest_tile_size: %d px (n_layers=%d, n_workers=%d, budget=%.0f MB, %.1f MB/tile)",
-    tile, n_layers, n_workers, target_ram_mb,
-    (as.numeric(tile)^2 * n_layers * bytes_per_val) / 1024^2
+    "wapor_suggest_tile_size: %d px (n_layers=%d, n_vars=%d, n_workers=%d, budget=%.0f MB, %.1f MB/tile)",
+    tile, n_layers, n_vars, n_workers, target_ram_mb,
+    (as.numeric(tile)^2 * n_layers * n_vars * bytes_per_val * overhead) / 1024^2
   ))
   tile
 }
@@ -147,26 +157,6 @@ wapor_suggest_tile_size <- function(n_layers,
   )
 }
 
-.wapor_tiled_config_hash <- function(config, tile_size, grid) {
-  digest::digest(
-    list(
-      period = config$period,
-      indicators = config$indicators,
-      aeti_var = config$aeti_var,
-      ret_var = config$ret_var,
-      precip_var = config$precip_var,
-      npp_var = config$npp_var,
-      t_var = config$t_var,
-      data_source = config$data_source,
-      folder = config$folder,
-      reference_layer = config$reference_layer %||% "aeti",
-      tile_size = as.integer(tile_size),
-      grid = grid
-    ),
-    algo = "sha256"
-  )
-}
-
 .wapor_file_sha256 <- function(path) {
   digest::digest(file = path, algo = "sha256")
 }
@@ -202,101 +192,6 @@ wapor_suggest_tile_size <- function(n_layers,
   )
 }
 
-.wapor_tile_bbox <- function(template, win) {
-  tile <- .wapor_crop_raster_window(template, win)
-  e <- terra::ext(tile)
-  c(
-    as.numeric(e$xmin),
-    as.numeric(e$ymin),
-    as.numeric(e$xmax),
-    as.numeric(e$ymax)
-  )
-}
-
-.wapor_requested_variables <- function(config) {
-  vars <- c(config$aeti_var, config$ret_var, config$precip_var, config$npp_var, config$t_var)
-  vars <- vars[!vapply(vars, function(v) is.null(v) || !nzchar(v), logical(1))]
-  unique(as.character(vars))
-}
-
-.wapor_resolve_source_paths <- function(config, var) {
-  if (is.null(var) || !nzchar(var)) {
-    return(character(0))
-  }
-  if (!is.null(config$source_urls) && !is.null(config$source_urls[[var]])) {
-    return(as.character(config$source_urls[[var]]))
-  }
-  if (identical(config$data_source, "local")) {
-    wapor_local_rasters(config$folder, var, config$period[1], config$period[2])
-  } else {
-    urls <- Rwapor::wapor_generate_urls(var, l3_region = config$l3_code, period = config$period)
-    if (!length(urls)) {
-      return(character(0))
-    }
-    .wapor_resolve_remote_sources(urls)
-  }
-}
-
-.wapor_window_source_rasters <- function(config, win, template, dest_dir) {
-  dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
-  tile_template <- .wapor_crop_raster_window(template, win)
-  sources <- list()
-  for (var in .wapor_requested_variables(config)) {
-    paths <- .wapor_resolve_source_paths(config, var)
-    if (!length(paths)) {
-      next
-    }
-    var_dir <- file.path(dest_dir, var)
-    dir.create(var_dir, recursive = TRUE, showWarnings = FALSE)
-    written <- character(0)
-    for (p in paths) {
-      layer <- terra::rast(p)
-      if (terra::nlyr(layer) > 1L) {
-        layer <- layer[[1]]
-      }
-      cropped <- tryCatch(
-        .wapor_crop_raster_window(layer, win),
-        error = function(e) terra::crop(layer, tile_template, snap = "out")
-      )
-      if (!isTRUE(terra::compareGeom(cropped, tile_template, stopOnError = FALSE))) {
-        cropped <- terra::resample(cropped, tile_template, method = "near")
-      }
-      out_path <- file.path(var_dir, basename(p))
-      if (!grepl("\\.tif$", out_path, ignore.case = TRUE)) {
-        out_path <- paste0(out_path, ".tif")
-      }
-      terra::writeRaster(cropped, out_path, overwrite = TRUE)
-      written <- c(written, out_path)
-    }
-    sources[[var]] <- written
-  }
-  list(folder = dest_dir, sources = sources)
-}
-
-.wapor_temporal_weighted_sum_window <- function(paths, template, win, weights, multipliers) {
-  if (!length(paths)) {
-    stop("'paths' must contain at least one raster", call. = FALSE)
-  }
-  if (length(weights) != length(paths) || length(multipliers) != length(paths)) {
-    stop("weights and multipliers must match the number of paths", call. = FALSE)
-  }
-  tile_template <- .wapor_crop_raster_window(template, win)
-  total <- NULL
-  for (i in seq_along(paths)) {
-    layer <- terra::rast(paths[[i]])
-    if (terra::nlyr(layer) > 1L) {
-      layer <- layer[[1]]
-    }
-    layer <- .wapor_crop_raster_window(layer, win)
-    if (!isTRUE(terra::compareGeom(layer, tile_template, stopOnError = FALSE))) {
-      layer <- terra::resample(layer, tile_template, method = "near")
-    }
-    contrib <- layer * (weights[[i]] * multipliers[[i]])
-    total <- if (is.null(total)) contrib else total + contrib
-  }
-  total
-}
-
 .wapor_write_run_manifest <- function(path, manifest) {
   jsonlite::write_json(manifest, path, pretty = TRUE, auto_unbox = TRUE, null = "null")
   path
@@ -319,6 +214,12 @@ wapor_suggest_tile_size <- function(n_layers,
 .wapor_ymd_from_name <- function(nm) {
   m <- regmatches(nm, regexpr("\\d{4}-\\d{2}-\\d{2}", nm))
   if (length(m)) return(m)
+  # WaPOR dekad labels: YYYY-MM-D1 / D2 / D3 start on day 01 / 11 / 21.
+  m <- regmatches(nm, regexpr("\\d{4}-\\d{2}-D[123]", nm))
+  if (length(m)) {
+    day <- c(D1 = "01", D2 = "11", D3 = "21")[[substr(m, 9, 10)]]
+    return(paste0(substr(m, 1, 8), day))
+  }
   m <- regmatches(nm, regexpr("(?<![0-9])\\d{12}(?![0-9])", nm, perl = TRUE))
   if (length(m)) {
     return(paste(substr(m, 1, 4), substr(m, 5, 6), substr(m, 7, 8), sep = "-"))
@@ -337,240 +238,6 @@ wapor_suggest_tile_size <- function(n_layers,
     stop("Missing data for some dekads in the analysis period.", call. = FALSE)
   }
   paths[idx]
-}
-
-.wapor_read_window_layer <- function(path, win, tile_template) {
-  .wapor_retry_remote_operation(function() {
-    layer <- terra::rast(path)
-    if (terra::nlyr(layer) > 1L) {
-      layer <- layer[[1]]
-    }
-    cropped <- tryCatch(
-      .wapor_crop_raster_window(layer, win),
-      error = function(e) terra::crop(layer, tile_template, snap = "out")
-    )
-    if (!isTRUE(terra::compareGeom(cropped, tile_template, stopOnError = FALSE))) {
-      cropped <- terra::resample(cropped, tile_template, method = "near")
-    }
-    cropped
-  }, label = sprintf("window read %s", basename(path)))
-}
-
-.wapor_weighted_sum_from_paths <- function(paths, win, tile_template, weight_layers, multipliers) {
-  total <- NULL
-  for (i in seq_along(paths)) {
-    layer <- .wapor_read_window_layer(paths[[i]], win, tile_template)
-    contrib <- layer * (weight_layers[[i]] * multipliers[[i]])
-    total <- if (is.null(total)) contrib else total + contrib
-  }
-  total
-}
-
-.wapor_reduce_tile_indicators <- function(config, crop_params, rasters, win, template, source_paths = NULL) {
-  indicators <- wapor_normalize_analysis_indicators(config$indicators)
-  tile_template <- .wapor_crop_raster_window(template, win)
-  h_mask <- if (isTRUE(config$use_crop_mask) && inherits(rasters$crop_mask, "SpatRaster")) {
-    wapor_harmonize_crop_mask(.wapor_crop_raster_window(rasters$crop_mask, win), tile_template)
-  } else {
-    tile_template * 0 + 1L
-  }
-  ref_year <- config$ref_year %||% as.integer(format(as.Date(config$period[1]), "%Y"))
-  h_start <- if (isTRUE(config$use_season_rasters) && inherits(rasters$season_start, "SpatRaster")) {
-    Rwapor::wapor_harmonize_raster(.wapor_crop_raster_window(rasters$season_start, win), tile_template, method = "near")
-  } else {
-    tile_template * 0 + Rwapor::wapor_continuous_julian(config$period[1], ref_year)
-  }
-  h_end <- if (isTRUE(config$use_season_rasters) && inherits(rasters$season_end, "SpatRaster")) {
-    Rwapor::wapor_harmonize_raster(.wapor_crop_raster_window(rasters$season_end, win), tile_template, method = "near")
-  } else {
-    tile_template * 0 + Rwapor::wapor_continuous_julian(config$period[2], ref_year)
-  }
-
-  sw <- Rwapor::wapor_build_season_weights(config$period[1], config$period[2], h_start, h_end, ref_year)
-  dekad_table <- sw$dekad_table
-  weight_layers <- lapply(seq_len(terra::nlyr(sw$weights)), function(i) sw$weights[[i]])
-  valid_mask <- terra::ifel(is.na(h_mask), NA, 1L)
-
-  tile_paths <- function(var) {
-    if (!is.null(source_paths) && !is.null(source_paths[[var]])) {
-      return(as.character(source_paths[[var]]))
-    }
-    .wapor_resolve_source_paths(config, var)
-  }
-  aeti_paths <- if (!is.null(config$aeti_var) && nzchar(config$aeti_var)) {
-    .wapor_align_paths_to_dekads(tile_paths(config$aeti_var), dekad_table$dekad_key)
-  } else {
-    character(0)
-  }
-  ret_paths <- if (!is.null(config$ret_var) && nzchar(config$ret_var)) {
-    .wapor_align_paths_to_dekads(tile_paths(config$ret_var), dekad_table$dekad_key)
-  } else {
-    character(0)
-  }
-  precip_paths <- if (!is.null(config$precip_var) && nzchar(config$precip_var)) {
-    .wapor_align_paths_to_dekads(tile_paths(config$precip_var), dekad_table$dekad_key)
-  } else {
-    character(0)
-  }
-  npp_paths <- if (!is.null(config$npp_var) && nzchar(config$npp_var)) {
-    .wapor_align_paths_to_dekads(tile_paths(config$npp_var), dekad_table$dekad_key)
-  } else {
-    character(0)
-  }
-  t_paths <- if (!is.null(config$t_var) && nzchar(config$t_var)) {
-    .wapor_align_paths_to_dekads(tile_paths(config$t_var), dekad_table$dekad_key)
-  } else {
-    character(0)
-  }
-
-  aeti_mult <- if (length(aeti_paths)) get_analysis_layer_multipliers(config$aeti_var, dekad_table) else NULL
-  ret_mult <- if (length(ret_paths)) get_analysis_layer_multipliers(config$ret_var, dekad_table) else NULL
-  precip_mult <- if (length(precip_paths)) get_analysis_layer_multipliers(config$precip_var, dekad_table) else NULL
-  npp_mult <- if (length(npp_paths)) get_analysis_layer_multipliers(config$npp_var, dekad_table) else NULL
-  t_mult <- if (length(t_paths)) get_analysis_layer_multipliers(config$t_var, dekad_table) else NULL
-
-  seasonal_aeti <- if (length(aeti_paths)) {
-    terra::mask(.wapor_weighted_sum_from_paths(aeti_paths, win, tile_template, weight_layers, aeti_mult), valid_mask)
-  } else {
-    NULL
-  }
-  seasonal_ret <- if (length(ret_paths)) {
-    terra::mask(.wapor_weighted_sum_from_paths(ret_paths, win, tile_template, weight_layers, ret_mult), valid_mask)
-  } else {
-    NULL
-  }
-  seasonal_pcp <- if (length(precip_paths) && any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators)) {
-    terra::mask(.wapor_weighted_sum_from_paths(precip_paths, win, tile_template, weight_layers, precip_mult), valid_mask)
-  } else {
-    NULL
-  }
-  seasonal_t <- if (length(t_paths) && any(c("agg_t", "beneficial_fraction") %in% indicators)) {
-    terra::mask(.wapor_weighted_sum_from_paths(t_paths, win, tile_template, weight_layers, t_mult), valid_mask)
-  } else {
-    NULL
-  }
-  seasonal_biomass <- if (length(npp_paths) && any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators)) {
-    terra::mask(
-      .wapor_weighted_sum_from_paths(npp_paths, win, tile_template, weight_layers, npp_mult) * 22.222 / 1000,
-      valid_mask
-    )
-  } else {
-    NULL
-  }
-
-  layer_dates <- if ("dekad_start" %in% names(dekad_table)) as.Date(dekad_table$dekad_start) else as.Date(dekad_table$dekad_key)
-  month_keys <- format(layer_dates, "%Y-%m")
-  month_order <- unique(month_keys)
-  seasonal_peff <- NULL
-  if (length(precip_paths) && any(c("agg_peff", "green_water", "blue_water") %in% indicators)) {
-    monthly_peff <- list()
-    for (month_key in month_order) {
-      idx <- which(month_keys == month_key)
-      monthly_pcp <- .wapor_weighted_sum_from_paths(
-        precip_paths[idx], win, tile_template, weight_layers[idx], precip_mult[idx]
-      )
-      monthly_peff[[month_key]] <- terra::ifel(
-        monthly_pcp <= 250,
-        monthly_pcp * (125 - 0.2 * monthly_pcp) / 125,
-        125 + 0.1 * monthly_pcp
-      )
-    }
-    seasonal_peff <- monthly_peff[[1]]
-    if (length(monthly_peff) > 1L) {
-      for (i in seq_along(monthly_peff)[-1]) {
-        seasonal_peff <- seasonal_peff + monthly_peff[[i]]
-      }
-    }
-    seasonal_peff <- terra::mask(seasonal_peff, valid_mask)
-  }
-
-  etc_seasonal <- NULL
-  if (any(c("etc", "adequacy_etc") %in% indicators)) {
-    if (!length(ret_paths)) {
-      stop("RET stack is required for ETc/Adequacy.", call. = FALSE)
-    }
-    profile_table <- wapor_build_season_profile_table(h_mask, h_start, h_end, crop_params$class_value)
-    if (nrow(profile_table) > 0) {
-      kc_profiles <- list()
-      profile_table$kc_key <- NA_character_
-      for (i in seq_len(nrow(profile_table))) {
-        profile_row <- profile_table[i, ]
-        cp <- crop_params[crop_params$class_value == profile_row$class_value, , drop = FALSE]
-        if (nrow(cp) == 0) next
-        fixed_sum <- cp$l_ini_days + cp$l_mid_days + cp$l_late_days
-        l_dev <- as.integer(profile_row$total_days - fixed_sum)
-        if (l_dev < 0L) l_dev <- 0L
-        kc_daily <- Rwapor::wapor_build_kc(
-          kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
-          l_ini = cp$l_ini_days[1], l_dev = l_dev, l_mid = cp$l_mid_days[1], l_late = cp$l_late_days[1]
-        )
-        season_start_date <- as.Date(sprintf("%04d-01-01", ref_year)) + profile_row$start_jd - 1L
-        kc_dekad <- Rwapor::wapor_aggregate_kc(kc_daily, dekad_table, season_start_date)
-        kc_key <- paste(round(kc_dekad, 6), collapse = ",")
-        profile_table$kc_key[i] <- kc_key
-        if (is.null(kc_profiles[[kc_key]])) kc_profiles[[kc_key]] <- kc_dekad
-      }
-      unique_etc <- list()
-      for (key in names(kc_profiles)) {
-        unique_etc[[key]] <- .wapor_weighted_sum_from_paths(
-          ret_paths, win, tile_template, weight_layers, ret_mult * kc_profiles[[key]]
-        )
-      }
-      for (i in seq_len(nrow(profile_table))) {
-        key <- profile_table$kc_key[i]
-        if (is.na(key) || is.null(unique_etc[[key]])) next
-        profile_mask <- terra::ifel(
-          (h_mask == profile_table$class_value[i]) &
-            (h_start == profile_table$start_jd[i]) &
-            (h_end == profile_table$end_jd[i]),
-          1L,
-          NA
-        )
-        profile_etc <- unique_etc[[key]] * profile_mask
-        etc_seasonal <- if (is.null(etc_seasonal)) profile_etc else terra::cover(etc_seasonal, profile_etc)
-      }
-      if (!is.null(etc_seasonal)) {
-        etc_seasonal <- terra::mask(etc_seasonal, valid_mask)
-      }
-    }
-  }
-
-  adequacy_etc <- if ("adequacy_etc" %in% indicators && !is.null(seasonal_aeti) && !is.null(etc_seasonal)) {
-    terra::mask(Rwapor::wapor_calc_adequacy_etc(seasonal_aeti, etc_seasonal), valid_mask)
-  } else {
-    NULL
-  }
-  green_water <- if ("green_water" %in% indicators && !is.null(seasonal_aeti) && !is.null(seasonal_peff)) {
-    terra::mask(Rwapor::wapor_calc_green_water(seasonal_aeti, seasonal_peff), valid_mask)
-  } else {
-    NULL
-  }
-  blue_water <- if ("blue_water" %in% indicators && !is.null(seasonal_aeti) && !is.null(seasonal_peff)) {
-    terra::mask(Rwapor::wapor_calc_blue_water(seasonal_aeti, seasonal_peff), valid_mask)
-  } else {
-    NULL
-  }
-  beneficial_fraction <- if ("beneficial_fraction" %in% indicators && !is.null(seasonal_aeti) && !is.null(seasonal_t)) {
-    terra::mask(Rwapor::wapor_calc_beneficial_fraction(seasonal_t, seasonal_aeti), valid_mask)
-  } else {
-    NULL
-  }
-
-  list(
-    seasonal_aeti = seasonal_aeti,
-    seasonal_ret = seasonal_ret,
-    seasonal_pcp = seasonal_pcp,
-    seasonal_t = seasonal_t,
-    seasonal_peff = seasonal_peff,
-    seasonal_biomass = seasonal_biomass,
-    etc_seasonal = etc_seasonal,
-    adequacy_etc = adequacy_etc,
-    green_water = green_water,
-    blue_water = blue_water,
-    beneficial_fraction = beneficial_fraction,
-    used_full_engine = FALSE,
-    reducer = "block"
-  )
 }
 
 .wapor_remote_cog_fixture <- function(nrow = 128L, ncol = 128L) {
@@ -762,14 +429,17 @@ wapor_suggest_tile_size <- function(n_layers,
 
 #' Run Windowed / Tiled Seasonal Analysis Engine
 #'
-#' Processes seasonal analysis in deterministic spatial tiles so large
-#' extents do not need the full cube in RAM. Each tile is cropped, run
-#' through tile-local block reducers, written as an immutable
-#' GeoTIFF/COG, and recorded in a versioned run manifest. Completed tiles
-#' can be resumed. Tile assets are assembled with a VRT rather than by
-#' keeping a full-AOI mosaic in memory.
+#' Runs [wapor_run_seasonal_analysis()] with `processing = "tiled"`: the
+#' analysis area is split into square tiles, each tile is aggregated from
+#' windowed source reads, written as an immutable GeoTIFF/COG and recorded in
+#' a versioned run manifest. Completed tiles can be resumed. Tile outputs are
+#' assembled with a VRT rather than by holding a full-area mosaic in memory.
 #'
-#' @param config List of configuration parameters.
+#' Results are identical to the in-memory engine; only memory use differs.
+#' Tiles run in parallel under the active [future::plan()].
+#'
+#' @param config List of configuration parameters (see
+#'   [wapor_run_seasonal_analysis()]).
 #' @param crop_params data.frame of crop class parameters.
 #' @param rasters List of SpatRaster objects (mask, start, end).
 #' @param output_dir Character. Output directory for tiled GeoTIFF products.
@@ -778,8 +448,9 @@ wapor_suggest_tile_size <- function(n_layers,
 #' @param cog Logical. Write outputs with [wapor_write_cog()]. Default `FALSE`.
 #' @param resume Logical. Reuse valid completed tiles from an existing
 #'   run manifest in `output_dir`. Default `FALSE`.
-#' @return List with paths to written raster files, the run manifest, tile
-#'   counts, and VRT-backed `results` rasters.
+#' @return List with paths to written raster files (`saved_files`), the run
+#'   manifest path, tile counts, VRT-backed `results` rasters, and the full
+#'   engine result as `analysis`.
 #' @export
 wapor_run_seasonal_analysis_tiled <- function(
   config,
@@ -791,237 +462,63 @@ wapor_run_seasonal_analysis_tiled <- function(
   cog = FALSE,
   resume = FALSE
 ) {
-  if (is.null(progress_callback)) progress_callback <- function(v, d) NULL
-
+  if (is.list(config$period)) {
+    stop("wapor_run_seasonal_analysis_tiled() runs one season; call it once per period.", call. = FALSE)
+  }
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   }
-  tiles_dir <- file.path(output_dir, "tiles")
-  dir.create(tiles_dir, recursive = TRUE, showWarnings = FALSE)
-  manifest_path <- file.path(output_dir, "run_manifest.json")
+  cfg <- config
+  cfg$processing <- "tiled"
+  cfg$tile_size <- as.integer(tile_size)
+  cfg$output_dir <- output_dir
+  cfg$cog <- isTRUE(cog)
+  cfg$resume <- isTRUE(resume)
+  cfg$keep_intermediates <- cfg$keep_intermediates %||% FALSE
+
+  res <- wapor_run_seasonal_analysis(
+    config = cfg,
+    crop_params = crop_params,
+    rasters = rasters,
+    progress_callback = progress_callback
+  )
 
   write_out <- function(r, path) {
     if (is.null(r)) {
-      return(invisible(NULL))
+      return(NULL)
     }
     if (isTRUE(cog)) {
-      wapor_write_cog(r, path, overwrite = TRUE)
+      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT8S")
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE)
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT8S")
     }
     path
   }
 
-  template_candidates <- Filter(
-    function(x) inherits(x, "SpatRaster"),
-    list(rasters$crop_mask, rasters$season_start, rasters$season_end)
-  )
-  template <- if (length(template_candidates)) template_candidates[[1]] else NULL
-  if (is.null(template)) {
-    stop("Tiled analysis requires rasters$crop_mask, season_start, or season_end as a template.", call. = FALSE)
-  }
-  if (terra::nlyr(template) > 1L) {
-    template <- template[[1]]
-  }
-
-  n_row <- as.integer(terra::nrow(template))
-  n_col <- as.integer(terra::ncol(template))
-  windows <- .wapor_tiled_windows(n_row, n_col, tile_size)
-  n_tiles <- length(windows)
-  grid <- .wapor_grid_signature(template)
-  config_hash <- .wapor_tiled_config_hash(config, tile_size, grid)
-
-  existing <- NULL
-  if (isTRUE(resume) && file.exists(manifest_path)) {
-    existing <- .wapor_read_run_manifest(manifest_path)
-    existing_hash <- existing$config_hash %||% NA_character_
-    if (!identical(existing_hash, config_hash)) {
-      stop(
-        "Existing tiled run manifest does not match this configuration; refuse to resume.",
-        call. = FALSE
-      )
-    }
-  } else if (isTRUE(resume) && !file.exists(manifest_path)) {
-    existing <- NULL
-  }
-
-  existing_by_id <- list()
-  if (!is.null(existing) && length(existing$tiles)) {
-    for (tile in existing$tiles) {
-      if (!is.null(tile$id)) {
-        existing_by_id[[tile$id]] <- tile
-      }
-    }
-  }
-
-  tile_records <- vector("list", n_tiles)
-  tile_aeti_paths <- character(n_tiles)
-  tile_adeq_paths <- character(n_tiles)
-  tile_biomass_paths <- character(n_tiles)
-  n_tiles_resumed <- 0L
-  n_tiles_written <- 0L
-
-  for (i in seq_along(windows)) {
-    win <- windows[[i]]
-    progress_callback(
-      i / n_tiles,
-      sprintf("Tile %d / %d (%s rows %d-%d cols %d-%d)...",
-              i, n_tiles, win$id, win$row, win$row + win$nrows - 1L,
-              win$col, win$col + win$ncols - 1L)
-    )
-    tile_template <- .wapor_crop_raster_window(template, win)
-    prev <- existing_by_id[[win$id]]
-    if (isTRUE(resume) && !is.null(prev) && .wapor_tile_is_complete(prev, tile_template)) {
-      tile_records[[i]] <- prev
-      tile_aeti_paths[i] <- prev$outputs$seasonal_aeti %||% NA_character_
-      tile_adeq_paths[i] <- prev$outputs$adequacy_etc %||% NA_character_
-      tile_biomass_paths[i] <- prev$outputs$seasonal_biomass %||% NA_character_
-      n_tiles_resumed <- n_tiles_resumed + 1L
-      next
-    }
-
-    tile_sources <- .wapor_window_source_rasters(
-      config = config,
-      win = win,
-      template = template,
-      dest_dir = file.path(tiles_dir, win$id, "sources")
-    )
-    tile_res <- .wapor_reduce_tile_indicators(
-      config = config,
-      crop_params = crop_params,
-      rasters = rasters,
-      win = win,
-      template = template,
-      source_paths = tile_sources$sources
-    )
-
-    snap_to_tile <- function(r) {
-      if (is.null(r) || !inherits(r, "SpatRaster")) {
-        return(r)
-      }
-      if (isTRUE(terra::compareGeom(r, tile_template, stopOnError = FALSE))) {
-        return(r)
-      }
-      terra::resample(r, tile_template, method = "near")
-    }
-
-    aeti_r <- snap_to_tile(tile_res$seasonal_aeti)
-    adeq_r <- snap_to_tile(tile_res$adequacy_etc)
-    biomass_r <- snap_to_tile(tile_res$seasonal_biomass)
-
-    outputs <- list()
-    checksums <- list()
-    if (!is.null(aeti_r)) {
-      path <- file.path(tiles_dir, sprintf("%s_seasonal_aeti.tif", win$id))
-      write_out(aeti_r, path)
-      if (!.wapor_validate_tile_asset(path, tile_template)) {
-        stop(sprintf("Tile %s seasonal_aeti failed geometry validation.", win$id), call. = FALSE)
-      }
-      outputs$seasonal_aeti <- path
-      checksums$seasonal_aeti <- .wapor_file_sha256(path)
-      tile_aeti_paths[i] <- path
-    }
-    if (!is.null(adeq_r)) {
-      path <- file.path(tiles_dir, sprintf("%s_adequacy_etc.tif", win$id))
-      write_out(adeq_r, path)
-      outputs$adequacy_etc <- path
-      checksums$adequacy_etc <- .wapor_file_sha256(path)
-      tile_adeq_paths[i] <- path
-    }
-    if (!is.null(biomass_r)) {
-      path <- file.path(tiles_dir, sprintf("%s_seasonal_biomass.tif", win$id))
-      write_out(biomass_r, path)
-      outputs$seasonal_biomass <- path
-      checksums$seasonal_biomass <- .wapor_file_sha256(path)
-      tile_biomass_paths[i] <- path
-    }
-
-    tile_records[[i]] <- list(
-      id = win$id,
-      row = win$row,
-      col = win$col,
-      nrows = win$nrows,
-      ncols = win$ncols,
-      status = "complete",
-      outputs = outputs,
-      checksums = checksums,
-      sources = tile_sources$sources,
-      reducer = tile_res$reducer %||% "block",
-      used_full_engine = isTRUE(tile_res$used_full_engine)
-    )
-    n_tiles_written <- n_tiles_written + 1L
-  }
-
-  n_complete <- sum(vapply(tile_records, function(t) identical(t$status, "complete"), logical(1)))
-  coverage <- list(
-    n_tiles = n_tiles,
-    n_complete = n_complete,
-    n_resumed = n_tiles_resumed,
-    n_written = n_tiles_written,
-    complete = isTRUE(n_complete == n_tiles)
-  )
-  if (!isTRUE(coverage$complete)) {
-    stop("Tiled analysis is incomplete; one or more tiles failed validation.", call. = FALSE)
-  }
-
-  vrt_aeti <- .wapor_assemble_vrt(
-    tile_aeti_paths[!is.na(tile_aeti_paths) & nzchar(tile_aeti_paths)],
-    file.path(output_dir, "seasonal_aeti.vrt")
-  )
-  vrt_adeq <- .wapor_assemble_vrt(
-    tile_adeq_paths[!is.na(tile_adeq_paths) & nzchar(tile_adeq_paths)],
-    file.path(output_dir, "adequacy_etc.vrt")
-  )
-  vrt_biomass <- .wapor_assemble_vrt(
-    tile_biomass_paths[!is.na(tile_biomass_paths) & nzchar(tile_biomass_paths)],
-    file.path(output_dir, "seasonal_biomass.vrt")
-  )
-
-  merged_aeti <- if (!is.null(vrt_aeti)) terra::rast(vrt_aeti) else NULL
-  merged_adeq <- if (!is.null(vrt_adeq)) terra::rast(vrt_adeq) else NULL
-  merged_biomass <- if (!is.null(vrt_biomass)) terra::rast(vrt_biomass) else NULL
-
+  aeti <- res$seasonal_aeti$raster
   saved_files <- list()
-  if (!is.null(merged_aeti)) {
-    saved_files$seasonal_aeti_vrt <- vrt_aeti
-    saved_files$seasonal_aeti <- write_out(merged_aeti, file.path(output_dir, "seasonal_aeti.tif"))
+  if (!is.null(aeti)) {
+    saved_files$seasonal_aeti_vrt <- file.path(output_dir, "seasonal_aeti.vrt")
+    saved_files$seasonal_aeti <- write_out(aeti, file.path(output_dir, "seasonal_aeti.tif"))
   }
-  if (!is.null(merged_biomass)) {
-    saved_files$seasonal_biomass_vrt <- vrt_biomass
-    saved_files$seasonal_biomass <- write_out(merged_biomass, file.path(output_dir, "seasonal_biomass.tif"))
+  if (!is.null(res$seasonal_biomass)) {
+    saved_files$seasonal_biomass <- write_out(res$seasonal_biomass, file.path(output_dir, "seasonal_biomass.tif"))
   }
-  if (!is.null(merged_adeq)) {
-    saved_files$adequacy_etc_vrt <- vrt_adeq
-    saved_files$adequacy_etc <- write_out(merged_adeq, file.path(output_dir, "adequacy_etc.tif"))
+  if (!is.null(res$adequacy_etc)) {
+    saved_files$adequacy_etc <- write_out(res$adequacy_etc, file.path(output_dir, "adequacy_etc.tif"))
   }
 
-  manifest <- list(
-    manifest_version = 1L,
-    created_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
-    config_hash = config_hash,
-    grid = grid,
-    tile_size = as.integer(tile_size),
-    cog = isTRUE(cog),
-    versions = .wapor_runtime_versions(),
-    sources = lapply(.wapor_requested_variables(config), function(var) {
-      list(variable = var, paths = .wapor_resolve_source_paths(config, var))
-    }),
-    coverage = coverage,
-    tiles = tile_records
-  )
-  .wapor_write_run_manifest(manifest_path, manifest)
-
-  progress_callback(1.0, "Tiled seasonal processing complete.")
   list(
     results = list(
-      seasonal_aeti = list(raster = merged_aeti),
-      seasonal_biomass = merged_biomass,
-      adequacy_etc = merged_adeq
+      seasonal_aeti = list(raster = aeti),
+      seasonal_biomass = res$seasonal_biomass,
+      adequacy_etc = res$adequacy_etc
     ),
     saved_files = saved_files,
-    manifest_path = manifest_path,
-    n_tiles = n_tiles,
-    n_tiles_resumed = n_tiles_resumed,
-    n_tiles_written = n_tiles_written
+    manifest_path = res$processing_run$manifest_path,
+    n_tiles = res$processing_run$n_tiles,
+    n_tiles_resumed = res$processing_run$n_tiles_resumed,
+    n_tiles_written = res$processing_run$n_tiles_written,
+    analysis = res
   )
 }

@@ -39,21 +39,21 @@
       "updated_utc": "2026-09-15"
     },
     {
-          "id": "1.6",
-          "title": "Explicit alignment reference (mask vs AETI vs custom)",
-          "status": "done",
-          "priority": "medium",
-          "model": "claude",
-          "attribution": "recorded",
-          "files": [
-            "R/analysis.R",
-            "R/analysis_engine.R"
-          ],
-          "notes": "Verified 2026-09-18: reference_layer param fully implemented (analysis_engine.R:106-110, exact spec match); resampling_method per-layer map is implemented at analysis_engine.R:111-119 with get_resampling_method() closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done.",
-          "issue_ref": null,
-          "claimed_utc": "2026-09-18T00:00:00Z",
-          "updated_utc": "2026-09-18"
-        },
+      "id": "1.6",
+      "title": "Explicit alignment reference (mask vs AETI vs custom)",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis.R",
+        "R/analysis_engine.R"
+      ],
+      "notes": "Verified 2026-09-18: reference_layer param fully implemented (analysis_engine.R:106-110, exact spec match); resampling_method per-layer map is implemented at analysis_engine.R:111-119 with get_resampling_method() closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
     {
       "id": "2.2",
       "title": "COG write support",
@@ -101,50 +101,50 @@
       "updated_utc": "2026-09-17"
     },
     {
-          "id": "3.3",
-          "title": "Publication map helpers",
-          "status": "pending",
-          "priority": "medium",
-          "model": null,
-          "attribution": null,
-          "files": [
-            "R/viz.R"
-          ],
-          "notes": "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
-          "issue_ref": null,
-          "claimed_utc": null,
-          "updated_utc": "2026-09-18"
-        },
+      "id": "3.3",
+      "title": "Publication map helpers",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/viz.R"
+      ],
+      "notes": "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-18"
+    },
     {
-          "id": "3.4",
-          "title": "Anomaly & trend module",
-          "status": "done",
-          "priority": "medium",
-          "model": "claude",
-          "attribution": "recorded",
-          "files": [
-            "R/anomaly.R"
-          ],
-          "notes": "Verified 2026-09-18: all 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline, linear_trend at anomaly.R:111). linear_trend is in NAMESPACE:7. Test file tests/testthat/test-anomaly-trend.R exists and tests linear_trend. Core deliverable complete.",
-          "issue_ref": null,
-          "claimed_utc": "2026-09-18T00:00:00Z",
-          "updated_utc": "2026-09-18"
-        },
+      "id": "3.4",
+      "title": "Anomaly & trend module",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/anomaly.R"
+      ],
+      "notes": "Verified 2026-09-18: all 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline, linear_trend at anomaly.R:111). linear_trend is in NAMESPACE:7. Test file tests/testthat/test-anomaly-trend.R exists and tests linear_trend. Core deliverable complete.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
     {
-          "id": "3.5",
-          "title": "Preflight validation module",
-          "status": "done",
-          "priority": "medium",
-          "model": "claude",
-          "attribution": "recorded",
-          "files": [
-            "R/analysis_validation.R"
-          ],
-          "notes": "Verified 2026-09-18: wapor_preflight_check() at analysis_validation.R:250 and wapor_validate_data_coverage() at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).",
-          "issue_ref": null,
-          "claimed_utc": "2026-09-18T00:00:00Z",
-          "updated_utc": "2026-09-18"
-        },
+      "id": "3.5",
+      "title": "Preflight validation module",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis_validation.R"
+      ],
+      "notes": "Verified 2026-09-18: wapor_preflight_check() at analysis_validation.R:250 and wapor_validate_data_coverage() at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
     {
       "id": "4.1",
       "title": "Dashboard: indicator selection from registry",
@@ -207,20 +207,20 @@
       "updated_utc": "2026-09-17"
     },
     {
-          "id": "5.3",
-          "title": "CI: lintr + styler checks",
-          "status": "done",
-          "priority": "medium",
-          "model": "claude",
-          "attribution": "recorded",
-          "files": [
-            ".github/workflows/R-CMD-check.yaml"
-          ],
-          "notes": "Verified 2026-09-18: lint job exists at .github/workflows/R-CMD-check.yaml:64-80 running lintr::lint_package() and styler::style_pkg(dry=\"on\"). Deliverable complete.",
-          "issue_ref": null,
-          "claimed_utc": "2026-09-18T00:00:00Z",
-          "updated_utc": "2026-09-18"
-        },
+      "id": "5.3",
+      "title": "CI: lintr + styler checks",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        ".github/workflows/R-CMD-check.yaml"
+      ],
+      "notes": "Verified 2026-09-18: lint job exists at .github/workflows/R-CMD-check.yaml:64-80 running lintr::lint_package() and styler::style_pkg(dry=\"on\"). Deliverable complete.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
     {
       "id": "6.1",
       "title": "Vignettes",
@@ -737,9 +737,77 @@
       "issue_ref": null,
       "claimed_utc": "2026-09-22T00:00:00Z",
       "updated_utc": "2026-09-22"
+    },
+    {
+      "id": "large-raster-perf",
+      "title": "Large-raster performance and size-aware processing (1.0.1)",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis.R",
+        "R/analysis_engine.R",
+        "R/analysis_tiled.R",
+        "R/analysis_indicators.R",
+        "R/analysis_utils.R",
+        "R/analysis_validation.R",
+        "R/indicators_math.R",
+        "R/anomaly.R",
+        "R/gdal_config.R",
+        "R/seasonal_download.R",
+        "R/utils.R",
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "inst/shiny/mod_analysis.R"
+      ],
+      "notes": "Takes over R/utils.R, R/wapor_map.R, R/wapor_ts.R from seasonal-dashboard-semantics by user decision (2026-09-23). Branch perf/large-raster-1.0.1. Design: docs/superpowers/specs/2026-09-23-large-raster-performance-design.md Done on branch (committed, not pushed): full suite 1332 expectations 0 failures; R CMD check 0 errors/0 warnings, 2 pre-existing notes; live smoke 5/5 (tiled==memory, diff 0). Benchmark rerun blocked: C: drive full (2 GB free).",
+      "issue_ref": "ISS-20260923-001",
+      "claimed_utc": "2026-09-23T00:00:00Z",
+      "updated_utc": "2026-09-23"
     }
   ],
   "issues": [
+    {
+      "id": "ISS-20260923-001",
+      "title": "Tiled engine read source layers with template row/col indices (silent all-NA output)",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/analysis_tiled.R, R/processing_kernel.R",
+      "summary": "Tiles were cut from sources by template row/col indices; any source on another grid gave all-NA tiles. Tiling moved into the shared kernel reading by extent plus halo. Verified: offset read 4041/4042/4043; live L1 tiled equals memory (max diff 0)."
+    },
+    {
+      "id": "ISS-20260923-002",
+      "title": "Monitoring stores whole rasters as DuckDB blobs",
+      "status": "open",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": null,
+      "where": "R/wapor_monitoring.R",
+      "summary": "Every query deserialises whole rasters before cropping to the farm. Not fixed (user decision Q9: storage-format change, needs migration)."
+    },
+    {
+      "id": "ISS-20260923-003",
+      "title": "Remote seasonal analysis could not match WaPOR dekad file names",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/analysis_tiled.R (.wapor_ymd_from_name)",
+      "summary": "YYYY-MM-D1/D2/D3 labels were not parsed, so data_source='api' failed for every request in 1.0.0 (verified live). Fixed; live smoke test passes."
+    },
+    {
+      "id": "ISS-20260923-004",
+      "title": "GDAL curl capability probe always reported missing",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/gdal_config.R, R/remote_capabilities.R",
+      "summary": "Probe searched a non-existent 'longname' column for 'vsicurl'; false warning on load and forced full downloads under the download fallback. Now detects GDAL's HTTP driver."
+    },
     {
       "id": "ISS-20260917-003",
       "title": "Remote COG streaming retries stopped before pixel I/O",

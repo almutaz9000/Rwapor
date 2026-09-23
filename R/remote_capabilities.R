@@ -15,9 +15,9 @@ wapor_remote_capabilities <- function(refresh = FALSE) {
 
   drivers <- tryCatch(terra::gdal(drivers = TRUE), error = function(e) NULL)
   has_cog <- !is.null(drivers) && "COG" %in% drivers$name
-  has_curl <- !is.null(drivers) && any(
-    grepl("vsicurl|curl", drivers$longname, ignore.case = TRUE)
-  )
+  # /vsicurl/ is a virtual file system, not a driver; GDAL builds its HTTP
+  # driver only when curl is available, so that driver is the signal.
+  has_curl <- !is.null(drivers) && "HTTP" %in% drivers$name
   streaming <- isTRUE(has_cog && has_curl)
   message <- if (streaming) {
     "GDAL supports /vsicurl/ and the COG driver."

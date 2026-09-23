@@ -16,13 +16,14 @@ wapor_map(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L,
+  batch_size = NULL,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   cog = FALSE,
   on_batch_done = NULL,
-  fun = NULL
+  fun = NULL,
+  processing = c("auto", "memory", "stream", "tiled")
 )
 }
 \arguments{
@@ -74,8 +75,10 @@ Default is \code{FALSE}.}
 \item{batching}{Logical. If \code{TRUE} (default), processes data in chunks of \code{batch_size}.
 If \code{FALSE}, loads all layers at once.}
 
-\item{batch_size}{Integer. Number of remote files loaded per chunk in non-seasonal mode.
-Lower values reduce memory pressure for long periods. Default is \code{12L}.}
+\item{batch_size}{Integer. Number of remote files loaded per chunk.
+Default \code{NULL} lets \code{\link[=wapor_plan_processing]{wapor_plan_processing()}} choose it from the area size
+and available memory (all layers at once for small areas). Set a number to
+override.}
 
 \item{l3_region}{Optional L3 code to use for an L3 variable and spatial AOI.}
 
@@ -96,6 +99,10 @@ variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted for
 accumulative products and is rejected for state/rate products;
 \code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
 overlapping source layer once without scaling partial layers.}
+
+\item{processing}{One of \code{"auto"} (default), \code{"memory"}, \code{"stream"} or
+\code{"tiled"}. Controls how many layers are held at once; see
+\code{\link[=wapor_plan_processing]{wapor_plan_processing()}}.}
 }
 \value{
 Character path to the output GeoTIFF file, or in seasonal mode with

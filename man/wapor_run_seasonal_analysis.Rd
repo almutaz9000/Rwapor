@@ -13,25 +13,47 @@ wapor_run_seasonal_analysis(
 )
 }
 \arguments{
-\item{config}{List of configuration parameters.}
+\item{config}{List of configuration parameters. Besides the variable codes,
+\code{period}, \code{data_source}, \code{folder} and \code{indicators}, it accepts:
+\itemize{
+\item \code{processing}: \code{"auto"} (default), \code{"memory"}, \code{"stream"} or \code{"tiled"}.
+See \code{\link[=wapor_plan_processing]{wapor_plan_processing()}}.
+\item \code{min_coverage}: share of season days a pixel must have data for
+(default \code{1}, every dekad). Pixels below it are \code{NA} rather than having
+missing dekads counted as zero.
+\item \code{keep_intermediates}: keep \code{dekadal_stacks} and \code{season_weights} in the
+result. Defaults to \code{TRUE} in memory mode and \code{FALSE} otherwise.
+\item \code{output_dir}: folder for stream and tiled outputs (default: a folder
+under \code{\link[=tempdir]{tempdir()}}).
+\item \code{reference_layer}, \code{resampling_method}: target grid and per-layer
+resampling (see Details).
+}}
 
 \item{crop_params}{data.frame of crop class parameters (Kc, HI, etc.).}
 
 \item{rasters}{List of terra::SpatRaster objects (mask, start, end).}
 
-\item{aoi_region}{Optional numeric vector for the region bbox.}
+\item{aoi_region}{Optional region (bbox, vector path or sf). When \code{NULL},
+the extent of \code{rasters$crop_mask} (or the season rasters) is used.}
 
 \item{progress_callback}{Optional function(value, detail) for updates.}
 }
 \value{
-List of results (SpatRaster objects and summary tables).
+List of results (SpatRaster objects and summary tables), including
+\code{coverage} (per-variable share of season days with data) and \code{processing}
+(the \code{\link[=wapor_plan_processing]{wapor_plan_processing()}} plan that ran).
 }
 \description{
 Standalone function that performs the seasonal analysis workflow.
 }
 \details{
 Alignment uses \code{config$reference_layer} (\code{"aeti"} default, also
-\code{"crop_mask"}, \code{"ret"}, \code{"pcp"}, \code{"npp"}, \code{"template"}). Continuous WaPOR
-layers are bilinear-resampled onto that grid; crop mask and Julian-day
-rasters use nearest neighbour. Overlap failures name both extents.
+\code{"crop_mask"}, \code{"ret"}, \code{"pcp"}, \code{"npp"}, \code{"template"}).
+
+Seasonal and monthly totals are summed at each source's native resolution
+and then resampled once onto the analysis grid. With the default
+nearest-neighbour resampling every output value is a raw server value or a
+sum of raw values. Set \code{config$resampling_method} (for example
+\code{c(ret = "bilinear")}) to interpolate instead. Crop mask and season rasters
+always use nearest neighbour.
 }

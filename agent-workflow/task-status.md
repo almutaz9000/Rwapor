@@ -4,6 +4,17 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **Large-raster performance and size-aware processing (1.0.1)** — Owner:
+  Claude. Branch `perf/large-raster-1.0.1`. Design and all 19 grilled
+  decisions (plus A–D on accuracy): `docs/superpowers/specs/2026-09-23-large-raster-performance-design.md`.
+  Planner (`wapor_plan_processing()`, `processing = "auto"`), shared window
+  kernel for memory/stream/tiled, native-resolution aggregation, coverage,
+  exact block-wise P95/Theil, closed-form trend, `wapor_map`/`wapor_ts`
+  batching and chunk sizing, dashboard mode selector. Took over
+  `R/utils.R`, `R/wapor_map.R`, `R/wapor_ts.R` from the Codex task below by
+  user decision (Codex's board entry left untouched). Resolves
+  ISS-20260923-001/-003/-004; ISS-20260923-002 (DuckDB blobs) left open.
+
 - **Seasonal summary semantics in the dashboard** — Add the shared
   variable-aware `sum`/`mean`/`std`/`min`/`max`/`median` contract to both
   Shiny paths and reject invalid state/rate sums. Status: Active. Owner:

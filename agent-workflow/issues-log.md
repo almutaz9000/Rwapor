@@ -5,9 +5,109 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
-- None currently recorded.
+### ISS-20260923-002 — Monitoring stores whole rasters as DuckDB blobs
+
+- **Where**: `R/wapor_monitoring.R` (around lines 982-985 and 1054-1059):
+  `monitoring_rasters.raster_blob` / `farm_rasters.raster_blob`, read back with
+  `wapor_raster_from_blob()`.
+- **Root cause**: each monitoring raster is serialised into the database; every
+  query deserialises the whole raster before `terra::crop()` to the farm.
+- **Impact**: memory and time grow with the stored raster size, not the farm
+  size; windowed reads are impossible.
+- **Fix / mitigation**: not fixed (out of scope for 1.0.1 by user decision Q9;
+  it changes the storage format and needs a migration). Suggested: store COG
+  file paths (or object-store URLs) in the table and read windows with terra.
+- **Regression tests**: none yet.
+- **Verification**: code reading during the 2026-09-23 performance review.
+
+### ISS-20260922-001 — `vignettes/wheat-water-productivity.Rmd` references non-working/non-existent function calls
+
+- **Where**: `vignettes/wheat-water-productivity.Rmd`.
+- **Found during**: building an independent training notebook
+  (`training/water-productivity-training.qmd`) that had to call the real
+  seasonal-analysis pipeline end-to-end, which required tracing every
+  indicator code and helper function against `R/analysis_engine.R`,
+  `R/analysis_registry.R`, and `NAMESPACE` rather than copying the vignette.
+- **What was found** (not fixed here — the vignette itself was left
+  untouched per this session's "don't modify Rwapor" scope):
+  1. Step 3's `indicators` vector includes `"peff"`, but
+     `R/analysis_engine.R` only checks for the string `"agg_peff"`
+     (`.wapor_builtin_indicator_steps()` also lists `"agg_peff"`, not
+     `"peff"`). `"peff"` is silently inert — it never populates
+     `results$seasonal_peff`.
+  2. Step 7 reads `wheat_season$summary_table` and
+     `s$summary_table$cwp_bwp_mean` — grepped the entire `R/` tree for
+     `summary_table` and found no assignment anywhere. This field does not
+     exist on the list returned by `wapor_run_seasonal_analysis()`. The real
+     productivity outputs are the scalars `results$cwp` / `results$bwp`
+     (area-weighted global means) plus the various `*_by_class` data frames
+     (e.g. `seasonal_aeti_by_class`).
+  3. Step 5's closing paragraph points to `wapor_compare_seasons()` for
+     multi-season CV/Theil comparison — this function is not in `NAMESPACE`
+     and does not exist anywhere in `R/`. The real (exported) multi-season
+     tools are `wapor_calc_zscore()`, `wapor_calc_spatial_hotspots()`, and
+     `wapor_calc_anomaly_baseline()` (see `vignette("advanced-analysis")`
+     §4, which already demonstrates the correct pathway).
+  4. Separately (not a vignette bug, a usability gap): `wapor_run_seasonal_analysis()`
+     accepts an `aoi_region` argument that scopes every streamed raster to
+     the AOI before loading it; the vignette's examples never pass it, so
+     copying them verbatim for a real `data_source = "api"` run downloads
+     the *full extent* of each WaPOR tile before the `crop_mask` narrows it
+     down. Worth flagging in the vignette or defaulting `aoi_region` from
+     `rasters$crop_mask`'s extent when omitted. **Item 4 is addressed in 1.0.1**:
+     `wapor_run_seasonal_analysis()` now defaults `aoi_region` to the crop mask /
+     season raster extent and logs it (branch `perf/large-raster-1.0.1`).
+- **Suggested fix**: change `"peff"` → `"agg_peff"` in Step 3; replace the
+  `summary_table` references in Step 7 with `$cwp`/`$bwp`/`*_by_class`;
+  replace the `wapor_compare_seasons()` mention with the three real
+  functions above; add an `aoi_region` example (or a callout) to Step 3.
 
 ## Resolved
+
+### ISS-20260923-001 — Tiled engine read source layers with template row/col indices (silent all-NA output)
+
+- **Where**: `R/analysis_tiled.R` (`.wapor_crop_raster_window()` via
+  `.wapor_window_source_rasters()` / `.wapor_read_window_layer()`), v1.0.0.
+- **Root cause**: tile windows were row/col ranges on the template grid but were
+  applied as `layer[r0:r1, c0:c1]` to source layers on other grids, so the crop
+  landed at the source's top-left corner; `resample(near)` then found no
+  overlap and the tile was all NaN, without an error.
+- **Impact**: every tiled run on remote WaPOR files or mixed-resolution inputs.
+- **Fix / mitigation**: tiling moved into the shared kernel
+  (`R/processing_kernel.R`); sources are read by extent plus a halo of native
+  cells. The buggy helpers were removed.
+- **Regression tests**: `test-processing.R` ("an offset source is read at the
+  right place"), mode-equivalence tests, rewritten `test-analysis-tiled.R`.
+- **Verification**: offset read returns `4041 4042 4043`; full suite 0 failures;
+  live L1 run: tiled equals memory, max |diff| 0 (2026-09-23).
+
+### ISS-20260923-003 — Remote seasonal analysis could not match WaPOR dekad file names
+
+- **Where**: `.wapor_ymd_from_name()` (`R/analysis_tiled.R`) used by the engine's
+  dekad alignment.
+- **Root cause**: WaPOR remote files are named `YYYY-MM-D1/D2/D3`; only
+  `YYYY-MM-DD` and 8/12-digit dates were parsed.
+- **Impact**: `wapor_run_seasonal_analysis(data_source = "api")` stopped with
+  "Missing data for some dekads in the analysis period" for every request.
+- **Fix / mitigation**: `D1/D2/D3` map to days 01/11/21.
+- **Regression tests**: `test-processing.R` ("WaPOR dekad labels are parsed").
+- **Verification**: live, 2026-09-23: `v1.0.0-final` worktree fails with the
+  message above; branch `perf/large-raster-1.0.1` runs (5/5 smoke checks).
+
+### ISS-20260923-004 — GDAL curl capability probe always reported "missing"
+
+- **Where**: `.wapor_check_gdal_capabilities()` (`R/gdal_config.R`) and
+  `wapor_remote_capabilities()` (`R/remote_capabilities.R`).
+- **Root cause**: both searched `gdal_drivers$longname` for "vsicurl"; the
+  column is `long.name`, and `/vsicurl/` is a virtual file system, not a driver.
+- **Impact**: a false "streaming will fail" warning on every package load; with
+  `options(Rwapor.remote_fallback = "download")` whole files were always
+  downloaded.
+- **Fix / mitigation**: curl support is detected from GDAL's `HTTP` driver.
+- **Regression tests**: `test-gdal_config.R` (resolver error and stream modes,
+  capabilities set explicitly).
+- **Verification**: live `/vsicurl/` reads succeed and the probe reports
+  streaming available (2026-09-23).
 
 ### ISS-20260917-001 — Dashboard crashes on every `board_claim.ps1` update (UTF-8 BOM)
 

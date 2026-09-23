@@ -114,23 +114,38 @@ linear_trend <- function(stack, times = NULL) {
   if (n < 2L) stop("'stack' must contain at least two layers", call. = FALSE)
   t <- if (is.null(times)) seq_len(n) else as.numeric(times)
   if (length(t) != n || anyNA(t) || anyDuplicated(t)) stop("'times' must contain unique, non-missing values for every layer", call. = FALSE)
-  fit <- function(v) {
-    ok <- is.finite(v) & is.finite(t)
-    if (sum(ok) < 2L) return(c(NA_real_, NA_real_, NA_real_))
-    tt <- t[ok]; yy <- v[ok]
-    xbar <- mean(tt); ybar <- mean(yy)
-    den <- sum((tt - xbar)^2)
-    if (den == 0) return(c(NA_real_, NA_real_, NA_real_))
-    slope <- sum((tt - xbar) * (yy - ybar)) / den
-    intercept <- ybar - slope * xbar
-    fitted <- intercept + slope * tt
-    ss_tot <- sum((yy - ybar)^2)
-    r2 <- if (ss_tot == 0) NA_real_ else 1 - sum((yy - fitted)^2) / ss_tot
-    c(slope, intercept, r2)
+  # Closed-form least squares from per-pixel running sums, so every step is
+  # terra layer arithmetic (C++, block-wise) instead of an R call per pixel.
+  # Times are centred on their overall mean to limit cancellation.
+  t0 <- mean(t)
+  tc <- t - t0
+  cnt <- st <- sy <- stt <- sty <- syy <- NULL
+  add <- function(acc, x) if (is.null(acc)) x else acc + x
+  for (i in seq_len(n)) {
+    yi <- stack[[i]]
+    ok <- !is.na(yi)
+    y0 <- terra::ifel(ok, yi, 0)
+    cnt <- add(cnt, ok)
+    st <- add(st, ok * tc[i])
+    stt <- add(stt, ok * tc[i]^2)
+    sy <- add(sy, y0)
+    sty <- add(sty, y0 * tc[i])
+    syy <- add(syy, y0 * y0)
   }
-  out <- terra::app(stack, fit)
-  names(out) <- c("slope", "intercept", "r2")
-  stats::setNames(as.list(out), names(out))
+  den <- cnt * stt - st * st
+  valid <- cnt >= 2 & den > 0
+  slope <- terra::ifel(valid, (cnt * sty - st * sy) / den, NA)
+  intercept_c <- (sy - slope * st) / cnt
+  ss_tot <- syy - sy * sy / cnt
+  ss_res <- syy - 2 * intercept_c * sy - 2 * slope * sty +
+    cnt * intercept_c^2 + 2 * intercept_c * slope * st + slope^2 * stt
+  # A constant series has ss_tot == 0; allow for rounding in the sums.
+  r2 <- terra::ifel(valid & ss_tot > 1e-12 * syy, 1 - ss_res / ss_tot, NA)
+  # Shift the intercept from centred time back to the original time origin.
+  intercept <- terra::ifel(valid, intercept_c - slope * t0, NA)
+  out <- list(slope = slope, intercept = intercept, r2 = r2)
+  for (nm in names(out)) names(out[[nm]]) <- nm
+  out
 }
 
 # Compatibility names matching the public design specification.

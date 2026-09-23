@@ -225,7 +225,10 @@ wapor_gdal_settings <- function() {
 
   gdal_drivers <- tryCatch(terra::gdal(drivers = TRUE), error = function(e) NULL)
   has_cog <- !is.null(gdal_drivers) && "COG" %in% gdal_drivers$name
-  has_curl <- !is.null(gdal_drivers) && any(grepl("vsicurl", gdal_drivers$longname, ignore.case = TRUE))
+  # /vsicurl/ is a virtual file system, not a driver, so it never appears in
+  # the driver table. GDAL builds its HTTP driver only when curl is available,
+  # so that driver is the reliable signal.
+  has_curl <- !is.null(gdal_drivers) && "HTTP" %in% gdal_drivers$name
 
   if (!has_curl || !has_cog) {
     msg <- c(

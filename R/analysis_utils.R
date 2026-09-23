@@ -110,10 +110,10 @@ wapor_filter_class_stats <- function(res) {
 
 #' Per-pixel area in hectares
 #'
-#' For geographic (lon/lat) grids, area varies with latitude. Uses `terra::area()`
-#' when available (correct spherical-area computation) and falls back to the
-#' lon/lat approximation `111320 m/deg * cos(lat)` only when `terra::area()` is
-#' unavailable. For projected grids a constant cell area is used.
+#' For geographic (lon/lat) grids, area varies with latitude and is computed
+#' exactly on the ellipsoid with [terra::cellSize()]. For projected grids a
+#' constant cell area (resolution x resolution) is used. Both are computed
+#' block-wise, so large grids are not loaded into memory.
 #'
 #' @param x SpatRaster. Template whose geometry defines the area raster.
 #' @return A SpatRaster of per-pixel area in hectares.
@@ -122,28 +122,10 @@ wapor_pixel_area_ha <- function(x) {
   if (!inherits(x, "SpatRaster")) {
     stop("'x' must be a SpatRaster", call. = FALSE)
   }
-  res_xy <- terra::res(x)
-  out <- x[[1]]
-
-  if (isTRUE(terra::is.lonlat(x))) {
-    area_m2 <- tryCatch(
-      terra::area(x),
-      error = function(e) NULL
-    )
-    if (!is.null(area_m2) && inherits(area_m2, "SpatRaster")) {
-      terra::values(out) <- as.numeric(area_m2) / 10000
-    } else {
-      # Fallback: approximate 111320 m/deg * cos(lat), only on y-axis.
-      ext_r <- terra::ext(x)
-      height <- terra::nrow(x)
-      width <- terra::ncol(x)
-      lat <- as.numeric(ext_r$ymax) - (seq_len(height) - 0.5) * res_xy[2]
-      area_row <- (res_xy[1] * 111320 * cos(lat * pi / 180)) *
-                   (res_xy[2] * 111320) / 10000
-      terra::values(out) <- rep(area_row, each = width)
-    }
+  out <- if (isTRUE(terra::is.lonlat(x))) {
+    terra::cellSize(x[[1]], mask = FALSE, unit = "ha")
   } else {
-    terra::values(out) <- (res_xy[1] * res_xy[2]) / 10000
+    terra::cellSize(x[[1]], mask = FALSE, unit = "ha", transform = FALSE)
   }
   names(out) <- "area_ha"
   out
@@ -581,7 +563,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     sprintf("  l3_code = %s,", format_scalar(l3_code)),
     "  indicators = indicators,",
     "  folder = project_folder,",
-    sprintf("  incremental = %s,", format_logical(config$incremental)),
+    sprintf("  processing = %s,", format_r_string(config$processing %||% "auto")),
     sprintf("  use_crop_mask = %s,", format_logical(config$use_crop_mask)),
     sprintf("  use_season_rasters = %s", format_logical(config$use_season_rasters)),
     ")",

@@ -128,11 +128,25 @@ test_that("remote capability probe returns a stable contract", {
 
 test_that("remote source resolver has explicit error and stream modes", {
   old <- getOption("Rwapor.remote_fallback")
-  on.exit(options(Rwapor.remote_fallback = old), add = TRUE)
+  old_caps <- getOption("Rwapor.remote_capabilities")
+  on.exit(options(Rwapor.remote_fallback = old, Rwapor.remote_capabilities = old_caps), add = TRUE)
   options(Rwapor.remote_fallback = "error")
+  # Simulate a GDAL build without curl (the probe result is cached in this option).
+  options(Rwapor.remote_capabilities = list(
+    has_curl = FALSE, has_cog = TRUE, streaming = FALSE,
+    message = "curl /vsicurl support is missing."
+  ))
   expect_error(
     Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
     "Remote COG streaming is unavailable"
+  )
+  # With curl available, error mode streams instead of failing.
+  options(Rwapor.remote_capabilities = list(
+    has_curl = TRUE, has_cog = TRUE, streaming = TRUE, message = "ok"
+  ))
+  expect_identical(
+    Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
+    "/vsicurl/https://example.invalid/test.tif"
   )
   options(Rwapor.remote_fallback = "stream")
   expect_identical(

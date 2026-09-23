@@ -298,6 +298,36 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     an_start_rast     <- shiny::reactiveVal(NULL)
     an_end_rast       <- shiny::reactiveVal(NULL)
     an_crop_classes   <- shiny::reactiveVal(NULL)
+
+    # Processing plan: the plan the last run used, or an estimate from the
+    # crop mask grid before any run.
+    output$an_plan_info <- shiny::renderUI({
+      res <- an_results()
+      plan <- if (is.list(res) && inherits(res$processing, "wapor_plan")) res$processing else NULL
+      label <- "Plan"
+      if (is.null(plan)) {
+        mask <- an_crop_mask_rast()
+        if (!inherits(mask, "SpatRaster") || length(input$an_period) != 2 || anyNA(input$an_period)) {
+          return(NULL)
+        }
+        n_dekads <- nrow(Rwapor:::build_dekad_table(input$an_period[1], input$an_period[2]))
+        n_vars <- sum(nzchar(c(input$an_aeti_var, input$an_ret_var, input$an_precip_var,
+                               input$an_npp_var, input$an_t_var) %||% character(0)))
+        plan <- tryCatch(suppressMessages(suppressWarnings(Rwapor::wapor_plan_processing(
+          template = mask, n_layers = n_dekads, n_vars = max(1L, n_vars),
+          processing = input$an_processing %||% "auto"
+        ))), error = function(e) NULL)
+        label <- "Estimate"
+        if (is.null(plan)) return(NULL)
+      }
+      shiny::span(
+        class = "badge bg-secondary",
+        title = paste(plan$reasons, collapse = "\n"),
+        sprintf("%s: %s, %s of %s", label, plan$mode,
+                Rwapor:::.wapor_format_bytes(plan$working_set_bytes),
+                Rwapor:::.wapor_format_bytes(plan$budget_bytes))
+      )
+    })
     an_crop_params    <- shiny::reactiveVal(NULL)
     an_results        <- shiny::reactiveVal(NULL)
     an_peff_monthly   <- shiny::reactiveVal(NULL)
@@ -709,7 +739,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           indicators = indicators,
         agg_vars = input$an_agg_vars,
         derived_vars = input$an_derived_vars,
-        incremental = isTRUE(input$an_incremental),
+        processing = input$an_processing %||% "auto",
         use_crop_mask = isTRUE(input$an_use_crop_mask),
         use_season_rasters = isTRUE(input$an_use_season_rasters),
         season_label = trimws(input$an_season_label %||% ""),

@@ -4,6 +4,46 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-23 — Size-aware processing and native-resolution aggregation (1.0.1)
+
+- Branch `perf/large-raster-1.0.1`; design and decisions in
+  `docs/superpowers/specs/2026-09-23-large-raster-performance-design.md`.
+- New `R/processing_plan.R` (`wapor_plan_processing()`, budget, thresholds,
+  I/O plans) and `R/processing_kernel.R` (one window kernel for
+  memory/stream/tiled; profile-split native aggregation; coverage). The
+  engine and `wapor_run_seasonal_analysis_tiled()` now run on it; the old
+  tile helpers in `R/analysis_tiled.R` were removed.
+- Defaults changed on purpose: nearest-neighbour resampling for continuous
+  variables, `min_coverage = 1`, AOI defaults to the crop mask extent,
+  `batch_size = NULL` (planner) in `wapor_map()`/`wapor_ts()`. See NEWS 1.0.1.
+- Took over `R/utils.R`, `R/wapor_map.R`, `R/wapor_ts.R` from Codex's
+  `seasonal-dashboard-semantics` task by user decision; Codex's board entry
+  is untouched, so check this entry before editing those files.
+- Tags: the ambiguous local `version-1.0.0` tag was replaced by
+  `v1.0.0-final` (a9176dd, the pre-change code). The published `v1.0.0`
+  tag (82cd8b5) is unchanged. Nothing pushed.
+- Benchmark and live smoke-test scripts live in `inst/bench/`.
+
+## 2026-09-22 — New independent training notebook (`training/water-productivity-training.qmd`)
+
+- Added a standalone Quarto training notebook, deliberately kept outside
+  `vignettes/`/pkgdown/R CMD check (`training/` added to `.Rbuildignore`).
+  Calls only exported `Rwapor` functions; no package source touched.
+- Two live, step-by-step worked examples (Citrus: polygon used as both
+  mask+AOI, season 2024-03-01→2025-02-28, no built-in FAO Kc profile so
+  built from scratch via FAO-56 Table 6.2 + this repo's
+  `fao_growth_stages.csv`; Wheat: separate cereal mask raster + AOI
+  boundary, season 2023-11-01→2024-05-31, reuses the built-in "Winter
+  Wheat" profile), each running the full indicator chain with a plot or
+  summary and an equation explanation at every step, plus `leaflet`
+  input/output exploration.
+- While ground-truthing the indicator codes and result fields against
+  `R/analysis_engine.R`/`R/analysis_registry.R`/`NAMESPACE`, found three
+  real bugs/gaps in the existing `vignettes/wheat-water-productivity.Rmd`
+  and one usability gap in `wapor_run_seasonal_analysis()`'s `aoi_region`
+  handling — logged as `ISS-20260922-001` in `issues-log.md`, not fixed
+  (out of scope for this session; vignette/package source left untouched).
+
 ## 2026-09-22 — Repo cleanup, README overhaul, pkgdown site, wheat vignette
 
 - Deleted 184 of 233 remote branches (auto-agent `bolt-*`/`jules-*`/`copilot/*`

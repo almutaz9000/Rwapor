@@ -38,12 +38,14 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
     return(total)
   }
 
-  # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
-  weighted <- x * weights
-  if (!all(layer_multipliers == 1)) {
-    weighted <- weighted * layer_multipliers
+  # Accumulate one layer at a time with na.rm semantics (a pixel is NA only
+  # when every layer is NA), without materialising a weighted copy of the stack.
+  total <- NULL
+  for (i in seq_len(terra::nlyr(x))) {
+    current <- x[[i]] * (weights[[i]] * layer_multipliers[i])
+    total <- if (is.null(total)) current else sum(total, current, na.rm = TRUE)
   }
-  terra::app(weighted, fun = "sum", na.rm = TRUE)
+  total
 }
 
 #' Compute Seasonal AETI with Season Mask
@@ -282,34 +284,149 @@ wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Exact type-7 quantile per class, read block by block so memory stays
+  # bounded however many pixels a class has.
+  q <- .wapor_zonal_quantile_exact(aeti_seasonal, crop_mask, prob = 0.95, min_n = min_pixels)
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
-  
-  # Merge results
+  # Classes present in the mask but without valid AETI still get a row.
+  u <- terra::unique(crop_mask, na.rm = TRUE)
+  classes <- if (is.null(u) || !length(u)) numeric(0) else sort(as.numeric(u[[1]]))
+  idx <- match(classes, q$class_value)
   result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
+    class_value = as.integer(classes),
+    p95_aeti    = ifelse(is.na(idx), NA_real_, q$quantile[idx]),
+    n_pixels    = as.integer(ifelse(is.na(idx), 0, q$n[idx])),
     stringsAsFactors = FALSE
   )
-  
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
-  result$n_pixels <- as.integer(result$n_pixels)
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
-  
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
+}
+
+#' Exact per-zone quantile with bounded memory
+#'
+#' Matches `stats::quantile(type = 7)`. Each pass streams the raster in terra
+#' blocks. While a zone holds more than `max_values` candidate values, a
+#' histogram narrows the range to the bins holding the two order statistics
+#' needed and the pass repeats on that range; the final candidates are sorted
+#' exactly.
+#' @keywords internal
+#' @noRd
+.wapor_zonal_quantile_exact <- function(x, zones, prob, min_n = 1L,
+                                        max_values = 1e6, n_bins = 4096L) {
+  s <- c(zones[[1]], x[[1]])
+  blocks <- terra::blocks(s)
+
+  scan <- function(fun) {
+    terra::readStart(s)
+    on.exit(terra::readStop(s), add = TRUE)
+    for (i in seq_len(blocks$n)) {
+      v <- terra::readValues(s, row = blocks$row[i], nrows = blocks$nrows[i], mat = TRUE)
+      ok <- !is.na(v[, 1]) & !is.na(v[, 2])
+      if (any(ok)) fun(v[ok, 1], v[ok, 2])
+    }
+  }
+
+  # Pass 1: valid-value count per zone.
+  counts <- numeric(0)
+  scan(function(z, val) {
+    t <- table(z)
+    k <- names(t)
+    prev <- counts[k]
+    prev[is.na(prev)] <- 0
+    counts[k] <<- prev + as.numeric(t)
+  })
+  zone_ids <- sort(as.numeric(names(counts)))
+  out <- data.frame(
+    class_value = zone_ids,
+    n = as.numeric(counts[as.character(zone_ids)]),
+    quantile = rep(NA_real_, length(zone_ids))
+  )
+  active <- as.character(zone_ids[out$n >= max(1L, min_n)])
+  if (!length(active)) return(out)
+
+  # Per zone: nested bin filters and how many values sit below them.
+  state <- lapply(stats::setNames(active, active), function(k) {
+    n <- counts[[k]]
+    h <- (n - 1) * prob + 1
+    list(k1 = floor(h), k2 = ceiling(h), h = h, below = 0, levels = list(), n_in = n, done = FALSE)
+  })
+  in_levels <- function(val, levels) {
+    keep <- rep(TRUE, length(val))
+    for (lv in levels) {
+      b <- pmin(lv$bins, floor((val - lv$lo) / (lv$hi - lv$lo) * lv$bins) + 1)
+      keep <- keep & val >= lv$lo & val <= lv$hi & b >= lv$j1 & b <= lv$j2
+    }
+    keep
+  }
+  set_quantile <- function(k, value) {
+    out$quantile[out$class_value == as.numeric(k)] <<- value
+    state[[k]]$done <<- TRUE
+  }
+
+  repeat {
+    pending <- names(state)[!vapply(state, `[[`, logical(1), "done")]
+    if (!length(pending)) break
+    collect <- pending[vapply(state[pending], function(st) st$n_in <= max_values, logical(1))]
+    refine <- setdiff(pending, collect)
+
+    # One pass: candidate values for small zones, range for large ones.
+    mins <- stats::setNames(rep(Inf, length(refine)), refine)
+    maxs <- stats::setNames(rep(-Inf, length(refine)), refine)
+    vals <- stats::setNames(vector("list", length(collect)), collect)
+    scan(function(z, val) {
+      zk <- as.character(z)
+      for (k in intersect(unique(zk), pending)) {
+        sel <- val[zk == k]
+        sel <- sel[in_levels(sel, state[[k]]$levels)]
+        if (!length(sel)) next
+        if (k %in% collect) {
+          vals[[k]] <<- c(vals[[k]], sel)
+        } else {
+          mins[[k]] <<- min(mins[[k]], sel)
+          maxs[[k]] <<- max(maxs[[k]], sel)
+        }
+      }
+    })
+    for (k in collect) {
+      st <- state[[k]]
+      v <- sort(vals[[k]])
+      x1 <- v[st$k1 - st$below]
+      x2 <- v[st$k2 - st$below]
+      set_quantile(k, x1 + (st$h - st$k1) * (x2 - x1))
+    }
+    for (k in refine) {
+      # Every remaining candidate has the same value.
+      if (maxs[[k]] <= mins[[k]]) set_quantile(k, mins[[k]])
+    }
+    refine <- refine[!vapply(state[refine], `[[`, logical(1), "done")]
+    if (!length(refine)) next
+
+    # Histogram pass: find the bins holding both order statistics.
+    hist <- lapply(stats::setNames(refine, refine), function(k) numeric(n_bins))
+    scan(function(z, val) {
+      zk <- as.character(z)
+      for (k in intersect(unique(zk), refine)) {
+        sel <- val[zk == k]
+        sel <- sel[in_levels(sel, state[[k]]$levels)]
+        if (!length(sel)) next
+        b <- pmin(n_bins, floor((sel - mins[[k]]) / (maxs[[k]] - mins[[k]]) * n_bins) + 1)
+        hist[[k]] <<- hist[[k]] + tabulate(b, nbins = n_bins)
+      }
+    })
+    for (k in refine) {
+      st <- state[[k]]
+      cum <- cumsum(hist[[k]])
+      j1 <- which(cum >= st$k1 - st$below)[1]
+      j2 <- which(cum >= st$k2 - st$below)[1]
+      below_add <- if (j1 > 1) cum[j1 - 1] else 0
+      state[[k]]$levels <- c(st$levels, list(list(
+        lo = mins[[k]], hi = maxs[[k]], bins = n_bins, j1 = j1, j2 = j2
+      )))
+      state[[k]]$below <- st$below + below_add
+      state[[k]]$n_in <- cum[j2] - below_add
+    }
+  }
+  out
 }
 
 #' Compute P95-Based Adequacy
@@ -801,29 +918,36 @@ wapor_calc_theil <- function(r, crop_mask = NULL) {
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster", call. = FALSE)
   }
-  theil_t <- function(vals) {
-    vals <- vals[is.finite(vals) & vals > 0]
-    if (!length(vals)) return(NA_real_)
-    xbar <- mean(vals)
-    if (!is.finite(xbar) || xbar <= 0) return(NA_real_)
-    mean((vals / xbar) * log(vals / xbar))
-  }
+  # T = sum(x ln x) / (N * mean) - ln(mean) over positive finite x. Only
+  # block-wise sums are needed, so large rasters are never read into R.
   target <- if (is.null(crop_mask)) {
-    r
+    r[[1]]
   } else {
-    r * terra::ifel(is.na(crop_mask), NA, 1L)
+    r[[1]] * terra::ifel(is.na(crop_mask), NA, 1L)
   }
-  overall <- theil_t(terra::values(target, mat = FALSE))
+  pos <- terra::ifel(target > 0, target, NA)
+  parts <- c(pos, pos * log(pos), terra::ifel(is.na(pos), NA, 1))
+  names(parts) <- c("s1", "s2", "n")
+  theil_from <- function(s1, s2, n) {
+    if (!is.finite(n) || n <= 0 || !is.finite(s1) || s1 <= 0) return(NA_real_)
+    mu <- s1 / n
+    s2 / (n * mu) - log(mu)
+  }
+  g <- terra::global(parts, "sum", na.rm = TRUE)$sum
+  overall <- theil_from(g[1], g[2], g[3])
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
-    classes <- sort(unique(terra::values(crop_mask, mat = FALSE)))
+    u <- terra::unique(crop_mask, na.rm = TRUE)
+    classes <- if (is.null(u) || !length(u)) numeric(0) else sort(as.numeric(u[[1]]))
     classes <- classes[is.finite(classes)]
+    z <- as.data.frame(terra::zonal(parts, crop_mask, fun = "sum", na.rm = TRUE))
+    idx <- match(classes, z[[1]])
     by_class <- data.frame(
       class_value = classes,
-      theil = vapply(classes, function(cls) {
-        m <- terra::ifel(crop_mask == cls, target, NA)
-        theil_t(terra::values(m, mat = FALSE))
+      theil = vapply(seq_along(classes), function(i) {
+        if (is.na(idx[i])) return(NA_real_)
+        theil_from(z$s1[idx[i]], z$s2[idx[i]], z$n[idx[i]])
       }, numeric(1)),
       stringsAsFactors = FALSE
     )

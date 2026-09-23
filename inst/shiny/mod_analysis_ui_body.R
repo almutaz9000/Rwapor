@@ -137,7 +137,18 @@ mod_analysis_ui_body <- function(ns) {
           shiny::div(
             class = "d-flex align-items-center justify-content-between small opacity-75",
             shiny::div(shiny::icon("terminal"), " Reproducible Extraction Script"),
-            shiny::checkboxInput(ns("an_incremental"), "Optimize Memory", value = FALSE)
+            shiny::div(
+              class = "d-flex align-items-center gap-2",
+              shiny::uiOutput(ns("an_plan_info"), inline = TRUE),
+              shiny::selectInput(
+                ns("an_processing"), NULL,
+                choices = c(
+                  "Processing: auto" = "auto", "In memory" = "memory",
+                  "Stream" = "stream", "Tiled" = "tiled"
+                ),
+                selected = "auto", width = "160px"
+              )
+            )
           )
         )
       )

@@ -1,3 +1,90 @@
+# Rwapor 1.0.1
+
+Rwapor now chooses how to process a job from its size, and seasonal totals are
+computed without altering the values the WaPOR server returns. To reproduce
+results from before this release, install the tag `v1.0.0-final`
+(`remotes::install_github("almutaz9000/Rwapor@v1.0.0-final")`).
+
+## Size-aware processing
+
+* New `wapor_plan_processing()` estimates the memory a job needs and chooses a
+  mode: `"memory"` (whole area at once), `"stream"` (whole area, dekads read in
+  batches) or `"tiled"` (square tiles assembled with a VRT). The plan reports
+  its estimate, budget and reasons. The budget is half the free RAM divided by
+  the number of `future` workers; override it with
+  `options(Rwapor.memory_budget_mb = ...)` and the mode thresholds with
+  `options(Rwapor.plan_thresholds = ...)`.
+* `wapor_run_seasonal_analysis()` (via `config$processing`), `wapor_map()` and
+  `wapor_ts()` gain `processing = c("auto", "memory", "stream", "tiled")`,
+  defaulting to `"auto"`. `batch_size` now defaults to `NULL` (chosen by the
+  planner); an explicit number still wins.
+* All modes run the same window kernel, so results are identical whichever mode
+  runs (tested to 1e-6 relative). A small farm runs in memory without tiling; a
+  large 20 m scheme is tiled automatically. Tiles run in parallel under the
+  active `future::plan()`, with terra and GDAL caches divided per worker.
+* `wapor_run_seasonal_analysis_tiled()` is now a thin wrapper that forces tiled
+  mode. It keeps the run manifest, resume, checksums and COG output.
+* The dashboard's "Optimize Memory" checkbox is replaced by a processing-mode
+  selector and a badge showing the planned mode and memory estimate.
+* `config$keep_intermediates` (default `TRUE` in memory mode, `FALSE` otherwise)
+  controls whether `dekadal_stacks` and `season_weights` are returned. Registered
+  indicator steps that read `ctx$stacks` or `ctx$season_weights` still get them;
+  they are built on first access.
+
+## Accuracy (results can differ from 1.0.0)
+
+* Seasonal and monthly totals are summed at each source's native resolution and
+  resampled once onto the analysis grid, instead of resampling every dekad.
+* Continuous variables now use nearest-neighbour resampling by default (was
+  bilinear), so every output value is a raw server value or a sum of raw values.
+  AgERA5-derived results (RET, ETc, precipitation, Peff, adequacy, green and blue
+  water) change for most pixels; AETI, NPP and T on their native grid do not.
+  Use `config$resampling_method = list(ret = "bilinear")` to interpolate.
+* New `config$min_coverage` (default `1`): a pixel is `NA` unless every dekad
+  in its season has data. Previously missing dekads were silently counted as
+  0 mm. The per-variable share of season days with data is returned in
+  `results$coverage`.
+* When `aoi_region` is not supplied, the analysis area now defaults to the crop
+  mask (or season raster) extent, with a log message. Previously it used the
+  full extent of the first source file, which for WaPOR L1 is the whole globe.
+* With bilinear resampling, 1.0.0 cropped each source to the area before
+  resampling, which biased the outer one to two rows and columns. Sources are
+  now read with a halo of neighbouring cells.
+* ETc for cross-year seasons (end day of year before start) is now computed;
+  1.0.0 dropped those profiles.
+* Per-pixel area uses `terra::cellSize()` (exact ellipsoidal area) instead of a
+  latitude approximation, which slightly changes area-weighted CWP/BWP means.
+
+## Bug fixes
+
+* The tiled engine cropped source rasters with the crop mask's row/column
+  indices, so any source on a different grid (every remote WaPOR file) produced
+  all-`NA` tiles without an error (ISS-20260923-001).
+* WaPOR dekad file labels (`2023-01-D1`, `D2`, `D3`) are now matched to their
+  dekads. In 1.0.0, `wapor_run_seasonal_analysis()` with `data_source = "api"`
+  stopped with "Missing data for some dekads in the analysis period" for every
+  request (verified against the live API); it now runs.
+* The GDAL capability check at package load always warned that `/vsicurl/` was
+  missing (it searched a driver column that does not exist), and
+  `options(Rwapor.remote_fallback = "download")` therefore always downloaded
+  whole files. curl support is now detected from GDAL's HTTP driver.
+
+## Memory and speed
+
+* Exact P95 (`wapor_calc_p95_aeti()`) and Theil index (`wapor_calc_theil()`)
+  are computed block-wise with bounded memory; results are unchanged.
+* `linear_trend()` uses closed-form layer arithmetic instead of an R function per
+  pixel; results are unchanged.
+* `wapor_masked_sum()`, `wapor_map()` seasonal mode and the crop-mask checks no
+  longer build whole-stack temporaries or read full rasters into R.
+* `wapor_map()` writes tiled, LZW-compressed GeoTIFFs (BigTIFF when needed) in
+  a single pass; `wapor_ts()` no longer crops before polygon extraction and
+  computes seasonal weighted means in one extraction pass.
+* The GDAL HTTP chunk size is matched to each job's window size (256 KB to
+  10 MB) instead of a fixed 10 MB.
+* `wapor_suggest_tile_size()` now assumes 8-byte values (terra's in-memory type)
+  and gains `n_vars` and `overhead` arguments.
+
 # Rwapor 1.0.0 (development)
 
 ## Core geospatial processing

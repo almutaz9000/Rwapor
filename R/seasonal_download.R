@@ -35,7 +35,8 @@
 #' @keywords internal
 #' @noRd
 download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folder, do_mask = FALSE,
-                                       start_raster = NULL, end_raster = NULL, partial = FALSE) {
+                                       start_raster = NULL, end_raster = NULL, partial = FALSE,
+                                       batch_size = NULL, processing = "auto") {
   var_parts <- strsplit(variable, "-")[[1]]
   base_var <- paste(var_parts[-length(var_parts)], collapse = "-")
   aggregation_rule <- get_seasonal_aggregation_rule(variable)
@@ -119,14 +120,24 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     # reference and pixel I/O occurs during crop, conversion, or later use.
     t_code <- proc.time()
     vsicurl_urls <- .wapor_resolve_remote_sources(matched_urls)
+    # Crop in planner-sized batches: each retry covers one batch, and only one
+    # batch of remote windows is in flight at a time.
+    io_plan <- .wapor_io_plan(vsicurl_urls, reg_info, processing = processing, n_targets = 3L)
+    code_batch <- .wapor_resolve_batch_size(batch_size, io_plan)
+    batches <- split(seq_along(vsicurl_urls), ceiling(seq_along(vsicurl_urls) / code_batch))
     r <- tryCatch(
-      .wapor_retry_remote_operation(function() {
-        out <- terra::rast(vsicurl_urls)
-        out <- wapor_crop_to_region(out, reg_info, do_mask = do_mask)
-        out <- wapor_convert_temperature(out, var_for_code)
+      .wapor_with_gdal_chunk(io_plan$gdal_chunk_bytes, {
+        parts <- lapply(batches, function(idx) {
+          .wapor_retry_remote_operation(function() {
+            out <- terra::rast(vsicurl_urls[idx])
+            out <- wapor_crop_to_region(out, reg_info, do_mask = do_mask)
+            wapor_convert_temperature(out, var_for_code)
+          }, label = sprintf("%s rasters (%d layer(s))", var_for_code, length(idx)))
+        })
+        out <- if (length(parts) == 1L) parts[[1]] else terra::rast(parts)
         names(out) <- layer_ids
         out
-      }, label = sprintf("%s rasters", var_for_code)),
+      }),
       error = function(e) {
         warning(conditionMessage(e), call. = FALSE)
         NULL
