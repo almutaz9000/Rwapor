@@ -75,3 +75,4 @@
 ^\.\.?Rcheck$
 ^\.Rproj\.user$
 ^\.pytest_cache$
+^training$
