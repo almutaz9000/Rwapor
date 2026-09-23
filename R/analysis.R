@@ -184,9 +184,8 @@ wapor_harmonize_raster <- function(x, template, method = "near") {
 wapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
   result <- wapor_harmonize_raster(crop_mask, target_raster, method = "near")
 
-  # Validate non-empty overlap
-  vals <- terra::values(result, na.rm = TRUE)
-  if (length(vals) == 0) {
+  # Validate non-empty overlap (block-wise count, no full read into R)
+  if (terra::global(result, "notNA")[[1]] == 0) {
     stop("Harmonized crop mask has no valid pixels. Check spatial overlap with AETI.",
          call. = FALSE)
   }

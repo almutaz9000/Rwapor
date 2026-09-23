@@ -3,7 +3,38 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-22 — GitHub repo cleanup, README overhaul, pkgdown site, wheat vignette
+## Current Session — 2026-09-23 — Large-raster performance review and 1.0.1 size-aware processing
+
+**What happened**: User asked for a bottleneck review of large rasters and long
+20/100/300 m time series, then a grilled improvement plan (19 decisions plus
+accuracy decisions A–D), then implementation in one change on branch
+`perf/large-raster-1.0.1`. Built a planner (`wapor_plan_processing()`) and a
+single window kernel used by memory, stream and tiled modes; seasonal and
+monthly totals are now summed at native resolution and resampled once;
+nearest-neighbour is the default (raw server values kept); pixels with missing
+dekads are NA unless `min_coverage` allows. Found and fixed, with live
+verification: tiled engine all-NA bug (ISS-20260923-001), remote engine unable
+to match `YYYY-MM-D1` file names so `data_source = "api"` never worked in 1.0.0
+(ISS-20260923-003), and a GDAL capability probe that always reported curl
+missing (ISS-20260923-004). DuckDB raster blobs in monitoring logged as
+ISS-20260923-002 (not fixed, by decision).
+
+**Verification**: full test suite 1332 expectations, 0 failures (6 live-API
+skips); `devtools::check()` 0 errors, 0 warnings, 2 pre-existing notes
+(time check, `_smoke_check.R`); `inst/bench/remote_smoke_test.R` 5/5 live
+checks pass (tiled equals memory, max diff 0). Benchmark (1500 x 1500 cells,
+18 dekads, 512 MB budget) before the final memory fixes: 1.0.0 peak 5.8 GB
+above baseline vs 1.0.1 tiled 1.6 GB, small job 5% faster. After the fixes,
+per-stage profiling of the same job in auto/tiled mode stayed about 100 MB
+above baseline. A final full benchmark rerun is blocked: the C: drive is full
+(about 2 GB free), which made later runs fail with bad_alloc / unwritable
+temp files. Rerun `inst/bench/large_raster_benchmark.R` once space is freed.
+
+**Next**: user review of the branch (not pushed); decide whether to push, and
+whether to tag 1.0.1. Codex's `seasonal-dashboard-semantics` task shares
+`R/wapor_map.R`/`R/wapor_ts.R`/`R/utils.R` — Codex must rebase on this branch.
+
+## Previous Session — 2026-09-22 — GitHub repo cleanup, README overhaul, pkgdown site, wheat vignette
 
 **What happened**: User asked for a professional repo/README audit and
 cleanup, then several follow-ups. (1) Classified all 233 remote branches;
@@ -39,7 +70,21 @@ defaulting into the already-tracked `docs/` folder; `build_site_github_pages()`'
 own `dest_dir` arg overriding `_pkgdown.yml`; a tidyselect misparse on the
 `global-tiled` vignette slug in a custom `articles:` nav — dropped the
 custom nav rather than chase the root cause). Site is live and verified:
-https://almutaz9000.github.io/Rwapor/.
+https://almutaz9000.github.io/Rwapor/. (6) Built a new, independent Quarto
+training notebook (`training/water-productivity-training.qmd`, kept out of
+`vignettes/`/pkgdown/R CMD check via `.Rbuildignore`) with two live
+step-by-step worked examples (Citrus: polygon used as both mask+AOI, no
+built-in FAO Kc profile so built from scratch via FAO-56 Table 6.2 +
+`fao_growth_stages.csv`; Wheat: separate cereal mask raster + AOI, reuses
+the built-in "Winter Wheat" profile), each running the full indicator
+chain with a plot/summary and equation explanation per step, plus
+`leaflet` input/output exploration. While ground-truthing indicator codes
+and result-list field names against `R/analysis_engine.R`/`NAMESPACE`,
+found and logged (not fixed) `ISS-20260922-001`: the existing
+`wheat-water-productivity.Rmd` vignette uses the inert code `"peff"`
+instead of the real `"agg_peff"`, references a non-existent
+`results$summary_table` field, and cites a non-existent
+`wapor_compare_seasons()` function.
 
 **Concurrent-session note**: Codex was active throughout on a separate task
 (`seasonal-dashboard-semantics`) and switched the shared working directory's
@@ -65,7 +110,13 @@ the local-only `version-0.9-UNFAO-CG35038B0.8` branch (never pushed) was
 untouched; the README CI badge vs. actual default-branch (`version-0.9.9`)
 mismatch is unresolved — maintainer decision needed on whether to switch
 GitHub's default branch to `main` or update the badge/workflow triggers to
-match `version-0.9.9`.
+match `version-0.9.9`. Separately: `training/water-productivity-training.qmd`
+was not rendered end-to-end this session (the user's real Citrus/Wheat
+input files don't exist in this environment — the notebook uses clearly
+marked placeholder paths for them); every R chunk was manually traced
+against package source and cross-checked with `NAMESPACE`, but it still
+needs a real render against real data before being handed to trainees.
+`ISS-20260922-001` (vignette bugs found while building it) is unresolved.
 
 ## Prior Session — 2026-09-21 — WaPOR map progress bottleneck
 

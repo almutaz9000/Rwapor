@@ -392,8 +392,8 @@ wapor_preflight_check <- function(config, data_source = "api", folder = NULL,
   }
   
   # Extract unique values
-  unique_vals <- unique(terra::values(cm, mat = FALSE))
-  unique_vals <- unique_vals[!is.na(unique_vals)]
+  u <- terra::unique(cm, na.rm = TRUE)
+  unique_vals <- if (is.null(u) || !length(u)) numeric(0) else as.numeric(u[[1]])
   
   if (length(unique_vals) == 0) {
     issues <- c(issues, "Crop mask has no non-NA values")

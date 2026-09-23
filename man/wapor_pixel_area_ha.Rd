@@ -13,8 +13,8 @@ wapor_pixel_area_ha(x)
 A SpatRaster of per-pixel area in hectares.
 }
 \description{
-For geographic (lon/lat) grids, area varies with latitude. Uses \code{terra::area()}
-when available (correct spherical-area computation) and falls back to the
-lon/lat approximation \verb{111320 m/deg * cos(lat)} only when \code{terra::area()} is
-unavailable. For projected grids a constant cell area is used.
+For geographic (lon/lat) grids, area varies with latitude and is computed
+exactly on the ellipsoid with \code{\link[terra:cellSize]{terra::cellSize()}}. For projected grids a
+constant cell area (resolution x resolution) is used. Both are computed
+block-wise, so large grids are not loaded into memory.
 }

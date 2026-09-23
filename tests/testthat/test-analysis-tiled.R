@@ -195,7 +195,7 @@ test_that("tiled engine rejects a mismatched resume manifest", {
     tile_size = 2L
   )
   other <- fx$config
-  other$period <- c("2023-02-01", "2023-02-28")
+  other$min_coverage <- 0.5
   expect_error(
     wapor_run_seasonal_analysis_tiled(
       config = other,
@@ -209,41 +209,40 @@ test_that("tiled engine rejects a mismatched resume manifest", {
   )
 })
 
-test_that("windowed temporal reducer matches a full weighted sum", {
+test_that("kernel tiles reproduce a full weighted sum exactly", {
   skip_if_not_installed("terra")
   template <- terra::rast(
     nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4,
     crs = "EPSG:4326"
   )
-  layers <- lapply(1:3, function(i) terra::setValues(template, i))
+  layers <- lapply(1:3, function(i) terra::setValues(template, i * seq_len(16)))
   stack <- terra::rast(layers)
   weights <- terra::rast(lapply(1:3, function(i) terra::setValues(template, 1)))
   paths <- vapply(seq_len(3), function(i) {
     p <- tempfile(fileext = ".tif")
-    terra::writeRaster(stack[[i]], p, overwrite = TRUE)
+    terra::writeRaster(stack[[i]], p, overwrite = TRUE, datatype = "FLT8S")
     p
   }, character(1))
   on.exit(unlink(paths, force = TRUE), add = TRUE)
 
   full <- wapor_masked_sum(stack, weights, layer_multipliers = c(1, 1, 1), incremental = TRUE)
-  wins <- .wapor_tiled_windows(4L, 4L, 2L)
-  tile_rasters <- lapply(wins, function(win) {
-    .wapor_temporal_weighted_sum_window(
-      paths = paths,
-      template = template,
-      win = win,
-      weights = c(1, 1, 1),
-      multipliers = c(1, 1, 1)
-    )
-  })
-  mosaic <- terra::merge(terra::sprc(tile_rasters))
+  ones <- terra::setValues(template, 1L)
+  job <- .wapor_build_kernel_job(
+    period = c("2023-01-01", "2023-01-30"), reference_year = 2023,
+    template = template, h_mask = ones,
+    h_start = terra::setValues(template, 1L), h_end = terra::setValues(template, 30L),
+    variables = list(x = list(variable = "x", paths = paths, multipliers = c(1, 1, 1)))
+  )
+  plan <- structure(list(mode = "tiled", tile_size = 2L, batch_size = 1L, workers = 1L,
+                         gdal_chunk_bytes = 1e6), class = "wapor_plan")
+  tiled <- .wapor_run_kernel(job, template, plan, output_dir = tempfile("rwapor-kernel-"))
   expect_equal(
-    as.numeric(terra::values(mosaic)),
+    as.numeric(terra::values(tiled$rasters$x__season)),
     as.numeric(terra::values(full))
   )
 })
 
-test_that("tiled engine windows source rasters before analysis", {
+test_that("tiled manifest records how each source was aggregated", {
   skip_if_not_installed("terra")
   fx <- local_tiled_fixture()
   on.exit(unlink(c(fx$analysis_dir, fx$out_dir), recursive = TRUE, force = TRUE), add = TRUE)
@@ -256,11 +255,11 @@ test_that("tiled engine windows source rasters before analysis", {
     tile_size = 2L
   )
   man <- jsonlite::fromJSON(tiled$manifest_path, simplifyVector = FALSE)
-  first_sources <- man$tiles[[1]]$sources$`L1-AETI-D`
-  expect_true(length(first_sources) >= 1L)
-  src <- terra::rast(first_sources[[1]])
-  expect_equal(terra::nrow(src), 2)
-  expect_equal(terra::ncol(src), 2)
+  first_sources <- man$tiles[[1]]$sources
+  expect_equal(first_sources$aeti$variable, "L1-AETI-D")
+  expect_equal(first_sources$aeti$path, "aligned")
+  # Sources are read in windows; no per-tile copies are written.
+  expect_false(dir.exists(file.path(fx$out_dir, "tiles", man$tiles[[1]]$id, "sources")))
 })
 
 test_that("COG writer publishes atomically and remains readable", {
@@ -280,7 +279,7 @@ test_that("COG writer publishes atomically and remains readable", {
   expect_true(isTRUE(.wapor_validate_tile_asset(path, r)))
 })
 
-test_that("tile-local block reducers match full-engine AETI, RET, PCP, ETc and adequacy", {
+test_that("tiled engine matches the full engine pixel by pixel for AETI and adequacy", {
   skip_if_not_installed("terra")
   fx <- local_tiled_fixture()
   on.exit(unlink(c(fx$analysis_dir, fx$out_dir), recursive = TRUE, force = TRUE), add = TRUE)
@@ -290,31 +289,20 @@ test_that("tile-local block reducers match full-engine AETI, RET, PCP, ETc and a
     crop_params = fx$crop_params,
     rasters = fx$rasters
   )
-  win <- .wapor_tiled_windows(6L, 4L, 2L)[[1]]
-  reduced <- .wapor_reduce_tile_indicators(
+  tiled <- wapor_run_seasonal_analysis_tiled(
     config = fx$config,
     crop_params = fx$crop_params,
     rasters = fx$rasters,
-    win = win,
-    template = fx$crop_mask
-  )
-
-  expect_false(isTRUE(reduced$used_full_engine))
-  expect_true(inherits(reduced$seasonal_aeti, "SpatRaster"))
-  expect_equal(terra::nlyr(reduced$seasonal_aeti), 1L)
-  expect_equal(terra::nrow(reduced$seasonal_aeti), 2)
-  expect_equal(terra::ncol(reduced$seasonal_aeti), 2)
-
-  full_tile <- .wapor_crop_raster_window(full$seasonal_aeti$raster, win)
-  expect_equal(
-    as.numeric(terra::values(reduced$seasonal_aeti)),
-    as.numeric(terra::values(full_tile)),
-    tolerance = 1e-6
+    output_dir = fx$out_dir,
+    tile_size = 2L
   )
   expect_equal(
-    as.numeric(terra::values(reduced$adequacy_etc)),
-    as.numeric(terra::values(.wapor_crop_raster_window(full$adequacy_etc, win))),
-    tolerance = 1e-6
+    as.numeric(terra::values(tiled$results$seasonal_aeti$raster)),
+    as.numeric(terra::values(full$seasonal_aeti$raster))
+  )
+  expect_equal(
+    as.numeric(terra::values(tiled$results$adequacy_etc)),
+    as.numeric(terra::values(full$adequacy_etc))
   )
 })
 
@@ -342,17 +330,11 @@ test_that("remote COG fixture windows /vsicurl/ sources without downloading the 
   fx <- .wapor_remote_cog_fixture()
   on.exit(fx$cleanup(), add = TRUE)
 
-  win <- list(id = "r0001c0001", row = 1L, col = 1L, nrows = 2L, ncols = 2L)
-  windowed <- .wapor_window_source_rasters(
-    config = fx$config,
-    win = win,
-    template = fx$template,
-    dest_dir = tempfile("rwapor-vsicurl-")
-  )
   expect_true(all(grepl("^/vsicurl/", fx$urls)))
-  src <- terra::rast(windowed$sources[[fx$variable]][[1]])
-  expect_equal(terra::nrow(src), 2)
-  expect_equal(terra::ncol(src), 2)
+  batch <- .wapor_read_native_batch(fx$urls, terra::ext(0, 2, 126, 128), remote = TRUE)
+  expect_equal(terra::nrow(batch$geom), 2)
+  expect_equal(terra::ncol(batch$geom), 2)
+  expect_equal(nrow(batch$X), 4L)
   stats <- fx$http_stats()
   expect_gte(stats$requests, 1L)
   expect_true(stats$range_requests >= 1L || stats$bytes < fx$full_file_bytes)

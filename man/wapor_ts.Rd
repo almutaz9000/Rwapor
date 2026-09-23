@@ -14,12 +14,13 @@ wapor_ts(
   download_locally = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L,
+  batch_size = NULL,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   on_batch_done = NULL,
-  fun = NULL
+  fun = NULL,
+  processing = c("auto", "memory", "stream", "tiled")
 )
 }
 \arguments{
@@ -62,8 +63,8 @@ within or across batches. Default is \code{FALSE}.}
 If \code{FALSE}, loads all layers at once.}
 
 \item{batch_size}{Integer. Number of remote raster layers loaded and processed
-per batch. Lower values reduce peak memory usage for long time series.
-Default is \code{12L} (~4 months of dekadal data).}
+per batch. Default \code{NULL} lets \code{\link[=wapor_plan_processing]{wapor_plan_processing()}} choose it from the
+area size and available memory. Set a number to override.}
 
 \item{l3_region}{Character. Optional L3 region code to use when \code{variable}
 is an L3 product and \code{region} is a spatial AOI. This keeps polygon/bbox
@@ -84,6 +85,9 @@ variable-aware weighted aggregation. Explicit \code{"sum"} remains weighted for
 accumulative products and is rejected for state/rate products;
 \code{"mean"}, \code{"std"}, \code{"min"}, \code{"max"}, and \code{"median"} use each
 overlapping source layer once without scaling partial layers.}
+
+\item{processing}{One of \code{"auto"} (default), \code{"memory"}, \code{"stream"} or
+\code{"tiled"}; see \code{\link[=wapor_plan_processing]{wapor_plan_processing()}}.}
 }
 \value{
 A data.frame with columns:
