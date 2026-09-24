@@ -14,6 +14,16 @@ This file only keeps Claude-specific adapter notes.
   `powershell -ExecutionPolicy Bypass -File .\agent-workflow\scripts\agent_closeout.ps1 -WorkPerformed`
 - If a command failure reveals a reusable issue or root cause, log it in `agent-workflow/issues-log.md`.
 
+## Claude plans, Codex implements
+
+- For coding tasks that touch more than about 2 files or add behaviour: write a plan from
+  `agent-workflow/templates/codex-plan.md`, hand it to Codex with
+  `agent-workflow/scripts/codex_task.ps1` (run in the background), then verify Codex's work
+  yourself (diff and rerun the tests). Full protocol: the `codex-delegate` skill.
+- Do small edits (1–2 files, docs, config) directly. Delegating them costs more.
+- Codex reads `AGENTS.override.md` (short on purpose) and project skills in `.agents/skills/`.
+  To add or improve a Codex skill, use the `codex-skill-author` skill.
+
 ## Project Notes
 
 - Use `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe` for `devtools::document()`, `devtools::test()`, and `devtools::check()`.

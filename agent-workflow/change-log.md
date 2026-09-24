@@ -4,6 +4,23 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-24 — Claude plans, Codex implements (delegation setup)
+
+- Protocol: Claude writes a plan (`templates/codex-plan.md` →
+  `docs/superpowers/plans/<date>-<task-id>.md`), hands it to Codex with
+  `scripts/codex_task.ps1` (wraps the openai-codex Claude Code plugin; `-Fix`
+  resumes the same Codex thread for fix rounds), then verifies the diff and reruns
+  the tests itself. Claude skill: `.claude/skills/codex-delegate/`.
+- `AGENTS.override.md` (new, tracked): Codex reads it instead of the ~29 KB
+  `AGENTS.md`, so the fable-skill block is no longer loaded on every Codex run
+  (it's still available as the user-level `fable-skill` Codex skill). Other
+  agents still read `AGENTS.md`.
+- Codex project skills in `.agents/skills/`: `rwapor-plan-executor` (scope rules,
+  no `agent-workflow/` reads for delegated work, ~25-line report format) and
+  `rwapor-r-dev` (Rscript path, devtools commands, conventions). Claude adds more
+  with the `codex-skill-author` skill. `.agents/` and `.claude/` are git-ignored,
+  so these skills are local to this machine.
+
 ## 2026-09-23 — Size-aware processing and native-resolution aggregation (1.0.1)
 
 - Branch `perf/large-raster-1.0.1`; design and decisions in
@@ -208,3 +225,6 @@ structure changes, and fixes that affect future sessions belong here._
   (`.cursor`, `.continue`, `.windsurf`, `.clinerules`, `.roo`, `.trae`,
   `.kilocode`, `.kiro`, `.augment`) without touching their managed
   fable-skill files.
+- 2026-09-23 (claude): Training notebook tested end-to-end on real data (Citrus NJV + sampled farms, Jendouba cereal mask) shipped in `training/data/`; fixed notebook order/config bugs (use_crop_mask, ref_year, result names, UTM mask harmonisation, export call). Package 1.0.2: seasonal green/blue water now summed from monthly splits (ISS-20260923-005). Logged ISS-003 (ref_year=1970 rejected) and ISS-004 (single-season export).
+- 2026-09-23 (claude): Training notebook switched to WaPOR L3 AETI/T/NPP (JVA, JEN); citrus Kc corrected to FAO-56 Table 12 'no ground cover, 70% canopy' (0.70/0.65/0.70, 4 m) with link. Full L3 render passes (34 min).
+- 2026-09-24 (claude): Training-driven improvement plan saved (docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md); 16 pending REVIEW-FIRST tasks ti-01 to ti-16 added to agents-board.json. Training folder made offline-ready (wapor_data/, check_setup.R, WaPOR_Training.Rproj, Note_to_Participants.docx); ISS-20260924-006 logged.
