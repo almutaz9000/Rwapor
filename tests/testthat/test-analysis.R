@@ -263,6 +263,28 @@ test_that("adequacy_etc handles zero ETc", {
   expect_equal(wapor_calc_adequacy_etc(300, 400), 0.75)
 })
 
+test_that("wapor_calc_green_water and wapor_calc_blue_water work with numeric and SpatRaster inputs", {
+  # Numeric inputs
+  expect_equal(wapor_calc_green_water(350, 200), 200)
+  expect_equal(wapor_calc_green_water(150, 200), 150)
+
+  expect_equal(wapor_calc_blue_water(350, 200), 150)
+  expect_equal(wapor_calc_blue_water(150, 200), 0)
+
+  # SpatRaster inputs
+  skip_if_not_installed("terra")
+  r_aeti <- terra::rast(nrows = 1, ncols = 2, vals = c(350, 150))
+  r_peff <- terra::rast(nrows = 1, ncols = 2, vals = c(200, 200))
+
+  r_green <- wapor_calc_green_water(r_aeti, r_peff)
+  expect_s4_class(r_green, "SpatRaster")
+  expect_equal(as.numeric(terra::values(r_green)), c(200, 150))
+
+  r_blue <- wapor_calc_blue_water(r_aeti, r_peff)
+  expect_s4_class(r_blue, "SpatRaster")
+  expect_equal(as.numeric(terra::values(r_blue)), c(150, 0))
+})
+
 test_that("class p95 validity counts only non-missing analysis pixels", {
   skip_if_not_installed("terra")
   aeti <- terra::rast(nrows = 2, ncols = 2, vals = c(1, NA, 3, 4))
