@@ -124,6 +124,12 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Recently Completed
 
+### 2026-09-24 — Claude→Codex delegation setup
+
+- Claude plans (`templates/codex-plan.md`), Codex implements (`scripts/codex_task.ps1`),
+  Claude verifies. Slim `AGENTS.override.md` for Codex, Codex skills in `.agents/skills/`,
+  Claude skills `codex-delegate` and `codex-skill-author`. Details: `change-log.md` 2026-09-24.
+
 ### 2026-09-17 — RET/PCP level-fallback dedup (Phase 7.1)
 
 - **7.1** — "RET and PCP resolve to L1 at L2/L3" was implemented 3x

@@ -5,6 +5,87 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260924-006 — `wapor_map(seasonal = FALSE, separate_files = TRUE)` drops the WaPOR scale factor
+
+- **Where**: `R/wapor_map.R` per-layer write path (around lines 557-570,
+  `terra::writeRaster(r_out, out_path, ...)`).
+- **Symptom**: saved files hold raw WaPOR integers as Float32 with scale 1
+  (L3-AETI-D values 1 to 30 instead of 0.1 to 3.0 mm/day; the remote COG is
+  Int16 with `Scale: 0.1`). Reading them with `data_source = "local"` gives
+  seasonal AETI about 10 times too high (JVA citrus 2024/25: 10,557 mm vs
+  1,035.86 mm from the API run).
+- **Impact**: any offline workflow built on `wapor_map(separate_files = TRUE)`
+  downloads; the seasonal (`seasonal = TRUE`) path is not affected.
+- **Fix / mitigation**: not fixed in the package. The training notebook
+  downloads with `terra::rast("/vsicurl/...")` + `crop` + `writeRaster`
+  (terra applies the scale on read); the local run then matches the API run
+  exactly (1,035.86 mm, ETc 1,056.4 mm, adequacy 0.98). Suggested package fix:
+  apply `terra::scoff()` before writing, or write Int16 with the scale kept.
+- **Regression tests**: none yet (write a one-layer Int16 raster with scale
+  0.1, save via the separate-files path, assert values are scaled).
+- **Verification**: reproduced 2026-09-24 with installed Rwapor 1.0.2.
+
+### ISS-20260923-005 — Seasonal green/blue water computed from seasonal totals (methodology)
+
+- **Where**: `R/analysis_engine.R:486-489` —
+  `results$green_water` / `results$blue_water` call `wapor_calc_green_water()` /
+  `wapor_calc_blue_water()` on `seasonal_aeti` and `seasonal_peff`.
+- **Root cause**: `min(AETI, Peff)` is applied to seasonal sums. The correct
+  method (raised by the user, 2026-09-23) splits per month and sums:
+  `green = Σ_m min(AETI_m, Peff_m)`, `blue = Σ_m max(0, AETI_m − Peff_m)`.
+  Monthly because the USDA-SCS Peff formula is monthly.
+- **Impact**: seasonal green water is overestimated and blue water
+  underestimated whenever wet-month surplus rain coincides with dry-month
+  irrigation (Σ min ≤ min Σ). Affects exports, Shiny outputs, and anything
+  reading `results$green_water` / `results$blue_water`.
+- **Fix / mitigation**: FIXED in 1.0.2 (user approved 2026-09-23): the engine's
+  seasonal `green_water` / `blue_water` are now `Reduce("+", monthly_*$rasters)`.
+  The unused registry step `step_peff_green_blue` (`R/analysis_registry.R:524`,
+  skipped by the engine) still splits seasonal totals — align it if it is ever
+  re-enabled.
+- **Regression tests**: `tests/testthat/test-analysis-engine.R` — "seasonal
+  green/blue water sum the monthly splits" (wet Jan / dry Feb: expects green 31,
+  blue 140; old code gave 156 / 15). Failed before the fix, passes after.
+- **Verification**: engine, processing, indicators, shiny-analysis and export
+  test files pass after the change.
+
+### ISS-20260923-004 — `wapor_export_analysis_outputs()` errors on a single-season result
+
+- **Where**: `R/analysis_utils.R:826`, multi-season detection
+  `!is.null(results[[1]]$h_mask)`.
+- **Root cause**: for a single-season result `results[[1]]` is the `h_mask`
+  SpatRaster; `$h_mask` on a SpatRaster is a layer-name subset, and terra errors
+  ("[subset] invalid name(s)") unless the layer happens to be called `h_mask`.
+- **Impact**: the documented single-season call
+  `wapor_export_analysis_outputs(results = season, season_label = ...)` fails
+  whenever the crop mask layer has any other name (e.g. `crop_mask`).
+- **Fix / mitigation**: not fixed in the package. Training notebook passes
+  `results = list(<label> = season)`. Suggested fix: test
+  `is.list(results[[1]]) && !inherits(results[[1]], "SpatRaster")` before `$`.
+- **Regression tests**: none yet.
+- **Verification**: reproduced in `training/water-productivity-training.qmd`
+  chunk `citrus-export` with installed Rwapor 1.0.1.
+
+### ISS-20260923-003 — 1.0.1 kernel rejects `ref_year = 1970` (Shiny app + vignettes still pass it)
+
+- **Where**: `R/processing_kernel.R` `.wapor_profile_key_raster()` (range check
+  "Season start/end values must lie between -1000 and 999 days"), introduced in
+  `e10ba99`. Callers still passing 1970: `inst/shiny/mod_analysis.R:1340`,
+  `vignettes/advanced-analysis.Rmd:82`, `vignettes/wheat-water-productivity.Rmd:96`,
+  default in `R/analysis.R:1078`.
+- **Root cause**: season start/end are day offsets from `ref_year`; with 1970 a
+  2024 season is ~19 800 days, outside the packed profile-key span.
+- **Impact**: `wapor_run_seasonal_analysis()` errors for any config with
+  `ref_year = 1970` — worked in 1.0.0.
+- **Fix / mitigation**: not fixed yet (found while testing the training notebook;
+  package change not in that task's scope). Notebook omits `ref_year` so the
+  engine derives it from the season start year. Suggested package fix: rebase
+  start/end rasters to the season-start year inside the kernel job, or drop the
+  1970 defaults.
+- **Regression tests**: none yet.
+- **Verification**: reproduced by rendering `training/water-productivity-training.qmd`
+  (chunk `citrus-run-analysis`) with installed Rwapor 1.0.1.
+
 ### ISS-20260923-002 — Monitoring stores whole rasters as DuckDB blobs
 
 - **Where**: `R/wapor_monitoring.R` (around lines 982-985 and 1054-1059):

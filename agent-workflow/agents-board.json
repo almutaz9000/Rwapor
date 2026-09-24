@@ -1,7 +1,7 @@
 {
   "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
   "schema_version": 1,
-  "updated_utc": "2026-09-18T10:00:00Z",
+  "updated_utc": "2026-09-24T15:05:35Z",
   "known_models": [
     "claude",
     "codex",
@@ -765,6 +765,290 @@
       "issue_ref": "ISS-20260923-001",
       "claimed_utc": "2026-09-23T00:00:00Z",
       "updated_utc": "2026-09-23"
+    },
+    {
+      "id": "ti-01",
+      "title": "Fix wapor_map(separate_files=TRUE) dropping the WaPOR scale factor (10x values offline)",
+      "status": "pending",
+      "priority": "critical",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/wapor_map.R"
+      ],
+      "issue_ref": "ISS-20260924-006",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-01).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-02",
+      "title": "Make the kernel accept any ref_year (1970 rejected; Shiny and vignettes broken)",
+      "status": "pending",
+      "priority": "critical",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/processing_kernel.R",
+        "R/analysis_engine.R",
+        "R/analysis.R",
+        "inst/shiny/mod_analysis.R",
+        "vignettes/advanced-analysis.Rmd",
+        "vignettes/wheat-water-productivity.Rmd"
+      ],
+      "issue_ref": "ISS-20260923-003",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-02).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-03",
+      "title": "Fix wapor_export_analysis_outputs() crash on a single-season result",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_utils.R"
+      ],
+      "issue_ref": "ISS-20260923-004",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-03).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-04",
+      "title": "Default use_crop_mask to TRUE when a crop mask is supplied (warn otherwise)",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_engine.R",
+        "R/analysis_validation.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-04).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-05",
+      "title": "Release Rwapor 1.0.2 (monthly green/blue fix) and align registry step_peff_green_blue",
+      "status": "pending",
+      "priority": "critical",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_registry.R",
+        "DESCRIPTION",
+        "NEWS.md"
+      ],
+      "issue_ref": "ISS-20260923-005",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-05).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-06",
+      "title": "Download-once cache: exported wapor_download() + config$cache_dir; local reader ignores _seasonal files",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/download_cache.R",
+        "R/analysis_engine.R",
+        "R/analysis.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-07",
+      "title": "Faster remote opening of many layers (parallel / GDAL HTTP multiplexing)",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/gdal_config.R",
+        "R/wapor_map.R",
+        "R/processing_kernel.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-07).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-08",
+      "title": "Reduce disk footprint: keep_intermediates/include_dekadal default FALSE, Float32 outputs, disk-space preflight",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_engine.R",
+        "R/processing_plan.R",
+        "R/analysis_utils.R",
+        "R/analysis_validation.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-08).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-09",
+      "title": "Irrigation performance indicators (Chukalla et al. 2022): adequacy classes, uniformity, equity, climate normalization",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_indicators.R",
+        "R/indicators_math.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-09).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-10",
+      "title": "Farm-level extraction helper wapor_extract_farms() (dissolve by ID, area-weighted) for survey joins",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/farm_extract.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-10).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-11",
+      "title": "Perennial crop support: citrus profiles (FAO-56 Table 12), crop_type flag, stage names, fc documentation",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/crop_defaults.R",
+        "inst/extdata/fao_growth_stages.csv",
+        "R/analysis_engine.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-11).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-12",
+      "title": "Crop mask helpers: auto-reprojecting rasterize, fraction-based harmonization, mask area check",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/mask_helpers.R",
+        "R/analysis.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-12).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-13",
+      "title": "Export wapor_calc_cv and raster Peff; add wapor_classify_spots() (bright/dark spots)",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_indicators.R",
+        "NAMESPACE"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-13).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-14",
+      "title": "Plotting: terra-based wapor_plot_map (full resolution), calendar Kc plot with stage names, remove aes_string",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/viz.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-14).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-15",
+      "title": "Offline cache for L3 region list and generated URLs",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/metadata.R",
+        "R/api_client.R",
+        "R/wapor_metadata_cache.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-15).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-16",
+      "title": "Robust polygon area calculation (projected CRS; s2 duplicate-vertex failure)",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/utils.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-16).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "codex-delegation",
+      "title": "Claude plans / Codex implements delegation setup",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-24T15:05:35Z",
+      "files": [
+        "CLAUDE.md",
+        "AGENTS.override.md",
+        "agent-workflow/templates/codex-plan.md",
+        "agent-workflow/scripts/codex_task.ps1",
+        ".claude/skills/codex-delegate/",
+        ".claude/skills/codex-skill-author/",
+        ".agents/skills/rwapor-plan-executor/",
+        ".agents/skills/rwapor-r-dev/"
+      ],
+      "issue_ref": null,
+      "notes": "Plan template, codex_task.ps1 wrapper, slim AGENTS.override.md for Codex, Codex skills in .agents/skills, Claude skills codex-delegate + codex-skill-author.",
+      "updated_utc": "2026-09-24"
     }
   ],
   "issues": [
