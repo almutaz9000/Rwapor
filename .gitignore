@@ -103,3 +103,8 @@ agent-workflow/dashboard/__pycache__/
 agent-workflow/dashboard/*.pyc
 agent-workflow/dashboard/.venv/
 .streamlit/
+
+# Training folder: only the notebook source is tracked. Data, downloads, images,
+# rendered output, setup scripts and participant documents stay local.
+training/*
+!training/water-productivity-training.qmd
