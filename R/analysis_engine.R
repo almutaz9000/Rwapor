@@ -482,11 +482,14 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     results$seasonal_peff <- results$monthly_precip_peff$seasonal_peff
   }
 
-  # Green/Blue Water
-  if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$seasonal_aeti) && !is.null(results$seasonal_peff)) {
-    if ("green_water" %in% indicators) results$green_water <- Rwapor::wapor_calc_green_water(results$seasonal_aeti$raster, results$seasonal_peff)
-    if ("blue_water" %in% indicators)  results$blue_water <- Rwapor::wapor_calc_blue_water(results$seasonal_aeti$raster, results$seasonal_peff)
+  # Green/Blue Water: split each month, then sum. Splitting seasonal totals
+  # would let one month's surplus rain offset another month's irrigation.
+  sum_monthly <- function(series) {
+    if (is.null(series) || !length(series$rasters)) return(NULL)
+    Reduce(`+`, series$rasters)
   }
+  if ("green_water" %in% indicators) results$green_water <- sum_monthly(results$monthly_green_water)
+  if ("blue_water" %in% indicators)  results$blue_water <- sum_monthly(results$monthly_blue_water)
 
   # Yield and CWP/BWP
   if (any(c("yield_npp", "cwp_bwp") %in% indicators) && !is.null(results$seasonal_biomass)) {

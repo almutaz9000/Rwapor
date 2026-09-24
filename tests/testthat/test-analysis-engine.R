@@ -312,3 +312,49 @@ test_that("seasonal analysis engine runs a registered dummy indicator without to
   expect_s4_class(results[[dummy_name]], "SpatRaster")
   expect_equal(as.numeric(terra::global(results[[dummy_name]], "mean", na.rm = TRUE)$mean), 42)
 })
+
+test_that("seasonal green/blue water sum the monthly splits, not the seasonal totals", {
+  skip_if_not_installed("terra")
+
+  analysis_dir <- tempfile("rwapor-greenblue-")
+  dir.create(analysis_dir, recursive = TRUE)
+  on.exit(unlink(analysis_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  # January is wet with little use; February is dry with high use.
+  dates <- c("2023-01-01", "2023-01-11", "2023-01-21", "2023-02-01", "2023-02-11", "2023-02-21")
+  template <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4)
+  write_stack <- function(variable, layer_values) {
+    var_dir <- file.path(analysis_dir, variable)
+    dir.create(var_dir, recursive = TRUE)
+    for (i in seq_along(dates)) {
+      r <- terra::setValues(template, rep(layer_values[i], terra::ncell(template)))
+      terra::writeRaster(r, file.path(var_dir, sprintf("WAPOR-3.%s.%s.tif", variable, dates[i])), overwrite = TRUE)
+    }
+  }
+  write_stack("L1-AETI-D", c(1, 1, 1, 5, 5, 5))    # mm/day: Jan 31 mm, Feb 140 mm
+  write_stack("L1-PCP-D", c(10, 10, 10, 0, 0, 0))  # mm/day: Jan 310 mm, Feb 0 mm
+
+  config <- list(
+    period = c("2023-01-01", "2023-02-28"),
+    aeti_var = "L1-AETI-D",
+    precip_var = "L1-PCP-D",
+    data_source = "local",
+    folder = analysis_dir,
+    indicators = c("agg_aeti", "agg_pcp", "agg_peff", "green_water", "blue_water")
+  )
+  results <- wapor_run_seasonal_analysis(config = config, crop_params = wapor_crop_defaults("Winter Wheat"),
+                                         rasters = list(template = template))
+  raster_mean <- function(x) as.numeric(terra::global(x, "mean", na.rm = TRUE)$mean)
+
+  peff_jan <- 125 + 0.1 * 310  # USDA-SCS, P > 250 mm/month
+  aeti_jan <- 31
+  aeti_feb <- 5 * 28
+  expected_green <- min(aeti_jan, peff_jan) + min(aeti_feb, 0)
+  expected_blue  <- max(0, aeti_jan - peff_jan) + max(0, aeti_feb - 0)
+
+  expect_equal(raster_mean(results$green_water), expected_green)
+  expect_equal(raster_mean(results$blue_water), expected_blue)
+  expect_equal(raster_mean(results$green_water + results$blue_water), aeti_jan + aeti_feb)
+  # The seasonal-total shortcut would give green = min(171, 156) = 156.
+  expect_false(isTRUE(all.equal(raster_mean(results$green_water), min(aeti_jan + aeti_feb, peff_jan))))
+})
