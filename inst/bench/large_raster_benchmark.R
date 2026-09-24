@@ -81,19 +81,23 @@ make_fixture <- function(root, n, n_dekads, seed = 1) {
 
 # --- One measured run in a child process ----------------------------------------
 child_script <- function(pkg, root, mode, budget_mb, baseline_only = FALSE) {
+  # Paths are inserted with deparse() so backslashes in Windows paths
+  # (C:\Users\...) are escaped instead of being read as R escape sequences.
   sprintf('
-suppressMessages(pkgload::load_all("%s", quiet = TRUE, export_all = FALSE))
+suppressMessages(pkgload::load_all(%s, quiet = TRUE, export_all = FALSE))
 options(Rwapor.memory_budget_mb = %s)
 invisible(gc())
+cat("LOADED\\n")
 if (%s) { Sys.sleep(2); quit(save = "no") }
-mask <- terra::rast(file.path("%s", "mask.tif"))
-period_end <- readLines(file.path("%s", "period_end"))
+root <- %s
+mask <- terra::rast(file.path(root, "mask.tif"))
+period_end <- readLines(file.path(root, "period_end"))
 config <- list(
-  period = c("2023-01-01", period_end), data_source = "local", folder = "%s",
+  period = c("2023-01-01", period_end), data_source = "local", folder = root,
   aeti_var = "L1-AETI-D", ret_var = "L1-RET-D",
   indicators = c("agg_aeti", "agg_ret", "etc", "adequacy_etc"),
   use_crop_mask = TRUE, use_season_rasters = FALSE,
-  processing = "%s", output_dir = tempfile("bench-run-")
+  processing = %s, output_dir = tempfile("bench-run-")
 )
 cp <- data.frame(class_value = c(1L, 2L), crop_label = c("A", "B"), kc_ini = 0.5, kc_mid = 1.1,
                  kc_end = 0.7, l_ini_days = 15L, l_mid_days = 40L, l_late_days = 20L,
@@ -103,7 +107,7 @@ res <- suppressMessages(wapor_run_seasonal_analysis(config, cp, list(crop_mask =
 m <- terra::global(res$seasonal_aeti$raster, "mean", na.rm = TRUE)[[1]]
 cat(sprintf("RESULT %%.3f %%s %%.6f\\n", proc.time()[["elapsed"]] - t0,
             if (is.null(res$processing)) "legacy" else res$processing$mode, m))
-', pkg, budget_mb, if (baseline_only) "TRUE" else "FALSE", root, root, root, mode)
+', deparse(pkg), budget_mb, if (baseline_only) "TRUE" else "FALSE", deparse(root), deparse(mode))
 }
 
 measure <- function(pkg, root, mode, budget_mb, baseline_only = FALSE) {
@@ -123,6 +127,10 @@ measure <- function(pkg, root, mode, budget_mb, baseline_only = FALSE) {
   out <- c(out, p$read_all_output_lines())
   err <- p$read_all_error()
   line <- grep("^RESULT", out, value = TRUE)
+  if (baseline_only && !any(out == "LOADED")) {
+    stop("The baseline R session could not load the package, so no run can be measured:\n",
+         err, call. = FALSE)
+  }
   if (!baseline_only && !length(line)) {
     # Record the failure (for example out of memory) and keep benchmarking.
     err_lines <- strsplit(err, "\n")[[1]]
@@ -177,9 +185,19 @@ if (length(unique(small_tab$package)) == 2) {
               med[["old"]], med[["new"]], 100 * (med[["new"]] / med[["old"]] - 1)))
 }
 big_new <- tab[tab$package == "new" & !grepl("^small", tab$requested), ]
+n_failed <- sum(grepl("^FAILED", tab$mode))
+if (n_failed) {
+  cat(sprintf("\n%d of %d run(s) FAILED (see the mode column); checks below use successful runs only.\n",
+              n_failed, nrow(tab)))
+}
+ok <- big_new[!grepl("^FAILED", big_new$mode), ]
+stream_tiled <- ok[ok$mode %in% c("stream", "tiled"), ]
 cat("\nStream/tiled above-baseline peak within budget: ",
-    all(big_new$above_baseline_mb[big_new$mode %in% c("stream", "tiled")] <= budget_mb), "\n", sep = "")
+    if (nrow(stream_tiled)) all(stream_tiled$above_baseline_mb <= budget_mb) else "NOT MEASURED",
+    "\n", sep = "")
 cat("Modes agree on mean AETI: ",
-    isTRUE(all.equal(big_new$mean_aeti, rep(big_new$mean_aeti[1], nrow(big_new)), tolerance = 1e-6)), "\n", sep = "")
+    if (nrow(ok) >= 2) isTRUE(all.equal(ok$mean_aeti, rep(ok$mean_aeti[1], nrow(ok)), tolerance = 1e-6))
+    else "NOT MEASURED",
+    "\n", sep = "")
 utils::write.csv(tab, file.path(work, "benchmark_results.csv"), row.names = FALSE)
 cat("Results written to", file.path(work, "benchmark_results.csv"), "\n")

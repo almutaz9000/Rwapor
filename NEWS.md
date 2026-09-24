@@ -1,3 +1,17 @@
+# Rwapor 1.0.2
+
+## Bug fixes
+
+* Seasonal green and blue water (`green_water`, `blue_water` from
+  `wapor_run_seasonal_analysis()`) are now the sum of the monthly splits:
+  green = sum over months of min(AETI, Peff), blue = sum over months of
+  max(0, AETI - Peff). Before, the split was applied to the seasonal totals,
+  which let surplus rain in a wet month offset irrigation in a dry month, so
+  green water was overestimated and blue water underestimated whenever wet
+  and dry months fell in the same season. Green + blue still equals seasonal
+  AETI. Seasons that span a single month are unchanged. The monthly layers
+  (`monthly_green_water`, `monthly_blue_water`) were already correct.
+
 # Rwapor 1.0.1
 
 Rwapor now chooses how to process a job from its size, and seasonal totals are
