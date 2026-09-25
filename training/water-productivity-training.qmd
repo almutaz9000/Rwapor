@@ -16,6 +16,7 @@ format:
     fig-width: 8
     fig-height: 5
     fig-align: center
+    embed-resources: true      # one self-contained HTML file (opens without R)
 execute:
   warning: false
   message: false
