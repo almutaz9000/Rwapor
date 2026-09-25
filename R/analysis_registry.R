@@ -531,11 +531,22 @@ step_peff_green_blue <- function(ctx) {
   ctx$results$peff_monthly <- peff_res$monthly
   ctx$results$peff_seasonal <- peff_res$seasonal
 
-  if ("green_water" %in% ctx$indicators && !is.null(ctx$results$seasonal_aeti)) {
-    ctx$results$green_water <- Rwapor::wapor_calc_green_water(ctx$results$seasonal_aeti$raster, peff_res$seasonal)
+  # Split each month, then sum (as in wapor_run_seasonal_analysis()); splitting
+  # seasonal totals would let one month's surplus rain offset another's irrigation.
+  monthly_aeti <- ctx$results$monthly_aeti$rasters
+  month_keys <- intersect(names(monthly_aeti), names(peff_res$monthly))
+  split_sum <- function(split_fn) {
+    if (length(month_keys)) {
+      Reduce(`+`, lapply(month_keys, function(k) split_fn(monthly_aeti[[k]], peff_res$monthly[[k]])))
+    } else if (!is.null(ctx$results$seasonal_aeti)) {
+      split_fn(ctx$results$seasonal_aeti$raster, peff_res$seasonal)
+    }
   }
-  if ("blue_water" %in% ctx$indicators && !is.null(ctx$results$seasonal_aeti)) {
-    ctx$results$blue_water <- Rwapor::wapor_calc_blue_water(ctx$results$seasonal_aeti$raster, peff_res$seasonal)
+  if ("green_water" %in% ctx$indicators) {
+    ctx$results$green_water <- split_sum(Rwapor::wapor_calc_green_water)
+  }
+  if ("blue_water" %in% ctx$indicators) {
+    ctx$results$blue_water <- split_sum(Rwapor::wapor_calc_blue_water)
   }
   invisible(NULL)
 }
