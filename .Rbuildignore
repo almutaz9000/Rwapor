@@ -76,3 +76,5 @@
 ^\.Rproj\.user$
 ^\.pytest_cache$
 ^training$
+^AGENTS\.override\.md$
+^_smoke_check\.R$

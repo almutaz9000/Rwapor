@@ -1,3 +1,25 @@
+# Rwapor 1.1.0
+
+## New features
+
+* New `wapor_plot_polygon_grid()` draws a raster as a grid of small maps, one
+  panel per polygon unit (for example one panel per farm, with all of its
+  parcels outlined). Panels are cropped to each unit plus a buffer (metres),
+  square or in the unit's own shape, and laid out `per_page` to a page; each
+  page can be saved as a PNG. The colour scale is shared by all panels by
+  default and computed from the whole raster: a continuous gradient
+  (2nd to 98th percentile, full range or your limits), percentile classes, or
+  your own class breaks. `common_scale = FALSE` gives every panel its own
+  scale. Needs ggplot2; own scales and true shapes also need patchwork.
+
+## Bug fixes
+
+* The registered `peff_green_blue` indicator step
+  (`wapor_get_indicator_step("peff_green_blue")`) now sums the monthly
+  green/blue splits, like `wapor_run_seasonal_analysis()` since 1.0.2. It
+  still split the seasonal totals, so a direct call could give more green and
+  less blue water than the engine.
+
 # Rwapor 1.0.2
 
 ## Bug fixes
