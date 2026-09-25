@@ -3,6 +3,17 @@
 # `.data` is the ggplot2/rlang pronoun used inside aes().
 utils::globalVariables(".data")
 
+# Legend key height of the grid plots. ggplot2 (>= 3.5) draws a colour bar
+# 5 times legend.key.height long, so 1.2 * legend_size lines gives
+# legend_size times the default bar. One row of panels (or a panel with its
+# own scale) gets a "null" unit instead: the bar stretches to the panel height
+# and is never taller than the plot. Class legends keep one key per class.
+.wapor_colourbar_key_height <- function(discrete, legend_size, shared = TRUE, n_rows = 2) {
+  if (discrete) return(ggplot2::unit(0.8 * legend_size / if (shared) 1 else 3, "lines"))
+  if (!shared || n_rows <= 1) return(ggplot2::unit(1, "null"))
+  ggplot2::unit(1.2 * legend_size, "lines")
+}
+
 #' Plot a raster as a grid of small maps, one per polygon unit
 #'
 #' Groups `polygons` into units by `id_col` (for example parcels grouped by
@@ -43,7 +54,10 @@ utils::globalVariables(".data")
 #' @param square `TRUE` (default): square panels centred on the unit.
 #'   `FALSE`: each panel keeps the shape of its unit (needs patchwork).
 #' @param mask_outside Hide pixels outside the unit's polygons.
-#' @param legend_size Colour bar size relative to the ggplot2 default.
+#' @param legend_size Colour bar length relative to the ggplot2 default
+#'   (3 = three times longer, about the height of an 8-class legend). A single
+#'   row of panels, and every panel with its own scale, gets a colour bar as
+#'   tall as its panels instead, so the bar is never taller than the plot.
 #' @param out_dir Optional folder. Every page is saved as
 #'   `<prefix>_page<i>.png`.
 #' @param prefix File name prefix for saved pages.
@@ -173,10 +187,8 @@ wapor_plot_polygon_grid <- function(x, polygons, id_col, label_col = NULL,
     if (terra::ncell(r) > 5e6) terra::spatSample(r, 1e6, "regular", na.rm = TRUE)[, 1]
     else terra::values(r, na.rm = TRUE)[, 1]
   }
-  legend_theme <- function(fill, shared) {
-    key_h <- if (fill$discrete) 0.8 * legend_size else 6 * legend_size
-    if (!shared) key_h <- key_h / 3
-    ggplot2::theme(legend.key.height = ggplot2::unit(key_h, "lines"),
+  legend_theme <- function(fill, shared, n_rows = 2) {
+    ggplot2::theme(legend.key.height = .wapor_colourbar_key_height(fill$discrete, legend_size, shared, n_rows),
                    legend.key.width = ggplot2::unit(if (shared) 1.2 else 0.8, "lines"))
   }
 
@@ -236,7 +248,7 @@ wapor_plot_polygon_grid <- function(x, polygons, id_col, label_col = NULL,
       ggplot2::labs(title = page_title) +
       base_theme +
       ggplot2::theme(aspect.ratio = 1, strip.text = ggplot2::element_text(size = 7)) +
-      legend_theme(shared_fill, shared = TRUE)
+      legend_theme(shared_fill, shared = TRUE, n_rows = ceiling(length(page_ids) / ncol))
   }
 
   # Patchwork page: one plot per unit (own scale, or panels with true shape)

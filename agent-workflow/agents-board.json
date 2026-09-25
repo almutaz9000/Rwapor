@@ -1,7 +1,7 @@
 {
   "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
   "schema_version": 1,
-  "updated_utc": "2026-09-24T15:05:35Z",
+  "updated_utc": "2026-09-25T00:00:00Z",
   "known_models": [
     "claude",
     "codex",
@@ -828,9 +828,9 @@
         "R/analysis_engine.R",
         "R/analysis_validation.R"
       ],
-      "issue_ref": null,
+      "issue_ref": "ISS-20260925-007",
       "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-04).",
-      "updated_utc": "2026-09-24"
+      "updated_utc": "2026-09-25"
     },
     {
       "id": "ti-05",
@@ -862,9 +862,9 @@
         "R/analysis_engine.R",
         "R/analysis.R"
       ],
-      "issue_ref": null,
+      "issue_ref": "ISS-20260925-008",
       "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06).",
-      "updated_utc": "2026-09-24"
+      "updated_utc": "2026-09-25"
     },
     {
       "id": "ti-07",
@@ -897,9 +897,9 @@
         "R/analysis_utils.R",
         "R/analysis_validation.R"
       ],
-      "issue_ref": null,
+      "issue_ref": "ISS-20260925-009",
       "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-08).",
-      "updated_utc": "2026-09-24"
+      "updated_utc": "2026-09-25"
     },
     {
       "id": "ti-09",
@@ -1049,6 +1049,30 @@
       "issue_ref": null,
       "notes": "Plan template, codex_task.ps1 wrapper, slim AGENTS.override.md for Codex, Codex skills in .agents/skills, Claude skills codex-delegate + codex-skill-author.",
       "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "training-notebook-2026-09",
+      "title": "WaPOR training notebook (citrus JVA, wheat JEN) and participant package",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-23T00:00:00Z",
+      "files": [
+        "training/water-productivity-training.qmd",
+        "training/check_setup.R",
+        "training/WaPOR_Training.Rproj",
+        "training/Note_to_Participants.docx",
+        "training/data/",
+        "training/images/",
+        "R/analysis_engine.R",
+        "tests/testthat/test-analysis-engine.R",
+        "DESCRIPTION",
+        "NEWS.md"
+      ],
+      "issue_ref": "ISS-20260923-005",
+      "notes": "Done, not committed. Offline-ready training (wapor_data/ saved dekads, local == API), final render 41/42 PASS (1 intended CHECK). Package change: 1.0.2 monthly green/blue split with regression test (uncommitted; GitHub still 1.0.1). Lessons register L1-L21 and follow-up tasks ti-01..ti-16 (REVIEW FIRST): docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md",
+      "updated_utc": "2026-09-25"
     }
   ],
   "issues": [

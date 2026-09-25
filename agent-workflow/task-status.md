@@ -33,6 +33,24 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Pending — Next Session (Production Hardening continuation)
 
+- **Training-driven Rwapor improvements (ti-01 to ti-16), REVIEW FIRST** —
+  Proposed 2026-09-24 from the WaPOR training case studies; nothing approved or
+  started. Review each item (accept / change / reject, target release) in
+  `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`, which
+  also holds the lessons register (L1 to L21, implemented or not). P0 before the
+  training: ti-01 scale factor (ISS-20260924-006), ti-02 ref_year (ISS-20260923-003,
+  dashboard broken), ti-03 export (ISS-20260923-004), ti-04 use_crop_mask
+  (ISS-20260925-007), ti-05 release 1.0.2. P1: ti-06 download cache
+  (ISS-20260925-008), ti-07 remote opening, ti-08 disk footprint (ISS-20260925-009).
+  P2: ti-09 to ti-16 (performance indicators, farm extraction, perennial crops,
+  mask helpers, exports, plotting, offline metadata, polygon areas).
+- **Uncommitted work to commit or discard (user decision)**: Rwapor 1.0.2 (monthly
+  green/blue split in `R/analysis_engine.R`, regression test, `DESCRIPTION`,
+  `NEWS.md`); `training/` (notebook, HTML, PDF, `check_setup.R`, `.Rproj`,
+  participant note, `data/`, `images/`; `wapor_data/` and `outputs/` are git-ignored);
+  `.gitignore`; agent-workflow logs. GitHub still serves 1.0.1, but the
+  participant note installs from GitHub and the notebook requires 1.0.2.
+
 ### Medium priority (from IMPROVEMENT_PLAN.md open items)
 
 - **1.5 — Explicit L3 Selection / Mosaic-All Coverage Policy** (Phase 1 CRITICAL)
@@ -123,6 +141,21 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 - None.
 
 ## Recently Completed
+
+- **WaPOR training notebook and participant package (2026-09-23 to 25, Claude)** —
+  `training/water-productivity-training.qmd`: manual-style notebook with two L3
+  (20 m) case studies, citrus in the North Jordan Valley (JVA; consumption,
+  adequacy, green/blue water, 113 surveyed farms joined with a de-identified
+  survey, CWP from surveyed yield) and wheat in Jendouba (JEN; yield equation
+  with HI 0.43, AOT 0.75, fc 1.0, MC 0.15; Chukalla 2022 performance indicators).
+  Offline-ready: all WaPOR dekads saved in `training/wapor_data/` (249 files,
+  251 MB), local run equal to API run. Final render: 42 checkpoints, 41 PASS,
+  1 intended CHECK (survey yield F001). Also `check_setup.R`,
+  `WaPOR_Training.Rproj`, self-contained HTML, 83-page PDF,
+  `Note_to_Participants.docx` (3-day agenda, laptop requirements, installation,
+  folder layout); dependency scan: every package loaded is installed by the
+  note's two commands (plus R's recommended Matrix, nlme, mgcv). Reusable
+  skill: `~/.claude/skills/wapor-training-builder/`.
 
 ### 2026-09-24 — Claude→Codex delegation setup
 
