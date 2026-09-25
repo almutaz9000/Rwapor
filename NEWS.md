@@ -1,3 +1,19 @@
+# Rwapor 1.0.4
+
+## Bug fixes
+
+* Seasonal analysis on local files (`data_source = "local"`) no longer counts
+  the days of a dekad twice. `wapor_map()` saves dekadal mm/day products as
+  mm/dekad by default (`unit_conversion = NULL`), but the analysis multiplied
+  every local layer by the days in its dekad again, so seasonal AETI, RET,
+  ETc, precipitation and the indicators built on them were about 10 times too
+  high. The analysis now reads each file's units and divides out the saved
+  conversion (mm/dekad, mm/month or mm/year); files in mm/day, runs on the
+  WaPOR API, and folders mixing both give the same totals. The WaPOR scale
+  factors (0.1, 0.001) were always applied correctly on read and are
+  unchanged: verified against the raw COG values for L1 AETI, PCP, RET, NPP
+  and L3 AETI, in all processing modes and in `wapor_ts()`.
+
 # Rwapor 1.0.3
 
 ## New features

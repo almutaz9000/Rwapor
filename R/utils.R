@@ -495,10 +495,14 @@ get_seasonal_multiplier_values <- function(variable, plan_rows, aggregation_rule
 #' @param variable Character variable code for the loaded raster stack.
 #' @param period_table Data frame with one row per loaded layer and an `n_days`
 #'   column describing each time slice.
+#' @param paths Optional local file paths, one per row of `period_table`. A
+#'   file whose units say it was saved with a temporal conversion (for example
+#'   `"mm/dekad"` from `wapor_map()`'s default) gets the inverse factor, so every
+#'   layer still contributes its dekad total exactly once.
 #' @return Numeric vector of per-layer multipliers.
 #' @keywords internal
 #' @noRd
-get_analysis_layer_multipliers <- function(variable, period_table) {
+get_analysis_layer_multipliers <- function(variable, period_table, paths = NULL) {
   if (!is.data.frame(period_table) || nrow(period_table) == 0) {
     return(numeric(0))
   }
@@ -508,11 +512,28 @@ get_analysis_layer_multipliers <- function(variable, period_table) {
   meta <- wapor_variable_metadata(variable)
   unit_time <- extract_temporal_unit(meta$units %||% NA_character_)
 
-  if (identical(tres, "D") && identical(unit_time, "day")) {
-    return(period_table$n_days)
+  if (!(identical(tres, "D") && identical(unit_time, "day"))) {
+    return(rep(1, nrow(period_table)))
+  }
+  n_days <- period_table$n_days
+  if (is.null(paths)) return(n_days)
+  if (length(paths) != nrow(period_table)) {
+    stop("'paths' must have one file per row of 'period_table'.", call. = FALSE)
   }
 
-  rep(1, nrow(period_table))
+  # A file saved as mm/dekad (or /month, /year) was multiplied by
+  # calculate_conversion_factor("day", unit, ...); divide it back out.
+  starts <- as.Date(period_table$dekad_key)
+  vapply(seq_along(paths), function(i) {
+    file_units <- tryCatch(terra::units(terra::rast(paths[i]))[1], error = function(e) NA_character_)
+    file_time <- extract_temporal_unit(file_units)
+    if (is.null(file_time) || identical(file_time, "day")) return(n_days[i])
+    saved_factor <- calculate_conversion_factor(
+      "day", file_time, n_days[i], lubridate::days_in_month(starts[i]),
+      days_in_year = if (lubridate::leap_year(starts[i])) 366L else 365L
+    )
+    n_days[i] / saved_factor
+  }, numeric(1))
 }
 
 #' Resolve Units for Seasonal Outputs

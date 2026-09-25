@@ -358,3 +358,44 @@ test_that("seasonal green/blue water sum the monthly splits, not the seasonal to
   # The seasonal-total shortcut would give green = min(171, 156) = 156.
   expect_false(isTRUE(all.equal(raster_mean(results$green_water), min(aeti_jan + aeti_feb, peff_jan))))
 })
+
+test_that("local files saved as mm/dekad are not multiplied by the days again", {
+  skip_if_not_installed("terra")
+  root <- withr::local_tempdir()
+  dates <- c("2024-07-01", "2024-07-11", "2024-07-21")
+  n_days <- c(10, 10, 11)
+  template <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4)
+  # AETI of 1 mm/day, saved per dekad as mm/day, mm/dekad (wapor_map() default) or a mix.
+  write_case <- function(case, conversions) {
+    var_dir <- file.path(root, case, "L1-AETI-D")
+    dir.create(var_dir, recursive = TRUE)
+    for (i in seq_along(dates)) {
+      factor <- if (conversions[i] == "dekad") n_days[i] else 1
+      r <- assign_raster_metadata(terra::setValues(template, factor), "L1-AETI-D", conversions[i])
+      terra::writeRaster(r, file.path(var_dir, sprintf("WAPOR-3.L1-AETI-D.%s.tif", dates[i])), overwrite = TRUE)
+    }
+    file.path(root, case)
+  }
+  seasonal <- function(folder) {
+    res <- wapor_run_seasonal_analysis(
+      config = list(period = c("2024-07-01", "2024-07-31"), aeti_var = "L1-AETI-D", data_source = "local",
+                    folder = folder, indicators = "agg_aeti"),
+      crop_params = wapor_crop_defaults("Winter Wheat"), rasters = list(template = template))
+    as.numeric(terra::global(res$seasonal_aeti$raster, "mean")$mean)
+  }
+  expect_equal(seasonal(write_case("per_day", rep("none", 3))), 31)
+  expect_equal(seasonal(write_case("per_dekad", rep("dekad", 3))), 31)
+  expect_equal(seasonal(write_case("mixed", c("none", "dekad", "none"))), 31)
+})
+
+test_that("layer multipliers invert the saved temporal conversion", {
+  dt <- data.frame(dekad_key = c("2024-02-21", "2024-03-01"), n_days = c(9, 10))
+  dir <- withr::local_tempdir()
+  paths <- file.path(dir, c("a.tif", "b.tif"))
+  r <- terra::rast(nrows = 1, ncols = 1, vals = 1)
+  terra::units(r) <- "mm/month"; terra::writeRaster(r, paths[1])
+  terra::units(r) <- "mm/day";   terra::writeRaster(r, paths[2])
+  # Feb 2024 has 29 days: a mm/month file holds 29 x the daily rate.
+  expect_equal(get_analysis_layer_multipliers("L1-AETI-D", dt, paths = paths), c(9 / 29, 10))
+  expect_equal(get_analysis_layer_multipliers("L1-AETI-D", dt), c(9, 10))
+})
