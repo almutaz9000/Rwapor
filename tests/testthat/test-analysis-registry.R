@@ -78,3 +78,20 @@ test_that("wapor_run_indicator_steps executes registered steps in dependency ord
   expect_equal(ctx$results$base, 1)
   expect_equal(ctx$results$derived, 2)
 })
+
+test_that("peff_green_blue step sums monthly splits, not seasonal totals", {
+  skip_if_not_installed("terra")
+  r <- function(v) terra::rast(nrows = 2, ncols = 2, vals = v)
+  ctx <- new.env()
+  ctx$indicators <- c("green_water", "blue_water")
+  # Jan wet (AETI 31, P 310 -> Peff 156); Feb dry (AETI 140, P 0).
+  ctx$results <- list(
+    monthly_pcp  = list(rasters = list("2023-01" = r(310), "2023-02" = r(0))),
+    monthly_aeti = list(rasters = list("2023-01" = r(31), "2023-02" = r(140))),
+    seasonal_aeti = list(raster = r(171))
+  )
+  wapor_get_indicator_step("peff_green_blue")(ctx)
+  mean_of <- function(x) as.numeric(terra::global(x, "mean")$mean)
+  expect_equal(mean_of(ctx$results$green_water), 31)
+  expect_equal(mean_of(ctx$results$blue_water), 140)
+})
