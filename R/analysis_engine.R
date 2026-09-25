@@ -249,7 +249,9 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     kernel_vars[[key]] <- list(
       variable = var_codes[[key]],
       paths = paths,
-      multipliers = get_analysis_layer_multipliers(var_codes[[key]], dekad_table),
+      # Local files may already be mm/dekad (wapor_map() default): read their units.
+      multipliers = get_analysis_layer_multipliers(var_codes[[key]], dekad_table,
+                                                   paths = if (use_local) paths),
       method = get_resampling_method(key, "near"),
       remote = !use_local
     )
