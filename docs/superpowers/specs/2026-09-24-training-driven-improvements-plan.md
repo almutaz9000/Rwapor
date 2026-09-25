@@ -9,7 +9,10 @@
 - **Board tasks**: `ti-01` to `ti-16` in `agent-workflow/agents-board.json`,
   all `pending` with notes "REVIEW FIRST".
 - **Related issues**: ISS-20260923-003, ISS-20260923-004, ISS-20260923-005,
-  ISS-20260924-006 in `agent-workflow/issues-log.md`.
+  ISS-20260924-006, ISS-20260925-007, ISS-20260925-008, ISS-20260925-009 in
+  `agent-workflow/issues-log.md`.
+- **Lessons register**: see the table at the end of this document (L1 to L21,
+  implemented or not).
 
 ## How to review this plan
 
@@ -280,3 +283,34 @@ Every P0 fix must come with a regression test that fails before the fix.
   database is on PATH; use script files.
 - EPSG lookups in `terra::project(x, "EPSG:4326")` fail in that shell; the
   notebook uses `sf::st_transform()` for that step.
+
+---
+
+## Lessons learned register (session 2026-09-23 to 2026-09-25)
+
+Status of every lesson from building the training. "Package" means the fix
+lives in Rwapor itself; "notebook" means only the training works around it.
+
+| # | Lesson | Package status | Where it is handled now | Task / issue |
+|---|---|---|---|---|
+| L1 | Seasonal green/blue water must be split month by month, then summed (seasonal-total split: Jendouba blue 4 mm instead of 136 mm) | **Implemented** in 1.0.2, with a failing-first regression test; **not committed or pushed** | `R/analysis_engine.R`, `tests/testthat/test-analysis-engine.R`, `NEWS.md` | ISS-20260923-005, ti-05 |
+| L2 | `wapor_map(separate_files = TRUE)` drops the 0.1 scale factor (offline AETI 10x too high) | Not implemented | Notebook `download_wapor()` reads via terra and writes scaled values | ISS-20260924-006, ti-01 |
+| L3 | Kernel rejects `ref_year = 1970`; Shiny and vignettes still pass it | Not implemented | Notebook leaves `ref_year` unset | ISS-20260923-003, ti-02 |
+| L4 | Single-season export crashes | Not implemented | Notebook passes a named list | ISS-20260923-004, ti-03 |
+| L5 | A crop mask is silently ignored without `use_crop_mask = TRUE` | Not implemented | Notebook sets the flag, Watch out box | ISS-20260925-007, ti-04 |
+| L6 | Streaming from the API is slow; download once and analyse locally (local = API exactly) | Not implemented | Notebook download step + `data_source = "local"` | ti-06 |
+| L7 | Local reader also scans `<VAR>_seasonal` next to `<VAR>` | Not implemented | Notebook keeps dekadal data in `wapor_data/<case>/dekadal/` | ISS-20260925-008, ti-06 |
+| L8 | Opening many remote layers is slow (36 layers, 95 s) | Not implemented | Nowhere yet | ti-07 |
+| L9 | Large L3 runs fill the disk (`keep_intermediates` default TRUE in memory mode, FLT8S, dekadal exports) | Not implemented | Notebook sets `keep_intermediates = FALSE`, `include_dekadal = FALSE`; note asks for 20 GB | ISS-20260925-009, ti-08 |
+| L10 | Irrigation performance indicators (Chukalla et al. 2022) | Not implemented | Notebook wheat Step 8 (adequacy classes, 1 km block uniformity/equity, f_norm) | ti-09 |
+| L11 | Farm-level extraction with multi-polygon farms and survey join | Not implemented | Notebook citrus Steps 9 and 10 | ti-10 |
+| L12 | Tree crops: no citrus profile, no perennial flag, yield chain must be off, stage names, `fc` is the LUE correction factor | Not implemented | Notebook citrus Step 3 (Table 12 Kc, no HI/MC/fc/AOT), wheat yield factors table | ti-11 |
+| L13 | Mask helpers: reproject polygons to the L3 UTM grid, fraction harmonization, area check | Not implemented | Notebook Steps 5 (both parts) | ti-12 |
+| L14 | `wapor_calc_cv`, raster Peff, bright/dark spots not exported | Not implemented | Notebook computes CV by hand | ti-13 |
+| L15 | Plotting: `aes_string()` deprecation, `geom_raster` uneven-interval warning, terra `maxcell` 500,000, day-axis Kc plot | Not implemented | Notebook `plot_map()`, `two_maps()`, `plot_kc_months()` helpers | ti-14 |
+| L16 | Metadata calls need internet (L3 regions, URLs) | Not implemented | Notebook saves `data/wapor_l3_regions.csv`, reuses saved maps | ti-15 |
+| L17 | sf s2 area fails on field polygons with duplicate vertices | Not implemented | Notebook measures areas in UTM | ti-16 |
+| L18 | `/btw` side questions never reach the main agent | Implemented (process) | `wapor-training-builder` skill: recover from `~/.claude/history.jsonl` into a requirements ledger | n/a |
+| L19 | Training material needs a repeatable method (concepts, checkpoints, sketches, offline data, participant note) | Implemented (process) | User-level skill `~/.claude/skills/wapor-training-builder/` | n/a |
+| L20 | Editing notebooks with Python heredocs can turn `\f`, `\t`, `\n` into control characters | Implemented (process) | Skill recipe note; build backslashes with `chr(92)` | n/a |
+| L21 | Git Bash: `Rscript -e` with sf/terra can segfault and `terra::project(x, "EPSG:4326")` fails (PostgreSQL PROJ on PATH) | Environment, documented | `agent-workflow/project-memory.md`; use script files and `sf::st_transform()` | n/a |

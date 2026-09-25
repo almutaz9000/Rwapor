@@ -3,7 +3,30 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-23 — Large-raster performance review and 1.0.1 size-aware processing
+## Current Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
+
+**What happened**: Built and tested `training/water-productivity-training.qmd`
+with real data (citrus JVA polygons + 177 sampled farms + de-identified survey;
+Jendouba cereal mask), rewritten as a manual (concepts, SVG sketches, checkpoints,
+no em dashes, L3 20 m only, Esri basemaps, terra maps at full resolution). Made it
+offline-ready (per-date WaPOR downloads in `training/wapor_data/`, local = API).
+Added participant package: `check_setup.R`, `WaPOR_Training.Rproj`,
+`Note_to_Participants.docx`, self-contained HTML and PDF. Fixed seasonal green/blue
+water in the package (monthly split, 1.0.2, test added, uncommitted). Found and
+logged package problems ISS-20260923-003/-004, ISS-20260924-006,
+ISS-20260925-007/-008/-009. Created the user-level skill `wapor-training-builder`.
+
+**Verification**: final full render exit 0, 42 checkpoints (41 PASS, 1 intended
+CHECK on survey yield F001); offline run with a dead proxy works; dependency scan
+confirms the note's install commands cover every package used.
+
+**Open / next**: review the improvement plan and tasks ti-01 to ti-16 (REVIEW
+FIRST) in `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`
+(lessons register L1 to L21 at the end). Nothing committed: 1.0.2 must be pushed
+before the participant note is sent (GitHub still has 1.0.1). Keep 15 to 20 GB
+free for full L3 renders.
+
+## Previous Session — 2026-09-23 — Large-raster performance review and 1.0.1 size-aware processing
 
 **What happened**: User asked for a bottleneck review of large rasters and long
 20/100/300 m time series, then a grilled improvement plan (19 decisions plus

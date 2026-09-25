@@ -6,6 +6,30 @@ merge or remove stale entries rather than letting it grow unbounded._
 
 ## Confirmed Working Patterns
 
+- **Offline WaPOR data (training, 2026-09-24)**: download each date with
+  `terra::rast("/vsicurl/<url>")` + `crop` (+ `mask` for L3 only) +
+  `writeRaster`, one file `WAPOR-3.<VAR>.<YYYY-MM-DD>.tif` per date in
+  `<folder>/<VAR>/`; then `wapor_run_seasonal_analysis(config = list(data_source =
+  "local", folder = ...))`. Verified equal to the API run (JVA citrus AETI
+  1,035.86 mm, ETc 1,056.4 mm, adequacy 0.98). Keep first-look seasonal maps in a
+  different folder (ISS-20260925-008). Recipe: `training/water-productivity-training.qmd`
+  helper `download_wapor()`.
+- **WaPOR L3 regions for the training cases**: JVA (North Jordan Valley, 20 m
+  UTM) and JEN (Jendouba, 20 m EPSG:32632, pixel-aligned with the Jendouba
+  cereal masks). L3 grids are UTM: reproject polygons to the raster CRS before
+  `terra::rasterize`/`extract`.
+- **Irrigation performance indicators**: use Chukalla et al. (2022), HESS 26,
+  2759 to 2778 (doi:10.5194/hess-26-2759-2022): adequacy classes (good
+  0.8 < A <= 1, acceptable 0.68 to 0.8, poor <= 0.68), uniformity = 1 - CV within
+  a field, equity = CV of field means (good <= 10%, fair 10 to 25%, poor > 25%),
+  f_norm = mean RET / RET_i. Without field boundaries use 1 km blocks
+  (`terra::aggregate(fact = 50)` on 20 m), not `terra::patches`.
+- **Training material**: built with the user-level skill
+  `~/.claude/skills/wapor-training-builder/` (requirements ledger, concepts,
+  checkpoints, SVG sketches, offline data, participant note). Training package:
+  `training/` (notebook, self-contained HTML, PDF, `check_setup.R`,
+  `WaPOR_Training.Rproj`, `Note_to_Participants.docx`, `data/`, `wapor_data/`).
+
 - **Rscript path (Windows)**: use
   `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe` for
   `devtools::document()`, `devtools::test()`, and `devtools::check()`. Plain
@@ -44,6 +68,34 @@ merge or remove stale entries rather than letting it grow unbounded._
   silent under-coverage — treat that as a regression.
 
 ## Recurring Pitfalls
+
+- **Rwapor 1.0.x traps found by the training (2026-09-23 to 25)** (details and
+  status: `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`,
+  lessons register L1 to L21; tasks ti-01 to ti-16, REVIEW FIRST):
+  a crop mask is ignored without `use_crop_mask = TRUE` (ISS-20260925-007);
+  `ref_year = 1970` is rejected by the kernel (ISS-20260923-003); single-season
+  export needs a named list (ISS-20260923-004); `wapor_map(separate_files = TRUE)`
+  drops the 0.1 scale factor, offline values 10x (ISS-20260924-006); green/blue
+  water must be split monthly, fixed only in local uncommitted 1.0.2
+  (ISS-20260923-005); large L3 runs fill the disk unless
+  `keep_intermediates = FALSE`, `include_dekadal = FALSE` (ISS-20260925-009).
+- **Tree crops**: never apply the NPP yield chain (HI, MC, fc, AOT) to citrus or
+  other perennials; yield comes from farm surveys. `fc` is the light use
+  efficiency correction factor (1 for C3), not ground cover.
+- **Plotting**: `wapor_plot_map()` / `wapor_plot_kc_curve()` warn (`aes_string`,
+  uneven raster intervals); `terra::plot` shows at most 500,000 cells unless
+  `maxcell = ncell(r)`; `leaflet::addRasterImage` needs `maxBytes` for 20 m maps.
+- **sf s2 areas** fail on field-digitised polygons with duplicate vertices
+  ("Edge 6 is degenerate"); measure areas in the local UTM zone.
+- **Git Bash environment**: `Rscript -e` with sf/terra can segfault and
+  `terra::project(x, "EPSG:4326")` fails (PostgreSQL PROJ database on PATH);
+  write R to script files and use `sf::st_transform()` for EPSG codes.
+- **Editing files from Python heredocs**: backslashes (`\frac`, `\times`, `\n` in
+  R strings) can become control characters or real line breaks; build them with
+  `chr(92)` or use the Edit tool, then scan for control characters.
+- **`/btw` side questions** in Claude Code never reach the main agent; recover
+  them from `~/.claude/history.jsonl` (display starting with `/btw`) and treat
+  them as requirements.
 
 - A `for (d in days_seq)` loop over a `Date` vector strips the `Date` class in
   base R; `plan_wapor_time_slices.R` re-coerces `d <- as.Date(d, ...)` inside

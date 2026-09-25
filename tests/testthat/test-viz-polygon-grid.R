@@ -58,6 +58,22 @@ test_that("percentile and breaks scales give classes", {
   expect_equal(brk$page_1$scales$get_scales("fill")$limits, c("1 to 50", "50 to 100"))
 })
 
+test_that("colour bar is never taller than the panel grid", {
+  key_h <- function(p) p$theme$legend.key.height
+  # Several rows: legend_size times the default bar (5 keys of 1.2 lines each).
+  multi <- wapor_plot_polygon_grid(grid_raster(), grid_parcels(), id_col = "farm", ncol = 2, legend_size = 3)
+  expect_equal(grid::unitType(key_h(multi$page_1)), "lines")
+  expect_equal(as.numeric(key_h(multi$page_1)), 3.6)
+  # One row: the bar stretches to the panel height ("null" unit).
+  single <- wapor_plot_polygon_grid(grid_raster(), grid_parcels(), id_col = "farm", ncol = 3)
+  expect_equal(grid::unitType(key_h(single$page_1)), "null")
+  expect_true(render_ok(single$page_1))
+  # Class legends keep one key per class.
+  pct <- wapor_plot_polygon_grid(grid_raster(), grid_parcels(), id_col = "farm", ncol = 3,
+                                 scale = "percentile", legend_size = 3)
+  expect_equal(as.numeric(key_h(pct$page_1)), 2.4)
+})
+
 test_that("pages are saved as PNG and returned invisibly", {
   out <- withr::local_tempdir()
   expect_invisible(wapor_plot_polygon_grid(grid_raster(), grid_parcels(), id_col = "farm", per_page = 2,

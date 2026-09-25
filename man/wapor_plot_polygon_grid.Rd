@@ -80,7 +80,10 @@ percentile, values outside are drawn in the end colours), \code{"full"}
 
 \item{mask_outside}{Hide pixels outside the unit's polygons.}
 
-\item{legend_size}{Colour bar size relative to the ggplot2 default.}
+\item{legend_size}{Colour bar length relative to the ggplot2 default
+(3 = three times longer, about the height of an 8-class legend). A single
+row of panels, and every panel with its own scale, gets a colour bar as
+tall as its panels instead, so the bar is never taller than the plot.}
 
 \item{out_dir}{Optional folder. Every page is saved as
 \verb{<prefix>_page<i>.png}.}

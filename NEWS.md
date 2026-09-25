@@ -28,7 +28,28 @@
   your own class breaks. `common_scale = FALSE` gives every panel its own
   scale. Needs ggplot2; own scales and true shapes also need patchwork.
 
+* New `wapor_plot_polygon_seasons()` draws selected polygon units over
+  several raster layers: one row per unit (for example a farm), one column per
+  layer (for example one seasonal AETI map per season). Every panel of a row
+  shows the unit at the same size, with its polygon outlines, and all panels
+  share one colour scale computed from all layers. `scale =
+  "percentile_stretch"` keeps one continuous gradient but anchors its colours
+  at percentiles of the data (ticks at the anchor values), so differences
+  stand out more. Row and column titles can be set, for example the seasonal
+  ETc under each season.
+
+* New `wapor_plot_unit_series()` draws one time series per unit (seasonal or
+  monthly, character, Date or numeric time), coloured by a group column, with
+  an optional reference series such as ETc as a black dashed line, to see
+  which units stay above or below the reference.
+
 ## Bug fixes
+
+* `wapor_plot_polygon_grid()` drew the continuous colour bar about five times
+  longer than intended (ggplot2 draws a colour bar 5 times
+  `legend.key.height`), so it was taller than the panel grid. The bar is now
+  `legend_size` times the default length, and a single row of panels (or a
+  panel with its own scale) gets a bar as tall as its panels.
 
 * The registered `peff_green_blue` indicator step
   (`wapor_get_indicator_step("peff_green_blue")`) now sums the monthly

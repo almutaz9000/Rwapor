@@ -5,6 +5,43 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260925-007 — A supplied crop mask is silently ignored unless `use_crop_mask = TRUE`
+
+- **Where**: `R/analysis_engine.R`, harmonize-mask block (`if (isTRUE(config$use_crop_mask))`).
+- **Root cause**: without the flag the engine replaces the mask with `template * 0 + 1`,
+  so every AOI pixel becomes class 1, with no message.
+- **Impact**: with a rectangular AOI (Jendouba wheat) every land pixel would be analysed
+  as the crop. Found while testing the training notebook (2026-09-23).
+- **Fix / mitigation**: not fixed in the package. Notebook sets `use_crop_mask = TRUE`
+  and explains it in a Watch out box. Proposed: default TRUE when `rasters$crop_mask`
+  is a SpatRaster, warn on explicit FALSE (task ti-04).
+- **Regression tests**: none yet.
+
+### ISS-20260925-008 — Local reader also picks up `<VAR>_seasonal` files next to the dekads
+
+- **Where**: `R/analysis.R` `wapor_local_rasters()` (scans `<folder>/<VAR>` and
+  `<folder>/<VAR>_seasonal`).
+- **Impact**: a seasonal file written by `wapor_map(seasonal = TRUE)` into the same
+  folder as the dekadal files can be read as an extra layer by
+  `data_source = "local"` runs.
+- **Fix / mitigation**: not fixed in the package. Notebook keeps dekadal data in
+  `wapor_data/<case>/dekadal/`, separate from the first-look seasonal maps.
+  Proposed: ignore `_seasonal` unless asked (task ti-06).
+- **Regression tests**: none yet.
+
+### ISS-20260925-009 — Large L3 runs fill the disk
+
+- **Where**: `R/analysis_engine.R` (`keep_intermediates` defaults to TRUE in memory
+  mode and materialises every dekadal stack; derived rasters FLT8S),
+  `wapor_export_analysis_outputs(include_dekadal = TRUE)`.
+- **Evidence**: Jendouba wheat (5.1 M cells, 21 dekads, 5 variables) failed with
+  "No space left on device" at 8 GB free; passed with `keep_intermediates = FALSE`
+  and `include_dekadal = FALSE` (2026-09-24).
+- **Fix / mitigation**: not fixed in the package; notebook sets both flags and the
+  participant note asks for 20 GB free. Proposed: new defaults, Float32, a disk-space
+  estimate in the planner (task ti-08).
+- **Regression tests**: none yet.
+
 ### ISS-20260924-006 — `wapor_map(seasonal = FALSE, separate_files = TRUE)` drops the WaPOR scale factor
 
 - **Where**: `R/wapor_map.R` per-layer write path (around lines 557-570,
