@@ -155,9 +155,9 @@ wapor_detect_compound_anomalies <- function(indicators, crop_mask,
     detected_indicators <- c(detected_indicators, "Adequacy")
   }
   
-  # Convert to integer raster
+  # Convert to integer raster using direct boolean arithmetic to avoid terra::ifel overhead
   if (!is.null(compound_anomaly)) {
-    compound_anomaly <- terra::ifel(compound_anomaly, 1L, 0L)
+    compound_anomaly <- compound_anomaly * 1L
   } else {
     stop("No valid indicators found in input list", call. = FALSE)
   }
@@ -214,13 +214,13 @@ wapor_detect_zscore_anomalies <- function(value_raster, crop_mask,
   # Compute z-scores
   z_score <- (value_raster - mean_raster) / sd_raster
   
-  # Flag anomalies based on direction
+  # Flag anomalies based on direction using direct boolean arithmetic to avoid terra::ifel overhead
   if (direction == "below") {
-    anomaly_map <- terra::ifel(z_score < -z_threshold, 1L, 0L)
+    anomaly_map <- (z_score < -z_threshold) * 1L
   } else if (direction == "above") {
-    anomaly_map <- terra::ifel(z_score > z_threshold, 1L, 0L)
+    anomaly_map <- (z_score > z_threshold) * 1L
   } else if (direction == "both") {
-    anomaly_map <- terra::ifel(abs(z_score) > z_threshold, 1L, 0L)
+    anomaly_map <- (abs(z_score) > z_threshold) * 1L
   } else {
     stop("direction must be 'below', 'above', or 'both'", call. = FALSE)
   }
