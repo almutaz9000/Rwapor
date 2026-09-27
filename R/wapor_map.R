@@ -422,7 +422,7 @@ wapor_map <- function(
         tmp_path <- tempfile(fileext = ".tif")
         r_out <- terra::classify(r, cbind(NA, -9999))
         suppressWarnings(terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999))
-        return(list(type = "stack", filepath = tmp_path, layer_names = layer_names))
+        return(list(type = "stack", filepath = tmp_path, layer_names = names(r)))
       }
     }
     
