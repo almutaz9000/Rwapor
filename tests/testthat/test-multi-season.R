@@ -2,6 +2,7 @@ library(testthat)
 library(Rwapor)
 
 test_that("wapor_generate_urls handles list of periods", {
+  skip_if_wapor_offline()
   # Mocking a variable that exists
   var <- "L1-AETI-D"
   

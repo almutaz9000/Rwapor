@@ -38,11 +38,47 @@ test_that("resolve_output_unit_conversion rejects invalid modes", {
   expect_error(Rwapor:::resolve_output_unit_conversion("L1-AETI-D", "dekad"), "must be one of")
 })
 
-test_that("map output applies an absent WaPOR scale exactly once", {
+test_that("map output applies the source file scale exactly once", {
   skip_if_not_installed("terra")
-  raw <- terra::rast(nrows = 1, ncols = 1, vals = 10)
-  out <- Rwapor:::.wapor_prepare_map_output(raw, "L1-AETI-D", "none")
-  expect_equal(as.numeric(terra::values(out)), 1)
+  skip_if_not_installed("sf")
+  # A WaPOR-style COG: Int16 value 25 with GDAL scale 0.1 (2.5 mm/day).
+  raw_path <- withr::local_tempfile(fileext = ".tif")
+  scaled_path <- withr::local_tempfile(fileext = ".tif")
+  terra::writeRaster(
+    terra::rast(nrows = 20, ncols = 20, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                crs = "EPSG:4326", vals = rep(25L, 400)),
+    raw_path, datatype = "INT2S"
+  )
+  sf::gdal_utils("translate", raw_path, scaled_path, options = c("-a_scale", "0.1"))
+  reg <- Rwapor:::wapor_parse_region(c(35.2, 33.2, 35.8, 33.8))
+  url <- "https://x/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif"
+
+  run_chain <- function(unit_conversion) {
+    src <- Rwapor:::.wapor_detach_source_scale(terra::rast(scaled_path))
+    r <- Rwapor:::wapor_crop_to_region(src$raster, reg)
+    r <- Rwapor:::.wapor_apply_source_scale(r, src$scale, src$offset)
+    if (unit_conversion != "none") r <- wapor_convert_raster(r, "L1-AETI-D", url, unit_conversion)
+    # Both write paths: single layer directly, and via a temporary stack file.
+    direct <- Rwapor:::.wapor_prepare_map_output(r[[1]], "L1-AETI-D", unit_conversion)
+    tmp <- withr::local_tempfile(fileext = ".tif", .local_envir = parent.frame())
+    terra::writeRaster(r, tmp, NAflag = -9999)
+    stacked <- Rwapor:::.wapor_prepare_map_output(terra::rast(tmp), "L1-AETI-D", unit_conversion)
+    c(direct = terra::values(direct)[1], stacked = terra::values(stacked)[1])
+  }
+
+  expect_equal(unname(run_chain("none")), c(2.5, 2.5), tolerance = 1e-6)
+  # D1 dekad = 10 days: 2.5 mm/day -> 25 mm/dekad.
+  expect_equal(unname(run_chain("dekad")), c(25, 25), tolerance = 1e-6)
+})
+
+test_that("map output does not rescale files without a stored scale", {
+  skip_if_not_installed("terra")
+  # A local Float32 copy already holds physical values.
+  physical <- terra::rast(nrows = 1, ncols = 1, vals = 2.5)
+  src <- Rwapor:::.wapor_detach_source_scale(physical)
+  r <- Rwapor:::.wapor_apply_source_scale(src$raster, src$scale, src$offset)
+  out <- Rwapor:::.wapor_prepare_map_output(r, "L1-AETI-D", "none")
+  expect_equal(as.numeric(terra::values(out)), 2.5)
 })
 
 test_that("kernel profile keys rebase a historic reference year", {

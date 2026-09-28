@@ -10,9 +10,31 @@
 * A supplied crop mask is used by default. An explicit
   `use_crop_mask = FALSE` now warns because it analyses the whole AOI as
   crop class 1.
-* Non-seasonal `wapor_map(separate_files = TRUE)` writes physical WaPOR
-  values when a remote source has lost its scale metadata, so the output is
-  safe to reuse with `data_source = "local"`.
+* Non-seasonal `wapor_map()` applies the source file scale (0.1 for most
+  WaPOR layers) exactly once. It clears the stored scale when it opens the
+  files and applies it after the crop, so the result no longer depends on the
+  terra version. The earlier 1.0.4 fix multiplied values that were already
+  physical by the catalogue scale again, giving outputs 10 times too low
+  (e.g. 2.5 instead of 25 mm/dekad) with terra 1.7 and 1.9, for stacks and
+  separate files. Output is safe to reuse with `data_source = "local"`.
+* `wapor_write_cog()` no longer truncates fractional values. Its integer
+  datatype probe read only the first rows of the first layer, so a band of
+  zeros (e.g. a masked edge) wrote a float raster as INT4U. It now checks every
+  value (up to 5 million) or a regular sample across all layers.
+* Local analysis (`data_source = "local"`) reads `<VAR>_seasonal` aggregates
+  only when the per-time-step `<VAR>` folder has no files, so a seasonal map
+  saved next to dekadal files is no longer counted as an extra layer
+  (ISS-20260925-008).
+* Dashboard: the Visualisation tab no longer needs the retired `raster`
+  package (it passes terra rasters straight to leaflet >= 2.1.2), the active
+  tab label is readable, the Analysis tab defaults to dekadal RET and
+  precipitation instead of annual AgERA5 products, and startup no longer
+  blocks about 30 seconds on API retries when the L3 region list cannot be
+  fetched (`wapor_fetch_l3_regions()` gains `timeout` and `retry`).
+* README: Step 3.2 installs `knitr` and `rmarkdown`, which
+  `install_github(build_vignettes = TRUE)` needs, and documents the install
+  without vignettes. `raster` and `pkgdown` are no longer in Suggests.
+* A network test now skips when the WaPOR API is unreachable.
 
 ## New features
 

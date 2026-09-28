@@ -401,3 +401,26 @@ test_that("WaPOR dekad labels are parsed to their start dates", {
   expect_equal(Rwapor:::.wapor_ymd_from_name("WAPOR-3.L1-AETI-D.2023-12-D3.tif"), "2023-12-21")
   expect_equal(Rwapor:::.wapor_ymd_from_name("WAPOR-3.L1-AETI-D.2023-05-01.tif"), "2023-05-01")
 })
+
+test_that("wapor_local_rasters ignores _seasonal aggregates next to dekadal files", {
+  root <- withr::local_tempdir()
+  var <- "L1-AETI-D"
+  dir.create(file.path(root, var))
+  dir.create(file.path(root, paste0(var, "_seasonal")))
+  r <- terra::rast(nrows = 2, ncols = 2, vals = 1)
+  dekads <- file.path(root, var, sprintf("WAPOR-3.%s.2023-01-%s.tif", var, c("01", "11", "21")))
+  for (f in dekads) terra::writeRaster(r, f)
+  seasonal <- file.path(
+    root, paste0(var, "_seasonal"),
+    sprintf("WAPOR-3.%s.seasonal.2023-01-01_2023-01-31.tif", var)
+  )
+  terra::writeRaster(r, seasonal)
+
+  paths <- Rwapor:::wapor_local_rasters(root, var, "2023-01-01", "2023-01-31")
+  expect_equal(normalizePath(paths), normalizePath(dekads))
+
+  # With no dekadal files, the seasonal folder is still used.
+  unlink(dekads)
+  paths <- Rwapor:::wapor_local_rasters(root, var, "2023-01-01", "2023-01-31")
+  expect_equal(normalizePath(paths), normalizePath(seasonal))
+})

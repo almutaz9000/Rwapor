@@ -4,7 +4,14 @@
 \alias{wapor_fetch_l3_regions}
 \title{Fetch WaPOR Level 3 Regions}
 \usage{
-wapor_fetch_l3_regions()
+wapor_fetch_l3_regions(timeout = 60, retry = TRUE)
+}
+\arguments{
+\item{timeout}{Numeric. Request timeout in seconds. Default \code{60}.}
+
+\item{retry}{Logical. If \code{TRUE} (default), transient failures are retried
+with exponential backoff (up to about 30 seconds in total). Set \code{FALSE}
+to fall back to the static list after a single failed request.}
 }
 \value{
 A data.frame with columns:
@@ -22,5 +29,7 @@ schemes or study areas are available without updating the package.
 }
 \details{
 Queries the \code{L3-GRID/tiles} endpoint. If the API request fails,
-it falls back to the static \code{L3_REGIONS} list. Results are memoized.
+it falls back to the static \code{L3_REGIONS} list. Successful responses are
+cached on disk for the time set by \code{options(Rwapor.cache_ttl)}
+(default 24 hours).
 }

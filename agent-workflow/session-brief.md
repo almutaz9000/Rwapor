@@ -3,7 +3,30 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
+## Current Session — 2026-09-28 — Critical install/run review (Claude, cloud Linux)
+
+**What happened**: Installed Rwapor 1.0.4 from source on Ubuntu 24.04 / R 4.3.3
+(CRAN and WaPOR API blocked; dashboard packages built from GitHub CRAN
+mirrors), ran `R CMD check`, the full suite on terra 1.7.65 and 1.9.50, the
+dashboard in headless Chromium (all 6 tabs, no server errors), and an
+end-to-end `wapor_map()` with stubbed URLs on scale-0.1 Int16 COGs. Found and
+fixed ISS-20260928-010 (double scaling, 10x too low, from `94b1533`),
+ISS-20260928-011 (COG float truncation), ISS-20260925-008 (`_seasonal` local
+reads), ISS-20260928-012 (raster dependency, startup stall, annual defaults,
+README vignette deps, network test). Branch `claude/ecstatic-allen-xdfb2g`.
+
+**Verification**: R CMD check (before fixes): 0 R-code problems, only the
+network test failed; after fixes 240 tests / 0 failures on both terra
+versions; e2e map values 25/30/22 mm/dekad and 2.5/3/2 mm/day on both.
+
+**Open / proposals (not implemented)**: ISS-20260925-009 defaults
+(`keep_intermediates`, Float32 derived rasters); `wapor_local_rasters()` ignores
+multi-band stacks from `wapor_map(separate_files = FALSE)`; pkgdown workflow
+does not trigger on `version-1.0.4`; branch lists hardcoded in workflows;
+`.onLoad` overwrites user GDAL env vars (incl. `GDAL_HTTP_VERSION=2`, risky
+behind proxies); offline tests spend ~30 s in API retry backoff.
+
+## Previous Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
 
 **What happened**: Built and tested `training/water-productivity-training.qmd`
 with real data (citrus JVA polygons + 177 sampled farms + de-identified survey;

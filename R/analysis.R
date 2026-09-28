@@ -866,8 +866,13 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   if (is.character(start_date)) start_date <- as.Date(start_date)
   if (is.character(end_date)) end_date <- as.Date(end_date)
 
-  # List all tif files in all existing variable folders
-  tif_files <- list.files(var_folders, pattern = "\\.tif$", full.names = TRUE)
+  # Prefer the per-time-step folder. `<VAR>_seasonal` holds aggregates written
+  # by wapor_map(seasonal = TRUE); mixing them with dekadal files would count
+  # the season twice, so that folder is only read when it is the sole source.
+  tif_files <- list.files(var_folders[1], pattern = "\\.tif$", full.names = TRUE)
+  if (length(tif_files) == 0 && length(var_folders) > 1) {
+    tif_files <- list.files(var_folders[2], pattern = "\\.tif$", full.names = TRUE)
+  }
 
   if (length(tif_files) == 0) {
     return(character(0))

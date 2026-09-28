@@ -43,7 +43,7 @@ Suggests:
     ggplot2,
     withr,
     shiny,
-    leaflet,
+    leaflet (>= 2.1.2),
     leaflet.extras,
     leaflet.extras2,
     shinyFiles,
@@ -54,7 +54,6 @@ Suggests:
     DT,
     shinycssloaders,
     arrow,
-    raster,
     promises,
     viridisLite,
     RColorBrewer,
@@ -63,7 +62,6 @@ Suggests:
     tidyterra,
     patchwork,
     ggspatial,
-    pkgdown,
     ps
 Config/testthat/edition: 3
 VignetteBuilder: knitr
