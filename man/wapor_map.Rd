@@ -105,9 +105,12 @@ overlapping source layer once without scaling partial layers.}
 \code{\link[=wapor_plan_processing]{wapor_plan_processing()}}.}
 }
 \value{
-Character path to the output GeoTIFF file, or in seasonal mode with
-\code{separate_files = TRUE}, a list with \code{seasonal_aggregate} and
-\code{seasonal_components}.
+Character vector of output GeoTIFF paths (one multi-band file, or
+one file per time step with \code{separate_files = TRUE}); with several
+variables, a named list of such vectors. Per-variable run details
+(\code{status}, \code{failed_layers}, chunk counts) are in
+\code{attr(x, "wapor_status")}. In seasonal mode with \code{separate_files = TRUE},
+a list with \code{seasonal_aggregate} and \code{seasonal_components}.
 }
 \description{
 Downloads WaPOR or AgERA5 raster data for a specified region and time period,
