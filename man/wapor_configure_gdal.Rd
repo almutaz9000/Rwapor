@@ -10,7 +10,8 @@ wapor_configure_gdal(
   vsi_cache_size = 100000000L,
   gdal_cachemax = 512L,
   http_multiplex = TRUE,
-  verbose = FALSE
+  verbose = FALSE,
+  overwrite = TRUE
 )
 }
 \arguments{
@@ -34,10 +35,14 @@ supports HTTP/2. Default \code{TRUE}.}
 
 \item{verbose}{Logical. Print the applied settings to the console.
 Default \code{FALSE}.}
+
+\item{overwrite}{Logical. If \code{TRUE} (default for manual calls), replace
+existing values. On package load it is \code{FALSE}: variables already set by
+the user, \code{.Renviron} or an institutional setup are left unchanged.}
 }
 \value{
 Invisibly, a named character vector of the environment variable
-values applied.
+values applied (only the variables that were set).
 }
 \description{
 Sets GDAL environment variables that control HTTP streaming performance
