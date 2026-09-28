@@ -64,3 +64,12 @@ test_that("datatype probing does not truncate floats hidden below integer rows",
           terra::rast(nrows = 50, ncols = 50, vals = 0.5))
   expect_identical(Rwapor:::.wapor_probe_datatype(r2), "FLT4S")
 })
+
+test_that("wapor_write_cog writes a valid COG without creation-option noise", {
+  skip_if_not_installed("terra")
+  r <- terra::rast(nrows = 300, ncols = 300, vals = seq(0.5, 90000, length.out = 90000))
+  f <- withr::local_tempfile(fileext = ".tif")
+  expect_no_warning(wapor_write_cog(r, f))
+  expect_equal(as.numeric(terra::values(terra::rast(f))), as.numeric(terra::values(r)),
+               tolerance = 1e-6)
+})

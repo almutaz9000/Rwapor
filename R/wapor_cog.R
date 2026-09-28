@@ -79,26 +79,23 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, datatype = NULL, ...)
     }
   }, add = TRUE)
 
-  if (isTRUE(use_cog)) {
-    terra::writeRaster(
-      x,
-      tmp,
-      overwrite = TRUE,
-      filetype = "COG",
-      datatype = datatype,
-      gdal = c("COMPRESS=LZW", "OVERVIEWS=AUTO", predictor, paste0("BIGTIFF=", bigtiff)),
-      ...
-    )
-  } else {
-    terra::writeRaster(
-      x,
-      tmp,
-      overwrite = TRUE,
-      datatype = datatype,
-      gdal = c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES", predictor, paste0("BIGTIFF=", bigtiff)),
-      ...
-    )
+  # terra hands the creation options to its intermediate MEM/GTiff dataset,
+  # which rejects COG-only options with a harmless "does not support creation
+  # option" message; drop exactly those and keep every other warning.
+  muffle_option_notes <- function(w) {
+    if (grepl("does not support creation option", conditionMessage(w), fixed = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
   }
+
+  gdal_opts <- if (isTRUE(use_cog)) {
+    c("COMPRESS=LZW", "OVERVIEWS=AUTO", predictor, paste0("BIGTIFF=", bigtiff))
+  } else {
+    c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES", predictor, paste0("BIGTIFF=", bigtiff))
+  }
+  write_args <- list(x, tmp, overwrite = TRUE, datatype = datatype, gdal = gdal_opts, ...)
+  if (isTRUE(use_cog)) write_args$filetype <- "COG"
+  withCallingHandlers(do.call(terra::writeRaster, write_args), warning = muffle_option_notes)
 
   if (file.exists(filename)) {
     unlink(filename, force = TRUE)
