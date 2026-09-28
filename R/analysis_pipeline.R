@@ -420,12 +420,9 @@ wapor_analysis_pipeline <- function(config,
       !is.null(results$etc_by_class)) {
     all_etc <- lapply(results$etc_by_class, function(x) x$etc_seasonal)
     if (length(all_etc) > 0) {
-      combined_etc <- all_etc[[1]]
-      if (length(all_etc) > 1) {
-        for (k in seq_along(all_etc)[-1]) {
-          combined_etc <- terra::cover(combined_etc, all_etc[[k]])
-        }
-      }
+      # Optimization: Combine seasonal ETc rasters across crop classes using Reduce(terra::cover, all_etc)
+      # instead of an explicit for loop.
+      combined_etc <- Reduce(terra::cover, all_etc)
       results$adequacy_etc <- wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
     }
   }
