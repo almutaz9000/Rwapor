@@ -154,3 +154,20 @@ test_that("remote source resolver has explicit error and stream modes", {
     "/vsicurl/https://example.invalid/test.tif"
   )
 })
+test_that("load-time configuration keeps GDAL variables the user already set", {
+  withr::local_envvar(GDAL_HTTP_VERSION = "1.1", GDAL_CACHEMAX = "")
+  applied <- wapor_configure_gdal(overwrite = FALSE)
+  expect_identical(Sys.getenv("GDAL_HTTP_VERSION"), "1.1")
+  expect_false("GDAL_HTTP_VERSION" %in% names(applied))
+  expect_identical(Sys.getenv("GDAL_CACHEMAX"), "512")
+
+  # Manual calls still override by default.
+  wapor_configure_gdal()
+  expect_identical(Sys.getenv("GDAL_HTTP_VERSION"), "2")
+})
+
+test_that(".onLoad can be switched off with RWAPOR_AUTO_CONFIG", {
+  withr::local_envvar(RWAPOR_AUTO_CONFIG = "false", GDAL_CACHEMAX = "")
+  Rwapor:::.onLoad("", "Rwapor")
+  expect_identical(Sys.getenv("GDAL_CACHEMAX"), "")
+})
