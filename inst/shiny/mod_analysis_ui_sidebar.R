@@ -1,5 +1,12 @@
 # inst/shiny/mod_analysis_ui_sidebar.R
 
+# First preferred variable present in the catalogue, or NULL (selectInput's
+# own default) when none is.
+.an_first_available <- function(preferred, all_vars) {
+  hit <- preferred[preferred %in% all_vars]
+  if (length(hit)) hit[[1]] else NULL
+}
+
 mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
   bslib::sidebar(
     width = 350,
@@ -119,12 +126,21 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           shiny::div(
             class = "inline-row",
             shiny::div(class = "flex-1", shiny::selectInput(ns("an_aeti_var"), "AETI (Actual ET)", choices = grep("AETI-D", all_vars, value = TRUE))),
-            shiny::div(class = "flex-1", shiny::selectInput(ns("an_ret_var"), "RET (Reference ET)", choices = grep("RET|ET0", all_vars, value = TRUE)))
+            shiny::div(class = "flex-1", shiny::selectInput(
+              ns("an_ret_var"), "RET (Reference ET)",
+              choices = grep("RET|ET0", all_vars, value = TRUE),
+              # Default to a dekadal product: the first alphabetical match is annual AgERA5.
+              selected = .an_first_available(c("L1-RET-D", "AGERA5-ET0-D", "AGERA5-ET0-E"), all_vars)
+            ))
           ),
           shiny::div(
             class = "inline-row",
             shiny::div(class = "flex-1", shiny::selectInput(ns("an_t_var"), "Transpiration (T)", choices = c("None" = "", grep("[-](T|ACT-T|TRA)[-]", all_vars, value = TRUE)))),
-            shiny::div(class = "flex-1", shiny::selectInput(ns("an_precip_var"), "Precipitation", choices = grep("PCP|PF", all_vars, value = TRUE)))
+            shiny::div(class = "flex-1", shiny::selectInput(
+              ns("an_precip_var"), "Precipitation",
+              choices = grep("PCP|PF", all_vars, value = TRUE),
+              selected = .an_first_available(c("L1-PCP-D", "AGERA5-PF-D", "AGERA5-PF-E"), all_vars)
+            ))
           ),
           shiny::div(
             class = "inline-row",

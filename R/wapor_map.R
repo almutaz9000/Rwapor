@@ -1,15 +1,49 @@
-.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
-  source_scoff <- terra::scoff(r)
-  variable_scale <- wapor_variable_metadata(variable)$scale %||% 1
-  has_source_scale <- !is.null(source_scoff) &&
-    (any(source_scoff[, "scale"] != 1) || any(source_scoff[, "offset"] != 0))
-  # Materialise physical values before assigning output metadata: setting
-  # layer metadata can otherwise discard terra's pending scale/offset.
-  if (has_source_scale) {
-    r <- r * 1
-  } else if (is.finite(variable_scale) && variable_scale != 1) {
-    r <- r * variable_scale
+#' Detach the source scale/offset from freshly opened rasters
+#'
+#' WaPOR COGs store Int16 values with a GDAL scale (usually 0.1). Whether terra
+#' keeps that scale "pending" through crop, arithmetic and metadata assignment
+#' differs between terra versions, which made map outputs either raw integers
+#' or scaled twice. Clearing it here makes terra return raw values, and
+#' [.wapor_apply_source_scale()] applies it exactly once after cropping.
+#'
+#' @param r SpatRaster opened from the source files.
+#' @return A list with `raster` (scale/offset cleared) and the per-layer
+#'   `scale` and `offset` that were stored in the files.
+#' @keywords internal
+#' @noRd
+.wapor_detach_source_scale <- function(r) {
+  so <- tryCatch(terra::scoff(r), error = function(e) NULL)
+  n <- terra::nlyr(r)
+  if (is.null(so) || nrow(so) != n) {
+    return(list(raster = r, scale = rep(1, n), offset = rep(0, n)))
   }
+  scale <- as.numeric(so[, "scale"])
+  offset <- as.numeric(so[, "offset"])
+  scale[!is.finite(scale)] <- 1
+  offset[!is.finite(offset)] <- 0
+  if (any(scale != 1) || any(offset != 0)) {
+    terra::scoff(r) <- cbind(rep(1, n), rep(0, n))
+  }
+  list(raster = r, scale = scale, offset = offset)
+}
+
+#' Apply the source scale/offset detached by .wapor_detach_source_scale()
+#' @keywords internal
+#' @noRd
+.wapor_apply_source_scale <- function(r, scale, offset) {
+  if (all(scale == 1) && all(offset == 0)) return(r)
+  r * scale + offset
+}
+
+#' Assign output metadata to a map raster
+#'
+#' Values must already be physical: [.wapor_apply_source_scale()] applied the
+#' source file scale. The catalogue scale is deliberately not applied here,
+#' because it would scale values a second time (and would rescale local
+#' Float32 copies that are already in physical units).
+#' @keywords internal
+#' @noRd
+.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
   assign_raster_metadata(r, variable, unit_conversion)
 }
 
@@ -548,12 +582,18 @@ wapor_map <- function(
         ))
       }
 
+      # Read raw stored values and apply the file scale once, after the crop,
+      # so the result does not depend on how terra propagates scale/offset.
+      src <- .wapor_detach_source_scale(r)
+      r <- src$raster
+
       # Crop to region; optionally mask to polygon boundary. Crop can force
       # remote pixel I/O, so keep it inside the retry boundary.
       r <- .wapor_retry_remote_operation(
         function() wapor_crop_to_region(r, reg_info, do_mask = mask),
         label = sprintf("%s crop", var)
       )
+      r <- .wapor_apply_source_scale(r, src$scale, src$offset)
 
       # Unit Conversion
       if (current_unit_conv != "none") {

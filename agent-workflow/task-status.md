@@ -4,6 +4,11 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **Critical install/run review (1.0.4)** — DONE (Claude, 2026-09-28).
+  Branch `claude/ecstatic-allen-xdfb2g`. Fixed ISS-20260928-010/-011/-012 and
+  ISS-20260925-008; 240 tests / 0 failures on terra 1.7.65 and 1.9.50.
+  Proposals left open are listed in `session-brief.md` (2026-09-28).
+
 - **Large-raster performance and size-aware processing (1.0.1)** — Owner:
   Claude. Branch `perf/large-raster-1.0.1`. Design and all 19 grilled
   decisions (plus A–D on accuracy): `docs/superpowers/specs/2026-09-23-large-raster-performance-design.md`.
