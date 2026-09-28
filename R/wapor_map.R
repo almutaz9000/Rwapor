@@ -776,6 +776,11 @@ wapor_map <- function(
   c("TILED=YES", "COMPRESS=LZW", "BIGTIFF=IF_SAFER")
 }
 
+# Floating-point predictor makes LZW effective on continuous rasters.
+.wapor_float_gtiff_options <- function() {
+  c(.wapor_gtiff_options(), "PREDICTOR=3")
+}
+
 #' Weighted sum, weight and valid count of a layer group in one pass
 #'
 #' Same results as `sum(r * m, na.rm = TRUE)`, `sum(ifel(is.na(r), 0, m))` and

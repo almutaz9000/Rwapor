@@ -501,9 +501,10 @@ wapor_run_seasonal_analysis_tiled <- function(
       return(NULL)
     }
     if (isTRUE(cog)) {
-      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT8S")
+      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT4S")
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT8S")
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT4S",
+                         gdal = .wapor_float_gtiff_options())
     }
     path
   }
