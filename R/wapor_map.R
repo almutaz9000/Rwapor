@@ -107,9 +107,12 @@
 #' @param on_batch_done Optional function called after each processed batch with
 #'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
-#' @return Character path to the output GeoTIFF file, or in seasonal mode with
-#'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
-#'   `seasonal_components`.
+#' @return Character vector of output GeoTIFF paths (one multi-band file, or
+#'   one file per time step with `separate_files = TRUE`); with several
+#'   variables, a named list of such vectors. Per-variable run details
+#'   (`status`, `failed_layers`, chunk counts) are in
+#'   `attr(x, "wapor_status")`. In seasonal mode with `separate_files = TRUE`,
+#'   a list with `seasonal_aggregate` and `seasonal_components`.
 #'
 #' @details
 #' The function performs the following steps:
@@ -666,14 +669,13 @@ wapor_map <- function(
       failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
       warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
                       var, length(failed_urls)), call. = FALSE)
-      return(list(
+      return(.wapor_map_paths(character(0), list(
         status = "failed",
         variable = var,
-        output_paths = character(0),
         failed_layers = failed_urls,
         n_ok_chunks = 0L,
         n_failed_chunks = length(chunk_results)
-      ))
+      )))
     }
 
     failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
@@ -732,28 +734,36 @@ wapor_map <- function(
 
     log_msg(sprintf("  Variable %s completed in %.1f seconds",
                     var, (proc.time() - t0_var)[["elapsed"]]))
-    return(list(
+    return(.wapor_map_paths(output_paths, list(
       status = "ok",
       variable = var,
-      output_paths = output_paths,
       failed_layers = failed_urls,
       n_ok_chunks = length(ok_chunks),
       n_failed_chunks = length(failed_chunks)
-    ))
+    )))
   }
 
   # Process all variables
   results <- lapply(variable, process_single_var)
   names(results) <- variable
   
-  # Return just the path if it's a single variable (backward compatibility/simplicity)
-  # But structured list is better if >1 variable.
-  # User requested "processing list of variables", so list return is safer.
+  # One variable: its character vector of paths; several: a named list of them.
   if (length(variable) == 1) {
     return(results[[1]])
   } else {
     return(results)
   }
+}
+
+#' Character output paths of one wapor_map() variable, with run details
+#'
+#' Keeps the documented return type (file paths, usable in `terra::rast()`)
+#' and attaches the chunk status as attribute `"wapor_status"`: `status`,
+#' `variable`, `failed_layers`, `n_ok_chunks`, `n_failed_chunks`.
+#' @keywords internal
+#' @noRd
+.wapor_map_paths <- function(paths, status) {
+  structure(as.character(paths), wapor_status = status)
 }
 
 #' GeoTIFF creation options for package outputs

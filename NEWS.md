@@ -35,6 +35,14 @@
   `install_github(build_vignettes = TRUE)` needs, and documents the install
   without vignettes. `raster` and `pkgdown` are no longer in Suggests.
 * A network test now skips when the WaPOR API is unreachable.
+* `wapor_map()` again returns the documented character vector of output
+  paths (a named list of them for several variables). Since 1.0.1 it returned
+  a status list, so `terra::rast(wapor_map(...))` from the getting-started
+  vignette failed, and the dashboard reported "Download failed ... expected
+  files were not found" after every successful non-seasonal download. The
+  run details are kept in `attr(x, "wapor_status")`.
+* Windows CI: fixed a race in the remote-COG test fixture (the server's port
+  file could be read before it was written).
 
 ## New features
 
