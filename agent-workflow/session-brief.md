@@ -3,7 +3,24 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-28 — Critical install/run review (Claude, cloud Linux)
+## Current Session — 2026-09-28 (part 2) — Production-readiness plan, verified prototypes
+
+**What happened**: Wrote `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`
+(WP0 to WP6 + 1.0.5 release plan) and prototyped every package in a local
+worktree (`proto/improvement-plan`, not pushed); reference patch next to the
+plan. Found and fixed on the branch: ISS-20260928-013 (`wapor_map()` status-list
+return broke the vignette and every dashboard download confirmation) and
+ISS-20260928-014 (Windows CI fixture race; `version-1.0.4` CI was red).
+
+**Verification**: CI matrix green on `312e1ed` (run 36417147780); disk benchmark
+1 M cells: -44 % disk, -22 % time, identical results; install smoke step
+local HTTP 200 and catches a broken module; actionlint 0 findings; full suites
+and R CMD check results are in the plan, section 4.
+
+**Next**: user decision to merge the branch, then apply WP3, WP1, WP2, WP4,
+WP5, WP6 from the patch (one commit each) and release 1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 — Critical install/run review (Claude, cloud Linux)
 
 **What happened**: Installed Rwapor 1.0.4 from source on Ubuntu 24.04 / R 4.3.3
 (CRAN and WaPOR API blocked; dashboard packages built from GitHub CRAN

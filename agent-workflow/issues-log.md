@@ -5,6 +5,28 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260928-013 — RESOLVED 2026-09-28: `wapor_map()` returned a status list instead of paths
+
+- **Where**: `R/wapor_map.R`, `process_single_var()` return (since `5cf44fb`, 2026-09-17).
+- **Symptom**: `terra::rast(wapor_map(...))` (vignette getting-started 4.1) failed
+  ("none of the elements of x are a SpatRaster"); the dashboard's
+  `file.exists(unlist(result))` tested "ok"/variable names and showed
+  "Download failed ... expected files were not found" after every successful
+  non-seasonal download.
+- **Fix**: return the documented character paths (named list for several
+  variables); run details in `attr(x, "wapor_status")`. Commit `e52dc5e`.
+- **Regression test**: `test-internal-helpers.R` "wapor_map returns file paths
+  usable by terra::rast and the dashboard" (errors on the old code).
+
+### ISS-20260928-014 — RESOLVED 2026-09-28: Windows CI red on `version-1.0.4`
+
+- **Where**: `R/analysis_tiled.R` `.wapor_remote_cog_fixture()` (test helper).
+- **Root cause**: `port.txt` existed before its content was written; R polled
+  for existence only and read an empty file on the slow Windows runner
+  (run 36397653719, "subscript out of bounds").
+- **Fix**: atomic publish (`os.replace`) and wait for a parsable port. Commit
+  `312e1ed`; CI run 36417147780 green on all 6 jobs.
+
 ### ISS-20260928-010 — RESOLVED 2026-09-28: `wapor_map()` scaled values twice after the 1.0.4 fix
 
 - **Where**: `R/wapor_map.R` `.wapor_prepare_map_output()` (added in `94b1533`).
