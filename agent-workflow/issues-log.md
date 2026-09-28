@@ -90,7 +90,7 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Regression tests**: `test-processing.R` "wapor_local_rasters ignores
   _seasonal aggregates next to dekadal files".
 
-### ISS-20260925-009 — Large L3 runs fill the disk
+### ISS-20260925-009 — RESOLVED 2026-09-28: Large L3 runs fill the disk
 
 - **Where**: `R/analysis_engine.R` (`keep_intermediates` defaults to TRUE in memory
   mode and materialises every dekadal stack; derived rasters FLT8S),
@@ -98,10 +98,12 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Evidence**: Jendouba wheat (5.1 M cells, 21 dekads, 5 variables) failed with
   "No space left on device" at 8 GB free; passed with `keep_intermediates = FALSE`
   and `include_dekadal = FALSE` (2026-09-24).
-- **Fix / mitigation**: not fixed in the package; notebook sets both flags and the
-  participant note asks for 20 GB free. Proposed: new defaults, Float32, a disk-space
-  estimate in the planner (task ti-08).
-- **Regression tests**: none yet.
+- **Fix / mitigation**: 1.0.5 (WP1, `fe75e5a`): `keep_intermediates` and
+  `include_dekadal` default FALSE, Float32 file-backed/exported rasters with
+  LZW + predictor, disk estimate and low-space warning. 1 M-cell benchmark:
+  1,288 -> 715 MB, results identical.
+- **Regression tests**: `test-processing.R` disk-estimate test; mode-equivalence
+  tests at 1e-6 with Float32.
 
 ### ISS-20260924-006 — RESOLVED 2026-09-28: map output retains physical WaPOR values
 
