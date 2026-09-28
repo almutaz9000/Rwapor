@@ -110,3 +110,35 @@ test_that("get_url_chunks works with a single URL", {
   expect_length(result, 1)
   expect_equal(result[[1]], "url_1")
 })
+
+test_that("wapor_map returns file paths usable by terra::rast and the dashboard", {
+  skip_if_not_installed("terra")
+  src <- withr::local_tempdir()
+  files <- file.path(src, sprintf("WAPOR-3.L1-AETI-D.2023-01-D%d.tif", 1:3))
+  for (i in seq_along(files)) {
+    terra::writeRaster(
+      terra::rast(nrows = 10, ncols = 10, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                  crs = "EPSG:4326", vals = i),
+      files[i]
+    )
+  }
+  local_mocked_bindings(
+    wapor_generate_urls = function(...) files,
+    .wapor_resolve_remote_sources = function(urls, ...) urls
+  )
+  run <- function(...) suppressMessages(wapor_map(
+    c(35.2, 33.2, 35.8, 33.8), "L1-AETI-D", c("2023-01-01", "2023-01-31"),
+    withr::local_tempdir(.local_envir = parent.frame(2)), ...
+  ))
+
+  stack <- run()
+  expect_type(stack, "character")
+  expect_length(stack, 1L)
+  expect_equal(terra::nlyr(terra::rast(stack)), 3)
+  expect_identical(attr(stack, "wapor_status")$status, "ok")
+
+  separate <- run(separate_files = TRUE)
+  expect_length(separate, 3L)
+  # The dashboard checks unlist(result) with file.exists().
+  expect_true(all(file.exists(unlist(list(`L1-AETI-D` = separate)))))
+})
