@@ -802,3 +802,56 @@ wapor_map <- function(
   }
   list(sum = total, weight = weight, valid = valid)
 }
+
+#' Split a multi-band wapor_map() stack into one file per date
+#'
+#' `wapor_map(separate_files = FALSE)` (the default) writes one multi-band
+#' GeoTIFF named `<product>.<first date>_<last date>.tif`, with one band per
+#' time step named by its start date. Local analysis
+#' (`data_source = "local"`) needs one file per time step. This writes
+#' `<product>.<date>.tif` next to the stack (or into `folder`), the same layout
+#' as `wapor_map(separate_files = TRUE)`, and skips files that already exist.
+#'
+#' @param path Character. Path to the multi-band GeoTIFF.
+#' @param folder Character. Output folder. Defaults to the stack's folder.
+#' @param overwrite Logical. Overwrite existing per-date files. Default `FALSE`.
+#' @param remove_stack Logical. Delete the stack after a successful split, so
+#'   local readers do not see both. Default `FALSE`.
+#' @return Character vector of per-date file paths, invisibly.
+#' @export
+#' @examples
+#' \dontrun{
+#' stack <- wapor_map(c(35, 33, 36, 34), "L1-AETI-D",
+#'                    c("2023-01-01", "2023-03-31"), folder = "wapor_data")
+#' wapor_unstack_map(stack)
+#' }
+wapor_unstack_map <- function(path, folder = dirname(path), overwrite = FALSE,
+                              remove_stack = FALSE) {
+  if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
+    stop("'path' must be an existing GeoTIFF file", call. = FALSE)
+  }
+  m <- regmatches(basename(path),
+                  regexec("^(.*)\\.(\\d{4}-\\d{2}-\\d{2})(_\\d{4}-\\d{2}-\\d{2})?\\.tif$", basename(path)))[[1]]
+  if (length(m) < 2) {
+    stop("File name does not follow '<product>.<date>[_<date>].tif': ", basename(path), call. = FALSE)
+  }
+  product <- m[2]
+  r <- terra::rast(path)
+  dates <- names(r)
+  ok <- grepl("^\\d{4}-\\d{2}-\\d{2}$", dates) & !is.na(suppressWarnings(as.Date(dates, "%Y-%m-%d")))
+  if (!all(ok)) {
+    stop("Band names must be start dates (YYYY-MM-DD) as written by wapor_map(); found: ",
+         paste(utils::head(dates[!ok], 3), collapse = ", "), call. = FALSE)
+  }
+  dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+  out <- file.path(folder, sprintf("%s.%s.tif", product, dates))
+  for (i in seq_along(out)) {
+    if (file.exists(out[i]) && !isTRUE(overwrite)) next
+    lyr <- r[[i]]
+    terra::units(lyr) <- terra::units(r)[i]
+    terra::writeRaster(lyr, out[i], overwrite = TRUE, NAflag = -9999,
+                       gdal = .wapor_gtiff_options())
+  }
+  if (isTRUE(remove_stack) && all(file.exists(out))) unlink(path)
+  invisible(out)
+}

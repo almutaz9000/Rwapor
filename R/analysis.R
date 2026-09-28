@@ -878,6 +878,20 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
     return(character(0))
   }
 
+  # Multi-band stacks from wapor_map(separate_files = FALSE) are named
+  # <product>.<date>_<date>.tif (no ".seasonal."). They cannot be read as
+  # one-file-per-time-step, so say so instead of skipping them silently.
+  is_stack <- grepl("\\.\\d{4}-\\d{2}-\\d{2}_\\d{4}-\\d{2}-\\d{2}\\.tif$", tif_files) &
+    !grepl("\\.seasonal\\.", tif_files)
+  if (any(is_stack)) {
+    warning(sprintf(
+      "Ignoring %d multi-band stack(s) for %s (e.g. '%s'). Split them with wapor_unstack_map(), or download with wapor_map(separate_files = TRUE).",
+      sum(is_stack), variable, basename(tif_files[is_stack][1])
+    ), call. = FALSE)
+    tif_files <- tif_files[!is_stack]
+    if (length(tif_files) == 0) return(character(0))
+  }
+
   # Determine temporal resolution from variable name
   var_parts <- strsplit(variable, "-")[[1]]
   tres_code <- if (length(var_parts) >= 3) var_parts[length(var_parts)] else "D"

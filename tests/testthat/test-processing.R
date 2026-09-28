@@ -425,6 +425,32 @@ test_that("wapor_local_rasters ignores _seasonal aggregates next to dekadal file
   expect_equal(normalizePath(paths), normalizePath(seasonal))
 })
 
+test_that("local reader warns about wapor_map() stacks and wapor_unstack_map() splits them", {
+  root <- withr::local_tempdir()
+  var <- "L1-AETI-D"
+  dir.create(file.path(root, var))
+  dates <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  stack <- terra::rast(nrows = 3, ncols = 3, nlyrs = 3, vals = rep(c(1.5, 2.5, 3.5), each = 9))
+  names(stack) <- dates
+  stack_path <- file.path(root, var, "WAPOR-3.L1-AETI-D.2023-01-01_2023-01-21.tif")
+  terra::writeRaster(stack, stack_path)
+
+  expect_warning(
+    paths <- Rwapor:::wapor_local_rasters(root, var, "2023-01-01", "2023-01-31"),
+    "multi-band stack.*wapor_unstack_map"
+  )
+  expect_length(paths, 0)
+
+  out <- wapor_unstack_map(stack_path, remove_stack = TRUE)
+  expect_equal(basename(out), sprintf("WAPOR-3.L1-AETI-D.%s.tif", dates))
+  expect_false(file.exists(stack_path))
+  paths <- Rwapor:::wapor_local_rasters(root, var, "2023-01-01", "2023-01-31")
+  expect_equal(normalizePath(paths), normalizePath(out))
+  expect_equal(vapply(paths, function(p) terra::values(terra::rast(p))[1], 1, USE.NAMES = FALSE),
+               c(1.5, 2.5, 3.5))
+  expect_error(wapor_unstack_map(file.path(root, "missing.tif")), "existing GeoTIFF")
+})
+
 test_that("disk estimate scales with keep_intermediates and the check warns when space is short", {
   base <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18)
   kept <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18,
