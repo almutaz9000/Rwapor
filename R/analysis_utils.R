@@ -823,7 +823,14 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
   }
 
   # Handle list of results (multi-period)
-  if (is.list(results) && !is.null(results[[1]]) && !is.null(results[[1]]$h_mask)) {
+  # A single-season result is itself a list whose first element is commonly a
+  # SpatRaster (for example `h_mask`).  `$` on a SpatRaster means "select a
+  # layer by name" and therefore errors for ordinary mask layer names.  Only
+  # inspect `$h_mask` after establishing that the first element is a nested
+  # season-result list.
+  if (is.list(results) && length(results) > 0L &&
+      is.list(results[[1]]) && !inherits(results[[1]], "SpatRaster") &&
+      !is.null(results[[1]]$h_mask)) {
     for (s_name in names(results)) {
       export_single(results[[s_name]], folder, s_name)
     }

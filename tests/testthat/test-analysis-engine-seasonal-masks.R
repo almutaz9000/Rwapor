@@ -146,3 +146,27 @@ test_that("a season-specific season_start/season_end overrides config$use_season
   expect_equal(aeti_short, 33)
   expect_equal(aeti_full, 93)
 })
+
+test_that("a supplied crop mask is used by default and explicit FALSE warns", {
+  skip_if_not_installed("terra")
+  template <- terra::rast(nrows = 2, ncols = 2, xmin = 0, xmax = 2, ymin = 0, ymax = 2)
+  mask <- terra::setValues(template, c(1L, NA_integer_, 1L, NA_integer_))
+  root <- withr::local_tempdir()
+  dir.create(file.path(root, "L1-AETI-D"))
+  for (d in c("2024-01-01", "2024-01-11", "2024-01-21")) {
+    terra::writeRaster(terra::setValues(template, 1),
+                       file.path(root, "L1-AETI-D", paste0("WAPOR-3.L1-AETI-D.", d, ".tif")), overwrite = TRUE)
+  }
+  cfg <- list(period = c("2024-01-01", "2024-01-31"), aeti_var = "L1-AETI-D",
+              data_source = "local", folder = root, indicators = "agg_aeti")
+  params <- data.frame(class_value = 1L, crop_label = "Wheat", kc_ini = 1, kc_mid = 1, kc_end = 1,
+                       l_ini_days = 10L, l_mid_days = 10L, l_late_days = 11L,
+                       HI = 1, MC = 0, fc = 1, AOT = 1)
+  default_result <- suppressMessages(wapor_run_seasonal_analysis(cfg, params, list(crop_mask = mask)))
+  expect_equal(sum(!is.na(terra::values(default_result$valid_crop_mask))), 2)
+  cfg$use_crop_mask <- FALSE
+  expect_warning(
+    suppressMessages(wapor_run_seasonal_analysis(cfg, params, list(crop_mask = mask))),
+    "crop mask was supplied"
+  )
+})

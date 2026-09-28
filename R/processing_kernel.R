@@ -509,11 +509,25 @@
   }
   dir.create(work_dir, recursive = TRUE, showWarnings = FALSE)
   dekad_table <- build_dekad_table(period[1], period[2])
-  key_r <- .wapor_profile_key_raster(h_mask, h_start, h_end, reference_year)
+  # Profile keys reserve a compact signed 2,000-day range.  Input season
+  # rasters may legitimately use an older public reference year (notably the
+  # historical 1970 default), so rebase their continuous Julian values to the
+  # analysis-period year for this internal representation only.
+  kernel_reference_year <- as.integer(format(as.Date(period[1]), "%Y"))
+  rebase_offset <- wapor_continuous_julian(period[1], reference_year) - 1L
+  kernel_start <- h_start - rebase_offset
+  kernel_end <- h_end - rebase_offset
+  key_r <- .wapor_profile_key_raster(h_mask, kernel_start, kernel_end, kernel_reference_year)
   key_path <- file.path(work_dir, "profile_keys.tif")
   terra::writeRaster(key_r, key_path, overwrite = TRUE, datatype = "FLT8S")
   profiles <- .wapor_profiles_from_keys(terra::rast(key_path))
-  sw <- .wapor_profile_dekad_weights(profiles, dekad_table, reference_year)
+  # Shift the dekad dates by the same offset so their weights and the packed
+  # profile days use one coordinate system. Keep `dekad_table` unchanged for
+  # source-file matching and public run metadata.
+  kernel_dekad_table <- dekad_table
+  kernel_dekad_table$dekad_start <- as.Date(kernel_dekad_table$dekad_start) - rebase_offset
+  kernel_dekad_table$dekad_end <- as.Date(kernel_dekad_table$dekad_end) - rebase_offset
+  sw <- .wapor_profile_dekad_weights(profiles, kernel_dekad_table, kernel_reference_year)
   kc <- NULL
   max_profiles <- .wapor_max_season_profiles()
 

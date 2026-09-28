@@ -33,14 +33,15 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Pending — Next Session (Production Hardening continuation)
 
-- **Training-driven Rwapor improvements (ti-01 to ti-16), REVIEW FIRST** —
+- **Training-driven Rwapor improvements (ti-01 to ti-16)** —
   Proposed 2026-09-24 from the WaPOR training case studies; nothing approved or
   started. Review each item (accept / change / reject, target release) in
   `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`, which
   also holds the lessons register (L1 to L21, implemented or not). P0 before the
-  training: ti-01 scale factor (ISS-20260924-006), ti-02 ref_year (ISS-20260923-003,
-  dashboard broken), ti-03 export (ISS-20260923-004), ti-04 use_crop_mask
-  (ISS-20260925-007), ti-05 release 1.0.2. P1: ti-06 download cache
+  training: ti-01 scale factor, ti-02 ref_year compatibility, ti-03 single-season
+  export, and ti-04 crop-mask safety are DONE locally (Codex, 2026-09-28; focused
+  tests and isolated source installation pass). They remain uncommitted and thus
+  are not yet available from GitHub. ti-05 release 1.0.2. P1: ti-06 download cache
   (ISS-20260925-008), ti-07 remote opening, ti-08 disk footprint (ISS-20260925-009).
   P2: ti-09 to ti-16 (performance indicators, farm extraction, perennial crops,
   mask helpers, exports, plotting, offline metadata, polygon areas).
