@@ -424,3 +424,15 @@ test_that("wapor_local_rasters ignores _seasonal aggregates next to dekadal file
   paths <- Rwapor:::wapor_local_rasters(root, var, "2023-01-01", "2023-01-31")
   expect_equal(normalizePath(paths), normalizePath(seasonal))
 })
+
+test_that("disk estimate scales with keep_intermediates and the check warns when space is short", {
+  base <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18)
+  kept <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18,
+                                              keep_intermediates = TRUE)
+  expect_gt(kept, base)
+  expect_equal(base, 1e6 * 4 * (5 * 7 + 15) * 3)
+  testthat::local_mocked_bindings(.wapor_free_disk_bytes = function(path) 1024)
+  expect_warning(Rwapor:::.wapor_check_disk_space(base, tempdir()), "only 1 KB is free|only .* is free")
+  withr::local_options(Rwapor.disk_check = FALSE)
+  expect_silent(Rwapor:::.wapor_check_disk_space(base, tempdir()))
+})

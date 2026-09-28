@@ -654,7 +654,9 @@ test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, an
     ),
     use_crop_mask = TRUE,
     use_season_rasters = FALSE,
-    incremental = FALSE
+    incremental = FALSE,
+    # Dekadal stacks are opt-in (run and export) since 1.0.5.
+    keep_intermediates = TRUE
   )
 
   result <- Rwapor::wapor_run_seasonal_analysis(
@@ -666,7 +668,8 @@ test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, an
   Rwapor::wapor_export_analysis_outputs(
     results = result,
     folder = export_dir,
-    indicators = config$indicators
+    indicators = config$indicators,
+    include_dekadal = TRUE
   )
 
   season_dir <- file.path(export_dir, "Winter2024")
