@@ -1106,17 +1106,17 @@
                   {
                       "id":  "prod-ready-1.0.5",
                       "title":  "Production readiness 1.0.5: apply WP1-WP6 and release",
-                      "status":  "pending",
+                      "status":  "done",
                       "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-28T12:40:00Z",
                       "files":  [
                           "docs/superpowers/plans/2026-09-28-production-readiness-plan.md",
                           "docs/superpowers/plans/2026-09-28-production-readiness.patch"
                       ],
                       "issue_ref":  "ISS-20260925-009",
-                      "notes":  "Apply the verified patch one work package per commit (WP3 first), regenerate docs with roxygen2 7.3.3, then follow plan section 5.",
+                      "notes":  "Implemented on claude/ecstatic-allen-xdfb2g: WP3 c59d03e, WP1 fe75e5a, WP2 8ca48d1, WP4 9d88ea4, WP6 4f8fd0d; version 1.0.5. Maintainer: merge, Windows/live checks, tag.",
                       "updated_utc":  "2026-09-28"
                   }
               ],

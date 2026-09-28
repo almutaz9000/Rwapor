@@ -4,12 +4,11 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
-- **Production readiness 1.0.5 (WP0 to WP6)** — PLANNED (Claude, 2026-09-28).
-  Plan: `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`, verified
-  reference patch next to it. WP0 (return value) and the Windows CI fixture are
-  already fixed on `claude/ecstatic-allen-xdfb2g`. Remaining: apply WP3, WP1,
-  WP2, WP4, WP5, WP6, then the 1.0.5 release steps. Owner: unassigned (Codex can
-  apply the patch per the plan).
+- **Production readiness 1.0.5 (WP0 to WP6)** — DONE on branch (Claude, 2026-09-28).
+  Plan: `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`. Commits
+  WP3 `c59d03e`, WP1 `fe75e5a`, WP2 `8ca48d1`, WP4 `9d88ea4`, WP6 `4f8fd0d`,
+  version 1.0.5. Maintainer steps left: merge into the default branch, Windows
+  and live checks, tag v1.0.5 (plan section 5).
 
 - **Critical install/run review (1.0.4)** — DONE (Claude, 2026-09-28).
   Branch `claude/ecstatic-allen-xdfb2g`. Fixed ISS-20260928-010/-011/-012 and

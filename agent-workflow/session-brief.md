@@ -3,7 +3,21 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-28 (part 2) — Production-readiness plan, verified prototypes
+## Current Session — 2026-09-28 (part 3) — 1.0.5 implemented on the branch
+
+**What happened**: Applied the verified plan on `claude/ecstatic-allen-xdfb2g`, one
+commit per work package (WP3 CI + install smoke test, WP1 disk footprint, WP2
+`wapor_unstack_map()`, WP4 GDAL settings, WP6 COG warnings), bumped to 1.0.5 and
+rewrote NEWS (1.0.4 section restored to what was published). ISS-20260925-009
+resolved.
+
+**Verification**: see the commit message of the release commit and plan
+section 4; CI dispatched on the branch (R-CMD-check incl. install-smoke).
+
+**Next**: maintainer merges into `version-1.0.4` (or a new `version-1.0.5`
+default branch), runs Windows + live checks, tags v1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 (part 2) — Production-readiness plan, verified prototypes
 
 **What happened**: Wrote `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`
 (WP0 to WP6 + 1.0.5 release plan) and prototyped every package in a local

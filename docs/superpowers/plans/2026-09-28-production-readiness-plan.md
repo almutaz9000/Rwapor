@@ -2,10 +2,11 @@
 
 - **Date**: 2026-09-28
 - **Author**: Claude (review session on branch `claude/ecstatic-allen-xdfb2g`)
-- **Status**: Proposed. Every work package below was prototyped and verified
-  in an isolated worktree; the reference patch is
-  `docs/superpowers/plans/2026-09-28-production-readiness.patch`. None of it is
-  applied to the package yet.
+- **Status**: **Implemented** on `claude/ecstatic-allen-xdfb2g` (2026-09-28),
+  one commit per work package: WP3 `c59d03e`, WP1 `fe75e5a`, WP2 `8ca48d1`,
+  WP4 `9d88ea4`, WP6 `4f8fd0d`; version 1.0.5. WP5 withdrawn (section 3.6).
+  Release steps 1 and 5 to 8 of section 5 (merge, maintainer checks on
+  Windows, live checks, tag, default branch) remain with the maintainer.
 - **Scope**: the bottlenecks left open by the 2026-09-28 install/run review
   (session brief, "Open / proposals"), plus defects found while verifying them.
 - **Related**: ISS-20260925-009, ti-08 (training plan
@@ -16,7 +17,7 @@
 
 ## 1. Executive summary
 
-Rwapor 1.0.4 on the default branch (`version-1.0.4`) is **not yet ready for
+Rwapor 1.0.4 on the default branch (`version-1.0.4`) was **not ready for
 general release**. Three defects that affect every user are fixed on branch
 `claude/ecstatic-allen-xdfb2g`, which must be merged first:
 
@@ -113,6 +114,11 @@ acceptance criteria.
   | 1.0.4, `keep_intermediates = TRUE` | 109.9 s | 1,009 MB | 151 MB | 531 MB | 68 |
   | **Prototype, defaults** | **70.5 s** | **505 MB** | **86 MB** | **124 MB** | 63, all FLT4S |
   | **Prototype, `keep_intermediates = TRUE`** | **76.6 s** | **559 MB** | **86 MB** | **124 MB** | 63 |
+  | Implemented 1.0.5, defaults (repeat run) | 80.2 s | 505 MB | 86 MB | 124 MB | 63, all FLT4S |
+  | Implemented 1.0.5, `keep_intermediates = TRUE` (repeat run) | 64.8 s | 559 MB | 86 MB | 124 MB | 63 |
+
+  Disk figures reproduce exactly; run times vary by about 15 % between runs
+  on the shared test machine, so the speed-up is 10 to 40 %.
 
   Seasonal AETI mean: 468.051073 in all four runs (identical to 6 decimals).
   Total footprint: 1,288 MB to 715 MB by default (-44 %); 1,690 MB to 769 MB
@@ -257,7 +263,7 @@ acceptance criteria.
   earlier waits came from the network test that now skips offline
   (fixed on the branch, `1c96421`), and dashboard start-up retries are
   already bounded (`wapor_fetch_l3_regions(timeout = 10, retry = FALSE)`).
-- **Decision**: withdrawn; not in the reference patch. Revisit only if a new
+- **Decision**: withdrawn; not implemented. Revisit only if a new
   test calls the API without `skip_if_wapor_offline()`.
 
 ### 3.7 WP6: warning noise from `wapor_write_cog()`
@@ -306,9 +312,9 @@ acceptance criteria.
 1. **Merge** `claude/ecstatic-allen-xdfb2g` into `version-1.0.4` (scale fix,
    COG truncation fix, return-value fix, fixture fix, dashboard fixes).
    Confirm CI green on the default branch.
-2. **Apply WP3 first** (CI only), then run R-CMD-check with
+2. **Done 2026-09-28 (`c59d03e`).** Apply WP3 first (CI only), then run R-CMD-check with
    `workflow_dispatch` to prove the smoke job on all three OSs.
-3. **Apply WP1, WP2, WP4, WP6** from the reference patch, one commit each,
+3. **Done 2026-09-28.** Apply WP1, WP2, WP4, WP6, one commit each,
    regenerating `man/` and `NAMESPACE` with roxygen2 7.3.3
    (`devtools::document()`), so each can be reverted alone. The patch was
    produced with roxygen2 7.3.1; `RoxygenNote` is unchanged, but regenerate
@@ -325,7 +331,7 @@ acceptance criteria.
    - WP4: `R/gdal_config.R`, `man/wapor_configure_gdal.Rd`,
      `tests/testthat/test-gdal_config.R`;
    - WP6: `R/wapor_cog.R`, `tests/testthat/test-streaming-hardening.R`.
-4. **Version**: create branch `version-1.0.5`, set `Version: 1.0.5`, move the
+4. **Version** (done on the branch: `Version: 1.0.5`, NEWS 1.0.5 section): create branch `version-1.0.5`, set `Version: 1.0.5`, move the
    1.0.4 NEWS items that were never released under 1.0.5 and add the
    behaviour-change notes from WP0 and WP1.
 5. **Local checks on Windows** (maintainer machine):
