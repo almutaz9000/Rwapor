@@ -1,5 +1,19 @@
 # Rwapor 1.0.4
 
+## Installation and analysis safety fixes
+
+* GitHub CI now runs for the default `version-1.0.4` branch.
+* `wapor_export_analysis_outputs()` accepts a single-season result directly;
+  it no longer mistakes its first raster for a multi-season result.
+* Seasonal analysis accepts season rasters made with the historic
+  `ref_year = 1970` default by rebasing their internal profile keys.
+* A supplied crop mask is used by default. An explicit
+  `use_crop_mask = FALSE` now warns because it analyses the whole AOI as
+  crop class 1.
+* Non-seasonal `wapor_map(separate_files = TRUE)` writes physical WaPOR
+  values when a remote source has lost its scale metadata, so the output is
+  safe to reuse with `data_source = "local"`.
+
 ## New features
 
 * New `wapor_plot_polygon_seasons()` draws selected polygon units over

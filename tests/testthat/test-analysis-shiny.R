@@ -689,4 +689,15 @@ test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, an
   expect_true(file.exists(file.path(season_dir, "monthly_rasters", "monthly_blue_water", "Winter2024_monthly_blue_water_2024_01.tif")))
   expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_summary_metrics.csv")))
   expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_seasonal_aeti_by_class.csv")))
+
+  direct_dir <- tempfile("wapor_export_single_")
+  on.exit(unlink(direct_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  expect_no_error(
+    Rwapor::wapor_export_analysis_outputs(
+      results = result$Winter2024, folder = direct_dir,
+      indicators = config$indicators, season_label = "Winter2024",
+      include_dekadal = FALSE
+    )
+  )
+  expect_true(file.exists(file.path(direct_dir, "Winter2024", "seasonal_rasters", "Winter2024_seasonal_aeti.tif")))
 })

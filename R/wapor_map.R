@@ -1,3 +1,18 @@
+.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
+  source_scoff <- terra::scoff(r)
+  variable_scale <- wapor_variable_metadata(variable)$scale %||% 1
+  has_source_scale <- !is.null(source_scoff) &&
+    (any(source_scoff[, "scale"] != 1) || any(source_scoff[, "offset"] != 0))
+  # Materialise physical values before assigning output metadata: setting
+  # layer metadata can otherwise discard terra's pending scale/offset.
+  if (has_source_scale) {
+    r <- r * 1
+  } else if (is.finite(variable_scale) && variable_scale != 1) {
+    r <- r * variable_scale
+  }
+  assign_raster_metadata(r, variable, unit_conversion)
+}
+
 #' Download and Save a Raster Map
 #'
 #' Downloads WaPOR or AgERA5 raster data for a specified region and time period,
@@ -563,7 +578,7 @@ wapor_map <- function(
             ))
           }
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
-          r_out <- assign_raster_metadata(r[[i]], var, current_unit_conv)
+          r_out <- .wapor_prepare_map_output(r[[i]], var, current_unit_conv)
           .wapor_retry_remote_operation(
             function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
                                           gdal = .wapor_gtiff_options()),
@@ -653,7 +668,7 @@ wapor_map <- function(
       }
 
       out_path <- file.path(var_folder, current_filename)
-      r_out <- assign_raster_metadata(r_all, var, current_unit_conv)
+      r_out <- .wapor_prepare_map_output(r_all, var, current_unit_conv)
 
       # One streamed write from the lazily stacked chunk files; NAflag writes NA as -9999.
       suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,

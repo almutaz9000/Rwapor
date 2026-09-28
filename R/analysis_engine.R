@@ -187,8 +187,18 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   progress_callback(0.10, "Harmonizing inputs...")
 
+  # A supplied crop mask is almost certainly intentional.  Historically it
+  # was silently ignored unless callers also set use_crop_mask = TRUE, which
+  # could analyse every AOI pixel as crop class 1.  Preserve an explicit FALSE
+  # but make it visible; otherwise default to using a supplied SpatRaster.
+  crop_mask_supplied <- inherits(rasters$crop_mask, "SpatRaster")
+  use_crop_mask <- if (is.null(config$use_crop_mask)) crop_mask_supplied else isTRUE(config$use_crop_mask)
+  if (crop_mask_supplied && identical(config$use_crop_mask, FALSE)) {
+    warning("A crop mask was supplied but use_crop_mask = FALSE; all AOI pixels will be analysed as class 1.", call. = FALSE)
+  }
+
   # Harmonize mask
-  h_mask <- if (isTRUE(config$use_crop_mask)) {
+  h_mask <- if (use_crop_mask) {
     Rwapor::wapor_harmonize_raster(
       rasters$crop_mask, template_r, method = get_resampling_method("crop_mask", "near")
     )

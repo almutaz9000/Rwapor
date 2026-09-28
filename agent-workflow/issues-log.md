@@ -5,17 +5,15 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
-### ISS-20260925-007 — A supplied crop mask is silently ignored unless `use_crop_mask = TRUE`
+### ISS-20260925-007 — RESOLVED 2026-09-28: supplied crop mask default
 
 - **Where**: `R/analysis_engine.R`, harmonize-mask block (`if (isTRUE(config$use_crop_mask))`).
 - **Root cause**: without the flag the engine replaces the mask with `template * 0 + 1`,
   so every AOI pixel becomes class 1, with no message.
 - **Impact**: with a rectangular AOI (Jendouba wheat) every land pixel would be analysed
   as the crop. Found while testing the training notebook (2026-09-23).
-- **Fix / mitigation**: not fixed in the package. Notebook sets `use_crop_mask = TRUE`
-  and explains it in a Watch out box. Proposed: default TRUE when `rasters$crop_mask`
-  is a SpatRaster, warn on explicit FALSE (task ti-04).
-- **Regression tests**: none yet.
+- **Fix / mitigation**: a supplied SpatRaster is now used by default; an explicit
+  `use_crop_mask = FALSE` warns. Regression test added.
 
 ### ISS-20260925-008 — Local reader also picks up `<VAR>_seasonal` files next to the dekads
 
@@ -42,7 +40,7 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
   estimate in the planner (task ti-08).
 - **Regression tests**: none yet.
 
-### ISS-20260924-006 — `wapor_map(seasonal = FALSE, separate_files = TRUE)` drops the WaPOR scale factor
+### ISS-20260924-006 — RESOLVED 2026-09-28: map output retains physical WaPOR values
 
 - **Where**: `R/wapor_map.R` per-layer write path (around lines 557-570,
   `terra::writeRaster(r_out, out_path, ...)`).
@@ -53,13 +51,9 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
   1,035.86 mm from the API run).
 - **Impact**: any offline workflow built on `wapor_map(separate_files = TRUE)`
   downloads; the seasonal (`seasonal = TRUE`) path is not affected.
-- **Fix / mitigation**: not fixed in the package. The training notebook
-  downloads with `terra::rast("/vsicurl/...")` + `crop` + `writeRaster`
-  (terra applies the scale on read); the local run then matches the API run
-  exactly (1,035.86 mm, ETc 1,056.4 mm, adequacy 0.98). Suggested package fix:
-  apply `terra::scoff()` before writing, or write Int16 with the scale kept.
-- **Regression tests**: none yet (write a one-layer Int16 raster with scale
-  0.1, save via the separate-files path, assert values are scaled).
+- **Fix / mitigation**: map output now materialises an existing source scale or
+  applies the catalogue scale before output metadata is assigned, for both
+  separate-file and multi-band paths. Regression test added.
 - **Verification**: reproduced 2026-09-24 with installed Rwapor 1.0.2.
 
 ### ISS-20260923-005 — Seasonal green/blue water computed from seasonal totals (methodology)
@@ -86,7 +80,7 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Verification**: engine, processing, indicators, shiny-analysis and export
   test files pass after the change.
 
-### ISS-20260923-004 — `wapor_export_analysis_outputs()` errors on a single-season result
+### ISS-20260923-004 — RESOLVED 2026-09-28: direct single-season export
 
 - **Where**: `R/analysis_utils.R:826`, multi-season detection
   `!is.null(results[[1]]$h_mask)`.
@@ -96,14 +90,13 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Impact**: the documented single-season call
   `wapor_export_analysis_outputs(results = season, season_label = ...)` fails
   whenever the crop mask layer has any other name (e.g. `crop_mask`).
-- **Fix / mitigation**: not fixed in the package. Training notebook passes
-  `results = list(<label> = season)`. Suggested fix: test
-  `is.list(results[[1]]) && !inherits(results[[1]], "SpatRaster")` before `$`.
-- **Regression tests**: none yet.
+- **Fix / mitigation**: multi-season detection now verifies a nested result
+  list before accessing `$h_mask`; direct single-season exports work.
+  Regression test added.
 - **Verification**: reproduced in `training/water-productivity-training.qmd`
   chunk `citrus-export` with installed Rwapor 1.0.1.
 
-### ISS-20260923-003 — 1.0.1 kernel rejects `ref_year = 1970` (Shiny app + vignettes still pass it)
+### ISS-20260923-003 — RESOLVED 2026-09-28: historic `ref_year` kernel compatibility
 
 - **Where**: `R/processing_kernel.R` `.wapor_profile_key_raster()` (range check
   "Season start/end values must lie between -1000 and 999 days"), introduced in
@@ -114,12 +107,9 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
   2024 season is ~19 800 days, outside the packed profile-key span.
 - **Impact**: `wapor_run_seasonal_analysis()` errors for any config with
   `ref_year = 1970` — worked in 1.0.0.
-- **Fix / mitigation**: not fixed yet (found while testing the training notebook;
-  package change not in that task's scope). Notebook omits `ref_year` so the
-  engine derives it from the season start year. Suggested package fix: rebase
-  start/end rasters to the season-start year inside the kernel job, or drop the
-  1970 defaults.
-- **Regression tests**: none yet.
+- **Fix / mitigation**: the kernel rebases its compact profile-key and dekad
+  coordinate system internally while keeping source-file dates unchanged.
+  Existing 1970-anchored season rasters are accepted. Regression test added.
 - **Verification**: reproduced by rendering `training/water-productivity-training.qmd`
   (chunk `citrus-run-analysis`) with installed Rwapor 1.0.1.
 

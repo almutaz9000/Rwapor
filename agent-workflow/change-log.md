@@ -4,6 +4,16 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-28 — GitHub-installation release audit (Codex)
+
+- Fixed four P0 user-facing defects locally: raw WaPOR scale output in
+  separate map files, historic `ref_year = 1970` kernel compatibility,
+  direct single-season export, and silently ignored supplied crop masks.
+  Added focused regressions, corrected the default-branch CI trigger, and
+  verified an isolated source installation. Changes are intentionally
+  uncommitted; GitHub users do not receive them until a maintainer commits and
+  pushes the working tree.
+
 ## 2026-09-24 — Claude plans, Codex implements (delegation setup)
 
 - Protocol: Claude writes a plan (`templates/codex-plan.md` →
