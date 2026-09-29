@@ -5,6 +5,17 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260929-015 — RESOLVED 2026-09-29: `wapor_ts()` polygon stats fail for single-layer batches
+
+- **Where**: `R/wapor_ts.R`, zonal extraction (`exact_extract(..., c("mean","min","max"))`).
+- **Root cause**: exactextractr names columns `mean/min/max` (no `.L1` suffix) for a
+  one-layer raster; the reshaping expected `mean.L1`. Any polygon `wapor_ts()` whose
+  batch holds one layer (one-dekad period, or planner batch size 1) failed.
+- **Found by**: new live-API CI gate (run 36521899036, Windows and Linux,
+  `test-wapor.R:420`); the live test had never run in CI.
+- **Fix**: normalise single-layer names to `.L1`. Offline regression test in
+  `test-internal-helpers.R` (errors on the old code).
+
 ### ISS-20260928-013 — RESOLVED 2026-09-28: `wapor_map()` returned a status list instead of paths
 
 - **Where**: `R/wapor_map.R`, `process_single_var()` return (since `5cf44fb`, 2026-09-17).

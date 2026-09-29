@@ -142,3 +142,40 @@ test_that("wapor_map returns file paths usable by terra::rast and the dashboard"
   # The dashboard checks unlist(result) with file.exists().
   expect_true(all(file.exists(unlist(list(`L1-AETI-D` = separate)))))
 })
+
+test_that("wapor_ts polygon statistics work for one and several layers", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("exactextractr")
+  src <- withr::local_tempdir()
+  files <- file.path(src, sprintf("WAPOR-3.L1-AETI-D.2021-01-D%d.tif", 1:2))
+  for (i in seq_along(files)) {
+    terra::writeRaster(
+      terra::rast(nrows = 10, ncols = 10, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                  crs = "EPSG:4326", vals = i),
+      files[i]
+    )
+  }
+  poly <- sf::st_sf(
+    name = "TestArea",
+    geometry = sf::st_sfc(sf::st_polygon(list(rbind(
+      c(35.2, 33.2), c(35.8, 33.2), c(35.8, 33.8), c(35.2, 33.8), c(35.2, 33.2)
+    ))), crs = 4326)
+  )
+  poly_path <- withr::local_tempfile(fileext = ".geojson")
+  sf::st_write(poly, poly_path, quiet = TRUE)
+  run <- function(n) {
+    local_mocked_bindings(
+      wapor_generate_urls = function(...) files[seq_len(n)],
+      .wapor_resolve_remote_sources = function(urls, ...) urls
+    )
+    suppressMessages(wapor_ts(poly_path, "L1-AETI-D", c("2021-01-01", "2021-01-20"),
+                              identifier = "name", unit_conversion = "none"))
+  }
+  # One layer: exact_extract names columns "mean", not "mean.L1" (live test
+  # test-wapor.R "Zonal Statistics works with exactextractr" failed on this).
+  one <- run(1)
+  expect_equal(nrow(one), 1L)
+  expect_equal(one$mean, 1)
+  two <- run(2)
+  expect_equal(sort(two$mean), c(1, 2))
+})
