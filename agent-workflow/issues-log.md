@@ -5,6 +5,80 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260929-015 — RESOLVED 2026-09-29: `wapor_ts()` polygon stats fail for single-layer batches
+
+- **Where**: `R/wapor_ts.R`, zonal extraction (`exact_extract(..., c("mean","min","max"))`).
+- **Root cause**: exactextractr names columns `mean/min/max` (no `.L1` suffix) for a
+  one-layer raster; the reshaping expected `mean.L1`. Any polygon `wapor_ts()` whose
+  batch holds one layer (one-dekad period, or planner batch size 1) failed.
+- **Found by**: new live-API CI gate (run 36521899036, Windows and Linux,
+  `test-wapor.R:420`); the live test had never run in CI.
+- **Fix**: normalise single-layer names to `.L1`. Offline regression test in
+  `test-internal-helpers.R` (errors on the old code).
+
+### ISS-20260928-013 — RESOLVED 2026-09-28: `wapor_map()` returned a status list instead of paths
+
+- **Where**: `R/wapor_map.R`, `process_single_var()` return (since `5cf44fb`, 2026-09-17).
+- **Symptom**: `terra::rast(wapor_map(...))` (vignette getting-started 4.1) failed
+  ("none of the elements of x are a SpatRaster"); the dashboard's
+  `file.exists(unlist(result))` tested "ok"/variable names and showed
+  "Download failed ... expected files were not found" after every successful
+  non-seasonal download.
+- **Fix**: return the documented character paths (named list for several
+  variables); run details in `attr(x, "wapor_status")`. Commit `e52dc5e`.
+- **Regression test**: `test-internal-helpers.R` "wapor_map returns file paths
+  usable by terra::rast and the dashboard" (errors on the old code).
+
+### ISS-20260928-014 — RESOLVED 2026-09-28: Windows CI red on `version-1.0.4`
+
+- **Where**: `R/analysis_tiled.R` `.wapor_remote_cog_fixture()` (test helper).
+- **Root cause**: `port.txt` existed before its content was written; R polled
+  for existence only and read an empty file on the slow Windows runner
+  (run 36397653719, "subscript out of bounds").
+- **Fix**: atomic publish (`os.replace`) and wait for a parsable port. Commit
+  `312e1ed`; CI run 36417147780 green on all 6 jobs.
+
+### ISS-20260928-010 — RESOLVED 2026-09-28: `wapor_map()` scaled values twice after the 1.0.4 fix
+
+- **Where**: `R/wapor_map.R` `.wapor_prepare_map_output()` (added in `94b1533`).
+- **Root cause**: when the raster carried no pending scale/offset, the helper
+  multiplied by the catalogue scale. terra (1.7.65 and 1.9.50) has already
+  applied the file scale by that point (crop, unit conversion, temp-stack
+  write), so values were scaled a second time. It would also rescale local
+  Float32 copies, which are already physical.
+- **Evidence**: synthetic Int16 COGs with GDAL scale 0.1 through the full
+  `wapor_map()` (URL generator stubbed): HEAD wrote 2.5 instead of 25 mm/dekad
+  and 0.25 instead of 2.5 mm/day, stack and separate files, on both terra
+  versions.
+- **Fix**: `.wapor_detach_source_scale()` clears the file scale when the
+  sources are opened (terra then returns raw values),
+  `.wapor_apply_source_scale()` applies it once after the crop; the catalogue
+  scale is no longer used. Same outputs on terra 1.7 and 1.9.
+- **Regression tests**: `test-internal-helpers.R` "map output applies the source
+  file scale exactly once" and "... does not rescale files without a stored scale".
+
+### ISS-20260928-011 — RESOLVED 2026-09-28: `wapor_write_cog()` truncated floats
+
+- **Where**: `R/wapor_cog.R` `.wapor_probe_datatype()`.
+- **Root cause**: the integer probe read only the first rows of the first layer.
+  A band of zeros (masked edge, early-season layer) made a float raster INT4U.
+- **Evidence**: 1000 x 1000 raster, 20 zero rows on top: mean 2.45 written as 1.96.
+  Affects `wapor_export_analysis_outputs(cog = TRUE)`, monitoring COGs, L3 mosaics.
+- **Fix**: all values checked up to 5 million, otherwise a regular sample across
+  all layers. Regression test in `test-streaming-hardening.R`.
+
+### ISS-20260928-012 — Dashboard install/run gaps (fixed)
+
+- Visualisation tab called `raster::raster()` although `raster` was neither in
+  the dashboard's required-package check nor in the README install list; now
+  passes SpatRaster to leaflet (>= 2.1.2). `raster`/`pkgdown` removed from Suggests.
+- Startup blocked ~30 s on L3-region retries when the API was unreachable;
+  `wapor_fetch_l3_regions(timeout, retry)` added, app uses 10 s / no retry.
+- Analysis tab defaulted to annual `AGERA5-ET0-A` / `AGERA5-PF-A` (first
+  alphabetical match); now `L1-RET-D` / `L1-PCP-D`.
+- README 3.2 lacked `knitr`/`rmarkdown` needed by `build_vignettes = TRUE`.
+- `test-multi-season.R` hit the live API without a skip.
+
 ### ISS-20260925-007 — RESOLVED 2026-09-28: supplied crop mask default
 
 - **Where**: `R/analysis_engine.R`, harmonize-mask block (`if (isTRUE(config$use_crop_mask))`).
@@ -15,19 +89,19 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Fix / mitigation**: a supplied SpatRaster is now used by default; an explicit
   `use_crop_mask = FALSE` warns. Regression test added.
 
-### ISS-20260925-008 — Local reader also picks up `<VAR>_seasonal` files next to the dekads
+### ISS-20260925-008 — RESOLVED 2026-09-28: Local reader also picks up `<VAR>_seasonal` files next to the dekads
 
 - **Where**: `R/analysis.R` `wapor_local_rasters()` (scans `<folder>/<VAR>` and
   `<folder>/<VAR>_seasonal`).
 - **Impact**: a seasonal file written by `wapor_map(seasonal = TRUE)` into the same
   folder as the dekadal files can be read as an extra layer by
   `data_source = "local"` runs.
-- **Fix / mitigation**: not fixed in the package. Notebook keeps dekadal data in
-  `wapor_data/<case>/dekadal/`, separate from the first-look seasonal maps.
-  Proposed: ignore `_seasonal` unless asked (task ti-06).
-- **Regression tests**: none yet.
+- **Fix / mitigation**: 2026-09-28 — `wapor_local_rasters()` reads
+  `<VAR>_seasonal` only when `<VAR>` has no .tif files.
+- **Regression tests**: `test-processing.R` "wapor_local_rasters ignores
+  _seasonal aggregates next to dekadal files".
 
-### ISS-20260925-009 — Large L3 runs fill the disk
+### ISS-20260925-009 — RESOLVED 2026-09-28: Large L3 runs fill the disk
 
 - **Where**: `R/analysis_engine.R` (`keep_intermediates` defaults to TRUE in memory
   mode and materialises every dekadal stack; derived rasters FLT8S),
@@ -35,10 +109,12 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Evidence**: Jendouba wheat (5.1 M cells, 21 dekads, 5 variables) failed with
   "No space left on device" at 8 GB free; passed with `keep_intermediates = FALSE`
   and `include_dekadal = FALSE` (2026-09-24).
-- **Fix / mitigation**: not fixed in the package; notebook sets both flags and the
-  participant note asks for 20 GB free. Proposed: new defaults, Float32, a disk-space
-  estimate in the planner (task ti-08).
-- **Regression tests**: none yet.
+- **Fix / mitigation**: 1.0.5 (WP1, `fe75e5a`): `keep_intermediates` and
+  `include_dekadal` default FALSE, Float32 file-backed/exported rasters with
+  LZW + predictor, disk estimate and low-space warning. 1 M-cell benchmark:
+  1,288 -> 715 MB, results identical.
+- **Regression tests**: `test-processing.R` disk-estimate test; mode-equivalence
+  tests at 1e-6 with Float32.
 
 ### ISS-20260924-006 — RESOLVED 2026-09-28: map output retains physical WaPOR values
 

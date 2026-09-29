@@ -1,3 +1,86 @@
+# Rwapor 1.0.5
+
+## Correctness fixes (upgrade recommended)
+
+* `wapor_map()` applies the source file scale (0.1 for most WaPOR layers)
+  exactly once. It clears the stored scale when it opens the files and applies
+  it after the crop, so the result no longer depends on the terra version. The
+  1.0.4 fix multiplied values that were already physical by the catalogue
+  scale again, giving outputs 10 times too low (e.g. 2.5 instead of
+  25 mm/dekad) with terra 1.7 and 1.9. Re-download maps made with 1.0.4.
+* `wapor_map()` again returns the documented character vector of output
+  paths (a named list of them for several variables). Since 1.0.1 it returned
+  a status list, so `terra::rast(wapor_map(...))` from the getting-started
+  vignette failed, and the dashboard reported "Download failed ... expected
+  files were not found" after every successful non-seasonal download. Run
+  details are in `attr(x, "wapor_status")`; code that used `x$status` or
+  `x$output_paths` from 1.0.1 to 1.0.4 must switch to the attribute or to `x`.
+* `wapor_write_cog()` no longer truncates fractional values. Its integer
+  datatype probe read only the first rows of the first layer, so a band of
+  zeros (e.g. a masked edge) wrote a float raster as INT4U. It now checks every
+  value (up to 5 million) or a regular sample across all layers.
+* `wapor_ts()` polygon statistics no longer fail with "Could not find
+  expected columns for layer 1" when a batch holds a single layer (for
+  example a one-dekad period): `exactextractr` names single-layer columns
+  without the layer suffix. Found by the new live-API release gate.
+* Local analysis (`data_source = "local"`) reads `<VAR>_seasonal` aggregates
+  only when the per-time-step `<VAR>` folder has no files, so a seasonal map
+  saved next to dekadal files is no longer counted as an extra layer.
+
+## Disk use and speed of seasonal analysis
+
+* Seasonal analysis writes about 45 % less to disk and runs 10 to 40 % faster
+  (1 M cells, 18 dekads, 5 variables: 1,288 MB to 715 MB; 90 s to 70 to 80 s
+  with defaults, 110 s to 65 to 77 s with `keep_intermediates = TRUE`), with
+  unchanged results:
+  * `keep_intermediates` is `FALSE` unless set. **Behaviour change**:
+    `results$dekadal_stacks` and `results$season_weights` are no longer
+    returned in memory mode by default; set `keep_intermediates = TRUE`.
+  * `wapor_export_analysis_outputs(include_dekadal = FALSE)` is the new
+    default. **Behaviour change**: set `include_dekadal = TRUE` for
+    `dekadal_stacks/`.
+  * File-backed results, tiles and exports are compressed Float32 (relative
+    difference below 1e-7).
+  * The run logs an estimate of the disk space it needs and warns when the
+    output or temporary folder has less free space
+    (`options(Rwapor.disk_check = FALSE)` turns this off).
+* `inst/bench/disk_footprint_benchmark.R` reproduces these measurements.
+
+## New and improved functions
+
+* New `wapor_unstack_map()` splits a multi-band `wapor_map()` file into one
+  file per date, the layout local analysis reads. `wapor_local_rasters()` now
+  warns about such files instead of skipping them silently.
+* `wapor_fetch_l3_regions()` gains `timeout` and `retry`.
+* `wapor_configure_gdal()` gains `overwrite`. When the package loads, GDAL
+  variables that are already set (by the user, `.Renviron` or an
+  institutional setup) are kept, and `RWAPOR_AUTO_CONFIG=false` or
+  `options(Rwapor.configure_gdal = FALSE)` skips the configuration.
+* `wapor_write_cog()` no longer prints GDAL "does not support creation
+  option" notes on every write.
+
+## Dashboard
+
+* The Visualisation tab no longer needs the retired `raster` package (terra
+  rasters go straight to leaflet >= 2.1.2).
+* Start-up no longer blocks about 30 s on API retries when the L3 region list
+  cannot be fetched.
+* The Analysis tab defaults to dekadal RET and precipitation (`L1-RET-D`,
+  `L1-PCP-D`) instead of annual AgERA5 products.
+* The active tab label is readable.
+
+## Installation and CI
+
+* README Step 3.2 installs `knitr` and `rmarkdown`, which
+  `install_github(build_vignettes = TRUE)` needs, and documents the install
+  without vignettes. `raster` and `pkgdown` are no longer in Suggests.
+* CI runs on every `version-*` branch and every pull request; a new install
+  smoke test installs Rwapor as the README describes on Windows, macOS and
+  Linux and starts the dashboard. The pkgdown site deploys from the default
+  branch.
+* Fixed a Windows-only race in a test fixture that kept CI red on 1.0.4; a
+  network test now skips when the WaPOR API is unreachable.
+
 # Rwapor 1.0.4
 
 ## Installation and analysis safety fixes
@@ -12,7 +95,8 @@
   crop class 1.
 * Non-seasonal `wapor_map(separate_files = TRUE)` writes physical WaPOR
   values when a remote source has lost its scale metadata, so the output is
-  safe to reuse with `data_source = "local"`.
+  safe to reuse with `data_source = "local"`. (Superseded in 1.0.5: this fix
+  scaled values twice.)
 
 ## New features
 

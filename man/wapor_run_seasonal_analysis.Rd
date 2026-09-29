@@ -22,7 +22,10 @@ See \code{\link[=wapor_plan_processing]{wapor_plan_processing()}}.
 (default \code{1}, every dekad). Pixels below it are \code{NA} rather than having
 missing dekads counted as zero.
 \item \code{keep_intermediates}: keep \code{dekadal_stacks} and \code{season_weights} in the
-result. Defaults to \code{TRUE} in memory mode and \code{FALSE} otherwise.
+result. Default \code{FALSE} (they are large; indicator steps that need them
+still get them). The run logs an estimate of the disk space it writes
+and warns when the output or temporary folder has less free space
+(\code{options(Rwapor.disk_check = FALSE)} turns the check off).
 \item \code{output_dir}: folder for stream and tiled outputs (default: a folder
 under \code{\link[=tempdir]{tempdir()}}).
 \item \code{reference_layer}, \code{resampling_method}: target grid and per-layer

@@ -9,7 +9,7 @@ wapor_export_analysis_outputs(
   folder,
   indicators = character(0),
   season_label = NULL,
-  include_dekadal = TRUE,
+  include_dekadal = FALSE,
   include_monthly = TRUE,
   include_seasonal_tables = TRUE,
   cog = FALSE
@@ -24,7 +24,9 @@ wapor_export_analysis_outputs(
 
 \item{season_label}{Optional season label for single-season exports.}
 
-\item{include_dekadal}{Logical. Write aligned dekadal stacks.}
+\item{include_dekadal}{Logical. Write aligned dekadal stacks (only present
+when the analysis ran with \code{keep_intermediates = TRUE}). Default \code{FALSE}:
+they are large and the inputs are usually already on disk.}
 
 \item{include_monthly}{Logical. Write monthly PCP/Peff summary CSV files.}
 

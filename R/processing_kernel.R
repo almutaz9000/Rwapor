@@ -686,7 +686,7 @@
       r <- make_raster(template, stats::setNames(list(vec), nm), nm)
       if (identical(plan$mode, "stream")) {
         p <- file.path(output_dir, paste0(nm, ".tif"))
-        terra::writeRaster(r, p, overwrite = TRUE, datatype = "FLT8S")
+        terra::writeRaster(r, p, overwrite = TRUE, datatype = "FLT4S", gdal = .wapor_float_gtiff_options())
         r <- terra::rast(p)
       }
       rasters[[nm]] <<- r
@@ -736,11 +736,12 @@
   }
 
   write_tile <- function(r, path) {
-    # Doubles keep tiled results identical to memory mode.
+    # Float32 tiles: within 1e-6 relative of memory mode, half the disk.
     if (isTRUE(cog)) {
-      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT8S")
+      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT4S")
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT8S")
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT4S",
+                         gdal = .wapor_float_gtiff_options())
     }
     path
   }

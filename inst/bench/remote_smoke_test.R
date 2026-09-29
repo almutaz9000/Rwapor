@@ -86,7 +86,7 @@ check("wapor_ts bbox time series", {
 })
 check("wapor_map download", {
   out <- suppressMessages(wapor_map(farm, "L1-AETI-D", period, folder = tempfile("smoke-map-")))
-  r <- terra::rast(out$output_paths)
+  r <- terra::rast(out)
   sprintf("%d layers, %d x %d cells", terra::nlyr(r), terra::nrow(r), terra::ncol(r))
 })
 

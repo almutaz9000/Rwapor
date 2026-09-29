@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-09-28T08:15:55Z",
+    "updated_utc":  "2026-09-28T09:20:00Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -1077,9 +1077,90 @@
                       "issue_ref":  "ISS-20260923-005",
                       "notes":  "Done, not committed. Offline-ready training (wapor_data/ saved dekads, local == API), final render 41/42 PASS (1 intended CHECK). Package change: 1.0.2 monthly green/blue split with regression test (uncommitted; GitHub still 1.0.1). Lessons register L1-L21 and follow-up tasks ti-01..ti-16 (REVIEW FIRST): docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md",
                       "updated_utc":  "2026-09-25"
+                  },
+                  {
+                      "id":  "review-install-2026-09-28",
+                      "title":  "Critical install/run review and fixes (1.0.4)",
+                      "status":  "done",
+                      "priority":  "high",
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-28T08:50:00Z",
+                      "files":  [
+                          "R/wapor_map.R",
+                          "R/wapor_cog.R",
+                          "R/analysis.R",
+                          "R/metadata.R",
+                          "inst/shiny/app.R",
+                          "inst/shiny/mod_visualisation.R",
+                          "inst/shiny/mod_analysis_ui_sidebar.R",
+                          "inst/shiny/www/premium_style.css",
+                          "DESCRIPTION",
+                          "README.md",
+                          "NEWS.md"
+                      ],
+                      "issue_ref":  "ISS-20260928-010",
+                      "notes":  "Branch claude/ecstatic-allen-xdfb2g. See session-brief.md 2026-09-28 for proposals not implemented.",
+                      "updated_utc":  "2026-09-28"
+                  },
+                  {
+                      "id":  "prod-ready-1.0.5",
+                      "title":  "Production readiness 1.0.5: apply WP1-WP6 and release",
+                      "status":  "done",
+                      "priority":  "high",
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-28T12:40:00Z",
+                      "files":  [
+                          "docs/superpowers/plans/2026-09-28-production-readiness-plan.md",
+                          "docs/superpowers/plans/2026-09-28-production-readiness.patch"
+                      ],
+                      "issue_ref":  "ISS-20260925-009",
+                      "notes":  "Implemented on claude/ecstatic-allen-xdfb2g: WP3 c59d03e, WP1 fe75e5a, WP2 8ca48d1, WP4 9d88ea4, WP6 4f8fd0d; version 1.0.5. Maintainer: merge, Windows/live checks, tag.",
+                      "updated_utc":  "2026-09-28"
                   }
               ],
     "issues":  [
+                   {
+                       "id":  "ISS-20260928-013",
+                       "title":  "wapor_map() returned a status list instead of file paths (since 1.0.1)",
+                       "status":  "resolved",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "claude",
+                       "where":  "R/wapor_map.R (process_single_var return)",
+                       "summary":  "Broke terra::rast(wapor_map()) in the getting-started vignette and made the dashboard report 'Download failed' after every successful non-seasonal download. Restored character paths; details in attr(x, 'wapor_status'). Commit e52dc5e."
+                   },
+                   {
+                       "id":  "ISS-20260928-014",
+                       "title":  "Windows CI red on version-1.0.4: race in the remote COG test fixture",
+                       "status":  "resolved",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "claude",
+                       "where":  "R/analysis_tiled.R (.wapor_remote_cog_fixture)",
+                       "summary":  "port.txt read before written. Atomic publish + wait for a parsable port. Commit 312e1ed; CI run 36417147780 green on 6/6 jobs."
+                   },
+                   {
+                       "id":  "ISS-20260928-010",
+                       "title":  "wapor_map() scaled WaPOR values twice (10x too low) after the 1.0.4 scale fix",
+                       "status":  "resolved",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "claude",
+                       "where":  "R/wapor_map.R (.wapor_prepare_map_output, process_chunk)",
+                       "summary":  "94b1533 multiplied already-physical values by the catalogue scale. Reproduced with Int16 scale-0.1 COGs on terra 1.7.65 and 1.9.50: 2.5 instead of 25 mm/dekad, 0.25 instead of 2.5 mm/day. Fixed by clearing the file scale on open and applying it once after the crop; catalogue scale no longer applied."
+                   },
+                   {
+                       "id":  "ISS-20260928-011",
+                       "title":  "wapor_write_cog() truncated floats to INT4U when the top rows were integers",
+                       "status":  "resolved",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "claude",
+                       "where":  "R/wapor_cog.R (.wapor_probe_datatype)",
+                       "summary":  "Probe read only the first rows of layer 1; a zero band gave INT4U and truncated fractions (mean 2.45 -> 1.96). Now checks all values up to 5e6, else a regular sample over all layers."
+                   },
                    {
                        "id":  "ISS-20260923-001",
                        "title":  "Tiled engine read source layers with template row/col indices (silent all-NA output)",
@@ -1171,6 +1252,24 @@
                    }
                ],
     "sessions":  [
+                     {
+                         "date":  "2026-09-28",
+                         "label":  "production-readiness plan",
+                         "model":  "claude",
+                         "attribution":  "recorded",
+                         "summary":  "Verified plan WP0-WP6 + 1.0.5 release steps (docs/superpowers/plans/2026-09-28-production-readiness-plan.md) with prototypes in a local worktree; fixed ISS-20260928-013/-014 on the branch.",
+                         "commit":  "e52dc5e",
+                         "tests":  "CI 6/6 green on 312e1ed; disk -44 %, time -22 % on 1 M cells"
+                     },
+                     {
+                         "date":  "2026-09-28",
+                         "label":  "install/run review",
+                         "model":  "claude",
+                         "attribution":  "recorded",
+                         "summary":  "Critical install/run review on Linux (R 4.3, terra 1.7 and 1.9): fixed double scaling in wapor_map, COG float truncation, _seasonal local reads (ISS-20260925-008), raster dependency in Visualisation, dashboard startup stall, annual RET/PCP defaults, README vignette deps.",
+                         "commit":  null,
+                         "tests":  "240 tests, 0 failures (terra 1.7.65 and 1.9.50)"
+                     },
                      {
                          "date":  "2026-09-16",
                          "label":  "coordination board",

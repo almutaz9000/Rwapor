@@ -3,7 +3,73 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
+## Current Session — 2026-09-29 — 1.0.5 released to the default branch
+
+**What happened**: Added a live-API CI gate (Windows + Linux; `devtools::test()` /
+`devtools::check()` with live tests, `remote_smoke_test.R`, new
+`inst/bench/live_release_checks.R`). First run found ISS-20260929-015
+(`wapor_ts()` polygon stats for single-layer batches), fixed. Second run
+(36523459838) all green. Merged into `version-1.0.4` via PR; tag/release see
+the PR and plan section 5.
+
+**Not possible from the cloud session**: the JVA citrus 1,035.86 mm comparison
+(needs the local `data/citrus/*.geojson`); the maintainer's own Windows machine.
+
+## Previous Session — 2026-09-28 (part 3) — 1.0.5 implemented on the branch
+
+**What happened**: Applied the verified plan on `claude/ecstatic-allen-xdfb2g`, one
+commit per work package (WP3 CI + install smoke test, WP1 disk footprint, WP2
+`wapor_unstack_map()`, WP4 GDAL settings, WP6 COG warnings), bumped to 1.0.5 and
+rewrote NEWS (1.0.4 section restored to what was published). ISS-20260925-009
+resolved.
+
+**Verification**: see the commit message of the release commit and plan
+section 4; CI dispatched on the branch (R-CMD-check incl. install-smoke).
+
+**Next**: maintainer merges into `version-1.0.4` (or a new `version-1.0.5`
+default branch), runs Windows + live checks, tags v1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 (part 2) — Production-readiness plan, verified prototypes
+
+**What happened**: Wrote `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`
+(WP0 to WP6 + 1.0.5 release plan) and prototyped every package in a local
+worktree (`proto/improvement-plan`, not pushed); reference patch next to the
+plan. Found and fixed on the branch: ISS-20260928-013 (`wapor_map()` status-list
+return broke the vignette and every dashboard download confirmation) and
+ISS-20260928-014 (Windows CI fixture race; `version-1.0.4` CI was red).
+
+**Verification**: CI matrix green on `312e1ed` (run 36417147780); disk benchmark
+1 M cells: -44 % disk, -22 % time, identical results; install smoke step
+local HTTP 200 and catches a broken module; actionlint 0 findings; full suites
+and R CMD check results are in the plan, section 4.
+
+**Next**: user decision to merge the branch, then apply WP3, WP1, WP2, WP4,
+WP5, WP6 from the patch (one commit each) and release 1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 — Critical install/run review (Claude, cloud Linux)
+
+**What happened**: Installed Rwapor 1.0.4 from source on Ubuntu 24.04 / R 4.3.3
+(CRAN and WaPOR API blocked; dashboard packages built from GitHub CRAN
+mirrors), ran `R CMD check`, the full suite on terra 1.7.65 and 1.9.50, the
+dashboard in headless Chromium (all 6 tabs, no server errors), and an
+end-to-end `wapor_map()` with stubbed URLs on scale-0.1 Int16 COGs. Found and
+fixed ISS-20260928-010 (double scaling, 10x too low, from `94b1533`),
+ISS-20260928-011 (COG float truncation), ISS-20260925-008 (`_seasonal` local
+reads), ISS-20260928-012 (raster dependency, startup stall, annual defaults,
+README vignette deps, network test). Branch `claude/ecstatic-allen-xdfb2g`.
+
+**Verification**: R CMD check (before fixes): 0 R-code problems, only the
+network test failed; after fixes 240 tests / 0 failures on both terra
+versions; e2e map values 25/30/22 mm/dekad and 2.5/3/2 mm/day on both.
+
+**Open / proposals (not implemented)**: ISS-20260925-009 defaults
+(`keep_intermediates`, Float32 derived rasters); `wapor_local_rasters()` ignores
+multi-band stacks from `wapor_map(separate_files = FALSE)`; pkgdown workflow
+does not trigger on `version-1.0.4`; branch lists hardcoded in workflows;
+`.onLoad` overwrites user GDAL env vars (incl. `GDAL_HTTP_VERSION=2`, risky
+behind proxies); offline tests spend ~30 s in API retry backoff.
+
+## Previous Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
 
 **What happened**: Built and tested `training/water-productivity-training.qmd`
 with real data (citrus JVA polygons + 177 sampled farms + de-identified survey;

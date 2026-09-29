@@ -1,10 +1,11 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+# Release branches follow `version-X.Y.Z`; the glob keeps CI running when the
+# next release branch is created, without editing this file.
 on:
   push:
-    branches: [version-1.0.4, version-0.9.9, main, master]
+    branches: ['version-*', main, master]
   pull_request:
-    branches: [version-1.0.4, version-0.9.9, main, master]
   workflow_dispatch:
 
 name: R-CMD-check
@@ -78,3 +79,133 @@ jobs:
         run: Rscript -e 'lintr::lint_package()'
       - name: Check styler compliance
         run: Rscript -e 'styler::style_pkg(dry = "on", filetype = "R")'
+
+  # Installs the package the way the README tells users to (from source, with
+  # its declared dependencies and vignettes), then checks that the documented
+  # first call works and that the dashboard starts and serves its page.
+  install-smoke:
+    runs-on: ${{ matrix.os }}
+    name: install smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev libssl-dev libcurl4-openssl-dev
+
+      - name: Install the README package list
+        shell: Rscript {0}
+        run: |
+          pkgs <- c(
+            "terra", "sf", "httr2", "jsonlite", "dplyr", "purrr",
+            "lubridate", "exactextractr", "memoise", "future", "future.apply", "digest",
+            "shiny", "bslib", "leaflet", "leaflet.extras", "leaflet.extras2",
+            "shinyFiles", "shinyvalidate", "shinyjs", "shinyAce", "DT",
+            "shinycssloaders", "promises", "duckdb", "DBI",
+            "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite",
+            "RColorBrewer", "arrow", "knitr", "rmarkdown", "remotes", "callr"
+          )
+          install.packages(pkgs)
+          missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+          if (length(missing)) stop("README packages failed to install: ", paste(missing, collapse = ", "))
+
+      - name: Install Rwapor as a user would
+        shell: Rscript {0}
+        run: remotes::install_local(".", build_vignettes = TRUE, upgrade = "never", force = TRUE)
+
+      - name: README step 4 and dashboard start-up
+        shell: Rscript {0}
+        run: |
+          library(Rwapor)
+          print(wapor_variable_metadata("L1-AETI-D"))
+          stopifnot(length(vignette(package = "Rwapor")$results[, "Item"]) > 0)
+          port <- 8765L
+          log_file <- file.path(tempdir(), "dashboard.log")
+          app <- callr::r_bg(function(port) {
+            Rwapor::run_wapor(launch.browser = FALSE, port = port, host = "127.0.0.1")
+          }, args = list(port = port), stdout = log_file, stderr = "2>&1", supervise = TRUE)
+          ok <- FALSE
+          deadline <- Sys.time() + 180
+          while (Sys.time() < deadline && app$is_alive()) {
+            status <- tryCatch(
+              httr2::req_perform(httr2::request(sprintf("http://127.0.0.1:%d/", port)))$status_code,
+              error = function(e) NA_integer_
+            )
+            if (identical(status, 200L)) { ok <- TRUE; break }
+            Sys.sleep(2)
+          }
+          app$kill()
+          if (!ok) {
+            cat(readLines(log_file, warn = FALSE), sep = "\n")
+            stop("The dashboard did not serve its page (process exited or 180 s timeout); log above.")
+          }
+          cat("Dashboard served HTTP 200.\n")
+
+  # Release gate against the live WaPOR API. Runs only on manual dispatch so
+  # routine pushes do not depend on the API being up.
+  live-api:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    name: live API (${{ matrix.os }})
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      RWAPOR_RUN_LIVE_TESTS: "true"
+      NOT_CRAN: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::devtools, any::callr, local::.
+          needs: check
+
+      - name: devtools::test() with live API tests
+        shell: Rscript {0}
+        run: |
+          res <- as.data.frame(devtools::test(reporter = "summary", stop_on_failure = FALSE))
+          cat(sprintf("\ntests %d | passed %d | failed %d | errors %d | skipped %d\n",
+                      nrow(res), sum(res$passed), sum(res$failed), sum(res$error), sum(res$skipped)))
+          if (sum(res$failed) > 0 || any(res$error)) stop("devtools::test() reported failures")
+
+      - name: devtools::check() with live API tests
+        shell: Rscript {0}
+        run: devtools::check(error_on = "warning", args = c("--no-manual"))
+
+      - name: Live remote smoke test (inst/bench/remote_smoke_test.R)
+        run: Rscript inst/bench/remote_smoke_test.R .
+
+      - name: Live release checks (inst/bench/live_release_checks.R)
+        run: Rscript inst/bench/live_release_checks.R .

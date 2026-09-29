@@ -38,11 +38,47 @@ test_that("resolve_output_unit_conversion rejects invalid modes", {
   expect_error(Rwapor:::resolve_output_unit_conversion("L1-AETI-D", "dekad"), "must be one of")
 })
 
-test_that("map output applies an absent WaPOR scale exactly once", {
+test_that("map output applies the source file scale exactly once", {
   skip_if_not_installed("terra")
-  raw <- terra::rast(nrows = 1, ncols = 1, vals = 10)
-  out <- Rwapor:::.wapor_prepare_map_output(raw, "L1-AETI-D", "none")
-  expect_equal(as.numeric(terra::values(out)), 1)
+  skip_if_not_installed("sf")
+  # A WaPOR-style COG: Int16 value 25 with GDAL scale 0.1 (2.5 mm/day).
+  raw_path <- withr::local_tempfile(fileext = ".tif")
+  scaled_path <- withr::local_tempfile(fileext = ".tif")
+  terra::writeRaster(
+    terra::rast(nrows = 20, ncols = 20, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                crs = "EPSG:4326", vals = rep(25L, 400)),
+    raw_path, datatype = "INT2S"
+  )
+  sf::gdal_utils("translate", raw_path, scaled_path, options = c("-a_scale", "0.1"))
+  reg <- Rwapor:::wapor_parse_region(c(35.2, 33.2, 35.8, 33.8))
+  url <- "https://x/L1-AETI-D/WAPOR-3.L1-AETI-D.2023-01-D1.tif"
+
+  run_chain <- function(unit_conversion) {
+    src <- Rwapor:::.wapor_detach_source_scale(terra::rast(scaled_path))
+    r <- Rwapor:::wapor_crop_to_region(src$raster, reg)
+    r <- Rwapor:::.wapor_apply_source_scale(r, src$scale, src$offset)
+    if (unit_conversion != "none") r <- wapor_convert_raster(r, "L1-AETI-D", url, unit_conversion)
+    # Both write paths: single layer directly, and via a temporary stack file.
+    direct <- Rwapor:::.wapor_prepare_map_output(r[[1]], "L1-AETI-D", unit_conversion)
+    tmp <- withr::local_tempfile(fileext = ".tif", .local_envir = parent.frame())
+    terra::writeRaster(r, tmp, NAflag = -9999)
+    stacked <- Rwapor:::.wapor_prepare_map_output(terra::rast(tmp), "L1-AETI-D", unit_conversion)
+    c(direct = terra::values(direct)[1], stacked = terra::values(stacked)[1])
+  }
+
+  expect_equal(unname(run_chain("none")), c(2.5, 2.5), tolerance = 1e-6)
+  # D1 dekad = 10 days: 2.5 mm/day -> 25 mm/dekad.
+  expect_equal(unname(run_chain("dekad")), c(25, 25), tolerance = 1e-6)
+})
+
+test_that("map output does not rescale files without a stored scale", {
+  skip_if_not_installed("terra")
+  # A local Float32 copy already holds physical values.
+  physical <- terra::rast(nrows = 1, ncols = 1, vals = 2.5)
+  src <- Rwapor:::.wapor_detach_source_scale(physical)
+  r <- Rwapor:::.wapor_apply_source_scale(src$raster, src$scale, src$offset)
+  out <- Rwapor:::.wapor_prepare_map_output(r, "L1-AETI-D", "none")
+  expect_equal(as.numeric(terra::values(out)), 2.5)
 })
 
 test_that("kernel profile keys rebase a historic reference year", {
@@ -73,4 +109,73 @@ test_that("get_url_chunks works with a single URL", {
   result <- Rwapor:::get_url_chunks("url_1", batching = TRUE, batch_size = 12)
   expect_length(result, 1)
   expect_equal(result[[1]], "url_1")
+})
+
+test_that("wapor_map returns file paths usable by terra::rast and the dashboard", {
+  skip_if_not_installed("terra")
+  src <- withr::local_tempdir()
+  files <- file.path(src, sprintf("WAPOR-3.L1-AETI-D.2023-01-D%d.tif", 1:3))
+  for (i in seq_along(files)) {
+    terra::writeRaster(
+      terra::rast(nrows = 10, ncols = 10, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                  crs = "EPSG:4326", vals = i),
+      files[i]
+    )
+  }
+  local_mocked_bindings(
+    wapor_generate_urls = function(...) files,
+    .wapor_resolve_remote_sources = function(urls, ...) urls
+  )
+  run <- function(...) suppressMessages(wapor_map(
+    c(35.2, 33.2, 35.8, 33.8), "L1-AETI-D", c("2023-01-01", "2023-01-31"),
+    withr::local_tempdir(.local_envir = parent.frame(2)), ...
+  ))
+
+  stack <- run()
+  expect_type(stack, "character")
+  expect_length(stack, 1L)
+  expect_equal(terra::nlyr(terra::rast(stack)), 3)
+  expect_identical(attr(stack, "wapor_status")$status, "ok")
+
+  separate <- run(separate_files = TRUE)
+  expect_length(separate, 3L)
+  # The dashboard checks unlist(result) with file.exists().
+  expect_true(all(file.exists(unlist(list(`L1-AETI-D` = separate)))))
+})
+
+test_that("wapor_ts polygon statistics work for one and several layers", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("exactextractr")
+  src <- withr::local_tempdir()
+  files <- file.path(src, sprintf("WAPOR-3.L1-AETI-D.2021-01-D%d.tif", 1:2))
+  for (i in seq_along(files)) {
+    terra::writeRaster(
+      terra::rast(nrows = 10, ncols = 10, xmin = 35, xmax = 36, ymin = 33, ymax = 34,
+                  crs = "EPSG:4326", vals = i),
+      files[i]
+    )
+  }
+  poly <- sf::st_sf(
+    name = "TestArea",
+    geometry = sf::st_sfc(sf::st_polygon(list(rbind(
+      c(35.2, 33.2), c(35.8, 33.2), c(35.8, 33.8), c(35.2, 33.8), c(35.2, 33.2)
+    ))), crs = 4326)
+  )
+  poly_path <- withr::local_tempfile(fileext = ".geojson")
+  sf::st_write(poly, poly_path, quiet = TRUE)
+  run <- function(n) {
+    local_mocked_bindings(
+      wapor_generate_urls = function(...) files[seq_len(n)],
+      .wapor_resolve_remote_sources = function(urls, ...) urls
+    )
+    suppressMessages(wapor_ts(poly_path, "L1-AETI-D", c("2021-01-01", "2021-01-20"),
+                              identifier = "name", unit_conversion = "none"))
+  }
+  # One layer: exact_extract names columns "mean", not "mean.L1" (live test
+  # test-wapor.R "Zonal Statistics works with exactextractr" failed on this).
+  one <- run(1)
+  expect_equal(nrow(one), 1L)
+  expect_equal(one$mean, 1)
+  two <- run(2)
+  expect_equal(sort(two$mean), c(1, 2))
 })

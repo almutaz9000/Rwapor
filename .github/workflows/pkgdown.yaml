@@ -1,8 +1,10 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+# Deploy the site only from the repository's default branch (the branch
+# install_github() installs), from releases, or on demand.
 on:
   push:
-    branches: [main, version-0.9.9, master]
+    branches: ['version-*', main, master]
   release:
     types: [published]
   workflow_dispatch:
@@ -11,6 +13,9 @@ name: pkgdown
 
 jobs:
   pkgdown:
+    if: >-
+      github.event_name != 'push' ||
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     # Only restrict concurrency for non-PR jobs
     concurrency:
