@@ -105,6 +105,52 @@ check("seasonal analysis: API stream equals local downloads", {
           mean(a, na.rm = TRUE), mean(b, na.rm = TRUE), d)
 })
 
+check("seasonal ETc = daily Kc x RET from raw COGs (season from 1 March)", {
+  period <- c("2024-03-01", "2024-05-31")
+  cp <- data.frame(class_value = 1L, crop_label = "Crop", kc_ini = 0.4, kc_mid = 1.2, kc_end = 0.6,
+                   l_ini_days = 20L, l_mid_days = 30L, l_late_days = 20L,
+                   HI = 0.4, MC = 0.1, fc = 1, AOT = 1)
+  cfg <- list(period = period, data_source = "api", aeti_var = "L1-AETI-D", ret_var = "L1-RET-D",
+              indicators = c("agg_aeti", "agg_ret", "etc", "adequacy_etc"),
+              use_crop_mask = FALSE, use_season_rasters = FALSE,
+              output_dir = tempfile("live-etc-"))
+  api <- suppressMessages(wapor_run_seasonal_analysis(cfg, cp, rasters = list(), aoi_region = l1_box))
+
+  dates <- seq(as.Date(period[1]), as.Date(period[2]), by = "day")
+  ret_urls <- wapor_generate_urls("L1-RET-D", period = period)
+  ret_daily <- rep(NA_real_, length(dates)); names(ret_daily) <- as.character(dates)
+  for (url in ret_urls) {
+    r <- terra::rast(paste0("/vsicurl/", url))
+    so <- terra::scoff(r)
+    terra::scoff(r) <- cbind(1, 0)
+    aoi <- terra::project(terra::vect(terra::ext(l1_box[c(1, 3, 2, 4)]), crs = "EPSG:4326"), terra::crs(r))
+    raw <- terra::crop(r, aoi, snap = "out")
+    ret <- mean(terra::values(raw)[, 1], na.rm = TRUE) * so[1, "scale"] + so[1, "offset"]
+    di <- wapor_date_info(url, "D")
+    # Third dekads run to the month end (8 to 11 days), so use the real end date
+    layer_dates <- seq(max(as.Date(di$start_date), dates[1]),
+                       min(as.Date(di$end_date), dates[length(dates)]), by = "day")
+    ret_daily[as.character(layer_dates)] <- ret
+  }
+  if (anyNA(ret_daily)) stop("raw RET COGs did not cover every day in the season")
+  # FAO-56 piecewise-linear Kc: each linear stage starts one step after the previous value
+  kc <- c(rep(cp$kc_ini, 20L), seq(cp$kc_ini, cp$kc_mid, length.out = 23L)[-1],
+          rep(cp$kc_mid, 30L), seq(cp$kc_mid, cp$kc_end, length.out = 21L)[-1])
+  etc_formula <- sum(kc * ret_daily)
+  etc_raster <- api$etc_by_class[["1"]]$etc_seasonal
+  etc_package <- mean(terra::values(etc_raster), na.rm = TRUE)
+  if (abs(etc_package - etc_formula) / etc_formula > 1e-3) {
+    stop(sprintf("ETc %.2f mm (package) vs %.2f mm (formula)", etc_package, etc_formula))
+  }
+  adequacy_package <- mean(terra::values(api$adequacy_etc), na.rm = TRUE)
+  adequacy_formula <- mean(terra::values(api$seasonal_aeti$raster) / terra::values(etc_raster), na.rm = TRUE)
+  if (!isTRUE(all.equal(adequacy_package, adequacy_formula, tolerance = 1e-6))) {
+    stop(sprintf("adequacy %.6f (package) vs %.6f (formula)", adequacy_package, adequacy_formula))
+  }
+  sprintf("ETc %.2f mm (package) vs %.2f mm (formula); adequacy %.3f",
+          etc_package, etc_formula, adequacy_package)
+})
+
 check("dashboard download confirmation (file.exists(unlist(result)))", {
   period <- c("2024-06-01", "2024-06-30")
   all_out_paths <- list()

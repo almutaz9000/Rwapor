@@ -27,7 +27,8 @@ wapor_save_raster_blobs(
 \item{l3_region}{Optional L3 region code.}
 }
 \value{
-NULL (invisibly).
+An invisible list with \code{variable}, the number of newly \code{saved}
+layers, the number already \code{existing}, and date keys that \code{failed}.
 }
 \description{
 Writes each cropped seasonal/dekadal layer both as an in-memory

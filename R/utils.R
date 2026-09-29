@@ -914,7 +914,7 @@ wapor_guess_region <- function(variable, reg_info, period) {
   }
 
   if (length(intersecting_codes) > 0) {
-    message(sprintf("Found intersecting L3 regions: %s", paste(intersecting_codes, collapse = ", ")))
+    .wapor_inform(sprintf("Found intersecting L3 regions: %s", paste(intersecting_codes, collapse = ", ")))
     return(intersecting_codes)
   }
 
@@ -1094,7 +1094,7 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
     if (!is.null(result)) return(result)
     if (attempt < max_retries) {
       delay <- retry_delay * attempt
-      message(sprintf("Attempt %d/%d failed for %s; retrying in %.1f seconds: %s",
+      .wapor_inform(sprintf("Attempt %d/%d failed for %s; retrying in %.1f seconds: %s",
                       attempt, max_retries, label, delay,
                       conditionMessage(last_error)))
       if (delay > 0) Sys.sleep(delay)
@@ -1104,13 +1104,23 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
               conditionMessage(last_error)), call. = FALSE)
 }
 
+#' Progress message that honours options(Rwapor.verbose)
+#' @keywords internal
+#' @noRd
+.wapor_inform <- function(...) {
+  if (isTRUE(getOption("Rwapor.verbose", TRUE))) message(...)
+  invisible(NULL)
+}
+
 #' Log Message with Timestamp
 #' @param ... Passed to paste()
 #' @keywords internal
 #' @noRd
 log_msg <- function(...) {
+  if (!isTRUE(getOption("Rwapor.verbose", TRUE))) return(invisible(NULL))
   msg <- paste(...)
   message(sprintf("[%s] %s", format(Sys.time(), "%H:%M:%S"), msg))
+  invisible(NULL)
 }
 
 #' Internal Geometry Comparison Wrapper

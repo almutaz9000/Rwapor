@@ -152,12 +152,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   resolved_unit_conversion <- resolve_output_unit_conversion(variable, unit_conversion)
   if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
       identical(resolved_unit_conversion, "dekad")) {
-    message("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
+    .wapor_inform("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
   }
   
   # Inform user about automatic temperature conversion
   if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
-    message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
+    .wapor_inform("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
   }
 
   # Parse region
@@ -185,7 +185,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # --- Seasonal mode ---
   if (seasonal) {
     if (!is.null(unit_conversion) && unit_conversion != "none") {
-      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
+      .wapor_inform("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
     
     # Handle list of periods for seasonal extraction
@@ -429,9 +429,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
   # Use GDAL virtual file system for efficient streaming
   urls <- .wapor_resolve_remote_sources(urls)
-  message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
+  .wapor_inform(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
 
-  message(sprintf("Found %d files for %s. Processing...", length(urls), variable))
+  .wapor_inform(sprintf("Found %d files for %s. Processing...", length(urls), variable))
   t0_ts <- proc.time()
 
   # Extract temporal resolution from variable name
@@ -461,14 +461,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   n_urls <- length(urls)
   io_plan <- .wapor_io_plan(urls, reg_info, processing = processing, n_targets = 3L)
   batch_size <- .wapor_resolve_batch_size(batch_size, io_plan)
-  message(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, batch_size))
+  .wapor_inform(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, batch_size))
   max_cells <- max(1e6, floor(io_plan$budget_bytes / (8 * 3 * batch_size)))
   url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
   n_chunks <- length(url_idx_chunks)
   n_workers <- .wapor_n_workers()
 
   if (n_chunks > 1) {
-    message(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
+    .wapor_inform(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
                     n_urls, n_chunks, batch_size))
   }
 
@@ -480,7 +480,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     chunk_meta <- meta_df[idx, , drop = FALSE]
 
     if (n_chunks > 1 && !parallel) {
-      message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
+      .wapor_inform(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
     }
     # Fire progress callback if provided (used by Shiny progressr integration)
     if (is.function(on_batch_done)) {
@@ -497,7 +497,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       }, error = function(e) {
         if (attempt < max_retries) {
           if (!parallel) {
-            message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
+            .wapor_inform(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
                           attempt, attempt * 2, e$message))
           }
           Sys.sleep(attempt * 2)
@@ -628,14 +628,14 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # Process all batches: load, crop, extract stats, release memory
   all_batch_results <- .wapor_with_gdal_chunk(io_plan$gdal_chunk_bytes, {
     if (parallel && n_chunks > 1) {
-      message(sprintf("  Processing %d batches in parallel...", n_chunks))
+      .wapor_inform(sprintf("  Processing %d batches in parallel...", n_chunks))
       future.apply::future_lapply(seq_len(n_chunks), process_batch, future.seed = TRUE)
     } else {
       lapply(seq_len(n_chunks), process_batch)
     }
   })
 
-  message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
+  .wapor_inform(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
 
   # Separate ok and failed batches
   ok_batches <- all_batch_results[vapply(all_batch_results, function(r) identical(r$status, "ok"), logical(1))]
@@ -690,7 +690,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
                     length(failed_urls), variable, failed_csv))
   }
 
-  message(sprintf("Time series extraction completed in %.1f seconds",
+  .wapor_inform(sprintf("Time series extraction completed in %.1f seconds",
                   (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

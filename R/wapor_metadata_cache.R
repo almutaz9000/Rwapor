@@ -297,7 +297,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
   failures <- character(0)
 
   for (lvl in levels_to_fetch) {
-    message(sprintf("Fetching metadata for %s ...", lvl))
+    .wapor_inform(sprintf("Fetching metadata for %s ...", lvl))
     items <- tryCatch(
       .fetch_all_pages(url_map[[lvl]], level_filter = lvl),
       error = function(e) {
@@ -339,7 +339,7 @@ wapor_update_metadata <- function(level = "all", dest = NULL) {
     })
     if (ok) {
       written_paths[[lvl]] <- out_path
-      message(sprintf("  Written: %s (%d items)", out_path, length(pending[[lvl]])))
+      .wapor_inform(sprintf("  Written: %s (%d items)", out_path, length(pending[[lvl]])))
     }
   }
 
