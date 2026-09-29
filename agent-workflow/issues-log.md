@@ -5,6 +5,22 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260929-018 — RESOLVED 2026-09-29: monitoring layers lost silently, scale depends on terra
+
+- **Where**: `R/wapor_monitoring.R` `wapor_save_raster_blobs()`.
+- **Root cause**: (1) relied on terra keeping the COG scale through crop/convert/metadata
+  (correct on terra 1.9.34, version-dependent per ISS-20260928-010); (2) failed layers were
+  counted as "already saved"; (3) an undated URL was stored under `Sys.Date()`; (4) failed
+  per-layer opens were dropped uncounted; (5) errors became log lines only.
+  Found while fixing: early `return()` inside `tryCatch({ ... })` left the whole function,
+  so a batch that failed entirely was still silent; `paste0("undated:", character(0))`
+  returns `"undated:"` (a false failure on every run).
+- **Fix**: detach/apply the source scale once (same helpers as `wapor_map()`); separate
+  `existing`/`failed`; undated -> `failed`; body wrapped in a local function so the summary
+  log and `warning()` always run; returns `list(variable, saved, existing, failed)`.
+  Tests: `test-monitoring-blobs.R` (Int16 + GDAL scale 0.1 written with `gdal_translate`;
+  scale once, existing, loud failure, no invented date), 15 expectations, 0 skips.
+
 ### ISS-20260929-017 — RESOLVED 2026-09-29: kernel ETc uses a shifted Kc curve (ETc too low / zero)
 
 - **Where**: `R/processing_kernel.R` `.wapor_build_kernel_job()`: `.wapor_profile_kc()`

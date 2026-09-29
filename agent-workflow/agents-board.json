@@ -1,1389 +1,1419 @@
-﻿{
-    "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
-    "schema_version":  1,
-    "updated_utc":  "2026-09-28T09:20:00Z",
-    "known_models":  [
-                         "claude",
-                         "codex",
-                         "gemini",
-                         "hermes",
-                         "antigravity",
-                         "warp",
-                         "qwen",
-                         "copilot",
-                         "cursor",
-                         "cline",
-                         "goose",
-                         "human",
-                         "unassigned"
-                     ],
-    "attribution_note":  "Entries dated on or before 2026-09-15 predate this board. Their \"model\" is inferred from session-brief.md phrasing and the CLAUDE.md-first workflow already in place (attribution: \"inferred\"), not a live model claim. Every entry from 2026-09-16 onward must be self-reported by the model that made it (attribution: \"recorded\").",
-    "tasks":  [
-                  {
-                      "id":  "1.5",
-                      "title":  "Explicit L3 selection / mosaic-all coverage policy",
-                      "status":  "pending",
-                      "priority":  "critical",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/wapor_map.R",
-                                    "R/wapor_ts.R",
-                                    "R/seasonal_download.R",
-                                    "inst/shiny/mod_download.R",
-                                    "inst/shiny/mod_analysis.R"
-                                ],
-                      "notes":  "Core resolver landed in feat/l3-mosaic-tiled-core; Shiny L3 selection UI still not wired.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "1.6",
-                      "title":  "Explicit alignment reference (mask vs AETI vs custom)",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/analysis.R",
-                                    "R/analysis_engine.R"
-                                ],
-                      "notes":  "Verified 2026-09-18: reference_layer param fully implemented (analysis_engine.R:106-110, exact spec match); resampling_method per-layer map is implemented at analysis_engine.R:111-119 with get_resampling_method() closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-18T00:00:00Z",
-                      "updated_utc":  "2026-09-18"
-                  },
-                  {
-                      "id":  "2.2",
-                      "title":  "COG write support",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/wapor_map.R",
-                                    "R/analysis_engine.R"
-                                ],
-                      "notes":  "Verified 2026-09-17: wapor_write_cog() exists/exported/used throughout; cog=FALSE param confirmed in wapor_map() only (not wapor_run_seasonal_analysis -- gap); GDAL\u003c3.1 fallback verified absent. Core deliverable done, 2 minor sub-items open.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-17T07:44:24Z",
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "2.3",
-                      "title":  "Memory benchmark suite",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "tests/testthat/test-memory-scaling.R"
-                                ],
-                      "notes":  "Parameterized 1k-\u003e10k peak-memory gate; tiled engine flat-memory verification.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "3.1",
-                      "title":  "Extra crop defaults (9 FAO-56 crops)",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/crop_defaults.R"
-                                ],
-                      "notes":  "Verified 2026-09-17: all 9 FAO-56 crops (Maize, Rice, Cotton, Potato, Soybean, Sunflower, Barley, Alfalfa, Sugarcane) present in R/crop_defaults.R crop_name vector, consistent structure.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-17T07:44:24Z",
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "3.3",
-                      "title":  "Publication map helpers",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/viz.R"
-                                ],
-                      "notes":  "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-18"
-                  },
-                  {
-                      "id":  "3.4",
-                      "title":  "Anomaly \u0026 trend module",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/anomaly.R"
-                                ],
-                      "notes":  "Verified 2026-09-18: all 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline, linear_trend at anomaly.R:111). linear_trend is in NAMESPACE:7. Test file tests/testthat/test-anomaly-trend.R exists and tests linear_trend. Core deliverable complete.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-18T00:00:00Z",
-                      "updated_utc":  "2026-09-18"
-                  },
-                  {
-                      "id":  "3.5",
-                      "title":  "Preflight validation module",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/analysis_validation.R"
-                                ],
-                      "notes":  "Verified 2026-09-18: wapor_preflight_check() at analysis_validation.R:250 and wapor_validate_data_coverage() at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-18T00:00:00Z",
-                      "updated_utc":  "2026-09-18"
-                  },
-                  {
-                      "id":  "4.1",
-                      "title":  "Dashboard: indicator selection from registry",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "inst/shiny/app.R",
-                                    "inst/shiny/mod_analysis.R"
-                                ],
-                      "notes":  "Read checkbox list from INDICATOR_STEPS; auto-generate UI.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "4.2",
-                      "title":  "DuckDB monitoring: area-weighted stats",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "Per-farm area (ha) in farm_timeseries; area-weighted stress means; migration script.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "5.1",
-                      "title":  "Expand unit tests -- pure math layer",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "tests/testthat/test-indicators-math.R"
-                                ],
-                      "notes":  "PARTIAL, verified 2026-09-17: tests/testthat/test-indicators-math.R exists (65 lines, ~10 functions covered with basic value + some NA checks). Missing: systematic edge-case coverage, waporbox Python reference comparison (verified absent).",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "5.2",
-                      "title":  "Integration test: full seasonal pipeline",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "tests/testthat/test-analysis-engine.R"
-                                ],
-                      "notes":  "PARTIAL, verified 2026-09-17: tests/testthat/test-analysis-engine.R exists (314 lines, 3 test_that blocks covering local-raster/crop-mask/registry paths). Not confirmed: 100x100 grid, multi-season batch, local-vs-API parity -- needs closer read.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "5.3",
-                      "title":  "CI: lintr + styler checks",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    ".github/workflows/R-CMD-check.yaml"
-                                ],
-                      "notes":  "Verified 2026-09-18: lint job exists at .github/workflows/R-CMD-check.yaml:64-80 running lintr::lint_package() and styler::style_pkg(dry=\"on\"). Deliverable complete.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-18T00:00:00Z",
-                      "updated_utc":  "2026-09-18"
-                  },
-                  {
-                      "id":  "6.1",
-                      "title":  "Vignettes",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-
-                                ],
-                      "notes":  "DIFFERENT SHAPE, verified 2026-09-17: vignettes/ has 4 .Rmd files (advanced-analysis, data-catalog, getting-started, shiny-dashboard) but none of the 5 originally-specified ones exist under those names. Needs maintainer decision: keep current set or still add the specified 5.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "6.2",
-                      "title":  "README first-time install guide",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "README.md"
-                                ],
-                      "notes":  "MOSTLY DONE, verified 2026-09-17: system deps (README.md:38) and verify step (README.md:71, exact spec match) present. Missing: remotes::install_github for terra/latest GDAL (verified absent).",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "carry-l3-live",
-                      "title":  "Verify L3 per-region temporal-resolution availability against live metadata",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "hermes",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/plan_wapor_time_slices.R"
-                                ],
-                      "notes":  "Resolved through cache-backed temporal discovery and region/period URL checks; regression and full test suites pass.",
-                      "issue_ref":  "ISS-20260903-002",
-                      "claimed_utc":  "2026-09-16T00:00:00Z",
-                      "updated_utc":  "2026-09-16"
-                  },
-                  {
-                      "id":  "carry-raster-checksum",
-                      "title":  "Raster integrity validation (checksum/hash of downloads)",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-
-                                ],
-                      "notes":  "Lower priority, unowned.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "carry-mirror-skills",
-                      "title":  "Mirror .agent/skills/* into .claude/skills/",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    ".agent/skills/",
-                                    ".claude/skills/"
-                                ],
-                      "notes":  "Flagged 2026-09-03. .claude/skills/ is still empty -- Claude Code\u0027s skill loader can\u0027t discover r-package-expert, shiny-developer, wapor-api-reference and 5 others.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-03"
-                  },
-                  {
-                      "id":  "S4",
-                      "title":  "Synchronized dual-map",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "inst/shiny/mod_dual_map.R",
-                                    "inst/shiny/app.R"
-                                ],
-                      "notes":  "Capability-guarded \u0027Dual Compare\u0027 tab; two leaflet maps kept in view-sync via leaflet.extras2::addLeafletsync()/unsync(). 0 fail / 96 passed.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "S2",
-                      "title":  "Numbered step accordion wizard",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "inst/shiny/mod_download.R"
-                                ],
-                      "notes":  "Sidebar rebuilt as a 5-step accordion (Project, Variables, Period, L3 Region, Run). DOM only, no server logic changed.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "B2",
-                      "title":  "Batched vsicurl opens + pending-date pre-filter",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "Part of the wapor_save_raster_blobs() rewrite. 0 fail / 764 passed, full suite.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "P2",
-                      "title":  "File-backed COG alongside in-memory blob",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "Writes both the existing in-memory blob and a file-backed COG under a sibling _raster_store/ dir.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "D2",
-                      "title":  "Raster provenance columns populated",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "raster_path, gdal_version, terra_version, nodata, band_count.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "B1",
-                      "title":  "Shiny dependency guard",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "inst/shiny/app.R"
-                                ],
-                      "notes":  ".check_shiny_deps() replaces bare library() for 17 packages.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "B3",
-                      "title":  "DuckDB schema_version + migration",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  ".wapor_monitoring_migrate() helper added.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "B4",
-                      "title":  "BIGTIFF threshold dtype fix",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_cog.R"
-                                ],
-                      "notes":  "Uses .dtype_bytes lookup table for correct byte-width per datatype.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "B5",
-                      "title":  "Network-test skip guards",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "tests/testthat/"
-                                ],
-                      "notes":  "All 9 network-dependent test files guarded with skip_if_wapor_offline().",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "P1",
-                      "title":  "Unconditional GDAL onLoad config",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/gdal_config.R"
-                                ],
-                      "notes":  "Was env-gated behind RWAPOR_AUTO_CONFIG=\"true\"; now fires unconditionally.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "P3",
-                      "title":  "wapor_suggest_tile_size() helper",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/analysis_tiled.R"
-                                ],
-                      "notes":  "Added and exported in NAMESPACE.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "P4",
-                      "title":  "on_batch_done callback",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_ts.R",
-                                    "R/wapor_map.R"
-                                ],
-                      "notes":  "Wired into wapor_ts and wapor_map.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "D1",
-                      "title":  "raster_grid_registry table + validator",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  ".wapor_validate_raster_grid() helper.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "D3",
-                      "title":  "INSERT OR REPLACE upsert",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "Via temp table in farm_timeseries writer.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "D4",
-                      "title":  "season_id column + PRIMARY KEY update",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_monitoring.R"
-                                ],
-                      "notes":  "Added to farm_timeseries.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "S1",
-                      "title":  "wapor_grouped_var_choices()",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "R/wapor_ts.R",
-                                    "inst/shiny/mod_download.R"
-                                ],
-                      "notes":  "Used by mod_download.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "S3",
-                      "title":  "Analysis config save/load",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "inst/shiny/utils_shiny.R"
-                                ],
-                      "notes":  "wapor_save_analysis_config() / wapor_load_analysis_config().",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "S5",
-                      "title":  "Stress threshold inputs",
-                      "status":  "done",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "inferred",
-                      "files":  [
-                                    "inst/shiny/mod_monitoring.R"
-                                ],
-                      "notes":  "User-adjustable numericInputs wired to server.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
-                  },
-                  {
-                      "id":  "7.0",
-                      "title":  "Dedupe %||% and level-\u003eworkspace-URL mapping",
-                      "status":  "done",
-                      "priority":  "critical",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/utils.R",
-                                    "R/api_client.R",
-                                    "R/wapor_metadata_cache.R"
-                                ],
-                      "notes":  "Two conflicting %||% definitions fixed (kept length-aware canonical in utils.R); level-\u003eworkspace-URL mapping consolidated into .wapor_level_workspace_url(). Correction 2026-09-17: initial pass only routed 2/3 call sites despite being reported as 3/3 -- metadata.R\u0027s .fetch_metadata_api_variable() still had its own switch(); caught via self-review during 7.1 and fixed. All 3 sites genuinely consolidated now. Full suite 0 fail / 1019 passed.",
-                      "issue_ref":  "ISS-20260916-002",
-                      "claimed_utc":  "2026-09-16T00:00:00Z",
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "7.1",
-                      "title":  "Dedupe RET/PCP level-fallback rule",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/api_client.R",
-                                    "R/metadata.R"
-                                ],
-                      "notes":  "Consolidated into .wapor_resolve_level_fallback() in api_client.R, called from api_client.R (2 sites) and metadata.R (1 site). Full suite 0 fail / 1019 passed; edge cases verified identical to pre-refactor behavior.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-17T06:54:16Z",
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "7.2",
-                      "title":  "wapor_res_key() reuse spatial_resolution_m instead of re-parsing",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/wapor_res_key.R"
-                                ],
-                      "notes":  "See IMPROVEMENT_PLAN.md Phase 7.2.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-16"
-                  },
-                  {
-                      "id":  "7.3",
-                      "title":  "Memoise .load_metadata_catalog()",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/wapor_metadata_cache.R",
-                                    "R/plan_wapor_time_slices.R"
-                                ],
-                      "notes":  "See IMPROVEMENT_PLAN.md Phase 7.3. wapor_temporal_codes() bypasses memoisation, re-reads/re-parses JSON from disk every call.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-16"
-                  },
-                  {
-                      "id":  "7.6",
-                      "title":  "Memoise wapor_plan_time_slices() and wapor_temporal_codes()",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/plan_wapor_time_slices.R"
-                                ],
-                      "notes":  "Distinct from 7.3 (which covers .load_metadata_catalog()). wapor_plan_time_slices() and wapor_temporal_codes() are both pure/deterministic given identical args but are not memoise::memoise()-wrapped, unlike the 3 structurally identical examples already in the package (wapor_generate_urls in api_client.R:367, wapor_variable_metadata in metadata.R:466, .load_metadata_catalog_cached in wapor_metadata_cache.R:192). Benchmarked 2026-09-17: not a CPU bottleneck by itself (~0.1-0.2s even for a 9-year daily-only D plan, 324 rows via `Rscript.exe` R-4.4.1 local run) but repeated identical calls -- e.g. wapor_run_monitoring() looping variables for the same season window, or repeated re-runs of seasonal AETI/ETc extraction scripts during iteration on the citrus (177 farms, Mar-Feb) and Savola (75 fields, 4 seasons) projects -- redo the same greedy interval decomposition every time. Fix: rename current body to wapor_plan_time_slices_internal()/wapor_temporal_codes_internal(), wrap with memoise::memoise() following the existing api_client.R pattern exactly, keep the exported name and signature unchanged. memoise is already an Imports dependency, no new packages needed. Add a cache-hit regression test (call twice with identical args, assert identical() result) and confirm the full test-plan_wapor_time_slices.R suite (20 tests) still passes. User asked to log this for later review/implementation in a future session, not implemented yet.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "7.5",
-                      "title":  "Fix dashboard crash on board_claim.ps1 BOM output",
-                      "status":  "done",
-                      "priority":  "critical",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "agent-workflow/dashboard/app.py"
-                                ],
-                      "notes":  "load_board() read agents-board.json as plain utf-8; board_claim.ps1\u0027s Set-Content -Encoding utf8 always writes a BOM on Windows PowerShell, so every board update made the dashboard crash with JSONDecodeError on next load -- verified by relaunching it and hitting the exact traceback. Fixed by reading with utf-8-sig. Re-verified: relaunched, HTTP 200, no traceback in log, direct load_board()-equivalent script confirms correct task/status data. Stopped the verification instance afterward.",
-                      "issue_ref":  "ISS-20260917-001",
-                      "claimed_utc":  "2026-09-17T00:00:00Z",
-                      "updated_utc":  "2026-09-17"
-                  },
-                  {
-                      "id":  "7.4",
-                      "title":  "(Deferred) Split metadata.R / wapor_metadata_cache.R by responsibility",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "files":  [
-                                    "R/metadata.R",
-                                    "R/wapor_metadata_cache.R"
-                                ],
-                      "notes":  "See IMPROVEMENT_PLAN.md Phase 7.4. Explicitly deferred -- package is on version-0.9.9 release branch; pure churn, no commitment.",
-                      "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-16"
-                  },
-                  {
-                      "id":  "coord-board-v1",
-                      "title":  "Cross-model coordination board + live Streamlit dashboard",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "agent-workflow/agents-board.json",
-                                    "agent-workflow/START-HERE.md",
-                                    "agent-workflow/scripts/board_claim.ps1",
-                                    "agent-workflow/scripts/agent_preflight.ps1",
-                                    "agent-workflow/scripts/agent_closeout.ps1",
-                                    "agent-workflow/scripts/run_dashboard.ps1",
-                                    "agent-workflow/dashboard/app.py"
-                                ],
-                      "notes":  "Added agents-board.json as the shared, machine-readable task/model ledger; START-HERE.md now requires every model to claim/release tasks in it (board_claim.ps1) so work isn\u0027t duplicated across Claude/Codex/Gemini/Hermes/Antigravity/etc; agent_preflight.ps1 now surfaces other models\u0027 active claims; agent-workflow/dashboard/ is a Streamlit app reading the board live for a persistent, relaunchable status view. Smoke-tested: JSON validated, app.py py_compile clean, streamlit run served HTTP 200 on a local port before being stopped.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-16T00:00:00Z",
-                      "updated_utc":  "2026-09-16"
-                  },
-                  {
-                      "id":  "8.1",
-                      "title":  "Remote COG streaming hardening",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/utils.R",
-                                    "R/seasonal_download.R",
-                                    "R/wapor_map.R",
-                                    "R/wapor_ts.R",
-                                    "R/analysis_tiled.R",
-                                    "R/wapor_cog.R",
-                                    "tests/testthat/test-streaming-hardening.R",
-                                    "docs/plans/2026-09-17-rwapor-cog-streaming-hardening.md"
-                                ],
-                      "notes":  "Completed by Codex on 2026-09-21. Live timing showed the 12-file remote open completes in 2.81 seconds; the unreported crop-and-write phase made the request look frozen. Added granular map status and Shiny batch updates. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed. The 72-layer temporary probe emitted chunk 1 and 2 status but did not provide a completion line in this tool session.",
-                      "issue_ref":  "ISS-20260917-003",
-                      "claimed_utc":  "2026-09-21T15:03:30Z",
-                      "updated_utc":  "2026-09-21T15:23:00Z"
-                  },
-                  {
-                      "id":  "seasonal-dashboard-semantics",
-                      "title":  "Dashboard seasonal summary semantics",
-                      "status":  "active",
-                      "priority":  "high",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/utils.R",
-                                    "R/wapor_map.R",
-                                    "R/wapor_ts.R",
-                                    "inst/shiny/mod_download.R",
-                                    "inst/shiny/mod_timeseries.R"
-                                ],
-                      "notes":  "Expose variable-aware seasonal summary controls, reject explicit state/rate sums, and preserve equal-step non-sum semantics.",
-                      "issue_ref":  null,
-                      "claimed_utc":  "2026-09-22T00:00:00Z",
-                      "updated_utc":  "2026-09-22"
-                  },
-                  {
-                      "id":  "large-raster-perf",
-                      "title":  "Large-raster performance and size-aware processing (1.0.1)",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "files":  [
-                                    "R/analysis.R",
-                                    "R/analysis_engine.R",
-                                    "R/analysis_tiled.R",
-                                    "R/analysis_indicators.R",
-                                    "R/analysis_utils.R",
-                                    "R/analysis_validation.R",
-                                    "R/indicators_math.R",
-                                    "R/anomaly.R",
-                                    "R/gdal_config.R",
-                                    "R/seasonal_download.R",
-                                    "R/utils.R",
-                                    "R/wapor_map.R",
-                                    "R/wapor_ts.R",
-                                    "inst/shiny/mod_analysis.R"
-                                ],
-                      "notes":  "Takes over R/utils.R, R/wapor_map.R, R/wapor_ts.R from seasonal-dashboard-semantics by user decision (2026-09-23). Branch perf/large-raster-1.0.1. Design: docs/superpowers/specs/2026-09-23-large-raster-performance-design.md Done on branch (committed, not pushed): full suite 1332 expectations 0 failures; R CMD check 0 errors/0 warnings, 2 pre-existing notes; live smoke 5/5 (tiled==memory, diff 0). Benchmark rerun blocked: C: drive full (2 GB free).",
-                      "issue_ref":  "ISS-20260923-001",
-                      "claimed_utc":  "2026-09-23T00:00:00Z",
-                      "updated_utc":  "2026-09-23"
-                  },
-                  {
-                      "id":  "ti-01",
-                      "title":  "Fix wapor_map(separate_files=TRUE) dropping the WaPOR scale factor (10x values offline)",
-                      "status":  "done",
-                      "priority":  "critical",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T07:56:55Z",
-                      "files":  [
-                                    "R/wapor_map.R"
-                                ],
-                      "issue_ref":  "ISS-20260924-006",
-                      "notes":  "Fixed raw WaPOR scale output; regression test passes.",
-                      "updated_utc":  "2026-09-28"
-                  },
-                  {
-                      "id":  "ti-02",
-                      "title":  "Make the kernel accept any ref_year (1970 rejected; Shiny and vignettes broken)",
-                      "status":  "done",
-                      "priority":  "critical",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T07:56:56Z",
-                      "files":  [
-                                    "R/processing_kernel.R",
-                                    "R/analysis_engine.R",
-                                    "R/analysis.R",
-                                    "inst/shiny/mod_analysis.R",
-                                    "vignettes/advanced-analysis.Rmd",
-                                    "vignettes/wheat-water-productivity.Rmd"
-                                ],
-                      "issue_ref":  "ISS-20260923-003",
-                      "notes":  "Kernel now rebases historic ref_year internally; regression test passes.",
-                      "updated_utc":  "2026-09-28"
-                  },
-                  {
-                      "id":  "ti-03",
-                      "title":  "Fix wapor_export_analysis_outputs() crash on a single-season result",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T07:56:56Z",
-                      "files":  [
-                                    "R/analysis_utils.R"
-                                ],
-                      "issue_ref":  "ISS-20260923-004",
-                      "notes":  "Direct single-season export fixed and regression-tested.",
-                      "updated_utc":  "2026-09-28"
-                  },
-                  {
-                      "id":  "ti-04",
-                      "title":  "Default use_crop_mask to TRUE when a crop mask is supplied (warn otherwise)",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "codex",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T07:56:56Z",
-                      "files":  [
-                                    "R/analysis_engine.R",
-                                    "R/analysis_validation.R"
-                                ],
-                      "issue_ref":  "ISS-20260925-007",
-                      "notes":  "Supplied masks now default on; explicit FALSE warns; regression-tested.",
-                      "updated_utc":  "2026-09-28"
-                  },
-                  {
-                      "id":  "ti-05",
-                      "title":  "Release Rwapor 1.0.2 (monthly green/blue fix) and align registry step_peff_green_blue",
-                      "status":  "pending",
-                      "priority":  "critical",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/analysis_registry.R",
-                                    "DESCRIPTION",
-                                    "NEWS.md"
-                                ],
-                      "issue_ref":  "ISS-20260923-005",
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-05).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-06",
-                      "title":  "Download-once cache: exported wapor_download() + config$cache_dir; local reader ignores _seasonal files",
-                      "status":  "pending",
-                      "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/download_cache.R",
-                                    "R/analysis_engine.R",
-                                    "R/analysis.R"
-                                ],
-                      "issue_ref":  "ISS-20260925-008",
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06).",
-                      "updated_utc":  "2026-09-25"
-                  },
-                  {
-                      "id":  "ti-07",
-                      "title":  "Faster remote opening of many layers (parallel / GDAL HTTP multiplexing)",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/gdal_config.R",
-                                    "R/wapor_map.R",
-                                    "R/processing_kernel.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-07).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-08",
-                      "title":  "Reduce disk footprint: keep_intermediates/include_dekadal default FALSE, Float32 outputs, disk-space preflight",
-                      "status":  "pending",
-                      "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/analysis_engine.R",
-                                    "R/processing_plan.R",
-                                    "R/analysis_utils.R",
-                                    "R/analysis_validation.R"
-                                ],
-                      "issue_ref":  "ISS-20260925-009",
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-08).",
-                      "updated_utc":  "2026-09-25"
-                  },
-                  {
-                      "id":  "ti-09",
-                      "title":  "Irrigation performance indicators (Chukalla et al. 2022): adequacy classes, uniformity, equity, climate normalization",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/analysis_indicators.R",
-                                    "R/indicators_math.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-09).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-10",
-                      "title":  "Farm-level extraction helper wapor_extract_farms() (dissolve by ID, area-weighted) for survey joins",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/farm_extract.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-10).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-11",
-                      "title":  "Perennial crop support: citrus profiles (FAO-56 Table 12), crop_type flag, stage names, fc documentation",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/crop_defaults.R",
-                                    "inst/extdata/fao_growth_stages.csv",
-                                    "R/analysis_engine.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-11).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-12",
-                      "title":  "Crop mask helpers: auto-reprojecting rasterize, fraction-based harmonization, mask area check",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/mask_helpers.R",
-                                    "R/analysis.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-12).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-13",
-                      "title":  "Export wapor_calc_cv and raster Peff; add wapor_classify_spots() (bright/dark spots)",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/analysis_indicators.R",
-                                    "NAMESPACE"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-13).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-14",
-                      "title":  "Plotting: terra-based wapor_plot_map (full resolution), calendar Kc plot with stage names, remove aes_string",
-                      "status":  "pending",
-                      "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/viz.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-14).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-15",
-                      "title":  "Offline cache for L3 region list and generated URLs",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/metadata.R",
-                                    "R/api_client.R",
-                                    "R/wapor_metadata_cache.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-15).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "ti-16",
-                      "title":  "Robust polygon area calculation (projected CRS; s2 duplicate-vertex failure)",
-                      "status":  "pending",
-                      "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
-                      "files":  [
-                                    "R/utils.R"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-16).",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "codex-delegation",
-                      "title":  "Claude plans / Codex implements delegation setup",
-                      "status":  "done",
-                      "priority":  "medium",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-24T15:05:35Z",
-                      "files":  [
-                                    "CLAUDE.md",
-                                    "AGENTS.override.md",
-                                    "agent-workflow/templates/codex-plan.md",
-                                    "agent-workflow/scripts/codex_task.ps1",
-                                    ".claude/skills/codex-delegate/",
-                                    ".claude/skills/codex-skill-author/",
-                                    ".agents/skills/rwapor-plan-executor/",
-                                    ".agents/skills/rwapor-r-dev/"
-                                ],
-                      "issue_ref":  null,
-                      "notes":  "Plan template, codex_task.ps1 wrapper, slim AGENTS.override.md for Codex, Codex skills in .agents/skills, Claude skills codex-delegate + codex-skill-author.",
-                      "updated_utc":  "2026-09-24"
-                  },
-                  {
-                      "id":  "training-notebook-2026-09",
-                      "title":  "WaPOR training notebook (citrus JVA, wheat JEN) and participant package",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-23T00:00:00Z",
-                      "files":  [
-                                    "training/water-productivity-training.qmd",
-                                    "training/check_setup.R",
-                                    "training/WaPOR_Training.Rproj",
-                                    "training/Note_to_Participants.docx",
-                                    "training/data/",
-                                    "training/images/",
-                                    "R/analysis_engine.R",
-                                    "tests/testthat/test-analysis-engine.R",
-                                    "DESCRIPTION",
-                                    "NEWS.md"
-                                ],
-                      "issue_ref":  "ISS-20260923-005",
-                      "notes":  "Done, not committed. Offline-ready training (wapor_data/ saved dekads, local == API), final render 41/42 PASS (1 intended CHECK). Package change: 1.0.2 monthly green/blue split with regression test (uncommitted; GitHub still 1.0.1). Lessons register L1-L21 and follow-up tasks ti-01..ti-16 (REVIEW FIRST): docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md",
-                      "updated_utc":  "2026-09-25"
-                  },
-                  {
-                      "id":  "review-install-2026-09-28",
-                      "title":  "Critical install/run review and fixes (1.0.4)",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T08:50:00Z",
-                      "files":  [
-                          "R/wapor_map.R",
-                          "R/wapor_cog.R",
-                          "R/analysis.R",
-                          "R/metadata.R",
-                          "inst/shiny/app.R",
-                          "inst/shiny/mod_visualisation.R",
-                          "inst/shiny/mod_analysis_ui_sidebar.R",
-                          "inst/shiny/www/premium_style.css",
-                          "DESCRIPTION",
-                          "README.md",
-                          "NEWS.md"
-                      ],
-                      "issue_ref":  "ISS-20260928-010",
-                      "notes":  "Branch claude/ecstatic-allen-xdfb2g. See session-brief.md 2026-09-28 for proposals not implemented.",
-                      "updated_utc":  "2026-09-28"
-                  },
-                  {
-                      "id":  "prod-ready-1.0.5",
-                      "title":  "Production readiness 1.0.5: apply WP1-WP6 and release",
-                      "status":  "done",
-                      "priority":  "high",
-                      "model":  "claude",
-                      "attribution":  "recorded",
-                      "claimed_utc":  "2026-09-28T12:40:00Z",
-                      "files":  [
-                          "docs/superpowers/plans/2026-09-28-production-readiness-plan.md",
-                          "docs/superpowers/plans/2026-09-28-production-readiness.patch"
-                      ],
-                      "issue_ref":  "ISS-20260925-009",
-                      "notes":  "Implemented on claude/ecstatic-allen-xdfb2g: WP3 c59d03e, WP1 fe75e5a, WP2 8ca48d1, WP4 9d88ea4, WP6 4f8fd0d; version 1.0.5. Maintainer: merge, Windows/live checks, tag.",
-                      "updated_utc":  "2026-09-28"
-                  }
-              ],
-    "issues":  [
-                   {
-                       "id":  "ISS-20260928-013",
-                       "title":  "wapor_map() returned a status list instead of file paths (since 1.0.1)",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/wapor_map.R (process_single_var return)",
-                       "summary":  "Broke terra::rast(wapor_map()) in the getting-started vignette and made the dashboard report 'Download failed' after every successful non-seasonal download. Restored character paths; details in attr(x, 'wapor_status'). Commit e52dc5e."
-                   },
-                   {
-                       "id":  "ISS-20260928-014",
-                       "title":  "Windows CI red on version-1.0.4: race in the remote COG test fixture",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/analysis_tiled.R (.wapor_remote_cog_fixture)",
-                       "summary":  "port.txt read before written. Atomic publish + wait for a parsable port. Commit 312e1ed; CI run 36417147780 green on 6/6 jobs."
-                   },
-                   {
-                       "id":  "ISS-20260928-010",
-                       "title":  "wapor_map() scaled WaPOR values twice (10x too low) after the 1.0.4 scale fix",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/wapor_map.R (.wapor_prepare_map_output, process_chunk)",
-                       "summary":  "94b1533 multiplied already-physical values by the catalogue scale. Reproduced with Int16 scale-0.1 COGs on terra 1.7.65 and 1.9.50: 2.5 instead of 25 mm/dekad, 0.25 instead of 2.5 mm/day. Fixed by clearing the file scale on open and applying it once after the crop; catalogue scale no longer applied."
-                   },
-                   {
-                       "id":  "ISS-20260928-011",
-                       "title":  "wapor_write_cog() truncated floats to INT4U when the top rows were integers",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/wapor_cog.R (.wapor_probe_datatype)",
-                       "summary":  "Probe read only the first rows of layer 1; a zero band gave INT4U and truncated fractions (mean 2.45 -> 1.96). Now checks all values up to 5e6, else a regular sample over all layers."
-                   },
-                   {
-                       "id":  "ISS-20260923-001",
-                       "title":  "Tiled engine read source layers with template row/col indices (silent all-NA output)",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/analysis_tiled.R, R/processing_kernel.R",
-                       "summary":  "Tiles were cut from sources by template row/col indices; any source on another grid gave all-NA tiles. Tiling moved into the shared kernel reading by extent plus halo. Verified: offset read 4041/4042/4043; live L1 tiled equals memory (max diff 0)."
-                   },
-                   {
-                       "id":  "ISS-20260923-002",
-                       "title":  "Monitoring stores whole rasters as DuckDB blobs",
-                       "status":  "open",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  null,
-                       "where":  "R/wapor_monitoring.R",
-                       "summary":  "Every query deserialises whole rasters before cropping to the farm. Not fixed (user decision Q9: storage-format change, needs migration)."
-                   },
-                   {
-                       "id":  "ISS-20260923-003",
-                       "title":  "Remote seasonal analysis could not match WaPOR dekad file names",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/analysis_tiled.R (.wapor_ymd_from_name)",
-                       "summary":  "YYYY-MM-D1/D2/D3 labels were not parsed, so data_source=\u0027api\u0027 failed for every request in 1.0.0 (verified live). Fixed; live smoke test passes."
-                   },
-                   {
-                       "id":  "ISS-20260923-004",
-                       "title":  "GDAL curl capability probe always reported missing",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/gdal_config.R, R/remote_capabilities.R",
-                       "summary":  "Probe searched a non-existent \u0027longname\u0027 column for \u0027vsicurl\u0027; false warning on load and forced full downloads under the download fallback. Now detects GDAL\u0027s HTTP driver."
-                   },
-                   {
-                       "id":  "ISS-20260917-003",
-                       "title":  "Remote COG streaming retries stopped before pixel I/O",
-                       "status":  "resolved",
-                       "model":  "codex",
-                       "attribution":  "recorded",
-                       "owner":  "codex",
-                       "where":  "R/utils.R, R/seasonal_download.R, R/wapor_map.R, R/wapor_ts.R, R/analysis_tiled.R, R/wapor_cog.R",
-                       "summary":  "Existing retry, completeness, and datatype safeguards are retained. Live timing showed the remote open is not the bottleneck; Codex added granular map and Shiny progress for the formerly silent crop-and-write phase. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed."
-                   },
-                   {
-                       "id":  "ISS-20260917-001",
-                       "title":  "Dashboard crashes on every board_claim.ps1 update (UTF-8 BOM)",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "agent-workflow/dashboard/app.py",
-                       "summary":  "app.py\u0027s load_board() decoded agents-board.json as plain utf-8. board_claim.ps1 (PowerShell Set-Content -Encoding utf8) always writes a UTF-8 BOM, which json.loads rejects outright -- meaning the dashboard had been broken since the first board_claim.ps1 call ever made against the file, surfaced only now because coord-board-v1\u0027s original smoke test ran before any board_claim.ps1 write existed. Fixed by decoding with utf-8-sig (tolerates BOM or no BOM). Verified by relaunching and confirming HTTP 200 with no traceback, plus a direct check that task data renders correctly."
-                   },
-                   {
-                       "id":  "ISS-20260916-002",
-                       "title":  "Duplicate %||% with conflicting semantics; triplicated level-\u003eURL mapping",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "recorded",
-                       "owner":  "claude",
-                       "where":  "R/utils.R, R/wapor_metadata_cache.R, R/api_client.R, R/metadata.R",
-                       "summary":  "Two %||% definitions with different semantics (load-order dependent, no Collate: field); level-\u003ebase-URL mapping hardcoded independently 3x. Fixed with one canonical length-aware %||% in utils.R and one .wapor_level_workspace_url() helper. Full suite 0 fail / 1019 passed."
-                   },
-                   {
-                       "id":  "ISS-20260903-002",
-                       "title":  "L3 seasonal planning trusts a static, region-blind availability list",
-                       "status":  "resolved",
-                       "model":  "hermes",
-                       "attribution":  "recorded",
-                       "owner":  "hermes",
-                       "where":  "R/plan_wapor_time_slices.R",
-                       "summary":  "Resolved with cache-backed temporal discovery and region/period URL checks; planner regression and full test suites pass."
-                   },
-                   {
-                       "id":  "ISS-20260903-001",
-                       "title":  "Seasonal download pipeline could silently serve wrong or incomplete data",
-                       "status":  "resolved",
-                       "model":  "claude",
-                       "attribution":  "inferred",
-                       "where":  "R/api_client.R, R/seasonal_download.R, R/plan_wapor_time_slices.R",
-                       "summary":  "Weak checksum cache key, no retry on vsicurl open, no reconciliation on partial failure. Fixed with SHA-256 keys, retry-with-backoff, missing_periods tracking."
-                   }
-               ],
-    "sessions":  [
-                     {
-                         "date":  "2026-09-28",
-                         "label":  "production-readiness plan",
-                         "model":  "claude",
-                         "attribution":  "recorded",
-                         "summary":  "Verified plan WP0-WP6 + 1.0.5 release steps (docs/superpowers/plans/2026-09-28-production-readiness-plan.md) with prototypes in a local worktree; fixed ISS-20260928-013/-014 on the branch.",
-                         "commit":  "e52dc5e",
-                         "tests":  "CI 6/6 green on 312e1ed; disk -44 %, time -22 % on 1 M cells"
-                     },
-                     {
-                         "date":  "2026-09-28",
-                         "label":  "install/run review",
-                         "model":  "claude",
-                         "attribution":  "recorded",
-                         "summary":  "Critical install/run review on Linux (R 4.3, terra 1.7 and 1.9): fixed double scaling in wapor_map, COG float truncation, _seasonal local reads (ISS-20260925-008), raster dependency in Visualisation, dashboard startup stall, annual RET/PCP defaults, README vignette deps.",
-                         "commit":  null,
-                         "tests":  "240 tests, 0 failures (terra 1.7.65 and 1.9.50)"
-                     },
-                     {
-                         "date":  "2026-09-16",
-                         "label":  "coordination board",
-                         "model":  "claude",
-                         "attribution":  "recorded",
-                         "summary":  "Built agents-board.json + board_claim.ps1 + Streamlit dashboard so any model can see cross-model task/session state instead of starting from scratch.",
-                         "commit":  null,
-                         "tests":  "streamlit run smoke-tested: HTTP 200"
-                     },
-                     {
-                         "date":  "2026-09-15",
-                         "label":  "session 2c",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "S4 synchronized dual-map.",
-                         "commit":  "6e297ba",
-                         "tests":  "0 fail / 96 passed"
-                     },
-                     {
-                         "date":  "2026-09-15",
-                         "label":  "session 2b",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "S2 numbered step accordion wizard.",
-                         "commit":  "6e297ba",
-                         "tests":  "0 fail / 96 passed"
-                     },
-                     {
-                         "date":  "2026-09-15",
-                         "label":  "session 2",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "B2/P2/D2 blob store rewrite.",
-                         "commit":  "6e297ba",
-                         "tests":  "0 fail / 764 passed"
-                     },
-                     {
-                         "date":  "2026-09-15",
-                         "label":  "session 1",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "Production-hardening pass, 13 of 18 planned items.",
-                         "commit":  "6e297ba",
-                         "tests":  null
-                     },
-                     {
-                         "date":  "2026-09-14",
-                         "label":  "L3 mosaic-tiled-core",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "7 commits: tiled GeoTIFF execution slice, explicit multi-region selection, mosaic assets + coverage manifests, resumable block reducers, COG writer.",
-                         "commit":  "82cd8b5",
-                         "tests":  null
-                     },
-                     {
-                         "date":  "2026-09-09",
-                         "label":  "#197",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "Windowed tiled engine, COG writer, Kc export lock, reference_layer.",
-                         "commit":  "be40d14",
-                         "tests":  null
-                     },
-                     {
-                         "date":  "2026-09-08",
-                         "label":  "#196",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "R-CMD-check + coverage wired into CI on version-0.9.9.",
-                         "commit":  "1039424",
-                         "tests":  null
-                     },
-                     {
-                         "date":  "2026-09-03",
-                         "label":  "agent-workflow hub",
-                         "model":  "claude",
-                         "attribution":  "inferred",
-                         "summary":  "Created the agent-workflow/ hub; fixed seasonal download hash-collision bug (ISS-20260903-001).",
-                         "commit":  "f47aab1",
-                         "tests":  "638 passed"
-                     }
-                 ],
-    "alerts":  [
-                   {
-                       "id":  "alert-branch",
-                       "severity":  "critical",
-                       "title":  "27 modified files + 1 untracked sit on main, but the documented PR base is version-0.9.9",
-                       "detail":  "Decide whether to commit to main or move the work onto version-0.9.9 before it\u0027s easy to lose track of.",
-                       "source":  "git status",
-                       "resolved":  true
-                   },
-                   {
-                       "id":  "alert-skills",
-                       "severity":  "warning",
-                       "title":  "8 skills in .agent/skills/ are invisible to the Claude Code skill loader",
-                       "detail":  ".claude/skills/ is empty. Flagged 2026-09-03, still not actioned.",
-                       "source":  "task-status.md",
-                       "resolved":  true
-                   },
-                   {
-                       "id":  "alert-l3",
-                       "severity":  "warning",
-                       "title":  "ISS-20260903-002 resolved -- L3 temporal availability uses cache and region checks",
-                       "detail":  "Resolved with cache-backed temporal discovery and region/period URL checks.",
-                       "source":  "issues-log.md",
-                       "resolved":  true
-                   },
-                   {
-                       "id":  "alert-checksum",
-                       "severity":  "info",
-                       "title":  "Raster integrity validation has no owner",
-                       "detail":  "Lower priority gap in the download pipeline.",
-                       "source":  "task-status.md",
-                       "resolved":  true
-                   }
-               ]
+{
+  "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
+  "schema_version": 1,
+  "updated_utc": "2026-09-29T16:35:56Z",
+  "known_models": [
+    "claude",
+    "codex",
+    "gemini",
+    "hermes",
+    "antigravity",
+    "warp",
+    "qwen",
+    "copilot",
+    "cursor",
+    "cline",
+    "goose",
+    "human",
+    "unassigned"
+  ],
+  "attribution_note": "Entries dated on or before 2026-09-15 predate this board. Their \"model\" is inferred from session-brief.md phrasing and the CLAUDE.md-first workflow already in place (attribution: \"inferred\"), not a live model claim. Every entry from 2026-09-16 onward must be self-reported by the model that made it (attribution: \"recorded\").",
+  "tasks": [
+    {
+      "id": "1.5",
+      "title": "Explicit L3 selection / mosaic-all coverage policy",
+      "status": "pending",
+      "priority": "critical",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "R/seasonal_download.R",
+        "inst/shiny/mod_download.R",
+        "inst/shiny/mod_analysis.R"
+      ],
+      "notes": "Core resolver landed in feat/l3-mosaic-tiled-core; Shiny L3 selection UI still not wired.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "1.6",
+      "title": "Explicit alignment reference (mask vs AETI vs custom)",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis.R",
+        "R/analysis_engine.R"
+      ],
+      "notes": "Verified 2026-09-18: reference_layer param fully implemented (analysis_engine.R:106-110, exact spec match); resampling_method per-layer map is implemented at analysis_engine.R:111-119 with get_resampling_method() closure and defaults for aeti/crop_mask/ret/pcp/npp/season_start/season_end. Only remaining gap: overlap validation error (not checked). Core deliverable done.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
+    {
+      "id": "2.2",
+      "title": "COG write support",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/wapor_map.R",
+        "R/analysis_engine.R"
+      ],
+      "notes": "Verified 2026-09-17: wapor_write_cog() exists/exported/used throughout; cog=FALSE param confirmed in wapor_map() only (not wapor_run_seasonal_analysis -- gap); GDAL<3.1 fallback verified absent. Core deliverable done, 2 minor sub-items open.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-17T07:44:24Z",
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "2.3",
+      "title": "Memory benchmark suite",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "tests/testthat/test-memory-scaling.R"
+      ],
+      "notes": "Parameterized 1k->10k peak-memory gate; tiled engine flat-memory verification.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "3.1",
+      "title": "Extra crop defaults (9 FAO-56 crops)",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/crop_defaults.R"
+      ],
+      "notes": "Verified 2026-09-17: all 9 FAO-56 crops (Maize, Rice, Cotton, Potato, Soybean, Sunflower, Barley, Alfalfa, Sugarcane) present in R/crop_defaults.R crop_name vector, consistent structure.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-17T07:44:24Z",
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "3.3",
+      "title": "Publication map helpers",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/viz.R"
+      ],
+      "notes": "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-18"
+    },
+    {
+      "id": "3.4",
+      "title": "Anomaly & trend module",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/anomaly.R"
+      ],
+      "notes": "Verified 2026-09-18: all 4 functions done and exported (wapor_calc_zscore, wapor_calc_spatial_hotspots, wapor_calc_anomaly_baseline, linear_trend at anomaly.R:111). linear_trend is in NAMESPACE:7. Test file tests/testthat/test-anomaly-trend.R exists and tests linear_trend. Core deliverable complete.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
+    {
+      "id": "3.5",
+      "title": "Preflight validation module",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis_validation.R"
+      ],
+      "notes": "Verified 2026-09-18: wapor_preflight_check() at analysis_validation.R:250 and wapor_validate_data_coverage() at analysis_validation.R:179 are both exported in NAMESPACE. Deliverable complete, just in a different file than the tracker expected (analysis_validation.R instead of preflight.R).",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
+    {
+      "id": "4.1",
+      "title": "Dashboard: indicator selection from registry",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "inst/shiny/app.R",
+        "inst/shiny/mod_analysis.R"
+      ],
+      "notes": "Read checkbox list from INDICATOR_STEPS; auto-generate UI.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "4.2",
+      "title": "DuckDB monitoring: area-weighted stats",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "Per-farm area (ha) in farm_timeseries; area-weighted stress means; migration script.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "5.1",
+      "title": "Expand unit tests -- pure math layer",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "tests/testthat/test-indicators-math.R"
+      ],
+      "notes": "PARTIAL, verified 2026-09-17: tests/testthat/test-indicators-math.R exists (65 lines, ~10 functions covered with basic value + some NA checks). Missing: systematic edge-case coverage, waporbox Python reference comparison (verified absent).",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "5.2",
+      "title": "Integration test: full seasonal pipeline",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "tests/testthat/test-analysis-engine.R"
+      ],
+      "notes": "PARTIAL, verified 2026-09-17: tests/testthat/test-analysis-engine.R exists (314 lines, 3 test_that blocks covering local-raster/crop-mask/registry paths). Not confirmed: 100x100 grid, multi-season batch, local-vs-API parity -- needs closer read.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "5.3",
+      "title": "CI: lintr + styler checks",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        ".github/workflows/R-CMD-check.yaml"
+      ],
+      "notes": "Verified 2026-09-18: lint job exists at .github/workflows/R-CMD-check.yaml:64-80 running lintr::lint_package() and styler::style_pkg(dry=\"on\"). Deliverable complete.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-18T00:00:00Z",
+      "updated_utc": "2026-09-18"
+    },
+    {
+      "id": "6.1",
+      "title": "Vignettes",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "files": [],
+      "notes": "DIFFERENT SHAPE, verified 2026-09-17: vignettes/ has 4 .Rmd files (advanced-analysis, data-catalog, getting-started, shiny-dashboard) but none of the 5 originally-specified ones exist under those names. Needs maintainer decision: keep current set or still add the specified 5.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "6.2",
+      "title": "README first-time install guide",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "README.md"
+      ],
+      "notes": "MOSTLY DONE, verified 2026-09-17: system deps (README.md:38) and verify step (README.md:71, exact spec match) present. Missing: remotes::install_github for terra/latest GDAL (verified absent).",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "carry-l3-live",
+      "title": "Verify L3 per-region temporal-resolution availability against live metadata",
+      "status": "done",
+      "priority": "medium",
+      "model": "hermes",
+      "attribution": "recorded",
+      "files": [
+        "R/plan_wapor_time_slices.R"
+      ],
+      "notes": "Resolved through cache-backed temporal discovery and region/period URL checks; regression and full test suites pass.",
+      "issue_ref": "ISS-20260903-002",
+      "claimed_utc": "2026-09-16T00:00:00Z",
+      "updated_utc": "2026-09-16"
+    },
+    {
+      "id": "carry-raster-checksum",
+      "title": "Raster integrity validation (checksum/hash of downloads)",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "files": [],
+      "notes": "Lower priority, unowned.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "carry-mirror-skills",
+      "title": "Mirror .agent/skills/* into .claude/skills/",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        ".agent/skills/",
+        ".claude/skills/"
+      ],
+      "notes": "Flagged 2026-09-03. .claude/skills/ is still empty -- Claude Code's skill loader can't discover r-package-expert, shiny-developer, wapor-api-reference and 5 others.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-03"
+    },
+    {
+      "id": "S4",
+      "title": "Synchronized dual-map",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "inst/shiny/mod_dual_map.R",
+        "inst/shiny/app.R"
+      ],
+      "notes": "Capability-guarded 'Dual Compare' tab; two leaflet maps kept in view-sync via leaflet.extras2::addLeafletsync()/unsync(). 0 fail / 96 passed.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "S2",
+      "title": "Numbered step accordion wizard",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "inst/shiny/mod_download.R"
+      ],
+      "notes": "Sidebar rebuilt as a 5-step accordion (Project, Variables, Period, L3 Region, Run). DOM only, no server logic changed.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "B2",
+      "title": "Batched vsicurl opens + pending-date pre-filter",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "Part of the wapor_save_raster_blobs() rewrite. 0 fail / 764 passed, full suite.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "P2",
+      "title": "File-backed COG alongside in-memory blob",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "Writes both the existing in-memory blob and a file-backed COG under a sibling _raster_store/ dir.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "D2",
+      "title": "Raster provenance columns populated",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "raster_path, gdal_version, terra_version, nodata, band_count.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "B1",
+      "title": "Shiny dependency guard",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "inst/shiny/app.R"
+      ],
+      "notes": ".check_shiny_deps() replaces bare library() for 17 packages.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "B3",
+      "title": "DuckDB schema_version + migration",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": ".wapor_monitoring_migrate() helper added.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "B4",
+      "title": "BIGTIFF threshold dtype fix",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_cog.R"
+      ],
+      "notes": "Uses .dtype_bytes lookup table for correct byte-width per datatype.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "B5",
+      "title": "Network-test skip guards",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "tests/testthat/"
+      ],
+      "notes": "All 9 network-dependent test files guarded with skip_if_wapor_offline().",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "P1",
+      "title": "Unconditional GDAL onLoad config",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/gdal_config.R"
+      ],
+      "notes": "Was env-gated behind RWAPOR_AUTO_CONFIG=\"true\"; now fires unconditionally.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "P3",
+      "title": "wapor_suggest_tile_size() helper",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/analysis_tiled.R"
+      ],
+      "notes": "Added and exported in NAMESPACE.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "P4",
+      "title": "on_batch_done callback",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_ts.R",
+        "R/wapor_map.R"
+      ],
+      "notes": "Wired into wapor_ts and wapor_map.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "D1",
+      "title": "raster_grid_registry table + validator",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": ".wapor_validate_raster_grid() helper.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "D3",
+      "title": "INSERT OR REPLACE upsert",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "Via temp table in farm_timeseries writer.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "D4",
+      "title": "season_id column + PRIMARY KEY update",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_monitoring.R"
+      ],
+      "notes": "Added to farm_timeseries.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "S1",
+      "title": "wapor_grouped_var_choices()",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "R/wapor_ts.R",
+        "inst/shiny/mod_download.R"
+      ],
+      "notes": "Used by mod_download.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "S3",
+      "title": "Analysis config save/load",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "inst/shiny/utils_shiny.R"
+      ],
+      "notes": "wapor_save_analysis_config() / wapor_load_analysis_config().",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "S5",
+      "title": "Stress threshold inputs",
+      "status": "done",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "inferred",
+      "files": [
+        "inst/shiny/mod_monitoring.R"
+      ],
+      "notes": "User-adjustable numericInputs wired to server.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-15"
+    },
+    {
+      "id": "7.0",
+      "title": "Dedupe %||% and level->workspace-URL mapping",
+      "status": "done",
+      "priority": "critical",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/utils.R",
+        "R/api_client.R",
+        "R/wapor_metadata_cache.R"
+      ],
+      "notes": "Two conflicting %||% definitions fixed (kept length-aware canonical in utils.R); level->workspace-URL mapping consolidated into .wapor_level_workspace_url(). Correction 2026-09-17: initial pass only routed 2/3 call sites despite being reported as 3/3 -- metadata.R's .fetch_metadata_api_variable() still had its own switch(); caught via self-review during 7.1 and fixed. All 3 sites genuinely consolidated now. Full suite 0 fail / 1019 passed.",
+      "issue_ref": "ISS-20260916-002",
+      "claimed_utc": "2026-09-16T00:00:00Z",
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "7.1",
+      "title": "Dedupe RET/PCP level-fallback rule",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/api_client.R",
+        "R/metadata.R"
+      ],
+      "notes": "Consolidated into .wapor_resolve_level_fallback() in api_client.R, called from api_client.R (2 sites) and metadata.R (1 site). Full suite 0 fail / 1019 passed; edge cases verified identical to pre-refactor behavior.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-17T06:54:16Z",
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "7.2",
+      "title": "wapor_res_key() reuse spatial_resolution_m instead of re-parsing",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/wapor_res_key.R"
+      ],
+      "notes": "See IMPROVEMENT_PLAN.md Phase 7.2.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-16"
+    },
+    {
+      "id": "7.3",
+      "title": "Memoise .load_metadata_catalog()",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/wapor_metadata_cache.R",
+        "R/plan_wapor_time_slices.R"
+      ],
+      "notes": "See IMPROVEMENT_PLAN.md Phase 7.3. wapor_temporal_codes() bypasses memoisation, re-reads/re-parses JSON from disk every call.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-16"
+    },
+    {
+      "id": "7.6",
+      "title": "Memoise wapor_plan_time_slices() and wapor_temporal_codes()",
+      "status": "pending",
+      "priority": "low",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/plan_wapor_time_slices.R"
+      ],
+      "notes": "Distinct from 7.3 (which covers .load_metadata_catalog()). wapor_plan_time_slices() and wapor_temporal_codes() are both pure/deterministic given identical args but are not memoise::memoise()-wrapped, unlike the 3 structurally identical examples already in the package (wapor_generate_urls in api_client.R:367, wapor_variable_metadata in metadata.R:466, .load_metadata_catalog_cached in wapor_metadata_cache.R:192). Benchmarked 2026-09-17: not a CPU bottleneck by itself (~0.1-0.2s even for a 9-year daily-only D plan, 324 rows via `Rscript.exe` R-4.4.1 local run) but repeated identical calls -- e.g. wapor_run_monitoring() looping variables for the same season window, or repeated re-runs of seasonal AETI/ETc extraction scripts during iteration on the citrus (177 farms, Mar-Feb) and Savola (75 fields, 4 seasons) projects -- redo the same greedy interval decomposition every time. Fix: rename current body to wapor_plan_time_slices_internal()/wapor_temporal_codes_internal(), wrap with memoise::memoise() following the existing api_client.R pattern exactly, keep the exported name and signature unchanged. memoise is already an Imports dependency, no new packages needed. Add a cache-hit regression test (call twice with identical args, assert identical() result) and confirm the full test-plan_wapor_time_slices.R suite (20 tests) still passes. User asked to log this for later review/implementation in a future session, not implemented yet.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "7.5",
+      "title": "Fix dashboard crash on board_claim.ps1 BOM output",
+      "status": "done",
+      "priority": "critical",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "agent-workflow/dashboard/app.py"
+      ],
+      "notes": "load_board() read agents-board.json as plain utf-8; board_claim.ps1's Set-Content -Encoding utf8 always writes a BOM on Windows PowerShell, so every board update made the dashboard crash with JSONDecodeError on next load -- verified by relaunching it and hitting the exact traceback. Fixed by reading with utf-8-sig. Re-verified: relaunched, HTTP 200, no traceback in log, direct load_board()-equivalent script confirms correct task/status data. Stopped the verification instance afterward.",
+      "issue_ref": "ISS-20260917-001",
+      "claimed_utc": "2026-09-17T00:00:00Z",
+      "updated_utc": "2026-09-17"
+    },
+    {
+      "id": "7.4",
+      "title": "(Deferred) Split metadata.R / wapor_metadata_cache.R by responsibility",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "files": [
+        "R/metadata.R",
+        "R/wapor_metadata_cache.R"
+      ],
+      "notes": "See IMPROVEMENT_PLAN.md Phase 7.4. Explicitly deferred -- package is on version-0.9.9 release branch; pure churn, no commitment.",
+      "issue_ref": null,
+      "claimed_utc": null,
+      "updated_utc": "2026-09-16"
+    },
+    {
+      "id": "coord-board-v1",
+      "title": "Cross-model coordination board + live Streamlit dashboard",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "agent-workflow/agents-board.json",
+        "agent-workflow/START-HERE.md",
+        "agent-workflow/scripts/board_claim.ps1",
+        "agent-workflow/scripts/agent_preflight.ps1",
+        "agent-workflow/scripts/agent_closeout.ps1",
+        "agent-workflow/scripts/run_dashboard.ps1",
+        "agent-workflow/dashboard/app.py"
+      ],
+      "notes": "Added agents-board.json as the shared, machine-readable task/model ledger; START-HERE.md now requires every model to claim/release tasks in it (board_claim.ps1) so work isn't duplicated across Claude/Codex/Gemini/Hermes/Antigravity/etc; agent_preflight.ps1 now surfaces other models' active claims; agent-workflow/dashboard/ is a Streamlit app reading the board live for a persistent, relaunchable status view. Smoke-tested: JSON validated, app.py py_compile clean, streamlit run served HTTP 200 on a local port before being stopped.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-16T00:00:00Z",
+      "updated_utc": "2026-09-16"
+    },
+    {
+      "id": "8.1",
+      "title": "Remote COG streaming hardening",
+      "status": "done",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "files": [
+        "R/utils.R",
+        "R/seasonal_download.R",
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "R/analysis_tiled.R",
+        "R/wapor_cog.R",
+        "tests/testthat/test-streaming-hardening.R",
+        "docs/plans/2026-09-17-rwapor-cog-streaming-hardening.md"
+      ],
+      "notes": "Completed by Codex on 2026-09-21. Live timing showed the 12-file remote open completes in 2.81 seconds; the unreported crop-and-write phase made the request look frozen. Added granular map status and Shiny batch updates. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed. The 72-layer temporary probe emitted chunk 1 and 2 status but did not provide a completion line in this tool session.",
+      "issue_ref": "ISS-20260917-003",
+      "claimed_utc": "2026-09-21T15:03:30Z",
+      "updated_utc": "2026-09-21T15:23:00Z"
+    },
+    {
+      "id": "seasonal-dashboard-semantics",
+      "title": "Dashboard seasonal summary semantics",
+      "status": "active",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "files": [
+        "R/utils.R",
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "inst/shiny/mod_download.R",
+        "inst/shiny/mod_timeseries.R"
+      ],
+      "notes": "Expose variable-aware seasonal summary controls, reject explicit state/rate sums, and preserve equal-step non-sum semantics.",
+      "issue_ref": null,
+      "claimed_utc": "2026-09-22T00:00:00Z",
+      "updated_utc": "2026-09-22"
+    },
+    {
+      "id": "large-raster-perf",
+      "title": "Large-raster performance and size-aware processing (1.0.1)",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "files": [
+        "R/analysis.R",
+        "R/analysis_engine.R",
+        "R/analysis_tiled.R",
+        "R/analysis_indicators.R",
+        "R/analysis_utils.R",
+        "R/analysis_validation.R",
+        "R/indicators_math.R",
+        "R/anomaly.R",
+        "R/gdal_config.R",
+        "R/seasonal_download.R",
+        "R/utils.R",
+        "R/wapor_map.R",
+        "R/wapor_ts.R",
+        "inst/shiny/mod_analysis.R"
+      ],
+      "notes": "Takes over R/utils.R, R/wapor_map.R, R/wapor_ts.R from seasonal-dashboard-semantics by user decision (2026-09-23). Branch perf/large-raster-1.0.1. Design: docs/superpowers/specs/2026-09-23-large-raster-performance-design.md Done on branch (committed, not pushed): full suite 1332 expectations 0 failures; R CMD check 0 errors/0 warnings, 2 pre-existing notes; live smoke 5/5 (tiled==memory, diff 0). Benchmark rerun blocked: C: drive full (2 GB free).",
+      "issue_ref": "ISS-20260923-001",
+      "claimed_utc": "2026-09-23T00:00:00Z",
+      "updated_utc": "2026-09-23"
+    },
+    {
+      "id": "ti-01",
+      "title": "Fix wapor_map(separate_files=TRUE) dropping the WaPOR scale factor (10x values offline)",
+      "status": "done",
+      "priority": "critical",
+      "model": "codex",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T07:56:55Z",
+      "files": [
+        "R/wapor_map.R"
+      ],
+      "issue_ref": "ISS-20260924-006",
+      "notes": "Fixed raw WaPOR scale output; regression test passes.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "ti-02",
+      "title": "Make the kernel accept any ref_year (1970 rejected; Shiny and vignettes broken)",
+      "status": "done",
+      "priority": "critical",
+      "model": "codex",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T07:56:56Z",
+      "files": [
+        "R/processing_kernel.R",
+        "R/analysis_engine.R",
+        "R/analysis.R",
+        "inst/shiny/mod_analysis.R",
+        "vignettes/advanced-analysis.Rmd",
+        "vignettes/wheat-water-productivity.Rmd"
+      ],
+      "issue_ref": "ISS-20260923-003",
+      "notes": "Kernel now rebases historic ref_year internally; regression test passes.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "ti-03",
+      "title": "Fix wapor_export_analysis_outputs() crash on a single-season result",
+      "status": "done",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T07:56:56Z",
+      "files": [
+        "R/analysis_utils.R"
+      ],
+      "issue_ref": "ISS-20260923-004",
+      "notes": "Direct single-season export fixed and regression-tested.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "ti-04",
+      "title": "Default use_crop_mask to TRUE when a crop mask is supplied (warn otherwise)",
+      "status": "done",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T07:56:56Z",
+      "files": [
+        "R/analysis_engine.R",
+        "R/analysis_validation.R"
+      ],
+      "issue_ref": "ISS-20260925-007",
+      "notes": "Supplied masks now default on; explicit FALSE warns; regression-tested.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "ti-05",
+      "title": "Release Rwapor 1.0.2 (monthly green/blue fix) and align registry step_peff_green_blue",
+      "status": "pending",
+      "priority": "critical",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_registry.R",
+        "DESCRIPTION",
+        "NEWS.md"
+      ],
+      "issue_ref": "ISS-20260923-005",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-05).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-06",
+      "title": "Download-once cache: exported wapor_download() + config$cache_dir; local reader ignores _seasonal files",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/download_cache.R",
+        "R/analysis_engine.R",
+        "R/analysis.R"
+      ],
+      "issue_ref": "ISS-20260925-008",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06).",
+      "updated_utc": "2026-09-25"
+    },
+    {
+      "id": "ti-07",
+      "title": "Faster remote opening of many layers (parallel / GDAL HTTP multiplexing)",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/gdal_config.R",
+        "R/wapor_map.R",
+        "R/processing_kernel.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-07).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-08",
+      "title": "Reduce disk footprint: keep_intermediates/include_dekadal default FALSE, Float32 outputs, disk-space preflight",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_engine.R",
+        "R/processing_plan.R",
+        "R/analysis_utils.R",
+        "R/analysis_validation.R"
+      ],
+      "issue_ref": "ISS-20260925-009",
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-08).",
+      "updated_utc": "2026-09-25"
+    },
+    {
+      "id": "ti-09",
+      "title": "Irrigation performance indicators (Chukalla et al. 2022): adequacy classes, uniformity, equity, climate normalization",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_indicators.R",
+        "R/indicators_math.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-09).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-10",
+      "title": "Farm-level extraction helper wapor_extract_farms() (dissolve by ID, area-weighted) for survey joins",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/farm_extract.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-10).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-11",
+      "title": "Perennial crop support: citrus profiles (FAO-56 Table 12), crop_type flag, stage names, fc documentation",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/crop_defaults.R",
+        "inst/extdata/fao_growth_stages.csv",
+        "R/analysis_engine.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-11).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-12",
+      "title": "Crop mask helpers: auto-reprojecting rasterize, fraction-based harmonization, mask area check",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/mask_helpers.R",
+        "R/analysis.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-12).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-13",
+      "title": "Export wapor_calc_cv and raster Peff; add wapor_classify_spots() (bright/dark spots)",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/analysis_indicators.R",
+        "NAMESPACE"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-13).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-14",
+      "title": "Plotting: terra-based wapor_plot_map (full resolution), calendar Kc plot with stage names, remove aes_string",
+      "status": "pending",
+      "priority": "medium",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/viz.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-14).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-15",
+      "title": "Offline cache for L3 region list and generated URLs",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/metadata.R",
+        "R/api_client.R",
+        "R/wapor_metadata_cache.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-15).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "ti-16",
+      "title": "Robust polygon area calculation (projected CRS; s2 duplicate-vertex failure)",
+      "status": "pending",
+      "priority": "low",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "R/utils.R"
+      ],
+      "issue_ref": null,
+      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-16).",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "codex-delegation",
+      "title": "Claude plans / Codex implements delegation setup",
+      "status": "done",
+      "priority": "medium",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-24T15:05:35Z",
+      "files": [
+        "CLAUDE.md",
+        "AGENTS.override.md",
+        "agent-workflow/templates/codex-plan.md",
+        "agent-workflow/scripts/codex_task.ps1",
+        ".claude/skills/codex-delegate/",
+        ".claude/skills/codex-skill-author/",
+        ".agents/skills/rwapor-plan-executor/",
+        ".agents/skills/rwapor-r-dev/"
+      ],
+      "issue_ref": null,
+      "notes": "Plan template, codex_task.ps1 wrapper, slim AGENTS.override.md for Codex, Codex skills in .agents/skills, Claude skills codex-delegate + codex-skill-author.",
+      "updated_utc": "2026-09-24"
+    },
+    {
+      "id": "training-notebook-2026-09",
+      "title": "WaPOR training notebook (citrus JVA, wheat JEN) and participant package",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-23T00:00:00Z",
+      "files": [
+        "training/water-productivity-training.qmd",
+        "training/check_setup.R",
+        "training/WaPOR_Training.Rproj",
+        "training/Note_to_Participants.docx",
+        "training/data/",
+        "training/images/",
+        "R/analysis_engine.R",
+        "tests/testthat/test-analysis-engine.R",
+        "DESCRIPTION",
+        "NEWS.md"
+      ],
+      "issue_ref": "ISS-20260923-005",
+      "notes": "Done, not committed. Offline-ready training (wapor_data/ saved dekads, local == API), final render 41/42 PASS (1 intended CHECK). Package change: 1.0.2 monthly green/blue split with regression test (uncommitted; GitHub still 1.0.1). Lessons register L1-L21 and follow-up tasks ti-01..ti-16 (REVIEW FIRST): docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md",
+      "updated_utc": "2026-09-25"
+    },
+    {
+      "id": "review-install-2026-09-28",
+      "title": "Critical install/run review and fixes (1.0.4)",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T08:50:00Z",
+      "files": [
+        "R/wapor_map.R",
+        "R/wapor_cog.R",
+        "R/analysis.R",
+        "R/metadata.R",
+        "inst/shiny/app.R",
+        "inst/shiny/mod_visualisation.R",
+        "inst/shiny/mod_analysis_ui_sidebar.R",
+        "inst/shiny/www/premium_style.css",
+        "DESCRIPTION",
+        "README.md",
+        "NEWS.md"
+      ],
+      "issue_ref": "ISS-20260928-010",
+      "notes": "Branch claude/ecstatic-allen-xdfb2g. See session-brief.md 2026-09-28 for proposals not implemented.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "prod-ready-1.0.5",
+      "title": "Production readiness 1.0.5: apply WP1-WP6 and release",
+      "status": "done",
+      "priority": "high",
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-28T12:40:00Z",
+      "files": [
+        "docs/superpowers/plans/2026-09-28-production-readiness-plan.md",
+        "docs/superpowers/plans/2026-09-28-production-readiness.patch"
+      ],
+      "issue_ref": "ISS-20260925-009",
+      "notes": "Implemented on claude/ecstatic-allen-xdfb2g: WP3 c59d03e, WP1 fe75e5a, WP2 8ca48d1, WP4 9d88ea4, WP6 4f8fd0d; version 1.0.5. Maintainer: merge, Windows/live checks, tag.",
+      "updated_utc": "2026-09-28"
+    },
+    {
+      "id": "prod-p0",
+      "title": "P0 correctness gates: known-answer tests, monitoring scale/skip hardening, Rwapor.verbose, live ETc check",
+      "status": "active",
+      "priority": "high",
+      "model": "codex",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-29T16:35:56Z",
+      "files": [
+        "tests/testthat/test-known-answer.R",
+        "R/wapor_monitoring.R",
+        "R/utils.R",
+        "inst/bench/live_release_checks.R"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "plan: docs/superpowers/plans/2026-09-29-prod-p0.md",
+      "updated_utc": "2026-09-29"
+    },
+    {
+      "id": "prod-p1",
+      "title": "P1 release engineering: tag v1.0.5, default branch main, branch protection, R-universe",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        ".github/workflows/",
+        "README.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "User approved 2026-09-29 (production roadmap P0/P1).",
+      "updated_utc": "2026-09-29"
+    }
+  ],
+  "issues": [
+    {
+      "id": "ISS-20260928-013",
+      "title": "wapor_map() returned a status list instead of file paths (since 1.0.1)",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/wapor_map.R (process_single_var return)",
+      "summary": "Broke terra::rast(wapor_map()) in the getting-started vignette and made the dashboard report 'Download failed' after every successful non-seasonal download. Restored character paths; details in attr(x, 'wapor_status'). Commit e52dc5e."
+    },
+    {
+      "id": "ISS-20260928-014",
+      "title": "Windows CI red on version-1.0.4: race in the remote COG test fixture",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/analysis_tiled.R (.wapor_remote_cog_fixture)",
+      "summary": "port.txt read before written. Atomic publish + wait for a parsable port. Commit 312e1ed; CI run 36417147780 green on 6/6 jobs."
+    },
+    {
+      "id": "ISS-20260928-010",
+      "title": "wapor_map() scaled WaPOR values twice (10x too low) after the 1.0.4 scale fix",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/wapor_map.R (.wapor_prepare_map_output, process_chunk)",
+      "summary": "94b1533 multiplied already-physical values by the catalogue scale. Reproduced with Int16 scale-0.1 COGs on terra 1.7.65 and 1.9.50: 2.5 instead of 25 mm/dekad, 0.25 instead of 2.5 mm/day. Fixed by clearing the file scale on open and applying it once after the crop; catalogue scale no longer applied."
+    },
+    {
+      "id": "ISS-20260928-011",
+      "title": "wapor_write_cog() truncated floats to INT4U when the top rows were integers",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/wapor_cog.R (.wapor_probe_datatype)",
+      "summary": "Probe read only the first rows of layer 1; a zero band gave INT4U and truncated fractions (mean 2.45 -> 1.96). Now checks all values up to 5e6, else a regular sample over all layers."
+    },
+    {
+      "id": "ISS-20260923-001",
+      "title": "Tiled engine read source layers with template row/col indices (silent all-NA output)",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/analysis_tiled.R, R/processing_kernel.R",
+      "summary": "Tiles were cut from sources by template row/col indices; any source on another grid gave all-NA tiles. Tiling moved into the shared kernel reading by extent plus halo. Verified: offset read 4041/4042/4043; live L1 tiled equals memory (max diff 0)."
+    },
+    {
+      "id": "ISS-20260923-002",
+      "title": "Monitoring stores whole rasters as DuckDB blobs",
+      "status": "open",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": null,
+      "where": "R/wapor_monitoring.R",
+      "summary": "Every query deserialises whole rasters before cropping to the farm. Not fixed (user decision Q9: storage-format change, needs migration)."
+    },
+    {
+      "id": "ISS-20260923-003",
+      "title": "Remote seasonal analysis could not match WaPOR dekad file names",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/analysis_tiled.R (.wapor_ymd_from_name)",
+      "summary": "YYYY-MM-D1/D2/D3 labels were not parsed, so data_source='api' failed for every request in 1.0.0 (verified live). Fixed; live smoke test passes."
+    },
+    {
+      "id": "ISS-20260923-004",
+      "title": "GDAL curl capability probe always reported missing",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/gdal_config.R, R/remote_capabilities.R",
+      "summary": "Probe searched a non-existent 'longname' column for 'vsicurl'; false warning on load and forced full downloads under the download fallback. Now detects GDAL's HTTP driver."
+    },
+    {
+      "id": "ISS-20260917-003",
+      "title": "Remote COG streaming retries stopped before pixel I/O",
+      "status": "resolved",
+      "model": "codex",
+      "attribution": "recorded",
+      "owner": "codex",
+      "where": "R/utils.R, R/seasonal_download.R, R/wapor_map.R, R/wapor_ts.R, R/analysis_tiled.R, R/wapor_cog.R",
+      "summary": "Existing retry, completeness, and datatype safeguards are retained. Live timing showed the remote open is not the bottleneck; Codex added granular map and Shiny progress for the formerly silent crop-and-write phase. Parse, Shiny construction, 138 focused assertions, and a 12-layer live output run passed."
+    },
+    {
+      "id": "ISS-20260917-001",
+      "title": "Dashboard crashes on every board_claim.ps1 update (UTF-8 BOM)",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "agent-workflow/dashboard/app.py",
+      "summary": "app.py's load_board() decoded agents-board.json as plain utf-8. board_claim.ps1 (PowerShell Set-Content -Encoding utf8) always writes a UTF-8 BOM, which json.loads rejects outright -- meaning the dashboard had been broken since the first board_claim.ps1 call ever made against the file, surfaced only now because coord-board-v1's original smoke test ran before any board_claim.ps1 write existed. Fixed by decoding with utf-8-sig (tolerates BOM or no BOM). Verified by relaunching and confirming HTTP 200 with no traceback, plus a direct check that task data renders correctly."
+    },
+    {
+      "id": "ISS-20260916-002",
+      "title": "Duplicate %||% with conflicting semantics; triplicated level->URL mapping",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "recorded",
+      "owner": "claude",
+      "where": "R/utils.R, R/wapor_metadata_cache.R, R/api_client.R, R/metadata.R",
+      "summary": "Two %||% definitions with different semantics (load-order dependent, no Collate: field); level->base-URL mapping hardcoded independently 3x. Fixed with one canonical length-aware %||% in utils.R and one .wapor_level_workspace_url() helper. Full suite 0 fail / 1019 passed."
+    },
+    {
+      "id": "ISS-20260903-002",
+      "title": "L3 seasonal planning trusts a static, region-blind availability list",
+      "status": "resolved",
+      "model": "hermes",
+      "attribution": "recorded",
+      "owner": "hermes",
+      "where": "R/plan_wapor_time_slices.R",
+      "summary": "Resolved with cache-backed temporal discovery and region/period URL checks; planner regression and full test suites pass."
+    },
+    {
+      "id": "ISS-20260903-001",
+      "title": "Seasonal download pipeline could silently serve wrong or incomplete data",
+      "status": "resolved",
+      "model": "claude",
+      "attribution": "inferred",
+      "where": "R/api_client.R, R/seasonal_download.R, R/plan_wapor_time_slices.R",
+      "summary": "Weak checksum cache key, no retry on vsicurl open, no reconciliation on partial failure. Fixed with SHA-256 keys, retry-with-backoff, missing_periods tracking."
+    }
+  ],
+  "sessions": [
+    {
+      "date": "2026-09-28",
+      "label": "production-readiness plan",
+      "model": "claude",
+      "attribution": "recorded",
+      "summary": "Verified plan WP0-WP6 + 1.0.5 release steps (docs/superpowers/plans/2026-09-28-production-readiness-plan.md) with prototypes in a local worktree; fixed ISS-20260928-013/-014 on the branch.",
+      "commit": "e52dc5e",
+      "tests": "CI 6/6 green on 312e1ed; disk -44 %, time -22 % on 1 M cells"
+    },
+    {
+      "date": "2026-09-28",
+      "label": "install/run review",
+      "model": "claude",
+      "attribution": "recorded",
+      "summary": "Critical install/run review on Linux (R 4.3, terra 1.7 and 1.9): fixed double scaling in wapor_map, COG float truncation, _seasonal local reads (ISS-20260925-008), raster dependency in Visualisation, dashboard startup stall, annual RET/PCP defaults, README vignette deps.",
+      "commit": null,
+      "tests": "240 tests, 0 failures (terra 1.7.65 and 1.9.50)"
+    },
+    {
+      "date": "2026-09-16",
+      "label": "coordination board",
+      "model": "claude",
+      "attribution": "recorded",
+      "summary": "Built agents-board.json + board_claim.ps1 + Streamlit dashboard so any model can see cross-model task/session state instead of starting from scratch.",
+      "commit": null,
+      "tests": "streamlit run smoke-tested: HTTP 200"
+    },
+    {
+      "date": "2026-09-15",
+      "label": "session 2c",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "S4 synchronized dual-map.",
+      "commit": "6e297ba",
+      "tests": "0 fail / 96 passed"
+    },
+    {
+      "date": "2026-09-15",
+      "label": "session 2b",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "S2 numbered step accordion wizard.",
+      "commit": "6e297ba",
+      "tests": "0 fail / 96 passed"
+    },
+    {
+      "date": "2026-09-15",
+      "label": "session 2",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "B2/P2/D2 blob store rewrite.",
+      "commit": "6e297ba",
+      "tests": "0 fail / 764 passed"
+    },
+    {
+      "date": "2026-09-15",
+      "label": "session 1",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "Production-hardening pass, 13 of 18 planned items.",
+      "commit": "6e297ba",
+      "tests": null
+    },
+    {
+      "date": "2026-09-14",
+      "label": "L3 mosaic-tiled-core",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "7 commits: tiled GeoTIFF execution slice, explicit multi-region selection, mosaic assets + coverage manifests, resumable block reducers, COG writer.",
+      "commit": "82cd8b5",
+      "tests": null
+    },
+    {
+      "date": "2026-09-09",
+      "label": "#197",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "Windowed tiled engine, COG writer, Kc export lock, reference_layer.",
+      "commit": "be40d14",
+      "tests": null
+    },
+    {
+      "date": "2026-09-08",
+      "label": "#196",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "R-CMD-check + coverage wired into CI on version-0.9.9.",
+      "commit": "1039424",
+      "tests": null
+    },
+    {
+      "date": "2026-09-03",
+      "label": "agent-workflow hub",
+      "model": "claude",
+      "attribution": "inferred",
+      "summary": "Created the agent-workflow/ hub; fixed seasonal download hash-collision bug (ISS-20260903-001).",
+      "commit": "f47aab1",
+      "tests": "638 passed"
+    }
+  ],
+  "alerts": [
+    {
+      "id": "alert-branch",
+      "severity": "critical",
+      "title": "27 modified files + 1 untracked sit on main, but the documented PR base is version-0.9.9",
+      "detail": "Decide whether to commit to main or move the work onto version-0.9.9 before it's easy to lose track of.",
+      "source": "git status",
+      "resolved": true
+    },
+    {
+      "id": "alert-skills",
+      "severity": "warning",
+      "title": "8 skills in .agent/skills/ are invisible to the Claude Code skill loader",
+      "detail": ".claude/skills/ is empty. Flagged 2026-09-03, still not actioned.",
+      "source": "task-status.md",
+      "resolved": true
+    },
+    {
+      "id": "alert-l3",
+      "severity": "warning",
+      "title": "ISS-20260903-002 resolved -- L3 temporal availability uses cache and region checks",
+      "detail": "Resolved with cache-backed temporal discovery and region/period URL checks.",
+      "source": "issues-log.md",
+      "resolved": true
+    },
+    {
+      "id": "alert-checksum",
+      "severity": "info",
+      "title": "Raster integrity validation has no owner",
+      "detail": "Lower priority gap in the download pipeline.",
+      "source": "task-status.md",
+      "resolved": true
+    }
+  ]
 }

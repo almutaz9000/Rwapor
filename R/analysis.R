@@ -1206,9 +1206,9 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
         v_subset$crop_class_num <- as.numeric(as.factor(v_subset[[crop_col]]))
         # Print mapping to console for user reference
         mapping <- unique(sf::st_drop_geometry(sf::st_as_sf(v_subset))[, c(crop_col, "crop_class_num")])
-        message(sprintf("Season '%s' crop mapping:", s_name))
+        .wapor_inform(sprintf("Season '%s' crop mapping:", s_name))
         for (i in seq_len(nrow(mapping))) {
-          message(sprintf("  %s -> %d", mapping[i, 1], mapping[i, 2]))
+          .wapor_inform(sprintf("  %s -> %d", mapping[i, 1], mapping[i, 2]))
         }
         r_mask <- terra::rasterize(v_subset, template_r, field = "crop_class_num", fun = "max")
       } else {
