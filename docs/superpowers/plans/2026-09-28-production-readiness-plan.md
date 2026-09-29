@@ -300,6 +300,8 @@ acceptance criteria.
 | WP0 regression test on the old code | errors (2), passes after the fix |
 | WP2 end to end (stubbed downloader) | reader warns on the stack; split files equal `separate_files = TRUE` output (max difference 0, units kept) |
 | Dashboard, prototype build | 6 tabs, 0 server errors, 0 browser errors |
+| **Live API gate, Windows and Linux** (run 36523459838, `63d0573`) | `devtools::test()` and `devtools::check()` with live tests: 0 errors / 0 warnings / 0 notes; `remote_smoke_test.R` 5/5; `live_release_checks.R` 5/5: L1 and L3 JVA map = raw COG x 0.1 (x 10 days) to 2e-7, API = local seasonal AETI (110.16 mm), dashboard download confirmation, `run_wapor()` with 37 live L3 regions |
+| First live gate run (36521899036) | found ISS-20260929-015 (`wapor_ts()` single-layer polygons), fixed in `63d0573` |
 | Disk benchmark | table in 3.2 |
 | Dashboard in headless Chromium (fix branch) | 6 tabs, 0 server errors, startup 12 s offline |
 | Install smoke step (local) | HTTP 200 in 21 s; broken module detected |

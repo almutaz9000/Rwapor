@@ -3,7 +3,19 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-28 (part 3) — 1.0.5 implemented on the branch
+## Current Session — 2026-09-29 — 1.0.5 released to the default branch
+
+**What happened**: Added a live-API CI gate (Windows + Linux; `devtools::test()` /
+`devtools::check()` with live tests, `remote_smoke_test.R`, new
+`inst/bench/live_release_checks.R`). First run found ISS-20260929-015
+(`wapor_ts()` polygon stats for single-layer batches), fixed. Second run
+(36523459838) all green. Merged into `version-1.0.4` via PR; tag/release see
+the PR and plan section 5.
+
+**Not possible from the cloud session**: the JVA citrus 1,035.86 mm comparison
+(needs the local `data/citrus/*.geojson`); the maintainer's own Windows machine.
+
+## Previous Session — 2026-09-28 (part 3) — 1.0.5 implemented on the branch
 
 **What happened**: Applied the verified plan on `claude/ecstatic-allen-xdfb2g`, one
 commit per work package (WP3 CI + install smoke test, WP1 disk footprint, WP2
