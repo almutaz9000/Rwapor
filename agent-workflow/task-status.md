@@ -4,6 +4,17 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **prod-p0: correctness gates (1.0.6 dev)** — DONE (Codex implemented, Claude
+  verified, 2026-09-29). Commit `324a513`, branch `version-1.0.6`. Plan:
+  `docs/superpowers/plans/2026-09-29-prod-p0.md`. Known-answer fixture + golden.csv
+  (236 values, 3 modes), monitoring hardening (ISS-20260929-018),
+  `options(Rwapor.verbose)`, live ETc check. Next: CI green, then fast-forward the
+  default branch.
+- **prod-p1: release engineering** — PARTIAL. v1.0.5 tagged at `aaa0739` (CI green).
+  Left for the maintainer (blocked for agents as public/admin actions): GitHub
+  release v1.0.5, default branch -> `main` (archive the stale `main` first),
+  branch protection with required checks, R-universe registry.
+
 - **Production readiness 1.0.5 (WP0 to WP6)** — DONE on branch (Claude, 2026-09-28).
   Plan: `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`. Commits
   WP3 `c59d03e`, WP1 `fe75e5a`, WP2 `8ca48d1`, WP4 `9d88ea4`, WP6 `4f8fd0d`,
