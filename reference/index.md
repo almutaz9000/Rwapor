@@ -156,6 +156,8 @@
   : Parse Region Argument
 - [`wapor_pixel_area_ha()`](https://almutaz9000.github.io/Rwapor/reference/wapor_pixel_area_ha.md)
   : Per-pixel area in hectares
+- [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md)
+  : Plan How a Raster Job Should Be Processed
 - [`wapor_plot_anomaly()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_anomaly.md)
   : Plot a z-score anomaly raster
 - [`wapor_plot_comparison()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_comparison.md)
@@ -164,8 +166,14 @@
   : Plot a crop coefficient curve
 - [`wapor_plot_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.md)
   : Plot a raster indicator
+- [`wapor_plot_polygon_grid()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_polygon_grid.md)
+  : Plot a raster as a grid of small maps, one per polygon unit
+- [`wapor_plot_polygon_seasons()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_polygon_seasons.md)
+  : Plot selected polygon units over several raster layers
 - [`wapor_plot_timeseries()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_timeseries.md)
   : Plot a grouped time series
+- [`wapor_plot_unit_series()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_unit_series.md)
+  : Plot one time series per unit with a dashed reference line
 - [`wapor_preflight_check()`](https://almutaz9000.github.io/Rwapor/reference/wapor_preflight_check.md)
   : Pre-Flight Analysis Validation
 - [`wapor_register_indicator_step()`](https://almutaz9000.github.io/Rwapor/reference/wapor_register_indicator_step.md)
@@ -192,6 +200,8 @@
   : Suggest a safe tile size for the tiled seasonal analysis engine
 - [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
   : Extract Time Series with Zonal Statistics
+- [`wapor_unstack_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_unstack_map.md)
+  : Split a multi-band wapor_map() stack into one file per date
 - [`wapor_validate_analysis_config()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_analysis_config.md)
   : Validate Analysis Configuration
 - [`wapor_validate_crop_params()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_crop_params.md)

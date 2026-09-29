@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,7 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Run Seasonal Analysis Engine</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/R/analysis_engine.R" class="external-link"><code>R/analysis_engine.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/analysis_engine.R" class="external-link"><code>R/analysis_engine.R</code></a></small>
       <div class="d-none name"><code>wapor_run_seasonal_analysis.Rd</code></div>
     </div>
 
@@ -62,7 +62,22 @@
 
 
 <dl><dt id="arg-config">config<a class="anchor" aria-label="anchor" href="#arg-config"></a></dt>
-<dd><p>List of configuration parameters.</p></dd>
+<dd><p>List of configuration parameters. Besides the variable codes,
+<code>period</code>, <code>data_source</code>, <code>folder</code> and <code>indicators</code>, it accepts:</p><ul><li><p><code>processing</code>: <code>"auto"</code> (default), <code>"memory"</code>, <code>"stream"</code> or <code>"tiled"</code>.
+See <code><a href="wapor_plan_processing.html">wapor_plan_processing()</a></code>.</p></li>
+<li><p><code>min_coverage</code>: share of season days a pixel must have data for
+(default <code>1</code>, every dekad). Pixels below it are <code>NA</code> rather than having
+missing dekads counted as zero.</p></li>
+<li><p><code>keep_intermediates</code>: keep <code>dekadal_stacks</code> and <code>season_weights</code> in the
+result. Default <code>FALSE</code> (they are large; indicator steps that need them
+still get them). The run logs an estimate of the disk space it writes
+and warns when the output or temporary folder has less free space
+(<code>options(Rwapor.disk_check = FALSE)</code> turns the check off).</p></li>
+<li><p><code>output_dir</code>: folder for stream and tiled outputs (default: a folder
+under <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code>).</p></li>
+<li><p><code>reference_layer</code>, <code>resampling_method</code>: target grid and per-layer
+resampling (see Details).</p></li>
+</ul></dd>
 
 
 <dt id="arg-crop-params">crop_params<a class="anchor" aria-label="anchor" href="#arg-crop-params"></a></dt>
@@ -74,7 +89,8 @@
 
 
 <dt id="arg-aoi-region">aoi_region<a class="anchor" aria-label="anchor" href="#arg-aoi-region"></a></dt>
-<dd><p>Optional numeric vector for the region bbox.</p></dd>
+<dd><p>Optional region (bbox, vector path or sf). When <code>NULL</code>,
+the extent of <code>rasters$crop_mask</code> (or the season rasters) is used.</p></dd>
 
 
 <dt id="arg-progress-callback">progress_callback<a class="anchor" aria-label="anchor" href="#arg-progress-callback"></a></dt>
@@ -83,14 +99,20 @@
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>List of results (SpatRaster objects and summary tables).</p>
+    <p>List of results (SpatRaster objects and summary tables), including
+<code>coverage</code> (per-variable share of season days with data) and <code>processing</code>
+(the <code><a href="wapor_plan_processing.html">wapor_plan_processing()</a></code> plan that ran).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Alignment uses <code>config$reference_layer</code> (<code>"aeti"</code> default, also
-<code>"crop_mask"</code>, <code>"ret"</code>, <code>"pcp"</code>, <code>"npp"</code>, <code>"template"</code>). Continuous WaPOR
-layers are bilinear-resampled onto that grid; crop mask and Julian-day
-rasters use nearest neighbour. Overlap failures name both extents.</p>
+<code>"crop_mask"</code>, <code>"ret"</code>, <code>"pcp"</code>, <code>"npp"</code>, <code>"template"</code>).</p>
+<p>Seasonal and monthly totals are summed at each source's native resolution
+and then resampled once onto the analysis grid. With the default
+nearest-neighbour resampling every output value is a raw server value or a
+sum of raw values. Set <code>config$resampling_method</code> (for example
+<code>c(ret = "bilinear")</code>) to interpolate instead. Crop mask and season rasters
+always use nearest neighbour.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

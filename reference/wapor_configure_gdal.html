@@ -13,7 +13,7 @@ or to inspect what the package applied."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -27,7 +27,7 @@ or to inspect what the package applied."></head><body>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -44,7 +44,7 @@ or to inspect what the package applied."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Configure GDAL for Efficient HTTP Streaming</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/R/gdal_config.R" class="external-link"><code>R/gdal_config.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/gdal_config.R" class="external-link"><code>R/gdal_config.R</code></a></small>
       <div class="d-none name"><code>wapor_configure_gdal.Rd</code></div>
     </div>
 
@@ -63,7 +63,8 @@ or to inspect what the package applied.</p>
 <span>  vsi_cache_size <span class="op">=</span> <span class="fl">100000000L</span>,</span>
 <span>  gdal_cachemax <span class="op">=</span> <span class="fl">512L</span>,</span>
 <span>  http_multiplex <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  overwrite <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,11 +104,17 @@ supports HTTP/2. Default <code>TRUE</code>.</p></dd>
 <dd><p>Logical. Print the applied settings to the console.
 Default <code>FALSE</code>.</p></dd>
 
+
+<dt id="arg-overwrite">overwrite<a class="anchor" aria-label="anchor" href="#arg-overwrite"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default for manual calls), replace
+existing values. On package load it is <code>FALSE</code>: variables already set by
+the user, <code>.Renviron</code> or an institutional setup are left unchanged.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Invisibly, a named character vector of the environment variable
-values applied.</p>
+values applied (only the variables that were set).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

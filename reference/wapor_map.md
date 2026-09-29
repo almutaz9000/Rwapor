@@ -19,13 +19,14 @@ wapor_map(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L,
+  batch_size = NULL,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   cog = FALSE,
   on_batch_done = NULL,
-  fun = NULL
+  fun = NULL,
+  processing = c("auto", "memory", "stream", "tiled")
 )
 ```
 
@@ -104,9 +105,10 @@ wapor_map(
 
 - batch_size:
 
-  Integer. Number of remote files loaded per chunk in non-seasonal mode.
-  Lower values reduce memory pressure for long periods. Default is
-  `12L`.
+  Integer. Number of remote files loaded per chunk. Default `NULL` lets
+  [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md)
+  choose it from the area size and available memory (all layers at once
+  for small areas). Set a number to override.
 
 - l3_region:
 
@@ -142,9 +144,19 @@ wapor_map(
   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
   overlapping source layer once without scaling partial layers.
 
+- processing:
+
+  One of `"auto"` (default), `"memory"`, `"stream"` or `"tiled"`.
+  Controls how many layers are held at once; see
+  [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md).
+
 ## Value
 
-Character path to the output GeoTIFF file, or in seasonal mode with
+Character vector of output GeoTIFF paths (one multi-band file, or one
+file per time step with `separate_files = TRUE`); with several
+variables, a named list of such vectors. Per-variable run details
+(`status`, `failed_layers`, chunk counts) are in
+`attr(x, "wapor_status")`. In seasonal mode with
 `separate_files = TRUE`, a list with `seasonal_aggregate` and
 `seasonal_components`.
 

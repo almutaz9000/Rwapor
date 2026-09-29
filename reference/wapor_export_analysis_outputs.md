@@ -10,7 +10,7 @@ wapor_export_analysis_outputs(
   folder,
   indicators = character(0),
   season_label = NULL,
-  include_dekadal = TRUE,
+  include_dekadal = FALSE,
   include_monthly = TRUE,
   include_seasonal_tables = TRUE,
   cog = FALSE
@@ -38,7 +38,9 @@ wapor_export_analysis_outputs(
 
 - include_dekadal:
 
-  Logical. Write aligned dekadal stacks.
+  Logical. Write aligned dekadal stacks (only present when the analysis
+  ran with `keep_intermediates = TRUE`). Default `FALSE`: they are large
+  and the inputs are usually already on disk.
 
 - include_monthly:
 

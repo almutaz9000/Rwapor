@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,7 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>CLAUDE.md</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/CLAUDE.md" class="external-link"><code>CLAUDE.md</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/CLAUDE.md" class="external-link"><code>CLAUDE.md</code></a></small>
     </div>
 
 <div id="claudemd" class="section level1">
@@ -54,6 +54,12 @@
 <li>After repo changes or validated findings, run: <code>powershell -ExecutionPolicy Bypass -File .\agent-workflow\scripts\agent_closeout.ps1 -WorkPerformed</code>
 </li>
 <li>If a command failure reveals a reusable issue or root cause, log it in <code>agent-workflow/issues-log.md</code>.</li>
+</ul></div>
+<div class="section level2">
+<h2 id="claude-plans-codex-implements">Claude plans, Codex implements<a class="anchor" aria-label="anchor" href="#claude-plans-codex-implements"></a></h2>
+<ul><li>For coding tasks that touch more than about 2 files or add behaviour: write a plan from <code>agent-workflow/templates/codex-plan.md</code>, hand it to Codex with <code>agent-workflow/scripts/codex_task.ps1</code> (run in the background), then verify Codex’s work yourself (diff and rerun the tests). Full protocol: the <code>codex-delegate</code> skill.</li>
+<li>Do small edits (1–2 files, docs, config) directly. Delegating them costs more.</li>
+<li>Codex reads <code>AGENTS.override.md</code> (short on purpose) and project skills in <code>.agents/skills/</code>. To add or improve a Codex skill, use the <code>codex-skill-author</code> skill.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="project-notes">Project Notes<a class="anchor" aria-label="anchor" href="#project-notes"></a></h2>

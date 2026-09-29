@@ -174,7 +174,10 @@ install.packages(c(
 
   # Visualization & Data
   "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite",
-  "RColorBrewer", "arrow"
+  "RColorBrewer", "arrow",
+
+  # Vignettes (needed for build_vignettes = TRUE in 3.3)
+  "knitr", "rmarkdown"
 ))
 ```
 
@@ -187,6 +190,16 @@ minutes the first time — that’s normal.
 
 install.packages("remotes")  # if not already installed
 remotes::install_github("almutaz9000/Rwapor", build_vignettes = TRUE)
+```
+
+Building the vignettes needs `knitr`, `rmarkdown` and Pandoc. RStudio
+ships Pandoc; outside RStudio, if the install stops with a Pandoc or
+vignette error, install without them (the vignettes are also on the
+[package website](https://almutaz9000.github.io/Rwapor/)):
+
+``` r
+
+remotes::install_github("almutaz9000/Rwapor")
 ```
 
 ### Step 4: Verify the installation

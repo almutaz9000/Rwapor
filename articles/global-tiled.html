@@ -5,12 +5,12 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Global Tiled Seasonal Analysis • Rwapor</title>
+<title>Large Areas: Size-Aware and Tiled Processing • Rwapor</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Global Tiled Seasonal Analysis">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Large Areas: Size-Aware and Tiled Processing">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,7 +36,7 @@
 <li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul>
@@ -61,36 +61,144 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Global Tiled Seasonal Analysis</h1>
+      <h1>Large Areas: Size-Aware and Tiled Processing</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/vignettes/global-tiled.Rmd" class="external-link"><code>vignettes/global-tiled.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/vignettes/global-tiled.Rmd" class="external-link"><code>vignettes/global-tiled.Rmd</code></a></small>
       <div class="d-none name"><code>global-tiled.Rmd</code></div>
     </div>
 
     
     
-<p>The tiled engine processes large WaPOR seasonal inputs with a bounded
-working window. It is the recommended path when an AOI cannot be loaded
-safely as a full raster stack.</p>
+<p>Rwapor decides how to process a job from its size. A 5 km farm at 20
+m fits in memory and runs without tiling; a 150 km irrigation scheme at
+20 m, or several years of dekads, is streamed or split into tiles
+automatically. The results are the same whichever mode runs; only memory
+use and speed change.</p>
+<div class="section level2">
+<h2 id="see-the-plan-before-you-run">See the plan before you run<a class="anchor" aria-label="anchor" href="#see-the-plan-before-you-run"></a>
+</h2>
+<p><code><a href="../reference/wapor_plan_processing.html">wapor_plan_processing()</a></code> estimates the memory a job needs
+and reports the mode it would use, with its reasons.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/almutaz9000/Rwapor" class="external-link">Rwapor</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># A small farm at 20 m, one year of dekads</span></span>
+<span><span class="fu"><a href="../reference/wapor_plan_processing.html">wapor_plan_processing</a></span><span class="op">(</span>aoi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">35.95</span>, <span class="fl">33.80</span>, <span class="fl">36.00</span>, <span class="fl">33.85</span><span class="op">)</span>, resolution <span class="op">=</span> <span class="fl">20</span>, n_layers <span class="op">=</span> <span class="fl">36</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># A large scheme at 20 m, four variables</span></span>
+<span><span class="fu"><a href="../reference/wapor_plan_processing.html">wapor_plan_processing</a></span><span class="op">(</span>aoi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">35.0</span>, <span class="fl">33.0</span>, <span class="fl">36.5</span>, <span class="fl">34.5</span><span class="op">)</span>, resolution <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>                      n_layers <span class="op">=</span> <span class="fl">36</span>, n_vars <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></code></pre></div>
+<p>The three modes are:</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Mode</th>
+<th>What it does</th>
+<th>When auto picks it</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>memory</code></td>
+<td>Whole area and every dekad at once</td>
+<td>Working set below 25% of the budget</td>
+</tr>
+<tr class="even">
+<td><code>stream</code></td>
+<td>Whole area, dekads read in batches</td>
+<td>Below the budget when streamed</td>
+</tr>
+<tr class="odd">
+<td><code>tiled</code></td>
+<td>Square tiles, assembled with a VRT</td>
+<td>Otherwise, or when one layer is over 10% of the budget</td>
+</tr>
+</tbody>
+</table>
+<p>The budget is half the free RAM divided by the number of
+<code>future</code> workers. Set it explicitly with
+<code>options(Rwapor.memory_budget_mb = 4096)</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="run-a-seasonal-analysis">Run a seasonal analysis<a class="anchor" aria-label="anchor" href="#run-a-seasonal-analysis"></a>
+</h2>
+<p><code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> plans and runs the job in
+one call. Leave <code>processing</code> at <code>"auto"</code>, or force
+a mode.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">crop_mask</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_load_crop_mask.html">wapor_load_crop_mask</a></span><span class="op">(</span><span class="st">"scheme_crop_mask.tif"</span><span class="op">)</span></span>
+<span></span>
 <span><span class="va">config</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  period <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2023-01-01"</span>, <span class="st">"2023-12-31"</span><span class="op">)</span>,</span>
-<span>  data_source <span class="op">=</span> <span class="st">"api"</span>, aeti_var <span class="op">=</span> <span class="st">"L1-AETI-D"</span>, ret_var <span class="op">=</span> <span class="st">"L1-RET-D"</span>,</span>
-<span>  precip_var <span class="op">=</span> <span class="st">"L1-PCP-D"</span>, indicators <span class="op">=</span> <span class="st">"agg_aeti"</span>,</span>
-<span>  folder <span class="op">=</span> <span class="st">"wapor_data"</span>, reference_layer <span class="op">=</span> <span class="st">"aeti"</span></span>
+<span>  data_source <span class="op">=</span> <span class="st">"api"</span>,</span>
+<span>  aeti_var <span class="op">=</span> <span class="st">"L3-AETI-D"</span>, ret_var <span class="op">=</span> <span class="st">"L1-RET-D"</span>, precip_var <span class="op">=</span> <span class="st">"L1-PCP-D"</span>,</span>
+<span>  indicators <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"agg_aeti"</span>, <span class="st">"etc"</span>, <span class="st">"adequacy_etc"</span>, <span class="st">"agg_peff"</span><span class="op">)</span>,</span>
+<span>  use_crop_mask <span class="op">=</span> <span class="cn">TRUE</span>, use_season_rasters <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  processing <span class="op">=</span> <span class="st">"auto"</span>,          <span class="co"># or "memory", "stream", "tiled"</span></span>
+<span>  output_dir <span class="op">=</span> <span class="st">"scheme_run"</span>     <span class="co"># stream and tiled outputs are written here</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_create_crop_params.html">wapor_create_crop_params</a></span><span class="op">(</span>class_value <span class="op">=</span> <span class="fl">1</span>, crop_name <span class="op">=</span> <span class="st">"Maize"</span><span class="op">)</span></span>
-<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis_tiled.html">wapor_run_seasonal_analysis_tiled</a></span><span class="op">(</span></span>
-<span>  config <span class="op">=</span> <span class="va">config</span>, crop_params <span class="op">=</span> <span class="va">params</span>, tile_size <span class="op">=</span> <span class="fu"><a href="../reference/wapor_suggest_tile_size.html">wapor_suggest_tile_size</a></span><span class="op">(</span><span class="fl">36</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p><code>reference_layer</code> and <code>resampling_method</code>
-define the target grid explicitly. Use nearest-neighbour resampling for
-categorical masks and continuous methods for fluxes. The engine writes a
-manifest and assembles outputs without holding the complete AOI in
-memory.</p>
-  </main>
+<span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span><span class="va">config</span>, <span class="va">params</span>, rasters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">crop_mask</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">processing</span>          <span class="co"># the plan that ran</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">coverage</span><span class="op">$</span><span class="va">aeti</span>       <span class="co"># share of season days with data, per pixel</span></span></code></pre></div>
+<p>When <code>aoi_region</code> is not given, the analysis area is the
+crop mask extent.</p>
+</div>
+<div class="section level2">
+<h2 id="accuracy">Accuracy<a class="anchor" aria-label="anchor" href="#accuracy"></a>
+</h2>
+<p>Seasonal and monthly totals are summed at each source’s own
+resolution and resampled once onto the analysis grid. With the default
+nearest-neighbour resampling, every value is a raw WaPOR value or a sum
+of raw values. For example, AgERA5-based reference ET at about 9 km is
+summed on its own grid and then assigned to the 20 m pixels inside each
+cell. To interpolate instead:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">config</span><span class="op">$</span><span class="va">resampling_method</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>ret <span class="op">=</span> <span class="st">"bilinear"</span>, pcp <span class="op">=</span> <span class="st">"bilinear"</span><span class="op">)</span></span></code></pre></div>
+<p>A pixel whose season is missing any dekad is <code>NA</code> by
+default rather than treated as 0 mm. Allow partial seasons with, for
+example, <code>config$min_coverage &lt;- 0.9</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="parallel-tiles">Parallel tiles<a class="anchor" aria-label="anchor" href="#parallel-tiles"></a>
+</h2>
+<p>Tiles run in parallel under the active <code>future</code> plan.
+terra and GDAL caches are divided between the workers automatically.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">future</span><span class="fu">::</span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="fu">future</span><span class="fu">::</span><span class="va"><a href="https://future.futureverse.org/reference/multisession.html" class="external-link">multisession</a></span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
+<span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span><span class="va">config</span>, <span class="va">params</span>, rasters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">crop_mask</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="resumable-tiled-runs">Resumable tiled runs<a class="anchor" aria-label="anchor" href="#resumable-tiled-runs"></a>
+</h2>
+<p><code><a href="../reference/wapor_run_seasonal_analysis_tiled.html">wapor_run_seasonal_analysis_tiled()</a></code> forces tiled mode
+and keeps a run manifest with a checksum for every tile. If a run is
+interrupted, rerun it with <code>resume = TRUE</code>: finished tiles
+are reused and only the missing ones are computed.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">tiled</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis_tiled.html">wapor_run_seasonal_analysis_tiled</a></span><span class="op">(</span></span>
+<span>  <span class="va">config</span>, <span class="va">params</span>, rasters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">crop_mask</span><span class="op">)</span>,</span>
+<span>  output_dir <span class="op">=</span> <span class="st">"scheme_tiles"</span>, tile_size <span class="op">=</span> <span class="fl">1024L</span>, cog <span class="op">=</span> <span class="cn">TRUE</span>, resume <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">tiled</span><span class="op">$</span><span class="va">saved_files</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="check-your-setup">Check your setup<a class="anchor" aria-label="anchor" href="#check-your-setup"></a>
+</h2>
+<p><code>inst/bench/remote_smoke_test.R</code> runs a short live check
+against the WaPOR API, and
+<code>inst/bench/large_raster_benchmark.R</code> measures memory and
+time on synthetic data:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"bench"</span>, <span class="st">"remote_smoke_test.R"</span>, package <span class="op">=</span> <span class="st">"Rwapor"</span><span class="op">)</span></span></code></pre></div>
+</div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside>
 </div>
 
 

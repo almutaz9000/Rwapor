@@ -9,7 +9,7 @@ optionally crops/masks to the region boundary, and saves as a GeoTIFF file."></h
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -23,7 +23,7 @@ optionally crops/masks to the region boundary, and saves as a GeoTIFF file."></h
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -40,7 +40,7 @@ optionally crops/masks to the region boundary, and saves as a GeoTIFF file."></h
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Download and Save a Raster Map</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/R/wapor_map.R" class="external-link"><code>R/wapor_map.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/wapor_map.R" class="external-link"><code>R/wapor_map.R</code></a></small>
       <div class="d-none name"><code>wapor_map.Rd</code></div>
     </div>
 
@@ -63,13 +63,14 @@ optionally crops/masks to the region boundary, and saves as a GeoTIFF file.</p>
 <span>  mask <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  batching <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  batch_size <span class="op">=</span> <span class="fl">12L</span>,</span>
+<span>  batch_size <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  l3_region <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  l3_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"select"</span>, <span class="st">"mosaic_all"</span><span class="op">)</span>,</span>
 <span>  partial <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  cog <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  on_batch_done <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  fun <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  fun <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  processing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"memory"</span>, <span class="st">"stream"</span>, <span class="st">"tiled"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -144,8 +145,10 @@ If <code>FALSE</code>, loads all layers at once.</p></dd>
 
 
 <dt id="arg-batch-size">batch_size<a class="anchor" aria-label="anchor" href="#arg-batch-size"></a></dt>
-<dd><p>Integer. Number of remote files loaded per chunk in non-seasonal mode.
-Lower values reduce memory pressure for long periods. Default is <code>12L</code>.</p></dd>
+<dd><p>Integer. Number of remote files loaded per chunk.
+Default <code>NULL</code> lets <code><a href="wapor_plan_processing.html">wapor_plan_processing()</a></code> choose it from the area size
+and available memory (all layers at once for small areas). Set a number to
+override.</p></dd>
 
 
 <dt id="arg-l-region">l3_region<a class="anchor" aria-label="anchor" href="#arg-l-region"></a></dt>
@@ -179,12 +182,21 @@ accumulative products and is rejected for state/rate products;
 <code>"mean"</code>, <code>"std"</code>, <code>"min"</code>, <code>"max"</code>, and <code>"median"</code> use each
 overlapping source layer once without scaling partial layers.</p></dd>
 
+
+<dt id="arg-processing">processing<a class="anchor" aria-label="anchor" href="#arg-processing"></a></dt>
+<dd><p>One of <code>"auto"</code> (default), <code>"memory"</code>, <code>"stream"</code> or
+<code>"tiled"</code>. Controls how many layers are held at once; see
+<code><a href="wapor_plan_processing.html">wapor_plan_processing()</a></code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Character path to the output GeoTIFF file, or in seasonal mode with
-<code>separate_files = TRUE</code>, a list with <code>seasonal_aggregate</code> and
-<code>seasonal_components</code>.</p>
+    <p>Character vector of output GeoTIFF paths (one multi-band file, or
+one file per time step with <code>separate_files = TRUE</code>); with several
+variables, a named list of such vectors. Per-variable run details
+(<code>status</code>, <code>failed_layers</code>, chunk counts) are in
+<code>attr(x, "wapor_status")</code>. In seasonal mode with <code>separate_files = TRUE</code>,
+a list with <code>seasonal_aggregate</code> and <code>seasonal_components</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

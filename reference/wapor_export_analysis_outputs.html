@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,7 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Export Analysis Outputs to Structured Folders</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/R/analysis_utils.R" class="external-link"><code>R/analysis_utils.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/analysis_utils.R" class="external-link"><code>R/analysis_utils.R</code></a></small>
       <div class="d-none name"><code>wapor_export_analysis_outputs.Rd</code></div>
     </div>
 
@@ -53,7 +53,7 @@
 <span>  <span class="va">folder</span>,</span>
 <span>  indicators <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span>,</span>
 <span>  season_label <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  include_dekadal <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  include_dekadal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  include_monthly <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  include_seasonal_tables <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  cog <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -81,7 +81,9 @@
 
 
 <dt id="arg-include-dekadal">include_dekadal<a class="anchor" aria-label="anchor" href="#arg-include-dekadal"></a></dt>
-<dd><p>Logical. Write aligned dekadal stacks.</p></dd>
+<dd><p>Logical. Write aligned dekadal stacks (only present
+when the analysis ran with <code>keep_intermediates = TRUE</code>). Default <code>FALSE</code>:
+they are large and the inputs are usually already on disk.</p></dd>
 
 
 <dt id="arg-include-monthly">include_monthly<a class="anchor" aria-label="anchor" href="#arg-include-monthly"></a></dt>

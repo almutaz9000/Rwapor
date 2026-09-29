@@ -11,7 +11,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/almutaz9000/Rwapor/blob/main/inst/CITATION)
+[`inst/CITATION`](https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/inst/CITATION)
 
 WaPOR-DL Contributors (2025). Rwapor: Download WaPOR and AgERA5 Data. R
 package version 0.1.0. https://github.com/wateraccounting/wapordl

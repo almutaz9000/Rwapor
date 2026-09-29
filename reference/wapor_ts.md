@@ -16,12 +16,13 @@ wapor_ts(
   download_locally = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L,
+  batch_size = NULL,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   on_batch_done = NULL,
-  fun = NULL
+  fun = NULL,
+  processing = c("auto", "memory", "stream", "tiled")
 )
 ```
 
@@ -89,8 +90,10 @@ wapor_ts(
 - batch_size:
 
   Integer. Number of remote raster layers loaded and processed per
-  batch. Lower values reduce peak memory usage for long time series.
-  Default is `12L` (~4 months of dekadal data).
+  batch. Default `NULL` lets
+  [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md)
+  choose it from the area size and available memory. Set a number to
+  override.
 
 - l3_region:
 
@@ -121,6 +124,11 @@ wapor_ts(
   for accumulative products and is rejected for state/rate products;
   `"mean"`, `"std"`, `"min"`, `"max"`, and `"median"` use each
   overlapping source layer once without scaling partial layers.
+
+- processing:
+
+  One of `"auto"` (default), `"memory"`, `"stream"` or `"tiled"`; see
+  [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md).
 
 ## Value
 

@@ -14,7 +14,8 @@ wapor_configure_gdal(
   vsi_cache_size = 100000000L,
   gdal_cachemax = 512L,
   http_multiplex = TRUE,
-  verbose = FALSE
+  verbose = FALSE,
+  overwrite = TRUE
 )
 ```
 
@@ -52,10 +53,16 @@ wapor_configure_gdal(
 
   Logical. Print the applied settings to the console. Default `FALSE`.
 
+- overwrite:
+
+  Logical. If `TRUE` (default for manual calls), replace existing
+  values. On package load it is `FALSE`: variables already set by the
+  user, `.Renviron` or an institutional setup are left unchanged.
+
 ## Value
 
 Invisibly, a named character vector of the environment variable values
-applied.
+applied (only the variables that were set).
 
 ## Details
 

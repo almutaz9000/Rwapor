@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,7 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -591,6 +591,13 @@
 
         <dt>
 
+          <code><a href="wapor_plan_processing.html">wapor_plan_processing()</a></code>
+
+        </dt>
+        <dd>Plan How a Raster Job Should Be Processed</dd>
+
+        <dt>
+
           <code><a href="wapor_plot_anomaly.html">wapor_plot_anomaly()</a></code>
 
         </dt>
@@ -619,10 +626,31 @@
 
         <dt>
 
+          <code><a href="wapor_plot_polygon_grid.html">wapor_plot_polygon_grid()</a></code>
+
+        </dt>
+        <dd>Plot a raster as a grid of small maps, one per polygon unit</dd>
+
+        <dt>
+
+          <code><a href="wapor_plot_polygon_seasons.html">wapor_plot_polygon_seasons()</a></code>
+
+        </dt>
+        <dd>Plot selected polygon units over several raster layers</dd>
+
+        <dt>
+
           <code><a href="wapor_plot_timeseries.html">wapor_plot_timeseries()</a></code>
 
         </dt>
         <dd>Plot a grouped time series</dd>
+
+        <dt>
+
+          <code><a href="wapor_plot_unit_series.html">wapor_plot_unit_series()</a></code>
+
+        </dt>
+        <dd>Plot one time series per unit with a dashed reference line</dd>
 
         <dt>
 
@@ -714,6 +742,13 @@
 
         </dt>
         <dd>Extract Time Series with Zonal Statistics</dd>
+
+        <dt>
+
+          <code><a href="wapor_unstack_map.html">wapor_unstack_map()</a></code>
+
+        </dt>
+        <dd>Split a multi-band wapor_map() stack into one file per date</dd>
 
         <dt>
 

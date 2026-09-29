@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://almutaz9000.github.io/Rwapor/404.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/AGENTS.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/AGENTS.override.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/CLAUDE.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/IMPROVEMENT_PLAN.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/LICENSE-text.html</loc></url>
@@ -122,12 +123,16 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_parse_batch_periods.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_parse_region.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_pixel_area_ha.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plan_time_slices.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_anomaly.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_comparison.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_kc_curve.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_polygon_grid.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_polygon_seasons.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_timeseries.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_plot_unit_series.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_preflight_check.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_raster_from_blob.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_recalculate_stats_from_rasters.html</loc></url>
@@ -151,6 +156,7 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_summary_by_class.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_temporal_codes.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_ts.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_unstack_map.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_update_metadata.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_validate_analysis_config.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_validate_crop_defaults.html</loc></url>

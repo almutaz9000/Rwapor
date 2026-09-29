@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -21,7 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
-    <li><a class="dropdown-item" href="../articles/global-tiled.html">Global Tiled Seasonal Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
     <li><a class="dropdown-item" href="../articles/shiny-dashboard.html">Interactive Web GIS &amp; Agricultural Analytics with the Rwapor Shiny Dashboard</a></li>
     <li><a class="dropdown-item" href="../articles/wheat-water-productivity.html">Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</a></li>
   </ul></li>
@@ -38,9 +38,145 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/almutaz9000/Rwapor/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.5" id="rwapor-105">Rwapor 1.0.5<a class="anchor" aria-label="anchor" href="#rwapor-105"></a></h2>
+<div class="section level3">
+<h3 id="correctness-fixes-upgrade-recommended-1-0-5">Correctness fixes (upgrade recommended)<a class="anchor" aria-label="anchor" href="#correctness-fixes-upgrade-recommended-1-0-5"></a></h3>
+<ul><li>
+<code><a href="../reference/wapor_map.html">wapor_map()</a></code> applies the source file scale (0.1 for most WaPOR layers) exactly once. It clears the stored scale when it opens the files and applies it after the crop, so the result no longer depends on the terra version. The 1.0.4 fix multiplied values that were already physical by the catalogue scale again, giving outputs 10 times too low (e.g. 2.5 instead of 25 mm/dekad) with terra 1.7 and 1.9. Re-download maps made with 1.0.4.</li>
+<li>
+<code><a href="../reference/wapor_map.html">wapor_map()</a></code> again returns the documented character vector of output paths (a named list of them for several variables). Since 1.0.1 it returned a status list, so <code>terra::rast(wapor_map(...))</code> from the getting-started vignette failed, and the dashboard reported “Download failed … expected files were not found” after every successful non-seasonal download. Run details are in <code>attr(x, "wapor_status")</code>; code that used <code>x$status</code> or <code>x$output_paths</code> from 1.0.1 to 1.0.4 must switch to the attribute or to <code>x</code>.</li>
+<li>
+<code><a href="../reference/wapor_write_cog.html">wapor_write_cog()</a></code> no longer truncates fractional values. Its integer datatype probe read only the first rows of the first layer, so a band of zeros (e.g. a masked edge) wrote a float raster as INT4U. It now checks every value (up to 5 million) or a regular sample across all layers.</li>
+<li>
+<code><a href="../reference/wapor_ts.html">wapor_ts()</a></code> polygon statistics no longer fail with “Could not find expected columns for layer 1” when a batch holds a single layer (for example a one-dekad period): <code>exactextractr</code> names single-layer columns without the layer suffix. Found by the new live-API release gate.</li>
+<li>Local analysis (<code>data_source = "local"</code>) reads <code>&lt;VAR&gt;_seasonal</code> aggregates only when the per-time-step <code>&lt;VAR&gt;</code> folder has no files, so a seasonal map saved next to dekadal files is no longer counted as an extra layer.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="disk-use-and-speed-of-seasonal-analysis-1-0-5">Disk use and speed of seasonal analysis<a class="anchor" aria-label="anchor" href="#disk-use-and-speed-of-seasonal-analysis-1-0-5"></a></h3>
+<ul><li>Seasonal analysis writes about 45 % less to disk and runs 10 to 40 % faster (1 M cells, 18 dekads, 5 variables: 1,288 MB to 715 MB; 90 s to 70 to 80 s with defaults, 110 s to 65 to 77 s with <code>keep_intermediates = TRUE</code>), with unchanged results:
+<ul><li>
+<code>keep_intermediates</code> is <code>FALSE</code> unless set. <strong>Behaviour change</strong>: <code>results$dekadal_stacks</code> and <code>results$season_weights</code> are no longer returned in memory mode by default; set <code>keep_intermediates = TRUE</code>.</li>
+<li>
+<code>wapor_export_analysis_outputs(include_dekadal = FALSE)</code> is the new default. <strong>Behaviour change</strong>: set <code>include_dekadal = TRUE</code> for <code>dekadal_stacks/</code>.</li>
+<li>File-backed results, tiles and exports are compressed Float32 (relative difference below 1e-7).</li>
+<li>The run logs an estimate of the disk space it needs and warns when the output or temporary folder has less free space (<code>options(Rwapor.disk_check = FALSE)</code> turns this off).</li>
+</ul></li>
+<li>
+<code>inst/bench/disk_footprint_benchmark.R</code> reproduces these measurements.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="new-and-improved-functions-1-0-5">New and improved functions<a class="anchor" aria-label="anchor" href="#new-and-improved-functions-1-0-5"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_unstack_map.html">wapor_unstack_map()</a></code> splits a multi-band <code><a href="../reference/wapor_map.html">wapor_map()</a></code> file into one file per date, the layout local analysis reads. <code><a href="../reference/wapor_local_rasters.html">wapor_local_rasters()</a></code> now warns about such files instead of skipping them silently.</li>
+<li>
+<code><a href="../reference/wapor_fetch_l3_regions.html">wapor_fetch_l3_regions()</a></code> gains <code>timeout</code> and <code>retry</code>.</li>
+<li>
+<code><a href="../reference/wapor_configure_gdal.html">wapor_configure_gdal()</a></code> gains <code>overwrite</code>. When the package loads, GDAL variables that are already set (by the user, <code>.Renviron</code> or an institutional setup) are kept, and <code>RWAPOR_AUTO_CONFIG=false</code> or <code>options(Rwapor.configure_gdal = FALSE)</code> skips the configuration.</li>
+<li>
+<code><a href="../reference/wapor_write_cog.html">wapor_write_cog()</a></code> no longer prints GDAL “does not support creation option” notes on every write.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="dashboard-1-0-5">Dashboard<a class="anchor" aria-label="anchor" href="#dashboard-1-0-5"></a></h3>
+<ul><li>The Visualisation tab no longer needs the retired <code>raster</code> package (terra rasters go straight to leaflet &gt;= 2.1.2).</li>
+<li>Start-up no longer blocks about 30 s on API retries when the L3 region list cannot be fetched.</li>
+<li>The Analysis tab defaults to dekadal RET and precipitation (<code>L1-RET-D</code>, <code>L1-PCP-D</code>) instead of annual AgERA5 products.</li>
+<li>The active tab label is readable.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="installation-and-ci-1-0-5">Installation and CI<a class="anchor" aria-label="anchor" href="#installation-and-ci-1-0-5"></a></h3>
+<ul><li>README Step 3.2 installs <code>knitr</code> and <code>rmarkdown</code>, which <code>install_github(build_vignettes = TRUE)</code> needs, and documents the install without vignettes. <code>raster</code> and <code>pkgdown</code> are no longer in Suggests.</li>
+<li>CI runs on every <code>version-*</code> branch and every pull request; a new install smoke test installs Rwapor as the README describes on Windows, macOS and Linux and starts the dashboard. The pkgdown site deploys from the default branch.</li>
+<li>Fixed a Windows-only race in a test fixture that kept CI red on 1.0.4; a network test now skips when the WaPOR API is unreachable.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.4" id="rwapor-104">Rwapor 1.0.4<a class="anchor" aria-label="anchor" href="#rwapor-104"></a></h2>
+<div class="section level3">
+<h3 id="installation-and-analysis-safety-fixes-1-0-4">Installation and analysis safety fixes<a class="anchor" aria-label="anchor" href="#installation-and-analysis-safety-fixes-1-0-4"></a></h3>
+<ul><li>GitHub CI now runs for the default <code>version-1.0.4</code> branch.</li>
+<li>
+<code><a href="../reference/wapor_export_analysis_outputs.html">wapor_export_analysis_outputs()</a></code> accepts a single-season result directly; it no longer mistakes its first raster for a multi-season result.</li>
+<li>Seasonal analysis accepts season rasters made with the historic <code>ref_year = 1970</code> default by rebasing their internal profile keys.</li>
+<li>A supplied crop mask is used by default. An explicit <code>use_crop_mask = FALSE</code> now warns because it analyses the whole AOI as crop class 1.</li>
+<li>Non-seasonal <code>wapor_map(separate_files = TRUE)</code> writes physical WaPOR values when a remote source has lost its scale metadata, so the output is safe to reuse with <code>data_source = "local"</code>. (Superseded in 1.0.5: this fix scaled values twice.)</li>
+</ul></div>
+<div class="section level3">
+<h3 id="new-features-1-0-4">New features<a class="anchor" aria-label="anchor" href="#new-features-1-0-4"></a></h3>
+<ul><li><p>New <code><a href="../reference/wapor_plot_polygon_seasons.html">wapor_plot_polygon_seasons()</a></code> draws selected polygon units over several raster layers: one row per unit (for example a farm), one column per layer (for example one seasonal AETI map per season). Every panel of a row shows the unit at the same size, with its polygon outlines, and all panels share one colour scale computed from all layers. <code>scale = "percentile_stretch"</code> keeps one continuous gradient but anchors its colours at percentiles of the data (ticks at the anchor values), so differences stand out more. Row and column titles can be set, for example the seasonal ETc under each season.</p></li>
+<li><p>New <code><a href="../reference/wapor_plot_unit_series.html">wapor_plot_unit_series()</a></code> draws one time series per unit (seasonal or monthly, character, Date or numeric time), coloured by a group column, with an optional reference series such as ETc as a black dashed line, to see which units stay above or below the reference.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-4">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-4"></a></h3>
+<ul><li><p><code><a href="../reference/wapor_plot_polygon_grid.html">wapor_plot_polygon_grid()</a></code> drew the continuous colour bar about five times longer than intended (ggplot2 draws a colour bar 5 times <code>legend.key.height</code>), so it was taller than the panel grid. The bar is now <code>legend_size</code> times the default length, and a single row of panels (or a panel with its own scale) gets a bar as tall as its panels.</p></li>
+<li><p>Seasonal analysis on local files (<code>data_source = "local"</code>) no longer counts the days of a dekad twice. <code><a href="../reference/wapor_map.html">wapor_map()</a></code> saves dekadal mm/day products as mm/dekad by default (<code>unit_conversion = NULL</code>), but the analysis multiplied every local layer by the days in its dekad again, so seasonal AETI, RET, ETc, precipitation and the indicators built on them were about 10 times too high. The analysis now reads each file’s units and divides out the saved conversion (mm/dekad, mm/month or mm/year); files in mm/day, runs on the WaPOR API, and folders mixing both give the same totals. The WaPOR scale factors (0.1, 0.001) were always applied correctly on read and are unchanged: verified against the raw COG values for L1 AETI, PCP, RET, NPP and L3 AETI, in all processing modes and in <code><a href="../reference/wapor_ts.html">wapor_ts()</a></code>.</p></li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.3" id="rwapor-103">Rwapor 1.0.3<a class="anchor" aria-label="anchor" href="#rwapor-103"></a></h2>
+<div class="section level3">
+<h3 id="new-features-1-0-3">New features<a class="anchor" aria-label="anchor" href="#new-features-1-0-3"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_plot_polygon_grid.html">wapor_plot_polygon_grid()</a></code> draws a raster as a grid of small maps, one panel per polygon unit (for example one panel per farm, with all of its parcels outlined). Panels are cropped to each unit plus a buffer (metres), square or in the unit’s own shape, and laid out <code>per_page</code> to a page; each page can be saved as a PNG. The colour scale is shared by all panels by default and computed from the whole raster: a continuous gradient (2nd to 98th percentile, full range or your limits), percentile classes, or your own class breaks. <code>common_scale = FALSE</code> gives every panel its own scale. Needs ggplot2; own scales and true shapes also need patchwork.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-3"></a></h3>
+<ul><li>The registered <code>peff_green_blue</code> indicator step (<code>wapor_get_indicator_step("peff_green_blue")</code>) now sums the monthly green/blue splits, like <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> since 1.0.2. It still split the seasonal totals, so a direct call could give more green and less blue water than the engine.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.2" id="rwapor-102">Rwapor 1.0.2<a class="anchor" aria-label="anchor" href="#rwapor-102"></a></h2>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-2">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-2"></a></h3>
+<ul><li>Seasonal green and blue water (<code>green_water</code>, <code>blue_water</code> from <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code>) are now the sum of the monthly splits: green = sum over months of min(AETI, Peff), blue = sum over months of max(0, AETI - Peff). Before, the split was applied to the seasonal totals, which let surplus rain in a wet month offset irrigation in a dry month, so green water was overestimated and blue water underestimated whenever wet and dry months fell in the same season. Green + blue still equals seasonal AETI. Seasons that span a single month are unchanged. The monthly layers (<code>monthly_green_water</code>, <code>monthly_blue_water</code>) were already correct.</li>
+</ul></div>
+</div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.1" id="rwapor-101">Rwapor 1.0.1<a class="anchor" aria-label="anchor" href="#rwapor-101"></a></h2>
+<p>Rwapor now chooses how to process a job from its size, and seasonal totals are computed without altering the values the WaPOR server returns. To reproduce results from before this release, install the tag <code>v1.0.0-final</code> (<code>remotes::install_github("almutaz9000/Rwapor@v1.0.0-final")</code>).</p>
+<div class="section level3">
+<h3 id="size-aware-processing-1-0-1">Size-aware processing<a class="anchor" aria-label="anchor" href="#size-aware-processing-1-0-1"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_plan_processing.html">wapor_plan_processing()</a></code> estimates the memory a job needs and chooses a mode: <code>"memory"</code> (whole area at once), <code>"stream"</code> (whole area, dekads read in batches) or <code>"tiled"</code> (square tiles assembled with a VRT). The plan reports its estimate, budget and reasons. The budget is half the free RAM divided by the number of <code>future</code> workers; override it with <code>options(Rwapor.memory_budget_mb = ...)</code> and the mode thresholds with <code>options(Rwapor.plan_thresholds = ...)</code>.</li>
+<li>
+<code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> (via <code>config$processing</code>), <code><a href="../reference/wapor_map.html">wapor_map()</a></code> and <code><a href="../reference/wapor_ts.html">wapor_ts()</a></code> gain <code>processing = c("auto", "memory", "stream", "tiled")</code>, defaulting to <code>"auto"</code>. <code>batch_size</code> now defaults to <code>NULL</code> (chosen by the planner); an explicit number still wins.</li>
+<li>All modes run the same window kernel, so results are identical whichever mode runs (tested to 1e-6 relative). A small farm runs in memory without tiling; a large 20 m scheme is tiled automatically. Tiles run in parallel under the active <code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">future::plan()</a></code>, with terra and GDAL caches divided per worker.</li>
+<li>
+<code><a href="../reference/wapor_run_seasonal_analysis_tiled.html">wapor_run_seasonal_analysis_tiled()</a></code> is now a thin wrapper that forces tiled mode. It keeps the run manifest, resume, checksums and COG output.</li>
+<li>The dashboard’s “Optimize Memory” checkbox is replaced by a processing-mode selector and a badge showing the planned mode and memory estimate.</li>
+<li>
+<code>config$keep_intermediates</code> (default <code>TRUE</code> in memory mode, <code>FALSE</code> otherwise) controls whether <code>dekadal_stacks</code> and <code>season_weights</code> are returned. Registered indicator steps that read <code>ctx$stacks</code> or <code>ctx$season_weights</code> still get them; they are built on first access.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="accuracy-results-can-differ-from-1-0-1">Accuracy (results can differ from 1.0.0)<a class="anchor" aria-label="anchor" href="#accuracy-results-can-differ-from-1-0-1"></a></h3>
+<ul><li>Seasonal and monthly totals are summed at each source’s native resolution and resampled once onto the analysis grid, instead of resampling every dekad.</li>
+<li>Continuous variables now use nearest-neighbour resampling by default (was bilinear), so every output value is a raw server value or a sum of raw values. AgERA5-derived results (RET, ETc, precipitation, Peff, adequacy, green and blue water) change for most pixels; AETI, NPP and T on their native grid do not. Use <code>config$resampling_method = list(ret = "bilinear")</code> to interpolate.</li>
+<li>New <code>config$min_coverage</code> (default <code>1</code>): a pixel is <code>NA</code> unless every dekad in its season has data. Previously missing dekads were silently counted as 0 mm. The per-variable share of season days with data is returned in <code>results$coverage</code>.</li>
+<li>When <code>aoi_region</code> is not supplied, the analysis area now defaults to the crop mask (or season raster) extent, with a log message. Previously it used the full extent of the first source file, which for WaPOR L1 is the whole globe.</li>
+<li>With bilinear resampling, 1.0.0 cropped each source to the area before resampling, which biased the outer one to two rows and columns. Sources are now read with a halo of neighbouring cells.</li>
+<li>ETc for cross-year seasons (end day of year before start) is now computed; 1.0.0 dropped those profiles.</li>
+<li>Per-pixel area uses <code><a href="https://rspatial.github.io/terra/reference/cellSize.html" class="external-link">terra::cellSize()</a></code> (exact ellipsoidal area) instead of a latitude approximation, which slightly changes area-weighted CWP/BWP means.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bug-fixes-1-0-1">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-1-0-1"></a></h3>
+<ul><li>The tiled engine cropped source rasters with the crop mask’s row/column indices, so any source on a different grid (every remote WaPOR file) produced all-<code>NA</code> tiles without an error (ISS-20260923-001).</li>
+<li>WaPOR dekad file labels (<code>2023-01-D1</code>, <code>D2</code>, <code>D3</code>) are now matched to their dekads. In 1.0.0, <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> with <code>data_source = "api"</code> stopped with “Missing data for some dekads in the analysis period” for every request (verified against the live API); it now runs.</li>
+<li>The GDAL capability check at package load always warned that <code>/vsicurl/</code> was missing (it searched a driver column that does not exist), and <code>options(Rwapor.remote_fallback = "download")</code> therefore always downloaded whole files. curl support is now detected from GDAL’s HTTP driver.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="memory-and-speed-1-0-1">Memory and speed<a class="anchor" aria-label="anchor" href="#memory-and-speed-1-0-1"></a></h3>
+<ul><li>Exact P95 (<code><a href="../reference/wapor_calc_p95_aeti.html">wapor_calc_p95_aeti()</a></code>) and Theil index (<code><a href="../reference/wapor_calc_theil.html">wapor_calc_theil()</a></code>) are computed block-wise with bounded memory; results are unchanged.</li>
+<li>
+<code><a href="../reference/linear_trend.html">linear_trend()</a></code> uses closed-form layer arithmetic instead of an R function per pixel; results are unchanged.</li>
+<li>
+<code><a href="../reference/wapor_masked_sum.html">wapor_masked_sum()</a></code>, <code><a href="../reference/wapor_map.html">wapor_map()</a></code> seasonal mode and the crop-mask checks no longer build whole-stack temporaries or read full rasters into R.</li>
+<li>
+<code><a href="../reference/wapor_map.html">wapor_map()</a></code> writes tiled, LZW-compressed GeoTIFFs (BigTIFF when needed) in a single pass; <code><a href="../reference/wapor_ts.html">wapor_ts()</a></code> no longer crops before polygon extraction and computes seasonal weighted means in one extraction pass.</li>
+<li>The GDAL HTTP chunk size is matched to each job’s window size (256 KB to 10 MB) instead of a fixed 10 MB.</li>
+<li>
+<code><a href="../reference/wapor_suggest_tile_size.html">wapor_suggest_tile_size()</a></code> now assumes 8-byte values (terra’s in-memory type) and gains <code>n_vars</code> and <code>overhead</code> arguments.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.0.0" id="rwapor-100-development">Rwapor 1.0.0 (development)<a class="anchor" aria-label="anchor" href="#rwapor-100-development"></a></h2>
 <div class="section level3">

@@ -1,11 +1,12 @@
 # Run Windowed / Tiled Seasonal Analysis Engine
 
-Processes seasonal analysis in deterministic spatial tiles so large
-extents do not need the full cube in RAM. Each tile is cropped, run
-through tile-local block reducers, written as an immutable GeoTIFF/COG,
-and recorded in a versioned run manifest. Completed tiles can be
-resumed. Tile assets are assembled with a VRT rather than by keeping a
-full-AOI mosaic in memory.
+Runs
+[`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)
+with `processing = "tiled"`: the analysis area is split into square
+tiles, each tile is aggregated from windowed source reads, written as an
+immutable GeoTIFF/COG and recorded in a versioned run manifest.
+Completed tiles can be resumed. Tile outputs are assembled with a VRT
+rather than by holding a full-area mosaic in memory.
 
 ## Usage
 
@@ -26,7 +27,8 @@ wapor_run_seasonal_analysis_tiled(
 
 - config:
 
-  List of configuration parameters.
+  List of configuration parameters (see
+  [`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)).
 
 - crop_params:
 
@@ -61,5 +63,12 @@ wapor_run_seasonal_analysis_tiled(
 
 ## Value
 
-List with paths to written raster files, the run manifest, tile counts,
-and VRT-backed `results` rasters.
+List with paths to written raster files (`saved_files`), the run
+manifest path, tile counts, VRT-backed `results` rasters, and the full
+engine result as `analysis`.
+
+## Details
+
+Results are identical to the in-memory engine; only memory use differs.
+Tiles run in parallel under the active
+[`future::plan()`](https://future.futureverse.org/reference/plan.html).
