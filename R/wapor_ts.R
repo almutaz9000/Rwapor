@@ -559,6 +559,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
         label = sprintf("%s batch %d zonal extraction", variable, ci)
       )
 
+      # exact_extract drops the layer suffix for a single-layer raster
+      # ("mean" instead of "mean.L1"); normalise so both cases match below.
+      if (n_lyr == 1L) {
+        single <- intersect(c("mean", "min", "max"), names(ex))
+        names(ex)[match(single, names(ex))] <- paste0(single, ".L1")
+      }
       ex$ID <- seq_len(nrow(ex))
 
       # Reshape extracted stats into long format.

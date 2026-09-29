@@ -19,6 +19,10 @@
   datatype probe read only the first rows of the first layer, so a band of
   zeros (e.g. a masked edge) wrote a float raster as INT4U. It now checks every
   value (up to 5 million) or a regular sample across all layers.
+* `wapor_ts()` polygon statistics no longer fail with "Could not find
+  expected columns for layer 1" when a batch holds a single layer (for
+  example a one-dekad period): `exactextractr` names single-layer columns
+  without the layer suffix. Found by the new live-API release gate.
 * Local analysis (`data_source = "local"`) reads `<VAR>_seasonal` aggregates
   only when the per-time-step `<VAR>` folder has no files, so a seasonal map
   saved next to dekadal files is no longer counted as an extra layer.
