@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -174,7 +174,7 @@ wheat mask built in Step 1:</p>
 <span>    <span class="co">#   "green_water", "blue_water"                     -- water-source partitioning</span></span>
 <span>    <span class="co">#   "yield_npp", "agg_biomass_kg", "agg_biomass_t"  -- yield/biomass from NPP</span></span>
 <span>    <span class="co">#   "variability", "cv_aeti", "theil_aeti"          -- spatial uniformity/inequality,</span></span>
-<span>    <span class="co">#                                                       used by wapor_compare_seasons()</span></span>
+<span>    <span class="co">#                                                       spatial uniformity indicators</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
@@ -272,8 +272,9 @@ single vector — the same <code>wheat_mask</code> and
 <span><span class="op">)</span></span></code></pre></div>
 <p><code>wheat_all_seasons</code> is a named list of per-season results
 (same structure as Step 3’s single-season output), ready for
-year-over-year comparison with <code>wapor_compare_seasons()</code> —
-see <code><a href="../articles/advanced-analysis.html">vignette("advanced-analysis")</a></code> for spatial uniformity
+year-over-year comparison (for example with
+<code><a href="../reference/wapor_plot_polygon_seasons.html">wapor_plot_polygon_seasons()</a></code>); see
+<code><a href="../articles/advanced-analysis.html">vignette("advanced-analysis")</a></code> for spatial uniformity
 (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mi>V</mi></mrow><annotation encoding="application/x-tex">CV</annotation></semantics></math>,
 Theil Index) and anomaly-detection functions that work directly on this
 multi-season output.</p>

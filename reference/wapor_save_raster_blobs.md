@@ -49,4 +49,5 @@ wapor_save_raster_blobs(
 
 ## Value
 
-NULL (invisibly).
+An invisible list with `variable`, the number of newly `saved` layers,
+the number already `existing`, and date keys that `failed`.
