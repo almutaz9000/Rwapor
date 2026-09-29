@@ -2,6 +2,15 @@
 
 ## Correctness fixes (upgrade recommended)
 
+* `wapor_run_seasonal_analysis()` computes ETc with the Kc curve aligned to
+  the season again. Since 1.0.4 (`94b1533`) the processing kernel rebased the
+  season days to the period year for the weights but aggregated Kc with the
+  unshifted dekad table, so any season not starting on 1 January of the period
+  year used a shifted Kc curve: ETc (and `adequacy_etc`, `monthly_etc`) came
+  out too low, e.g. about 9% for a citrus year starting 1 March and 0 mm (with
+  adequacy `NaN`) for a wheat season starting 1 November. Re-run ETc and
+  adequacy results made with 1.0.4. A regression test checks kernel ETc
+  against the daily Kc x RET sum for a 1 March season.
 * `wapor_map()` applies the source file scale (0.1 for most WaPOR layers)
   exactly once. It clears the stored scale when it opens the files and applies
   it after the crop, so the result no longer depends on the terra version. The

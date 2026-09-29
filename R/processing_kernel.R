@@ -542,7 +542,9 @@
     m <- as.numeric(v$multipliers %||% rep(1, nrow(dekad_table)))
     coef <- sweep(sw$weights, 2, m, "*")
     if (isTRUE(v$kc)) {
-      if (is.null(kc)) kc <- .wapor_profile_kc(profiles, crop_params, dekad_table, reference_year)
+      # profiles$start_jd is in the rebased kernel coordinates, so Kc must use
+      # the same shifted dekad table and year as the weights (sw) above.
+      if (is.null(kc)) kc <- .wapor_profile_kc(profiles, crop_params, kernel_dekad_table, kernel_reference_year)
       coef <- coef * kc
     }
     method <- v$method %||% "near"
