@@ -477,3 +477,42 @@ test_that("wapor_compare_seasons computes overall and per-class comparisons corr
   expect_equal(maize_s1$Adequacy_pct, 90)
   expect_equal(maize_s2$Adequacy_pct, 95)
 })
+
+test_that("wapor_scan_local correctly scans directories and extracts date ranges", {
+  tmp_dir <- tempfile("wapor_test_scan_")
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # Test non-existent folder
+  empty_df <- wapor_scan_local(file.path(tmp_dir, "non_existent"))
+  expect_equal(nrow(empty_df), 0)
+
+  # Create variable subdirectories
+  var1_dir <- file.path(tmp_dir, "L1-AETI-D")
+  var2_dir <- file.path(tmp_dir, "AGERA5-ET0-E")
+  dir.create(var1_dir)
+  dir.create(var2_dir)
+
+  # Create mock tif files in dekadal folder (L1-AETI-D)
+  file.create(file.path(var1_dir, "L1-AETI-D.2020-01-D1.tif"))
+  file.create(file.path(var1_dir, "L1-AETI-D.2020-01-D2.tif"))
+  file.create(file.path(var1_dir, "L1-AETI-D.2020-01-D3.tif"))
+
+  # Create mock tif files in daily folder (AGERA5-ET0-E)
+  file.create(file.path(var2_dir, "AGERA5-ET0-E.2020-05-01.tif"))
+  file.create(file.path(var2_dir, "AGERA5-ET0-E.2020-05-15.tif"))
+
+  scanned <- wapor_scan_local(tmp_dir)
+  expect_equal(nrow(scanned), 2)
+  expect_true(all(c("variable", "file_count", "min_date", "max_date", "folder_path") %in% names(scanned)))
+
+  aeti_row <- scanned[scanned$variable == "L1-AETI-D", ]
+  expect_equal(aeti_row$file_count, 3)
+  expect_equal(aeti_row$min_date, "2020-01-01")
+  expect_equal(aeti_row$max_date, "2020-01-21")
+
+  et0_row <- scanned[scanned$variable == "AGERA5-ET0-E", ]
+  expect_equal(et0_row$file_count, 2)
+  expect_equal(et0_row$min_date, "2020-05-01")
+  expect_equal(et0_row$max_date, "2020-05-15")
+})
