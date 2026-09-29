@@ -155,3 +155,57 @@ jobs:
             stop("The dashboard did not serve its page (process exited or 180 s timeout); log above.")
           }
           cat("Dashboard served HTTP 200.\n")
+
+  # Release gate against the live WaPOR API. Runs only on manual dispatch so
+  # routine pushes do not depend on the API being up.
+  live-api:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    name: live API (${{ matrix.os }})
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      RWAPOR_RUN_LIVE_TESTS: "true"
+      NOT_CRAN: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::devtools, any::callr, local::.
+          needs: check
+
+      - name: devtools::test() with live API tests
+        shell: Rscript {0}
+        run: |
+          res <- as.data.frame(devtools::test(reporter = "summary", stop_on_failure = FALSE))
+          cat(sprintf("\ntests %d | passed %d | failed %d | errors %d | skipped %d\n",
+                      nrow(res), sum(res$passed), sum(res$failed), sum(res$error), sum(res$skipped)))
+          if (sum(res$failed) > 0 || any(res$error)) stop("devtools::test() reported failures")
+
+      - name: devtools::check() with live API tests
+        shell: Rscript {0}
+        run: devtools::check(error_on = "warning", args = c("--no-manual"))
+
+      - name: Live remote smoke test (inst/bench/remote_smoke_test.R)
+        run: Rscript inst/bench/remote_smoke_test.R .
+
+      - name: Live release checks (inst/bench/live_release_checks.R)
+        run: Rscript inst/bench/live_release_checks.R .
