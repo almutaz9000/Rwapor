@@ -398,3 +398,58 @@ print.wapor_plan <- function(x, ...) {
   for (r in x$reasons) cat("    - ", r, "\n", sep = "")
   invisible(x)
 }
+
+#' Estimate the disk space a seasonal analysis run writes (internal)
+#'
+#' Counts the Float32 rasters a run leaves in its output and temporary folders:
+#' per target variable one seasonal and one monthly layer per month, about 15
+#' derived indicator layers, and (with `keep_intermediates`) every aligned
+#' dekadal layer. The factor 3 covers terra's intermediate copies: a 1 M-cell,
+#' 18-dekad, 6-target run wrote 591 MB for 228 MB of result layers (2.6x);
+#' kept stacks added about a quarter of their raw size (see
+#' docs/superpowers/plans/2026-09-28-production-readiness-plan.md).
+#' @keywords internal
+#' @noRd
+.wapor_estimate_disk_bytes <- function(cells, n_targets, n_months, n_layers = 0L,
+                                       keep_intermediates = FALSE, bytes = 4) {
+  result_layers <- n_targets * (as.numeric(n_months) + 1) + 15
+  est <- as.numeric(cells) * bytes * result_layers * 3
+  if (isTRUE(keep_intermediates)) {
+    est <- est + as.numeric(cells) * bytes * n_targets * as.numeric(n_layers) * 0.5
+  }
+  est
+}
+
+#' Free bytes on the volume holding `path`, or NA when unknown (internal)
+#' @keywords internal
+#' @noRd
+.wapor_free_disk_bytes <- function(path) {
+  if (!requireNamespace("ps", quietly = TRUE)) return(NA_real_)
+  dir <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  while (!dir.exists(dir) && !identical(dirname(dir), dir)) dir <- dirname(dir)
+  tryCatch(as.numeric(ps::ps_disk_usage(dir)$available[1]), error = function(e) NA_real_)
+}
+
+#' Warn when a run is likely to fill the disk (internal)
+#'
+#' Checks the output folder and terra's temporary folder. Set
+#' `options(Rwapor.disk_check = FALSE)` to skip.
+#' @keywords internal
+#' @noRd
+.wapor_check_disk_space <- function(need_bytes, paths) {
+  if (!isTRUE(getOption("Rwapor.disk_check", TRUE)) || !is.finite(need_bytes)) {
+    return(invisible(NULL))
+  }
+  for (p in unique(paths)) {
+    free <- .wapor_free_disk_bytes(p)
+    if (is.finite(free) && free < need_bytes) {
+      warning(sprintf(
+        paste0("This run may write about %s but only %s is free on the drive holding '%s'. ",
+               "Free space, set config$output_dir / terra::terraOptions(tempdir = ) to a larger ",
+               "drive, or keep keep_intermediates = FALSE."),
+        .wapor_format_bytes(need_bytes), .wapor_format_bytes(free), p
+      ), call. = FALSE)
+    }
+  }
+  invisible(NULL)
+}

@@ -296,8 +296,12 @@ wapor_suggest_tile_size <- function(n_layers,
     "    def log_message(self, *args): pass",
     "class Reuse(socketserver.TCPServer): allow_reuse_address = True",
     "httpd = Reuse(('127.0.0.1', 0), H)",
-    "open(os.path.join(root,'port.txt'),'w').write(str(httpd.server_address[1]))",
-    "open(os.path.join(root,'pid.txt'),'w').write(str(os.getpid()))",
+    "def publish(name, value):",
+    "    tmp = os.path.join(root, name + '.tmp')",
+    "    with open(tmp, 'w') as fh: fh.write(value)",
+    "    os.replace(tmp, os.path.join(root, name))",
+    "publish('pid.txt', str(os.getpid()))",
+    "publish('port.txt', str(httpd.server_address[1]))",
     "httpd.serve_forever()"
   ), py)
   py_bin <- Sys.which("python")
@@ -308,14 +312,23 @@ wapor_suggest_tile_size <- function(n_layers,
   port_file <- file.path(src_dir, "port.txt")
   pid_file <- file.path(src_dir, "pid.txt")
   system2(py_bin, shQuote(py), wait = FALSE, stdout = FALSE, stderr = FALSE)
-  deadline <- Sys.time() + 8
-  while (!file.exists(port_file) && Sys.time() < deadline) {
-    Sys.sleep(0.1)
+  # The server publishes port.txt atomically; still wait for a parsable port
+  # rather than mere existence (Windows runners are slow to start Python).
+  read_port <- function() {
+    if (!file.exists(port_file)) return(NA_integer_)
+    txt <- tryCatch(readLines(port_file, warn = FALSE), error = function(e) character(0))
+    if (!length(txt)) return(NA_integer_)
+    suppressWarnings(as.integer(txt[[1]]))
   }
-  if (!file.exists(port_file)) {
+  deadline <- Sys.time() + 20
+  port <- read_port()
+  while (is.na(port) && Sys.time() < deadline) {
+    Sys.sleep(0.1)
+    port <- read_port()
+  }
+  if (is.na(port)) {
     stop("Failed to start remote COG fixture server.", call. = FALSE)
   }
-  port <- as.integer(readLines(port_file, warn = FALSE)[[1]])
   pid <- if (file.exists(pid_file)) as.integer(readLines(pid_file, warn = FALSE)[[1]]) else NA_integer_
   url <- sprintf("/vsicurl/http://127.0.0.1:%d/%s", port, basename(path))
   list(
@@ -488,9 +501,10 @@ wapor_run_seasonal_analysis_tiled <- function(
       return(NULL)
     }
     if (isTRUE(cog)) {
-      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT8S")
+      wapor_write_cog(r, path, overwrite = TRUE, datatype = "FLT4S")
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT8S")
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT4S",
+                         gdal = .wapor_float_gtiff_options())
     }
     path
   }

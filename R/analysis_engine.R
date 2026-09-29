@@ -12,7 +12,10 @@
 #'     (default `1`, every dekad). Pixels below it are `NA` rather than having
 #'     missing dekads counted as zero.
 #'   * `keep_intermediates`: keep `dekadal_stacks` and `season_weights` in the
-#'     result. Defaults to `TRUE` in memory mode and `FALSE` otherwise.
+#'     result. Default `FALSE` (they are large; indicator steps that need them
+#'     still get them). The run logs an estimate of the disk space it writes
+#'     and warns when the output or temporary folder has less free space
+#'     (`options(Rwapor.disk_check = FALSE)` turns the check off).
 #'   * `output_dir`: folder for stream and tiled outputs (default: a folder
 #'     under [tempdir()]).
 #'   * `reference_layer`, `resampling_method`: target grid and per-layer
@@ -290,12 +293,20 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # file-backed instead of held in RAM.
   old_terra <- tryCatch(terra::terraOptions(print = FALSE), error = function(e) NULL)
   if (!identical(plan$mode, "memory") && !is.null(old_terra)) {
-    # 8-byte files keep file-backed results identical to memory mode.
-    terra::terraOptions(memmax = plan$budget_bytes / 1024^3, todisk = TRUE, datatype = "FLT8S")
+    # Float32 halves temporary and result files; differences from memory
+    # mode stay below 1e-6 relative (WaPOR inputs carry 0.1 mm resolution).
+    terra::terraOptions(memmax = plan$budget_bytes / 1024^3, todisk = TRUE, datatype = "FLT4S")
     on.exit(terra::terraOptions(memmax = old_terra$memmax, todisk = old_terra$todisk,
                                 datatype = old_terra$datatype), add = TRUE)
   }
   log_msg(sprintf("Processing mode: %s (%s).", plan$mode, plan$reasons[[length(plan$reasons)]]))
+  disk_need <- .wapor_estimate_disk_bytes(
+    cells = terra::ncell(template_r), n_targets = length(kernel_vars),
+    n_months = length(unique(substr(as.character(target_dates), 1, 7))),
+    n_layers = length(target_dates), keep_intermediates = config$keep_intermediates
+  )
+  log_msg(sprintf("Estimated disk use: %s.", .wapor_format_bytes(disk_need)))
+  .wapor_check_disk_space(disk_need, c(output_dir, terra::terraOptions(print = FALSE)$tempdir))
 
   run <- .wapor_run_kernel(
     job, template_r, plan,
@@ -350,7 +361,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   t_mult      <- mult$t
   results$layer_multipliers <- Filter(Negate(is.null), mult)
 
-  keep_intermediates <- config$keep_intermediates %||% identical(plan$mode, "memory")
+  keep_intermediates <- isTRUE(config$keep_intermediates)
   materialize_stacks <- function() {
     lapply(kernel_vars[intersect(names(kernel_vars), names(var_codes))], function(v) {
       .wapor_materialize_dekadal_stack(v$paths, template_r, reg_info, v$method, target_dates)

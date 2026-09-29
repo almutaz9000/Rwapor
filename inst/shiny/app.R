@@ -110,8 +110,16 @@ default_var <- if ("L1-AETI-D" %in% all_vars) "L1-AETI-D" else if (length(all_va
 if (is.na(default_var)) default_var <- NULL
 
 # Build L3 region choices as label -> code
+# Short timeout, no retries: startup must not block for ~30 s of backoff when
+# the API is slow or offline. The static list is used as the fallback.
 l3_regions_df <- tryCatch({
-  Rwapor::wapor_fetch_l3_regions()
+  withCallingHandlers(
+    Rwapor::wapor_fetch_l3_regions(timeout = 10, retry = FALSE),
+    warning = function(w) {
+      message("Using the built-in L3 region list: ", conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
 }, error = function(e) {
   message("Could not fetch L3 regions: ", e$message)
   Rwapor::wapor_l3_regions_to_df(Rwapor::L3_REGIONS)

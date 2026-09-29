@@ -2,7 +2,7 @@
 
 <!-- badges: start -->
 [![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
-[![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg?branch=main)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml/badge.svg?branch=version-1.0.4)](https://github.com/almutaz9000/Rwapor/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <!-- badges: end -->
 
@@ -147,7 +147,10 @@ install.packages(c(
 
   # Visualization & Data
   "ggplot2", "tidyterra", "patchwork", "ggspatial", "viridisLite",
-  "RColorBrewer", "arrow"
+  "RColorBrewer", "arrow",
+
+  # Vignettes (needed for build_vignettes = TRUE in 3.3)
+  "knitr", "rmarkdown"
 ))
 ```
 
@@ -159,6 +162,15 @@ minutes the first time — that's normal.
 ```r
 install.packages("remotes")  # if not already installed
 remotes::install_github("almutaz9000/Rwapor", build_vignettes = TRUE)
+```
+
+Building the vignettes needs `knitr`, `rmarkdown` and Pandoc. RStudio ships
+Pandoc; outside RStudio, if the install stops with a Pandoc or vignette error,
+install without them (the vignettes are also on the
+[package website](https://almutaz9000.github.io/Rwapor/)):
+
+```r
+remotes::install_github("almutaz9000/Rwapor")
 ```
 
 ### Step 4: Verify the installation

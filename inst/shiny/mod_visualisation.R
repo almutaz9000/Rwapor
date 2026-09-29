@@ -708,7 +708,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       } else paste("Class", vals)
       pal <- leaflet::colorFactor(cls_cols, domain = vals, na.color = "transparent")
       proxy |> leaflet::clearGroup("lyr_crop_mask") |> leaflet::removeControl("leg_crop_mask") |>
-        leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_crop_mask") |>
+        leaflet::addRasterImage(r_ds, colors = pal, opacity = opacity, group = "lyr_crop_mask") |>
         leaflet::addLegend(position = "bottomleft", colors = cls_cols, labels = cls_labels, title = "Crop Mask", opacity = opacity, layerId = "leg_crop_mask")
       
       # Zoom if just toggled on
@@ -740,7 +740,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       pal <- leaflet::colorNumeric(viridisLite::magma(7), domain = range(vals, na.rm = TRUE), na.color = "transparent")
 
       proxy |> leaflet::clearGroup("lyr_season_start") |> leaflet::removeControl("leg_season_start") |>
-        leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_season_start") |>
+        leaflet::addRasterImage(r_ds, colors = pal, opacity = opacity, group = "lyr_season_start") |>
         leaflet::addLegend(position = "bottomleft", pal = pal, values = vals, title = "Season Start", opacity = opacity, layerId = "leg_season_start")
 
       zoom_to_raster(r)
@@ -771,7 +771,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       pal <- leaflet::colorNumeric(viridisLite::inferno(7), domain = range(vals, na.rm = TRUE), na.color = "transparent")
 
       proxy |> leaflet::clearGroup("lyr_season_end") |> leaflet::removeControl("leg_season_end") |>
-        leaflet::addRasterImage(raster::raster(r_ds), colors = pal, opacity = opacity, group = "lyr_season_end") |>
+        leaflet::addRasterImage(r_ds, colors = pal, opacity = opacity, group = "lyr_season_end") |>
         leaflet::addLegend(position = "bottomleft", pal = pal, values = vals, title = "Season End", opacity = opacity, layerId = "leg_season_end")
 
       zoom_to_raster(r)
@@ -808,7 +808,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         
         proxy <- proxy |>
           leaflet::addRasterImage(
-            raster::raster(r_band), 
+            r_band, 
             colors = pal, 
             opacity = input$raster_opacity, 
             group = "raster"
@@ -863,7 +863,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           
           proxy <- proxy |>
             leaflet::addRasterImage(
-              raster::raster(r_intersection), 
+              r_intersection, 
               colors = pal1, 
               opacity = input$raster_opacity, 
               group = "raster_intersection"
@@ -880,13 +880,13 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
           # Overlay mode - show both rasters
           proxy <- proxy |>
             leaflet::addRasterImage(
-              raster::raster(r_band1), 
+              r_band1, 
               colors = pal1, 
               opacity = input$raster_opacity, 
               group = "raster1"
             ) |>
             leaflet::addRasterImage(
-              raster::raster(r_band2), 
+              r_band2, 
               colors = pal2, 
               opacity = raster_opacity2_val, 
               group = "raster2"
@@ -937,7 +937,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         
         proxy <- proxy |>
           leaflet::addRasterImage(
-            raster::raster(r_query), 
+            r_query, 
             colors = pal_query, 
             opacity = query_opacity, 
             group = "raster_query"

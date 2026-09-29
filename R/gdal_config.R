@@ -50,9 +50,12 @@
 #'   supports HTTP/2. Default `TRUE`.
 #' @param verbose Logical. Print the applied settings to the console.
 #'   Default `FALSE`.
+#' @param overwrite Logical. If `TRUE` (default for manual calls), replace
+#'   existing values. On package load it is `FALSE`: variables already set by
+#'   the user, `.Renviron` or an institutional setup are left unchanged.
 #'
 #' @return Invisibly, a named character vector of the environment variable
-#'   values applied.
+#'   values applied (only the variables that were set).
 #'
 #' @details
 #' ## Why these settings matter
@@ -92,7 +95,8 @@ wapor_configure_gdal <- function(
     vsi_cache_size = 100000000L,
     gdal_cachemax  = 512L,
     http_multiplex = TRUE,
-    verbose        = FALSE
+    verbose        = FALSE,
+    overwrite      = TRUE
 ) {
   if (!is.numeric(chunk_size) || length(chunk_size) != 1 || chunk_size < 1) {
     stop("'chunk_size' must be a single positive integer (bytes)", call. = FALSE)
@@ -114,7 +118,11 @@ wapor_configure_gdal <- function(
     GDAL_HTTP_VERSION            = "2"
   )
 
-  do.call(Sys.setenv, as.list(settings))
+  if (!isTRUE(overwrite)) {
+    current <- Sys.getenv(names(settings), unset = "")
+    settings <- settings[!nzchar(current)]
+  }
+  if (length(settings)) do.call(Sys.setenv, as.list(settings))
 
   if (isTRUE(verbose)) {
     message("Rwapor GDAL settings applied:")
@@ -204,15 +212,17 @@ wapor_gdal_settings <- function() {
 }
 
 
-# Applied automatically on package load. The env variable RWAPOR_AUTO_CONFIG
-# is kept for backward compatibility but is no longer the sole trigger: GDAL
-# settings are always applied so vsicurl range requests work efficiently
-# without the user having to call wapor_configure_gdal() manually.
+# Applied automatically on package load, without overwriting GDAL variables
+# the user already set. Opt out entirely with RWAPOR_AUTO_CONFIG=false (e.g.
+# in .Renviron) or options(Rwapor.configure_gdal = FALSE) before loading.
 .onLoad <- function(libname, pkgname) {
+  auto <- tolower(Sys.getenv("RWAPOR_AUTO_CONFIG", "true")) %in% c("true", "1", "yes") &&
+    isTRUE(getOption("Rwapor.configure_gdal", TRUE))
+  if (!auto) return(invisible(NULL))
   # Fix PROJ first to prevent GDAL initialization errors on Windows systems
   # that have PostGIS in their PATH.
   wapor_fix_proj(verbose = FALSE)
-  wapor_configure_gdal(verbose = FALSE)
+  wapor_configure_gdal(verbose = FALSE, overwrite = FALSE)
 
   # Quiet capability check: warn once if GDAL appears to lack curl/COG support.
   .wapor_check_gdal_capabilities()

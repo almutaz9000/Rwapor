@@ -637,13 +637,15 @@ wapor_filter_canonical_export_names <- function(names) {
 #' @param folder Path to the base output folder.
 #' @param indicators Character vector of indicators that were requested.
 #' @param season_label Optional season label for single-season exports.
-#' @param include_dekadal Logical. Write aligned dekadal stacks.
+#' @param include_dekadal Logical. Write aligned dekadal stacks (only present
+#'   when the analysis ran with `keep_intermediates = TRUE`). Default `FALSE`:
+#'   they are large and the inputs are usually already on disk.
 #' @param include_monthly Logical. Write monthly PCP/Peff summary CSV files.
 #' @param include_seasonal_tables Logical. Write seasonal summary tables as CSV.
 #' @param cog Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.
 #' @export
 wapor_export_analysis_outputs <- function(results, folder, indicators = character(0), season_label = NULL,
-                                          include_dekadal = TRUE,
+                                          include_dekadal = FALSE,
                                           include_monthly = TRUE,
                                           include_seasonal_tables = TRUE,
                                           cog = FALSE) {
@@ -667,7 +669,8 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     if (isTRUE(cog) && exists("wapor_write_cog", mode = "function")) {
       wapor_write_cog(r, path, overwrite = TRUE)
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE)
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT4S",
+                         gdal = .wapor_float_gtiff_options())
     }
   }
 

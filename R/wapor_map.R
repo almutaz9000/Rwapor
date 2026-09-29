@@ -1,15 +1,49 @@
-.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
-  source_scoff <- terra::scoff(r)
-  variable_scale <- wapor_variable_metadata(variable)$scale %||% 1
-  has_source_scale <- !is.null(source_scoff) &&
-    (any(source_scoff[, "scale"] != 1) || any(source_scoff[, "offset"] != 0))
-  # Materialise physical values before assigning output metadata: setting
-  # layer metadata can otherwise discard terra's pending scale/offset.
-  if (has_source_scale) {
-    r <- r * 1
-  } else if (is.finite(variable_scale) && variable_scale != 1) {
-    r <- r * variable_scale
+#' Detach the source scale/offset from freshly opened rasters
+#'
+#' WaPOR COGs store Int16 values with a GDAL scale (usually 0.1). Whether terra
+#' keeps that scale "pending" through crop, arithmetic and metadata assignment
+#' differs between terra versions, which made map outputs either raw integers
+#' or scaled twice. Clearing it here makes terra return raw values, and
+#' [.wapor_apply_source_scale()] applies it exactly once after cropping.
+#'
+#' @param r SpatRaster opened from the source files.
+#' @return A list with `raster` (scale/offset cleared) and the per-layer
+#'   `scale` and `offset` that were stored in the files.
+#' @keywords internal
+#' @noRd
+.wapor_detach_source_scale <- function(r) {
+  so <- tryCatch(terra::scoff(r), error = function(e) NULL)
+  n <- terra::nlyr(r)
+  if (is.null(so) || nrow(so) != n) {
+    return(list(raster = r, scale = rep(1, n), offset = rep(0, n)))
   }
+  scale <- as.numeric(so[, "scale"])
+  offset <- as.numeric(so[, "offset"])
+  scale[!is.finite(scale)] <- 1
+  offset[!is.finite(offset)] <- 0
+  if (any(scale != 1) || any(offset != 0)) {
+    terra::scoff(r) <- cbind(rep(1, n), rep(0, n))
+  }
+  list(raster = r, scale = scale, offset = offset)
+}
+
+#' Apply the source scale/offset detached by .wapor_detach_source_scale()
+#' @keywords internal
+#' @noRd
+.wapor_apply_source_scale <- function(r, scale, offset) {
+  if (all(scale == 1) && all(offset == 0)) return(r)
+  r * scale + offset
+}
+
+#' Assign output metadata to a map raster
+#'
+#' Values must already be physical: [.wapor_apply_source_scale()] applied the
+#' source file scale. The catalogue scale is deliberately not applied here,
+#' because it would scale values a second time (and would rescale local
+#' Float32 copies that are already in physical units).
+#' @keywords internal
+#' @noRd
+.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
   assign_raster_metadata(r, variable, unit_conversion)
 }
 
@@ -73,9 +107,12 @@
 #' @param on_batch_done Optional function called after each processed batch with
 #'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
-#' @return Character path to the output GeoTIFF file, or in seasonal mode with
-#'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
-#'   `seasonal_components`.
+#' @return Character vector of output GeoTIFF paths (one multi-band file, or
+#'   one file per time step with `separate_files = TRUE`); with several
+#'   variables, a named list of such vectors. Per-variable run details
+#'   (`status`, `failed_layers`, chunk counts) are in
+#'   `attr(x, "wapor_status")`. In seasonal mode with `separate_files = TRUE`,
+#'   a list with `seasonal_aggregate` and `seasonal_components`.
 #'
 #' @details
 #' The function performs the following steps:
@@ -548,12 +585,18 @@ wapor_map <- function(
         ))
       }
 
+      # Read raw stored values and apply the file scale once, after the crop,
+      # so the result does not depend on how terra propagates scale/offset.
+      src <- .wapor_detach_source_scale(r)
+      r <- src$raster
+
       # Crop to region; optionally mask to polygon boundary. Crop can force
       # remote pixel I/O, so keep it inside the retry boundary.
       r <- .wapor_retry_remote_operation(
         function() wapor_crop_to_region(r, reg_info, do_mask = mask),
         label = sprintf("%s crop", var)
       )
+      r <- .wapor_apply_source_scale(r, src$scale, src$offset)
 
       # Unit Conversion
       if (current_unit_conv != "none") {
@@ -626,14 +669,13 @@ wapor_map <- function(
       failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
       warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
                       var, length(failed_urls)), call. = FALSE)
-      return(list(
+      return(.wapor_map_paths(character(0), list(
         status = "failed",
         variable = var,
-        output_paths = character(0),
         failed_layers = failed_urls,
         n_ok_chunks = 0L,
         n_failed_chunks = length(chunk_results)
-      ))
+      )))
     }
 
     failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
@@ -692,28 +734,36 @@ wapor_map <- function(
 
     log_msg(sprintf("  Variable %s completed in %.1f seconds",
                     var, (proc.time() - t0_var)[["elapsed"]]))
-    return(list(
+    return(.wapor_map_paths(output_paths, list(
       status = "ok",
       variable = var,
-      output_paths = output_paths,
       failed_layers = failed_urls,
       n_ok_chunks = length(ok_chunks),
       n_failed_chunks = length(failed_chunks)
-    ))
+    )))
   }
 
   # Process all variables
   results <- lapply(variable, process_single_var)
   names(results) <- variable
   
-  # Return just the path if it's a single variable (backward compatibility/simplicity)
-  # But structured list is better if >1 variable.
-  # User requested "processing list of variables", so list return is safer.
+  # One variable: its character vector of paths; several: a named list of them.
   if (length(variable) == 1) {
     return(results[[1]])
   } else {
     return(results)
   }
+}
+
+#' Character output paths of one wapor_map() variable, with run details
+#'
+#' Keeps the documented return type (file paths, usable in `terra::rast()`)
+#' and attaches the chunk status as attribute `"wapor_status"`: `status`,
+#' `variable`, `failed_layers`, `n_ok_chunks`, `n_failed_chunks`.
+#' @keywords internal
+#' @noRd
+.wapor_map_paths <- function(paths, status) {
+  structure(as.character(paths), wapor_status = status)
 }
 
 #' GeoTIFF creation options for package outputs
@@ -724,6 +774,11 @@ wapor_map <- function(
 #' @noRd
 .wapor_gtiff_options <- function() {
   c("TILED=YES", "COMPRESS=LZW", "BIGTIFF=IF_SAFER")
+}
+
+# Floating-point predictor makes LZW effective on continuous rasters.
+.wapor_float_gtiff_options <- function() {
+  c(.wapor_gtiff_options(), "PREDICTOR=3")
 }
 
 #' Weighted sum, weight and valid count of a layer group in one pass
@@ -746,4 +801,57 @@ wapor_map <- function(
     valid <- if (is.null(valid)) ok else valid + ok
   }
   list(sum = total, weight = weight, valid = valid)
+}
+
+#' Split a multi-band wapor_map() stack into one file per date
+#'
+#' `wapor_map(separate_files = FALSE)` (the default) writes one multi-band
+#' GeoTIFF named `<product>.<first date>_<last date>.tif`, with one band per
+#' time step named by its start date. Local analysis
+#' (`data_source = "local"`) needs one file per time step. This writes
+#' `<product>.<date>.tif` next to the stack (or into `folder`), the same layout
+#' as `wapor_map(separate_files = TRUE)`, and skips files that already exist.
+#'
+#' @param path Character. Path to the multi-band GeoTIFF.
+#' @param folder Character. Output folder. Defaults to the stack's folder.
+#' @param overwrite Logical. Overwrite existing per-date files. Default `FALSE`.
+#' @param remove_stack Logical. Delete the stack after a successful split, so
+#'   local readers do not see both. Default `FALSE`.
+#' @return Character vector of per-date file paths, invisibly.
+#' @export
+#' @examples
+#' \dontrun{
+#' stack <- wapor_map(c(35, 33, 36, 34), "L1-AETI-D",
+#'                    c("2023-01-01", "2023-03-31"), folder = "wapor_data")
+#' wapor_unstack_map(stack)
+#' }
+wapor_unstack_map <- function(path, folder = dirname(path), overwrite = FALSE,
+                              remove_stack = FALSE) {
+  if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
+    stop("'path' must be an existing GeoTIFF file", call. = FALSE)
+  }
+  m <- regmatches(basename(path),
+                  regexec("^(.*)\\.(\\d{4}-\\d{2}-\\d{2})(_\\d{4}-\\d{2}-\\d{2})?\\.tif$", basename(path)))[[1]]
+  if (length(m) < 2) {
+    stop("File name does not follow '<product>.<date>[_<date>].tif': ", basename(path), call. = FALSE)
+  }
+  product <- m[2]
+  r <- terra::rast(path)
+  dates <- names(r)
+  ok <- grepl("^\\d{4}-\\d{2}-\\d{2}$", dates) & !is.na(suppressWarnings(as.Date(dates, "%Y-%m-%d")))
+  if (!all(ok)) {
+    stop("Band names must be start dates (YYYY-MM-DD) as written by wapor_map(); found: ",
+         paste(utils::head(dates[!ok], 3), collapse = ", "), call. = FALSE)
+  }
+  dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+  out <- file.path(folder, sprintf("%s.%s.tif", product, dates))
+  for (i in seq_along(out)) {
+    if (file.exists(out[i]) && !isTRUE(overwrite)) next
+    lyr <- r[[i]]
+    terra::units(lyr) <- terra::units(r)[i]
+    terra::writeRaster(lyr, out[i], overwrite = TRUE, NAflag = -9999,
+                       gdal = .wapor_gtiff_options())
+  }
+  if (isTRUE(remove_stack) && all(file.exists(out))) unlink(path)
+  invisible(out)
 }
