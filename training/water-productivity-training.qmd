@@ -28,12 +28,12 @@ editor:
 # How to use this manual {.unnumbered}
 
 This notebook is both a **manual** and a **working analysis**. Read it
-from top to bottom: every step explains what we are about to do and
-why, runs the code, and then shows a **checkpoint** so you can confirm
-the step worked before moving on.
+from top to bottom: every step explains what we are about to do and why,
+runs the code, and then shows a **checkpoint** so you can confirm the
+step worked before moving on.
 
-You will learn how to use WaPOR data to answer three practical
-questions for an irrigated area:
+You will learn how to use WaPOR data to answer three practical questions
+for an irrigated area:
 
 1.  **How much water did the crop consume?** (actual evapotranspiration)
 2.  **Was that enough?** (adequacy, compared with crop water demand)
@@ -44,7 +44,7 @@ questions for an irrigated area:
 We do this twice, on real data:
 
 |   | Part A: Citrus | Part B: Wheat |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | Location | North Jordan Valley, Jordan | Jendouba, Tunisia |
 | Crop map | Citrus field polygons, plus 177 farms visited in the field | Cereal map (raster, 20 m) |
 | Season | 1 March 2024 to 28 February 2025 | 1 November 2023 to 31 May 2024 |
@@ -78,7 +78,7 @@ A common mistake, or something that changes the results.
 Keep the `training` folder together. The input data are already inside
 it:
 
-```
+```         
 training/
 ├── water-productivity-training.qmd   (this notebook)
 ├── images/                           (the sketches used in this manual)
@@ -102,15 +102,17 @@ training/
     background of the interactive maps needs a connection.
 -   Keep 15 to 20 GB of free disk space for temporary files.
 -   A full run takes about 35 minutes the first time, including the
-    downloads; with the data already saved in `wapor_data/` it is faster.
-    Downloads are saved in `wapor_data/` and results in `outputs/`.
+    downloads; with the data already saved in `wapor_data/` it is
+    faster. Downloads are saved in `wapor_data/` and results in
+    `outputs/`.
 
 ## The workflow at a glance {.unnumbered}
 
 Both parts follow the same main steps. Part A (citrus) adds one more:
 linking the WaPOR results with a farm survey (Step 10).
 
-![The analysis steps used in both case studies.](images/workflow.svg){width="95%"}
+![The analysis steps used in both case
+studies.](images/workflow.svg){width="95%"}
 
 ------------------------------------------------------------------------
 
@@ -129,7 +131,7 @@ consumes and how much biomass it produces, from 2018 to near real time.
 The variables used in this manual:
 
 | Variable | Name | Unit (as published) | What it tells you |
-|------------------|------------------|------------------|------------------|
+|----|----|----|----|
 | **AETI** | Actual EvapoTranspiration and Interception | mm/day | Total water consumed (see @sec-aeti) |
 | **T** | Transpiration | mm/day | Water used by the plants themselves |
 | **NPP** | Net Primary Production | gC/m²/day | Carbon fixed by the plants, the basis for biomass |
@@ -143,16 +145,16 @@ interception (I).](images/water_balance.svg){width="90%"}
 
 ![The WaPOR variables for a citrus orchard: the water balance of a tree
 (top) and how each variable looks as a map (bottom). The maps are
-illustrations; the real maps for our study areas are made in Parts A
-and B.](images/aeti_components.png){width="100%"}
+illustrations; the real maps for our study areas are made in Parts A and
+B.](images/aeti_components.png){width="100%"}
 
 Water that reaches a field, as rain or irrigation, leaves it again in
 three ways:
 
 -   **E, evaporation**: from the wet soil surface. It does not help the
     crop grow.
--   **T, transpiration**: through the leaves. This is the water the
-    crop uses to grow, so it is called **beneficial** consumption.
+-   **T, transpiration**: through the leaves. This is the water the crop
+    uses to grow, so it is called **beneficial** consumption.
 -   **I, interception**: rain caught on leaves that evaporates before
     reaching the soil.
 
@@ -163,26 +165,27 @@ lost from bare, wet soil.
 
 ## Resolution: WaPOR levels {#sec-levels}
 
-![The same 2.6 ha farm on the three WaPOR grids.](images/wapor_levels.svg){width="95%"}
+![The same 2.6 ha farm on the three WaPOR
+grids.](images/wapor_levels.svg){width="95%"}
 
 WaPOR publishes AETI, T and NPP at three levels:
 
-| Level | Pixel size | Area covered | Good for |
-|------------------|------------------|------------------|------------------|
-| L1 | about 300 m | Africa and Near East | Basins, regions |
-| L2 | about 100 m | Africa and Near East | Large irrigation schemes |
-| L3 | about 20 m | Selected irrigation schemes only | Individual farms |
+| Level | Pixel size  | Area covered                     | Good for                 |
+|-------|-------------|----------------------------------|--------------------------|
+| L1    | about 300 m | Africa and Near East             | Basins, regions          |
+| L2    | about 100 m | Africa and Near East             | Large irrigation schemes |
+| L3    | about 20 m  | Selected irrigation schemes only | Individual farms         |
 
-Many farms in this training are only 1 to 5 ha. At L2 such a farm is
-one to five pixels, most of them mixed with the neighbouring land. At
-L3 the same farm is 25 to 125 pixels, so **we use L3** for both
-examples. RET and precipitation are only available at L1 (about 5 km);
-they vary slowly in space, so the coarse grid is acceptable.
+Many farms in this training are only 1 to 5 ha. At L2 such a farm is one
+to five pixels, most of them mixed with the neighbouring land. At L3 the
+same farm is 25 to 125 pixels, so **we use L3** for both examples. RET
+and precipitation are only available at L1 (about 5 km); they vary
+slowly in space, so the coarse grid is acceptable.
 
 ## Dekads and seasonal totals {#sec-dekads}
 
-![Each dekad's daily rate is multiplied by the number of days, then
-the dekads are added up.](images/dekads_to_season.svg){width="90%"}
+![Each dekad's daily rate is multiplied by the number of days, then the
+dekads are added up.](images/dekads_to_season.svg){width="90%"}
 
 WaPOR data come as **dekads**: each month is split into three periods,
 days 1 to 10, 11 to 20, and 21 to the end of the month (8 to 11 days).
@@ -197,14 +200,14 @@ $$
 AETI_{season} = \sum_{dekads} AETI_{dekad}\ (\text{mm/day}) \times \text{days in season}
 $$
 
-The same rule applies to T, RET, precipitation and NPP. Variables
-that describe a state rather than a flow, such as soil moisture or
+The same rule applies to T, RET, precipitation and NPP. Variables that
+describe a state rather than a flow, such as soil moisture or
 temperature, are averaged instead of added.
 
 ## Study area (AOI) and crop mask {#sec-mask}
 
-![The AOI decides where data are downloaded; the crop mask decides
-which pixels are analysed.](images/aoi_mask.svg){width="95%"}
+![The AOI decides where data are downloaded; the crop mask decides which
+pixels are analysed.](images/aoi_mask.svg){width="95%"}
 
 -   The **area of interest (AOI)** is the outline of the study area. It
     tells the software which part of the WaPOR map to download.
@@ -214,9 +217,8 @@ which pixels are analysed.](images/aoi_mask.svg){width="95%"}
 -   Before the analysis the crop mask is put on the **WaPOR grid**, so
     every WaPOR pixel is either "crop" or "not crop".
 
-For citrus the field polygons are both the AOI and the mask. For
-wheat, the AOI is the outline of the cereal map and the mask is the
-map itself.
+For citrus the field polygons are both the AOI and the mask. For wheat,
+the AOI is the outline of the cereal map and the mask is the map itself.
 
 ## Crop water demand: Kc and ETc {#sec-kc}
 
@@ -225,8 +227,8 @@ crop's water demand.](images/kc_curve.svg){width="90%"}
 
 How much water a crop **would** use if it had enough water depends on
 the weather (RET) and on the crop and its growth stage. FAO Irrigation
-and Drainage Paper 56 (FAO-56) describes this with a **crop
-coefficient, Kc**:
+and Drainage Paper 56 (FAO-56) describes this with a **crop coefficient,
+Kc**:
 
 $$
 ET_c = K_c \times RET
@@ -239,14 +241,14 @@ for each crop come from FAO-56 Table 12. $ET_c$ is the crop water
 **demand**; AETI is what was actually **consumed**.
 
 For an annual crop the four periods follow the crop from sowing to
-harvest. For a tree crop they follow the tree's yearly cycle (for citrus:
-flowering, fruit set, fruit development, maturation and harvest), so the
-stages get the names of that cycle.
+harvest. For a tree crop they follow the tree's yearly cycle (for
+citrus: flowering, fruit set, fruit development, maturation and
+harvest), so the stages get the names of that cycle.
 
 ## Performance indicators {#sec-indicators}
 
 | Indicator | Formula | How to read it |
-|------------------|------------------|------------------------------------|
+|----|----|----|
 | **Adequacy** | $AETI / ET_c$ | Good $0.8 < A \le 1$, acceptable $0.68 < A \le 0.8$, poor $A \le 0.68$. Above 1: consumption above the crop demand. |
 | **Uniformity** | $1 - CV$ of seasonal AETI of the pixels inside one field (or block) | Evenness of water use within a field. Compare with the standard for the irrigation method: drip 85%, sprinkler and centre pivot 75%, furrow 65%. |
 | **Equity** | $CV$ of the mean seasonal AETI of the fields (or blocks) | Evenness of water use between fields. Good 0 to 10%, fair 10 to 25%, poor above 25%. |
@@ -265,41 +267,40 @@ References). The same indicators can be used for any irrigated crop.
 
 ### Green and blue water are split month by month {#sec-greenblue}
 
-![Rain in a wet month cannot supply the crop in a dry month.](images/green_blue.svg){width="95%"}
+![Rain in a wet month cannot supply the crop in a dry
+month.](images/green_blue.svg){width="95%"}
 
-Green and blue water are calculated **for each month** and then added
-up over the season. If we split the seasonal totals instead, the
-surplus rain of a wet winter month would appear to "pay for" the
-irrigation of a dry summer month, and the result would show far too
-much green water and too little blue water. For every pixel,
-$green + blue = AETI$.
+Green and blue water are calculated **for each month** and then added up
+over the season. If we split the seasonal totals instead, the surplus
+rain of a wet winter month would appear to "pay for" the irrigation of a
+dry summer month, and the result would show far too much green water and
+too little blue water. For every pixel, $green + blue = AETI$.
 
 ### From NPP to yield and water productivity (annual crops) {#sec-yield}
 
 This chain is used for **annual field crops** such as wheat. The factors
 in it (HI, MC, fc, AOT) are calibrated for field crops. For tree crops
-such as citrus, most biomass goes into wood and leaves over many years, so
-yield is taken from farm surveys or records, not from this equation.
+such as citrus, most biomass goes into wood and leaves over many years,
+so yield is taken from farm surveys or records, not from this equation.
 
-![From NPP to biomass, yield and water productivity.](images/yield_chain.svg){width="95%"}
+![From NPP to biomass, yield and water
+productivity.](images/yield_chain.svg){width="95%"}
 
 -   **22.222** converts grams of carbon to kilograms of dry matter per
     hectare.
 -   **AOT**: share of biomass above ground. **fc**: light use efficiency
     correction factor (1 for C3 crops such as wheat). **MC**: moisture
-    content of the
-    harvested product. **HI**: harvest index, the harvested share of
-    the above-ground biomass.
--   To divide by AETI, mm are converted to m³/ha: 1 mm on 1 ha is
-    10 m³.
+    content of the harvested product. **HI**: harvest index, the
+    harvested share of the above-ground biomass.
+-   To divide by AETI, mm are converted to m³/ha: 1 mm on 1 ha is 10 m³.
 
 ::: callout-warning
 ## Yield is fresh weight, biomass is dry weight
 
 Yield includes the water inside the harvested product (it is divided by
 $1 - MC$). For wheat grain ($MC = 0.15$) this adds little, so wheat CWP
-stays below BWP. Compare CWP with the fresh yields reported by farmers and
-BWP with other dry-matter figures.
+stays below BWP. Compare CWP with the fresh yields reported by farmers
+and BWP with other dry-matter figures.
 :::
 
 ------------------------------------------------------------------------
@@ -483,8 +484,8 @@ num_or_na <- function(x) if (is.null(x)) NA_real_ else round(x, 2)
 
 ## Step 1: Define the inputs
 
-Everything specific to this study is set here. To run the same
-analysis on your own data, only this chunk needs to change.
+Everything specific to this study is set here. To run the same analysis
+on your own data, only this chunk needs to change.
 
 ```{r}
 #| label: citrus-config
@@ -519,9 +520,9 @@ check(citrus_days == 365, paste("season length:", citrus_days, "days"))
 ::: callout-note
 ## Concept: finding your L3 region
 
-Level 3 data exist only for selected irrigation schemes. Each scheme
-has a three-letter code. This list shows all of them; **JVA** is the
-North Jordan Valley and **JEN** is Jendouba.
+Level 3 data exist only for selected irrigation schemes. Each scheme has
+a three-letter code. This list shows all of them; **JVA** is the North
+Jordan Valley and **JEN** is Jendouba.
 :::
 
 ```{r}
@@ -529,7 +530,9 @@ North Jordan Valley and **JEN** is Jendouba.
 
 # The list comes from the WaPOR server; a copy is kept for use without internet
 l3_file <- "data/wapor_l3_regions.csv"
-l3_regions <- tryCatch(wapor_fetch_l3_regions()[, c("code", "caption")], error = function(e) NULL)
+# (without internet Rwapor warns and returns its built-in list: use the saved copy instead)
+l3_regions <- tryCatch(wapor_fetch_l3_regions()[, c("code", "caption")],
+                       warning = function(w) NULL, error = function(e) NULL)
 if (is.null(l3_regions) || nrow(l3_regions) == 0) {
   l3_regions <- read.csv(l3_file)
 } else {
@@ -603,33 +606,33 @@ check(mean(inside) > 0.9, sprintf("%d of %d sampled farms lie inside the citrus 
 ## Step 3: Crop parameters for citrus
 
 We now describe the crop's water demand with its Kc curve (@sec-kc).
-Citrus is a tree crop, so we do not estimate its yield from WaPOR biomass;
-only the Kc values and stage lengths are needed.
+Citrus is a tree crop, so we do not estimate its yield from WaPOR
+biomass; only the Kc values and stage lengths are needed.
 
--   **Kc values** from FAO-56, [Chapter 6,
-    Table 12](https://www.fao.org/4/x0490e/x0490e0b.htm#chapter%206%20%20%20etc%20%20%20single%20crop%20coefficient%20(kc))
+-   **Kc values** from FAO-56, [Chapter 6, Table
+    12](https://www.fao.org/4/x0490e/x0490e0b.htm#chapter%206%20%20%20etc%20%20%20single%20crop%20coefficient%20(kc))
     ("Single (time-averaged) crop coefficients, Kc"), row *Citrus, no
     ground cover, 70% canopy*: $K_{c,ini}=0.70$, $K_{c,mid}=0.65$,
-    $K_{c,end}=0.70$, maximum height 4 m. If the orchards have an
-    active ground cover or weeds, use the next row of the table
-    instead (0.75, 0.70, 0.75).
--   **Stage lengths** for citrus in the Mediterranean, starting on
-    1 March: 60, 90, 120 and 95 days (365 days in total). You give the
+    $K_{c,end}=0.70$, maximum height 4 m. If the orchards have an active
+    ground cover or weeds, use the next row of the table instead (0.75,
+    0.70, 0.75).
+-   **Stage lengths** for citrus in the Mediterranean, starting on 1
+    March: 60, 90, 120 and 95 days (365 days in total). You give the
     first, third and fourth lengths; the second takes whatever days
     remain in your season.
 
 ::: callout-note
 ## Concept: the citrus year in four Kc periods
 
-| Kc period | Days | Months (from 1 March) | Citrus growth stage |
-|------------------|------------------|------------------|------------------|
-| 1 (Kc ini) | 60 | March to April | Flowering and new growth |
-| 2 (transition) | 90 | May to July | Fruit set and early fruit growth |
-| 3 (Kc mid) | 120 | August to November | Fruit development |
-| 4 (to Kc end) | 95 | December to February | Maturation and harvest |
+| Kc period      | Days | Months (from 1 March) | Citrus growth stage              |
+|----------------|------|-----------------------|----------------------------------|
+| 1 (Kc ini)     | 60   | March to April        | Flowering and new growth         |
+| 2 (transition) | 90   | May to July           | Fruit set and early fruit growth |
+| 3 (Kc mid)     | 120  | August to November    | Fruit development                |
+| 4 (to Kc end)  | 95   | December to February  | Maturation and harvest           |
 
-The months are typical for Mediterranean oranges and mandarins; early and
-late varieties shift by a few weeks. For citrus the Kc values change
+The months are typical for Mediterranean oranges and mandarins; early
+and late varieties shift by a few weeks. For citrus the Kc values change
 little over the year (0.65 to 0.70), because the evergreen canopy covers
 the ground all year.
 :::
@@ -676,10 +679,10 @@ plot_kc_months(citrus_kc_daily, citrus_period[1],
 ::: callout-tip
 ## Checkpoint
 
-The curve has one value per day of the season and stays between the
-Kc values you entered. For an evergreen orchard the curve is almost
-flat (0.65 to 0.70); for an annual crop it rises and falls strongly
-(see Part B).
+The curve has one value per day of the season and stays between the Kc
+values you entered. For an evergreen orchard the curve is almost flat
+(0.65 to 0.70); for an annual crop it rises and falls strongly (see Part
+B).
 :::
 
 ```{r}
@@ -772,9 +775,9 @@ terra::plot(citrus_mask, col = "#e6b800", legend = FALSE, axes = FALSE, main = "
 ::: callout-tip
 ## Checkpoint
 
-The area of the mask pixels should be close to the area of the
-polygons (within about 10%; small differences come from pixels along
-the field edges).
+The area of the mask pixels should be close to the area of the polygons
+(within about 10%; small differences come from pixels along the field
+edges).
 :::
 
 ```{r}
@@ -789,18 +792,19 @@ check(abs(mask_ha / citrus_area_ha - 1) < 0.10,
 ## Step 6: Download the data and run the seasonal analysis
 
 This is the main step. First we download every dekad of the season for
-the four variables we need and save them in `wapor_data/citrus/dekadal/`,
-one file per dekad. Then the analysis reads these saved files, applies
-the crop mask, and calculates the indicators (@sec-indicators).
+the four variables we need and save them in
+`wapor_data/citrus/dekadal/`, one file per dekad. Then the analysis
+reads these saved files, applies the crop mask, and calculates the
+indicators (@sec-indicators).
 
 ### Download the WaPOR data (once)
 
-| Variable | Level | Pixel size | Why we need it |
-|------------------|------------------|------------------|------------------|
-| AETI | L3 | 20 m | water consumption |
-| T | L3 | 20 m | beneficial fraction |
-| RET | L1 | coarse | crop water demand (ETc) |
-| PCP | L1 | coarse | effective rain, green and blue water |
+| Variable | Level | Pixel size | Why we need it                       |
+|----------|-------|------------|--------------------------------------|
+| AETI     | L3    | 20 m       | water consumption                    |
+| T        | L3    | 20 m       | beneficial fraction                  |
+| RET      | L1    | coarse     | crop water demand (ETc)              |
+| PCP      | L1    | coarse     | effective rain, green and blue water |
 
 AETI and T are cut to the citrus fields. RET and precipitation are only
 cut to the area around them, because one coarse L1 pixel covers many
@@ -826,8 +830,11 @@ data.frame(variable = names(citrus_downloads),
 check(all(lengths(citrus_downloads) == 36), "36 dekads saved for every variable")
 
 first_aeti <- terra::rast(citrus_downloads$AETI[1])
-check(terra::global(first_aeti, "max", na.rm = TRUE)[1, 1] < 15,
-      "values are in mm/day (the WaPOR scale factor is applied)")
+# mm/day: an orchard's highest AETI is a few mm/day. Above 15 means the scale factor
+# was not applied; below 1 means it was applied twice (values 10 times too low)
+first_max <- terra::global(first_aeti, "max", na.rm = TRUE)[1, 1]
+check(first_max > 1 && first_max < 15,
+      sprintf("values are in mm/day (the WaPOR scale factor is applied once; highest value %.1f)", first_max))
 ```
 
 ### Run the analysis
@@ -881,7 +888,8 @@ citrus_season <- wapor_run_seasonal_analysis(
     ignored and every pixel of the AOI is analysed as citrus.
 -   `aoi_region` limits the analysis to your study area. With data
     streamed from the server (`data_source = "api"`), it also limits the
-    downloads; without it much larger maps are downloaded, which is slow.
+    downloads; without it much larger maps are downloaded, which is
+    slow.
 :::
 
 ::: callout-tip
@@ -909,8 +917,8 @@ check(all(coverage_min >= 0.999), "every variable has data for every dekad on ev
 
 ## Step 7: Month by month check
 
-Before looking at the indicators, look at how the season developed.
-This chart shows the mean over all citrus pixels, per month.
+Before looking at the indicators, look at how the season developed. This
+chart shows the mean over all citrus pixels, per month.
 
 ```{r}
 #| label: citrus-monthly
@@ -939,7 +947,7 @@ plot_monthly(citrus_season, "Citrus: month by month")
 m <- monthly_table(citrus_season)
 aeti_m <- m[m$variable == "AETI (consumed)", ]
 t_m    <- m[m$variable == "T (transpiration)", ]
-check(all(t_m$mm <= aeti_m$mm + 1e-6), "monthly T is below AETI in every month")
+check(all(t_m$mm <= aeti_m$mm + 1e-3), "monthly T is below AETI in every month")
 summer <- format(aeti_m$month, "%m") %in% c("06", "07", "08")
 check(mean(aeti_m$mm[summer]) > mean(aeti_m$mm[!summer]), "AETI is highest in summer (irrigated orchard)")
 ```
@@ -993,11 +1001,11 @@ cat(sprintf("Share of citrus pixels with adequacy below 0.8 (possible water stre
 ::: callout-tip
 ## Checkpoint
 
-ETc is almost the same everywhere because RET comes from a 5 km grid
-and Kc is the same for all citrus. Adequacy varies with AETI. Chukalla et
+ETc is almost the same everywhere because RET comes from a 5 km grid and
+Kc is the same for all citrus. Adequacy varies with AETI. Chukalla et
 al. (2022) class adequacy as good above 0.8, acceptable from 0.68 to 0.8
-and poor below 0.68 (see @sec-indicators); the pixels far
-below that are the ones to visit in the field.
+and poor below 0.68 (see @sec-indicators); the pixels far below that are
+the ones to visit in the field.
 :::
 
 ### Beneficial fraction
@@ -1066,9 +1074,9 @@ data.frame(
 
 The maps describe the whole citrus area. For the farms visited in the
 field we want one number per farm, to compare with the farm survey in
-Step 10. For each farm we take the **area-weighted mean** of the
-pixels: a pixel that only partly overlaps a farm counts only for the
-overlapping part.
+Step 10. For each farm we take the **area-weighted mean** of the pixels:
+a pixel that only partly overlaps a farm counts only for the overlapping
+part.
 
 ```{r}
 #| label: citrus-farm-stats
@@ -1131,8 +1139,8 @@ ggplot(citrus_farm_results, aes(x = reorder(Crop_Name, aeti_mm, median), y = aet
 ## Checkpoint
 
 Every farm should have values. A farm with empty values (`NA`) lies
-outside the citrus mask or is smaller than one pixel; find it on the
-map in Step 2.
+outside the citrus mask or is smaller than one pixel; find it on the map
+in Step 2.
 :::
 
 ```{r}
@@ -1144,31 +1152,32 @@ check(n_na == 0, sprintf("%d of %d farms have results", nrow(citrus_farm_results
 
 ## Step 10: Link WaPOR results with the farm survey
 
-WaPOR tells us how much water each farm **consumed**. A farm survey tells
-us how each farm is **managed** and what it **produced**. Joining the two
-lets us ask practical questions: do older or denser orchards consume more
-water? Do farms that apply more fertilizer or irrigation get more fruit per
-m³ of water? And it gives us a **water productivity based on the real
-harvest**, instead of a yield estimated from biomass.
+WaPOR tells us how much water each farm **consumed**. A farm survey
+tells us how each farm is **managed** and what it **produced**. Joining
+the two lets us ask practical questions: do older or denser orchards
+consume more water? Do farms that apply more fertilizer or irrigation
+get more fruit per m³ of water? And it gives us a **water productivity
+based on the real harvest**, instead of a yield estimated from biomass.
 
-![Joining the WaPOR farm results with the survey through the farm ID.](images/survey_join.svg){width="95%"}
+![Joining the WaPOR farm results with the survey through the farm
+ID.](images/survey_join.svg){width="95%"}
 
 ::: callout-note
 ## Concept: the farm survey
 
-The 113 sampled farms were interviewed in the field. The survey is stored
-in four tables, all linked by the farm ID (`F001`, `F002`, ...), which is
-also the `Name` of the farm polygons:
+The 113 sampled farms were interviewed in the field. The survey is
+stored in four tables, all linked by the farm ID (`F001`, `F002`, ...),
+which is also the `Name` of the farm polygons:
 
 | Table | One row per | Main fields |
-|------------------|------------------|------------------------------------|
+|----|----|----|
 | `survey_farms.csv` | farm | cultivated area, irrigation method, water source |
 | `survey_crops.csv` | citrus block of a farm | citrus type, area, number of trees, yield per tree, tree age, spacing, rootstock |
 | `survey_fertilizer.csv` | fertilizer product used | product, kg per year |
 | `survey_irrigation.csv` | irrigation schedule | hours, interval, m³ per month |
 
-Areas are in **dunum** (1 dunum = 1,000 m² = 0.1 ha). Personal details of
-the farmers are not included in the training data.
+Areas are in **dunum** (1 dunum = 1,000 m² = 0.1 ha). Personal details
+of the farmers are not included in the training data.
 :::
 
 ### Load the survey tables
@@ -1188,9 +1197,9 @@ survey_irr   <- read.csv(file.path(survey_dir, "survey_irrigation.csv"))
 head(survey_crops, 8)
 ```
 
-Field teams do not always type the farm ID the same way (`f002` and `F002`
-are the same farm). We write every ID in capitals without spaces before
-using it, and check that every surveyed farm has a polygon.
+Field teams do not always type the farm ID the same way (`f002` and
+`F002` are the same farm). We write every ID in capitals without spaces
+before using it, and check that every surveyed farm has a polygon.
 
 ```{r}
 #| label: citrus-survey-ids
@@ -1216,7 +1225,8 @@ summarised per farm in the next steps.
 
 The crop table has one row per citrus block. Before summarising we:
 
--   keep citrus only (a few farms also grow banana, guava, mango or palms),
+-   keep citrus only (a few farms also grow banana, guava, mango or
+    palms),
 -   correct an obvious spelling mistake (`Pomelit` is `Pomelo`),
 -   turn the yield into a number: a dash (`-`) means young trees that do
     not bear fruit yet, which becomes "no value" (`NA`).
@@ -1224,7 +1234,7 @@ The crop table has one row per citrus block. Before summarising we:
 Then, for each farm:
 
 | Farm value | How it is calculated |
-|------------------|------------------------------------|
+|----|----|
 | Citrus area (ha) | sum of block areas / 10 |
 | Tree density (trees/ha) | number of trees / citrus area |
 | Tree age (years) | average age of the blocks, weighted by number of trees |
@@ -1268,12 +1278,12 @@ head(farm_survey)
 Fertilizer, irrigation and the irrigation method are added per farm. The
 irrigation method was typed in many ways ("Open pipes Drip", "virojet",
 "-"), so we group the answers: open pipes, drip, Virojet (a
-micro-sprinkler), surface, and "Mixed" for farms that named more than one
-method. The fertilizer table lists
-products (ammonium sulfate, NPK mixtures, ...), so the total is **kg of
-product**, not kg of nutrient. The irrigation table gives m³ per month;
-times 12 gives m³ per year, and dividing by the area gives a depth in mm
-that can be compared with AETI (1 mm on 1 ha = 10 m³).
+micro-sprinkler), surface, and "Mixed" for farms that named more than
+one method. The fertilizer table lists products (ammonium sulfate, NPK
+mixtures, ...), so the total is **kg of product**, not kg of nutrient.
+The irrigation table gives m³ per month; times 12 gives m³ per year, and
+dividing by the area gives a depth in mm that can be compared with AETI
+(1 mm on 1 ha = 10 m³).
 
 ```{r}
 #| label: citrus-survey-inputs
@@ -1325,7 +1335,8 @@ conclusions.
 :::
 
 The next cell counts the farms and lists any farm whose yield falls
-outside a wide plausible range, so it can be checked with the survey team.
+outside a wide plausible range, so it can be checked with the survey
+team.
 
 ```{r}
 #| label: citrus-survey-check
@@ -1342,8 +1353,8 @@ cat("Farms with a known yield:", sum(!is.na(farm_survey$yield_t_ha)), "\n")
 
 ### WaPOR values per farm
 
-Some farms have several polygons. We first merge the polygons of each farm
-into one outline, then take the area-weighted mean of every WaPOR
+Some farms have several polygons. We first merge the polygons of each
+farm into one outline, then take the area-weighted mean of every WaPOR
 indicator inside it (the same method as Step 9).
 
 ```{r}
@@ -1382,7 +1393,8 @@ CWP_{survey}\ (\text{kg/m}^3) = \frac{Yield_{survey}\ (\text{kg/ha})}{AETI\ (\te
 $$
 
 Two more farm indicators help to compare orchards of different density:
-the **water consumed per tree** (m³/tree) and the **fruit per tree** (kg).
+the **water consumed per tree** (m³/tree) and the **fruit per tree**
+(kg).
 
 ```{r}
 #| label: citrus-survey-cwp
@@ -1440,15 +1452,15 @@ leaflet(farm_map) |>
 
 Only farms that reported a yield per tree have a CWP (in this survey
 about a third of the farms); the others are grey on the map. Median CWP
-around 2 to 3 kg of fruit per m³ is typical for irrigated citrus. Very high or very low CWP values usually trace back to the
-yield reported in the survey; check those farms with the survey team
-before using them.
+around 2 to 3 kg of fruit per m³ is typical for irrigated citrus. Very
+high or very low CWP values usually trace back to the yield reported in
+the survey; check those farms with the survey team before using them.
 :::
 
 ### How management relates to water use and productivity
 
-We plot each farm's water consumption (AETI) against the management data.
-The black line is a simple linear trend with its uncertainty band.
+We plot each farm's water consumption (AETI) against the management
+data. The black line is a simple linear trend with its uncertainty band.
 
 ```{r}
 #| label: citrus-survey-drivers
@@ -1539,9 +1551,9 @@ ggplot(filter(group_long, !is.na(group)), aes(x = group, y = aeti_mm)) +
 
 ### Applied irrigation compared with blue water consumption
 
-The survey tells us how much irrigation water was **applied**; WaPOR tells
-us how much irrigation water was **consumed** (blue ET, Step 8). Their
-ratio shows how much of the applied water the trees used:
+The survey tells us how much irrigation water was **applied**; WaPOR
+tells us how much irrigation water was **consumed** (blue ET, Step 8).
+Their ratio shows how much of the applied water the trees used:
 
 $$
 \text{Share consumed} = \frac{Blue\ ET\ (\text{mm})}{Applied\ irrigation\ (\text{mm})}
@@ -1573,22 +1585,22 @@ cat(sprintf("Farms consuming more blue water than the survey says they apply: %.
 ::: callout-tip
 ## Checkpoint: what this comparison tells us
 
-In this survey most farms lie **above** the 1:1 line: WaPOR measures more
-blue water consumption than the irrigation volumes the farmers reported
-(median share about 1.5). Consumption cannot exceed the water supplied,
-so the reported volumes are most likely too low (for example, volumes
-given for part of the year, or shared pumps and ponds). This is a common
-result: survey water volumes are rough, and WaPOR is a useful
-cross-check. Treat the applied irrigation from the survey with caution in
-the relations above.
+In this survey most farms lie **above** the 1:1 line: WaPOR measures
+more blue water consumption than the irrigation volumes the farmers
+reported (median share about 1.5). Consumption cannot exceed the water
+supplied, so the reported volumes are most likely too low (for example,
+volumes given for part of the year, or shared pumps and ponds). This is
+a common result: survey water volumes are rough, and WaPOR is a useful
+cross-check. Treat the applied irrigation from the survey with caution
+in the relations above.
 :::
 
 ::: callout-warning
 ## Watch out: what the survey can and cannot tell us
 
--   Survey answers are estimates given by farmers from memory; yields and
-    irrigation volumes can be off by a large margin. Check extreme values
-    before using them.
+-   Survey answers are estimates given by farmers from memory; yields
+    and irrigation volumes can be off by a large margin. Check extreme
+    values before using them.
 -   Most farms grow several citrus types. The farm results mix them; the
     main type is only a label.
 -   A correlation is not a cause. Older orchards, for example, are often
@@ -1597,8 +1609,8 @@ the relations above.
     separate from chance.
 :::
 
-Finally we save the joined farm table, so it can be used in Excel, QGIS or
-statistics software:
+Finally we save the joined farm table, so it can be used in Excel, QGIS
+or statistics software:
 
 ```{r}
 #| label: citrus-survey-save
@@ -1611,8 +1623,8 @@ check(file.exists(farm_table_path), paste("farm table saved:", farm_table_path))
 
 ## Step 11: Save the results
 
-All maps (GeoTIFF) and tables (CSV) are written to the output folder,
-so you can open them in QGIS or Excel.
+All maps (GeoTIFF) and tables (CSV) are written to the output folder, so
+you can open them in QGIS or Excel.
 
 ```{r}
 #| label: citrus-export
@@ -1717,8 +1729,8 @@ leaflet() |>
 
 ## Step 3: Crop parameters for wheat
 
-For wheat we can start from the built-in FAO-56 profile and change
-only what we know locally. To see all built-in crops, run
+For wheat we can start from the built-in FAO-56 profile and change only
+what we know locally. To see all built-in crops, run
 `wapor_list_crops()`. Besides the Kc values, wheat needs the four yield
 factors explained at the end of this step (HI, AOT, fc, MC).
 
@@ -1765,10 +1777,10 @@ check(wheat_l_dev > 0, paste("development stage:", wheat_l_dev, "days"))
 ::: callout-note
 ## Concept: why the wheat curve looks so different
 
-Wheat is an annual crop: the field is almost bare after sowing (low
-Kc), the canopy closes in late winter (high Kc) and the crop dries out
-before harvest (low Kc again). The evergreen citrus canopy in Part A
-keeps a nearly constant Kc all year.
+Wheat is an annual crop: the field is almost bare after sowing (low Kc),
+the canopy closes in late winter (high Kc) and the crop dries out before
+harvest (low Kc again). The evergreen citrus canopy in Part A keeps a
+nearly constant Kc all year.
 :::
 
 ### The yield equation and the wheat factors
@@ -1789,7 +1801,7 @@ Y = HI \times AOT \times fc \times \frac{TBP}{1 - MC}
 $$
 
 | Term | Meaning | Wheat value |
-|------------------|------------------------------------|------------------|
+|----|----|----|
 | NPP | Net primary production over the season, from WaPOR (gC/m²) | from WaPOR |
 | TBP | Total biomass production (t DM/ha); 22.222 converts gC/m² to kg DM/ha, / 1000 gives t/ha | calculated |
 | fc | Light use efficiency correction factor; 1 for C3 crops such as wheat (no correction) | 1.0 |
@@ -1873,8 +1885,8 @@ for any pair of grids:
 3.  keep the WaPOR pixels that are **at least 50% wheat**
     (`wheat_min_fraction`).
 
-In Jendouba the cereal map and the WaPOR data share exactly the same
-20 m grid, so every fraction is 0 or 1 and every cereal pixel is kept.
+In Jendouba the cereal map and the WaPOR data share exactly the same 20
+m grid, so every fraction is 0 or 1 and every cereal pixel is kept.
 :::
 
 ```{r}
@@ -1907,14 +1919,14 @@ check(abs(kept_pixels / cereal_pixels - 1) < 0.01, "the mask keeps all cereal pi
 
 ## Step 6: Download the data and run the seasonal analysis
 
-The method is the same as for citrus (Part A, Step 6), with one addition:
-for wheat we also estimate biomass, yield and water productivity from NPP
-(@sec-yield), so NPP is downloaded as well.
+The method is the same as for citrus (Part A, Step 6), with one
+addition: for wheat we also estimate biomass, yield and water
+productivity from NPP (@sec-yield), so NPP is downloaded as well.
 
 ### Download the WaPOR data (once)
 
-The season has 21 dekads. AETI, T and NPP (20 m) are cut to the AOI,
-RET and precipitation (L1) to the area around it. The first run downloads
+The season has 21 dekads. AETI, T and NPP (20 m) are cut to the AOI, RET
+and precipitation (L1) to the area around it. The first run downloads
 about 105 files; after that, and without internet, the saved files in
 `wapor_data/wheat/dekadal/` are used.
 
@@ -2018,7 +2030,7 @@ plot_monthly(wheat_season, "Wheat: month by month")
 m <- monthly_table(wheat_season)
 aeti_m <- m[m$variable == "AETI (consumed)", ]
 t_m    <- m[m$variable == "T (transpiration)", ]
-check(all(t_m$mm <= aeti_m$mm + 1e-6), "monthly T is below AETI in every month")
+check(all(t_m$mm <= aeti_m$mm + 1e-3), "monthly T is below AETI in every month")
 peak <- format(aeti_m$month[which.max(aeti_m$mm)], "%B")
 check(peak %in% c("March", "April"), paste("AETI peaks in", peak))
 ```
@@ -2065,12 +2077,12 @@ equations and class limits are in @sec-indicators.
 ::: callout-note
 ## Concept: fields or blocks
 
-Uniformity is calculated inside a field and equity between fields, so both
-need field boundaries. Our crop map is a raster without field boundaries,
-so we divide the area into regular **1 km blocks** (50 x 50 pixels of
-20 m) and treat each block as a management unit. Blocks with fewer than
-100 wheat pixels (4 ha) are left out. With a field or parcel map, use the
-fields instead; the method is the same.
+Uniformity is calculated inside a field and equity between fields, so
+both need field boundaries. Our crop map is a raster without field
+boundaries, so we divide the area into regular **1 km blocks** (50 x 50
+pixels of 20 m) and treat each block as a management unit. Blocks with
+fewer than 100 wheat pixels (4 ha) are left out. With a field or parcel
+map, use the fields instead; the method is the same.
 :::
 
 **Adequacy classes.** Each wheat pixel is classed as poor, acceptable or
@@ -2156,17 +2168,17 @@ blocks.
 :::
 
 **Climate normalization.** Part of the difference in water use between
-blocks comes from the weather, not from management: a block with a higher
-reference ET (RET) consumes more water under the same management.
+blocks comes from the weather, not from management: a block with a
+higher reference ET (RET) consumes more water under the same management.
 Chukalla et al. (2022) remove this effect with a normalization factor:
 
 $$
 f_{norm} = \frac{\overline{RET}}{RET_i}
 $$
 
-where $\overline{RET}$ is the mean seasonal RET over the area and $RET_i$
-the seasonal RET of pixel (or field) $i$. Multiplying AETI or water
-productivity by $f_{norm}$ makes them comparable across the area.
+where $\overline{RET}$ is the mean seasonal RET over the area and
+$RET_i$ the seasonal RET of pixel (or field) $i$. Multiplying AETI or
+water productivity by $f_{norm}$ makes them comparable across the area.
 
 ```{r}
 #| label: wheat-performance-normalization
@@ -2179,10 +2191,10 @@ raster_stats(`Climate normalization factor` = f_norm)
 ::: callout-tip
 ## Checkpoint
 
-A factor close to 1 everywhere means the weather is similar over the whole
-area, so differences in AETI come mostly from management. Factors that
-differ by more than about 10% mean the climate varies across the area,
-and AETI or CWP should be normalized before comparing fields.
+A factor close to 1 everywhere means the weather is similar over the
+whole area, so differences in AETI come mostly from management. Factors
+that differ by more than about 10% mean the climate varies across the
+area, and AETI or CWP should be normalized before comparing fields.
 :::
 
 Next, the water source of the consumed water:
@@ -2218,8 +2230,7 @@ evenly: December and January are wet while the crop still uses little
 water, and in April the crop uses a lot while rain decreases. Split
 month by month, April's shortfall shows up as blue water (irrigation or
 water stored in the soil). Split on the season totals, the winter
-surplus would hide it, and the fields would look almost fully
-rain-fed.
+surplus would hide it, and the fields would look almost fully rain-fed.
 :::
 
 ```{r}
@@ -2242,7 +2253,8 @@ data.frame(
 tbp       <- wheat_season$seasonal_biomass_t                       # TBP = NPP x 22.222 / 1000
 y_formula <- wheat_params$HI * wheat_params$AOT * wheat_params$fc * tbp / (1 - wheat_params$MC)
 y_gap     <- terra::global(abs(y_formula - wheat_season$yield_raster), "max", na.rm = TRUE)[1, 1]
-check(y_gap < 1e-6, sprintf("yield = HI x AOT x fc x TBP / (1 - MC) on every pixel (largest difference %.2g t/ha)", y_gap))
+# Rwapor saves maps as 32-bit floats, so allow a rounding difference below 1 kg/ha
+check(y_gap < 1e-3, sprintf("yield = HI x AOT x fc x TBP / (1 - MC) on every pixel (largest difference %.2g t/ha)", y_gap))
 ```
 
 ::: callout-tip
@@ -2327,12 +2339,12 @@ ggplot(balance, aes(crop, mm, fill = source)) +
 ::: callout-warning
 ## Comparing crops
 
-Citrus is an evergreen tree crop measured over a full year; wheat is
-an annual crop measured over seven winter months. Their water
-productivity values are **not a ranking** of which crop is more
-efficient: season length, climate and the product (fresh fruit versus
-dry grain) all differ. Compare each crop with its own benchmarks and
-between farms of the same crop.
+Citrus is an evergreen tree crop measured over a full year; wheat is an
+annual crop measured over seven winter months. Their water productivity
+values are **not a ranking** of which crop is more efficient: season
+length, climate and the product (fresh fruit versus dry grain) all
+differ. Compare each crop with its own benchmarks and between farms of
+the same crop.
 :::
 
 ------------------------------------------------------------------------
@@ -2340,7 +2352,7 @@ between farms of the same crop.
 # Glossary {.unnumbered}
 
 | Term | Meaning |
-|------------------------------------|------------------------------------|
+|----|----|
 | **Adequacy** | AETI divided by ETc. Below 1: the crop consumed less than its demand. |
 | **AETI** | Actual EvapoTranspiration and Interception: all water leaving the land surface as vapour. |
 | **AOI** | Area of interest: the outline of the study area. |
@@ -2374,9 +2386,9 @@ between farms of the same crop.
     12](https://www.fao.org/4/x0490e/x0490e0b.htm#chapter%206%20%20%20etc%20%20%20single%20crop%20coefficient%20(kc)).
 -   Chukalla, A.D., Mul, M.L., van der Zaag, P., van Halsema, G.,
     Mubaya, E., Muchanga, E., den Besten, N. and Karimi, P. (2022). A
-    framework for irrigation performance assessment using WaPOR data: the
-    case of a sugarcane estate in Mozambique. *Hydrology and Earth System
-    Sciences*, 26, 2759 to 2778.
+    framework for irrigation performance assessment using WaPOR data:
+    the case of a sugarcane estate in Mozambique. *Hydrology and Earth
+    System Sciences*, 26, 2759 to 2778.
     <https://doi.org/10.5194/hess-26-2759-2022> (PDF:
     <https://hess.copernicus.org/articles/26/2759/2022/hess-26-2759-2022.pdf>).
     Source of the equations and class limits for adequacy, uniformity,

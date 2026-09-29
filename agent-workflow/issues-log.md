@@ -5,6 +5,32 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20260929-017 — RESOLVED 2026-09-29: kernel ETc uses a shifted Kc curve (ETc too low / zero)
+
+- **Where**: `R/processing_kernel.R` `.wapor_build_kernel_job()`: `.wapor_profile_kc()`
+  was called with `dekad_table`/`reference_year` while `profiles$start_jd` and the
+  weights use the rebased `kernel_dekad_table`/`kernel_reference_year` (since `94b1533`).
+- **Symptom**: training notebook, local data: citrus ETc 962 mm instead of 1056 mm
+  (adequacy 1.08 instead of 0.98, share below 0.8 18% instead of 22%); wheat
+  (season from 1 November) ETc 0 mm, adequacy NaN, empty adequacy-class table.
+  Independent check: sum(daily Kc x RET) = 1057.7 mm.
+- **Bisect**: v1.0.2 and v1.0.3 correct (1056.45); `94b1533` and 1.0.5 wrong.
+- **Fix**: pass `kernel_dekad_table`, `kernel_reference_year`. Regression test in
+  `test-processing.R` (1 March season; old code 85.7 vs expected 447.9).
+
+### ISS-20260929-016 — RESOLVED 2026-09-29: training setup check reports "server reachable" when offline
+
+- **Where**: `training/check_setup.R` (connectivity check) and the `l3-regions`
+  chunk of `training/water-productivity-training.qmd`.
+- **Root cause**: offline, `wapor_fetch_l3_regions()` only *warns* and returns the
+  static `L3_REGIONS` list; both callers caught errors only, so check_setup printed
+  `[PASS] WaPOR server reachable` and the notebook overwrote
+  `data/wapor_l3_regions.csv` with the fallback list.
+- **Fix**: treat the warning as offline (`warning = function(w) ...`). Also the
+  "values are in mm/day" checkpoint now has a lower bound (>1), so a double-scaled
+  (10x too low) download fails the check instead of passing.
+- **Note**: participants received check_setup.R before this fix; re-share it.
+
 ### ISS-20260929-015 — RESOLVED 2026-09-29: `wapor_ts()` polygon stats fail for single-layer batches
 
 - **Where**: `R/wapor_ts.R`, zonal extraction (`exact_extract(..., c("mean","min","max"))`).

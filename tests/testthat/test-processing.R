@@ -451,6 +451,45 @@ test_that("local reader warns about wapor_map() stacks and wapor_unstack_map() s
   expect_error(wapor_unstack_map(file.path(root, "missing.tif")), "existing GeoTIFF")
 })
 
+test_that("kernel ETc follows the daily Kc curve for a season that does not start on 1 January", {
+  # Regression (1.0.5): after the kernel rebased season days to the period year,
+  # Kc was still aggregated with the unshifted dekad table, so a 1 March season
+  # used a Kc curve starting on 1 January and ETc came out ~9% low.
+  root <- tempfile("rwapor-etc-")
+  dir.create(root)
+  period <- c("2023-03-01", "2023-05-31")
+  grid <- terra::rast(nrows = 3, ncols = 3, xmin = 0, xmax = 3, ymin = 0, ymax = 3, crs = "EPSG:4326")
+  dt <- Rwapor:::build_dekad_table(period[1], period[2])
+  ret_mm_day <- seq_len(nrow(dt))          # RET differs per dekad, so a shifted Kc changes ETc
+  for (var in c("L1-AETI-D", "L1-RET-D")) {
+    dir.create(file.path(root, var))
+    for (i in seq_len(nrow(dt))) {
+      val <- if (var == "L1-RET-D") ret_mm_day[i] else 2
+      terra::writeRaster(terra::setValues(grid, val),
+        file.path(root, var, sprintf("WAPOR-3.%s.%s.tif", var, format(as.Date(dt$dekad_key[i]), "%Y-%m-%d"))),
+        overwrite = TRUE, datatype = "FLT8S")
+    }
+  }
+  cp <- data.frame(class_value = 1L, crop_label = "A", kc_ini = 0.4, kc_mid = 1.2, kc_end = 0.6,
+                   l_ini_days = 20L, l_mid_days = 30L, l_late_days = 20L,
+                   HI = 0.4, MC = 0.1, fc = 1, AOT = 1, stringsAsFactors = FALSE)
+  days <- seq(as.Date(period[1]), as.Date(period[2]), by = "day")
+  kc <- Rwapor::wapor_build_kc(kc_ini = 0.4, kc_mid = 1.2, kc_end = 0.6, l_ini = 20,
+                               l_dev = length(days) - 70, l_mid = 30, l_late = 20)
+  expected <- sum(kc * ret_mm_day[findInterval(days, as.Date(dt$dekad_key))])
+
+  for (ref_year in list(NULL, 2023L)) {
+    cfg <- list(period = period, ref_year = ref_year, aeti_var = "L1-AETI-D", ret_var = "L1-RET-D",
+                data_source = "local", folder = root, use_crop_mask = FALSE,
+                indicators = c("agg_aeti", "agg_ret", "etc", "adequacy_etc"),
+                output_dir = tempfile("rwapor-etc-out-"))
+    res <- suppressWarnings(suppressMessages(
+      wapor_run_seasonal_analysis(cfg, cp, rasters = list())))
+    etc <- terra::values(res$etc_by_class[["1"]]$etc_seasonal, mat = FALSE)
+    expect_equal(unique(round(etc, 4)), round(expected, 4))
+  }
+})
+
 test_that("disk estimate scales with keep_intermediates and the check warns when space is short", {
   base <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18)
   kept <- Rwapor:::.wapor_estimate_disk_bytes(1e6, n_targets = 5, n_months = 6, n_layers = 18,
