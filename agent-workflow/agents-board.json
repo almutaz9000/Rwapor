@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
   "schema_version": 1,
   "updated_utc": "2026-09-30T09:47:45Z",
@@ -903,7 +903,7 @@
     },
     {
       "id": "ti-09",
-      "title": "Irrigation performance indicators (Chukalla et al. 2022): adequacy classes, uniformity, equity, climate normalization",
+      "title": "Irrigation performance indicators for any units: adequacy classes (also per zone), uniformity within and equity between any polygons or grid",
       "status": "pending",
       "priority": "medium",
       "model": null,
@@ -914,12 +914,12 @@
         "R/indicators_math.R"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-09).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-10",
-      "title": "Farm-level extraction helper wapor_extract_farms() (dissolve by ID, area-weighted) for survey joins",
+      "title": "wapor_zonal_stats(): general zonal engine for any polygons (farm to country), nested levels, volumes, coverage, class shares per zone and AOI",
       "status": "pending",
       "priority": "medium",
       "model": null,
@@ -929,12 +929,12 @@
         "R/farm_extract.R"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-10).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, delivery step 1. Absorbs ti-16. Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-11",
-      "title": "Perennial crop support: citrus profiles (FAO-56 Table 12), crop_type flag, stage names, fc documentation",
+      "title": "Perennial crop support: general perennial profile type (citrus, olive, date palm, grape), FAO-56 Table 12, crop_type flag, stage names, fc docs",
       "status": "pending",
       "priority": "medium",
       "model": null,
@@ -946,12 +946,12 @@
         "R/analysis_engine.R"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-11).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, delivery step 3. Open: allow survey yields as input for CWP of tree crops. Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-12",
-      "title": "Crop mask helpers: auto-reprojecting rasterize, fraction-based harmonization, mask area check",
+      "title": "Mask helpers for any crop polygons or classified map (any class codes, any resolution) onto any WaPOR level, with area check",
       "status": "pending",
       "priority": "medium",
       "model": null,
@@ -962,12 +962,12 @@
         "R/analysis.R"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-12).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, delivery step 4. Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-13",
-      "title": "Export wapor_calc_cv and raster Peff; add wapor_classify_spots() (bright/dark spots)",
+      "title": "Export wapor_calc_cv and raster Peff; wapor_classify_spots() for pixels or zones with reference groups; bright/dark shares per zone and AOI",
       "status": "pending",
       "priority": "low",
       "model": null,
@@ -978,8 +978,8 @@
         "NAMESPACE"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-13).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-14",
@@ -1015,7 +1015,7 @@
     },
     {
       "id": "ti-16",
-      "title": "Robust polygon area calculation (projected CRS; s2 duplicate-vertex failure)",
+      "title": "Robust area calculation (equal-area/UTM, never lon/lat) - delivered inside ti-10 wapor_zonal_stats()",
       "status": "pending",
       "priority": "low",
       "model": null,
@@ -1025,8 +1025,8 @@
         "R/utils.R"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-16).",
-      "updated_utc": "2026-09-24"
+      "notes": "APPROVED 2026-09-30, part of ti-10. Design: ",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "codex-delegation",

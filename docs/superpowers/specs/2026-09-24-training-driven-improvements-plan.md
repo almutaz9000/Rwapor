@@ -171,6 +171,66 @@ Every P0 fix must come with a regression test that fails before the fix.
 
 ## P2: features the training had to build by hand
 
+> **REVISED 2026-09-30 (approved by the user): generalized to any zones.**
+> The features below must work for any polygons at any scale (field, farm,
+> irrigation scheme, district, basin, country, or a whole AOI), not only for farms.
+> This revision supersedes the farm-specific wording in ti-09, ti-10, ti-12, ti-13
+> and ti-16 where they differ.
+>
+> **ti-10 becomes `wapor_zonal_stats()`, the package's single zonal engine** (absorbs
+> ti-16; delivered first because ti-09 and ti-13 build on it):
+>
+> ```r
+> wapor_zonal_stats(x, zones, id, stats = c("mean", "sum_volume", "area_ha", "coverage"),
+>                   weights = "area", mask = NULL, dissolve = TRUE, by = NULL,
+>                   classes = NULL, min_coverage = 0.5)
+> ```
+>
+> - `x`: SpatRaster(s) or a `wapor_run_seasonal_analysis()` result; `zones`: sf,
+>   SpatVector or file; `id`: one or more columns (several = nested levels, e.g.
+>   `c("gov", "scheme", "farm")`, one row set per level); `dissolve` merges polygons
+>   sharing an ID (multi-part farms, districts); `mask`: only crop pixels count;
+>   `by = "month"/"dekad"` gives time series per zone.
+> - Continuous statistics: area-weighted mean, median, percentiles, min, max, sd, CV,
+>   pixel count, `area_ha`, `coverage` (valid share of the zone; below `min_coverage`
+>   -> NA with a warning), `sum_volume` (mm x area -> m3 and Mm3; volumes are summed,
+>   never averaged across zones of different size).
+> - **Class shares (added 2026-09-30)**: for any classified raster (bright/dark spots,
+>   adequacy classes, crop or land cover classes) `stats = "class_share"` returns, per
+>   zone and for the whole AOI, the area (ha) and percentage of the zone in each class,
+>   area-weighted with exact cell fractions; `classes` gives optional labels
+>   (e.g. `c("1" = "bright", "2" = "normal", "3" = "dark")`). Percentages are of the
+>   zone's valid (masked) area and sum to 100 per zone.
+> - Correctness: exact fractional cell coverage (`exactextractr`); areas always in an
+>   equal-area/UTM projection (never on lon/lat; fixes the s2 failure of ti-16); zones
+>   reprojected to the raster grid automatically; large extents via the existing
+>   processing planner (memory/stream/tiled) and zone batching.
+> - It never downloads data, so L3 region boundaries are the caller's concern; zones
+>   with missing data are exposed by `coverage`.
+> - Output: tidy table (zone id, level, variable, period, statistic, class, value,
+>   unit), optionally `sf` with values attached. Survey/economic joins are a plain
+>   merge on normalised IDs.
+> - Later (P3): `wapor_ts()` and monitoring (`wapor_enhanced_zonal_stats()`) call this
+>   engine so there is one polygon-statistics code path.
+>
+> **Generalized siblings**
+> - ti-09: uniformity within any unit and equity between any units (farms in a scheme,
+>   schemes in a basin, districts in a country); units = polygons or a regular grid of
+>   any size; adequacy classes also reported per zone via `class_share`.
+> - ti-12: masks from any crop polygons or any classified map (any class codes, any
+>   resolution) onto any WaPOR level.
+> - ti-13: bright/dark spots for pixels or zones, with percentiles computed within a
+>   chosen reference group (e.g. relative to farms of the same scheme); per-zone and
+>   whole-AOI shares of bright/normal/dark via `wapor_zonal_stats(stats = "class_share")`.
+> - ti-11: a general perennial profile type (citrus, olive, date palm, grape follow it).
+>
+> **Tests**: known answers per level from the training data (113 citrus farms vs the
+> notebook farm table; a nested scheme aggregate; a block grid); `sum_volume` =
+> mean mm x area / 1000; class shares sum to 100 and match pixel counts on a fixture.
+>
+> **Delivery order**: (1) `wapor_zonal_stats()` incl. class shares + ti-16;
+> (2) ti-09 + ti-13; (3) ti-11; (4) ti-12 + ti-14 + ti-15.
+
 ### ti-09: irrigation performance indicators (Chukalla et al., 2022)
 
 - **Reference**: Chukalla, A.D. et al. (2022). A framework for irrigation
