@@ -1,50 +1,83 @@
-# P2 implementation plan: generalized zonal statistics, configurable classes and training-derived features
+# P2 implementation plan (v2): zonal statistics, configurable classes and irrigation performance indicators
 
 | | |
 |---|---|
-| **Status** | Approved design (user, 2026-09-30). Ready for implementation, work package by work package. |
+| **Status** | v2, 2026-09-30. Design approved by the user; science reviewed by a domain expert agent (geospatial analysis, WaPOR, irrigation performance assessment, agronomy, agrometeorology). Ready for implementation, one work package at a time. |
+| **Target release** | Rwapor **1.0.6** (unreleased; ships together with the P0 correctness gates). If 1.0.6 is released before P2 is finished, use **1.0.7**. Current dev version: `1.0.5.9000`. |
 | **Written by** | Claude (planner). **Implementers**: any model (Codex, Antigravity, Claude, ...). |
-| **Target release** | Rwapor **1.1.0** (new exported functions = minor version). Current dev version: `1.0.5.9000`. |
-| **Board tasks** | WP1 + WP2: `ti-10` (+ `ti-16`); WP3: `ti-09`, `ti-13`; WP4: `ti-11`; WP5: `ti-12`, `ti-14`, `ti-15` (`agent-workflow/agents-board.json`). |
-| **Design source** | `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`, section "P2", block "REVISED 2026-09-30". |
-| **Evidence source** | `training/water-productivity-training.qmd` (the 2026 WaPOR training notebook): every feature here replaces a helper the notebook had to write by hand. |
+| **Board tasks** | WP1 + WP2: `ti-10` (+ `ti-16`); WP3: `ti-09`, `ti-13`; WP4: `ti-11`; WP5: `ti-12`, `ti-14`, `ti-15`; WP6: new task `p2-peff` (`agent-workflow/agents-board.json`). |
+| **Scientific review** | `docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md` (cited below as "Review §x"). Every default in this plan follows it. |
+| **Design background** | `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`, section "P2". |
+
+### What changed from v1
+
+v1 was derived from one training notebook. v2 is general: the training (citrus in the North Jordan Valley,
+winter wheat in Jendouba) is only one example that showed which features were missing. Main changes:
+
+- Defaults come from the published literature, with correct sources (adequacy: Karimi et al. 2019 as
+  applied by Chukalla et al. 2022; equity: Bastiaanssen et al. 1996; spots: the IHE Delft/FAO WaPOR
+  protocol). Heuristics are labelled as such.
+- Uniformity classes are per irrigation method (one standard each), not one ordinal scale.
+- WP2 separates the crop share of a zone from data coverage, computes volumes only from depths, uses one
+  standard deviation definition and a weighted quantile that equals R's type 7 for equal weights.
+- Resolution-independent parameters (hectares and cell fractions, not pixel counts), so the same call
+  works at L1 (300 m), L2 (100 m) and L3 (20 m).
+- New indicators: relative water deficit, productivity targets and gaps, temporal reliability,
+  Christiansen CU, low-quarter DU, Gini, net irrigation requirement, Kc climate adjustment.
+- Perennial crops: evergreen and deciduous types, dormant Kc, verified FAO-56 rows, FAO-56 stage names.
+- New WP6: effective rainfall method choice and rainfed classes.
+- The training becomes an optional local example check, never a standard.
 
 ---
 
-## 0. How to use this plan (read first, every implementer)
+## 0. How to use this plan (every implementer)
 
 1. Start every session with `agent-workflow/START-HERE.md` (preflight, board, session brief).
-2. Implement **one work package (WP) per run**, in the order WP1 -> WP2 -> WP3 -> WP4 -> WP5.
-   WP2 needs WP1; WP3 needs WP1 and WP2. WP4 and WP5 are independent of each other.
-3. Claim the WP's board task before editing:
+2. Implement **one work package (WP) per run**: WP1 -> WP2 -> WP3; WP4, WP5 and WP6 are independent
+   and can run in any order after WP1.
+3. Claim the board task first:
    `.\agent-workflow\scripts\board_claim.ps1 -Id <task-id> -Model <your-model> -Status active -Notes "plan: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md WP<n>"`
-4. Edit **only** the files listed in the WP's file table. If another file must change, stop and report.
-5. Run the WP's validation commands and report each result line. Tick every done criterion with evidence.
-6. Do not commit or push unless the user asks. Work on branch `version-1.1.0` (create it from the default
-   branch if it does not exist; CI runs on `version-*` branches).
-7. When a detail in this plan is wrong or impossible, stop and report instead of guessing
-   (`STATUS: blocked`, with the file and line).
+4. Edit **only** the files in the WP's file table. If another file must change, stop and report.
+5. Run the WP's validation commands; report each result line; tick every done criterion with evidence.
+6. Do not commit or push unless the user asks. Branch: `version-1.0.6` (exists; update it from the
+   default branch first). CI runs on `version-*` branches.
+7. If something in this plan is wrong or impossible, stop and report (`STATUS: blocked`, file and line).
+   Never replace an UNVERIFIED value with a guess.
 
-### Project conventions (apply to every WP)
+### Principles (apply to every WP)
 
-- R: `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe` (Windows). Use
-  `devtools::document()`, `devtools::test(filter = ...)`; `devtools::check()` only at the end of a WP
-  that changes exports.
-- Code style: base pipe `|>`, `pkg::fun()` calls (no `library()` in `R/`), `stop(..., call. = FALSE)`,
-  roxygen2 with `@export`, `@param`, `@return`, `@examples` (wrap slow or network examples in
-  `\dontrun{}`), lintr/styler clean (CI job "lintr and styler").
-- No new hard dependencies. Allowed: packages already in `DESCRIPTION` Imports (terra, sf, exactextractr,
-  ggplot2, ...). Suggests only with `requireNamespace()` guards.
-- Messages: progress via the internal `.wapor_inform()` (honours `options(Rwapor.verbose)`);
-  problems via `warning()` / `stop()`.
-- **Known-answer rule**: `tests/testthat/test-known-answer.R` must keep passing unchanged. No WP in this
-  plan changes existing analysis numbers; if a golden value moves, you have introduced a bug.
-- Units: WaPOR depths are mm (seasonal totals) or mm/day, mm/dekad (per time step); areas m2/ha;
-  volumes m3 (1 mm over 1 m2 = 0.001 m3). Never measure areas on longitude/latitude with planar math.
-- Disk: the development machine may be low on disk space; if a local full test run shows
-  "No space left on device", rerun the failing files individually and report it (CI is the reference).
-- Update `NEWS.md` (section `# Rwapor 1.1.0 (development)`, create it above 1.0.6 if missing) and the
-  board/`task-status.md` entry at the end of each WP.
+- **General, not case-specific.** Any crop, region, scale (field to country), WaPOR level, season
+  (including seasons crossing 1 January), irrigated or rainfed. Nothing may assume the training's crops,
+  regions, resolution or dates.
+- **Literature defaults, configurable everything.** Every threshold is a documented default with its
+  source, changeable by argument or `options()`. Values marked UNVERIFIED in the review must not become
+  defaults or golden test values.
+- **Resolution-independent parameters.** Minimum sizes in hectares and cell fractions, never raw pixel
+  counts.
+- **Transparent results.** Every classified or derived result carries the parameters that produced it.
+- **Known-answer rule.** `tests/testthat/test-known-answer.R` must keep passing unchanged: no WP changes
+  existing analysis numbers by default. Changing existing defaults (e.g. the crop table corrections in
+  decision D5) is a separate, announced change with regenerated golden values.
+
+### Project conventions
+
+- R: `C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe` (Windows);
+  `devtools::document()`, `devtools::test(filter = ...)`; `devtools::check()` at the end of a WP that
+  changes exports.
+- Style: base pipe `|>`, `pkg::fun()`, no `library()` in `R/`, `stop(..., call. = FALSE)`, roxygen2 with
+  `@export`, `@param`, `@return`, `@examples` (`\dontrun{}` for slow or network examples), lintr/styler
+  clean.
+- No new hard dependencies (Imports: terra, sf, exactextractr, ...). `ggplot2` is in Suggests: guard
+  plot code with `requireNamespace()`.
+- Progress messages via `.wapor_inform()`; problems via `warning()` / `stop()`.
+- Units: depths mm; rates mm/day; areas m2 / ha; volumes m3 (1 mm over 1 ha = 10 m3). Never planar area
+  math on longitude/latitude.
+- Tests compare with independent calculations (base R, hand values from Review §5), never with the
+  function's own output.
+- Update `NEWS.md` (section `# Rwapor 1.0.6 (development)`, at the top) and the board/`task-status.md`
+  entry at the end of each WP.
+- If a local full test run fails with "No space left on device", rerun the failing files individually
+  and report it (CI is the reference).
 
 ---
 
@@ -52,51 +85,52 @@
 
 | # | Objective | Measurable success |
 |---|---|---|
-| O1 | One general zonal engine for any polygons at any scale (field, farm, scheme, district, basin, country, AOI) | `wapor_zonal_stats()` returns correct area-weighted statistics, volumes, coverage and class shares for zones from a 20 m farm to a country at 300 m; tests compare with independent calculations |
-| O2 | Every classification is user-configurable | No hard-coded class threshold anywhere; one shared `wapor_classify()`; published values only as documented defaults; the thresholds used travel with every result |
-| O3 | Irrigation performance assessment (Chukalla et al., 2022) for any units | Adequacy classes, uniformity within units, equity between units, climate normalization; reproduce the training notebook's wheat results |
-| O4 | Bright/dark spot analysis for pixels or zones, with shares per zone and AOI | `wapor_classify_spots()` + `class_share`; percentiles within a chosen reference group |
-| O5 | Tree (perennial) crops handled correctly | Citrus profiles (FAO-56), `crop_type`, stage names; the grain yield chain is not applied to trees by default |
-| O6 | Remove common traps found in the training | Masks that reproject automatically, full-resolution plots without deprecated ggplot2 calls, URL lists usable offline |
+| O1 | One general zonal engine for any polygons at any scale | `wapor_zonal_stats()` returns correct weighted statistics, volumes, crop share, coverage and class shares from field to country; tests against independent values (Review §5, tests 11 to 15) |
+| O2 | Every classification configurable and correctly sourced | One `wapor_classify()`; schemes with literature sources; no hard-coded thresholds; parameters travel with results |
+| O3 | Irrigation performance assessment for any units | Adequacy, uniformity (1 - CV, CU, DU_lq) per irrigation method, equity, reliability, relative water deficit, climate normalization |
+| O4 | Productivity targets, gaps and bright/dark spots for pixels or zones | Protocol definitions (P95 targets, both LP and WP), shares per zone and AOI |
+| O5 | Perennial crops handled correctly | Verified FAO-56 rows, evergreen/deciduous types, dormant Kc, optional FAO-56 Eq. 62/65 climate adjustment |
+| O6 | Effective rainfall and green/blue water that fit any climate and water source | Peff method choice; rainfed classes get no blue water |
+| O7 | Remove common traps | Masks that reproject and return fractions (usable as weights), guarded plots, offline URL lists |
 
-**Non-goals (this plan)**: download cache `wapor_download()` (ti-06) and parallel remote opening (ti-07)
-are P3; refactoring `wapor_ts()` and monitoring to use the new engine is P3; no Shiny dashboard changes;
-no change to the seasonal-analysis math.
+**Non-goals (later releases)**: download cache (ti-06), parallel remote opening (ti-07), supply-based
+indicators with delivery data (Review §3.7), yield response to water Ky (§3.8), full multi-season and
+double-cropping engine support (§3.9; only a `season` column is reserved now), full USDA-SCS NEH 623 Peff,
+dekadal Peff, soil-water-balance green/blue split, normalized biomass WP (needs dekadal T/ET0 wiring),
+`wapor_ts()`/monitoring refactor onto the zonal engine.
 
 ---
 
 ## 2. Architecture
 
 ```
-                 user rasters / wapor_run_seasonal_analysis() result
-                                   |
-       +---------------------------+----------------------------+
-       |                                                        |
- wapor_classify()  (WP1)                              wapor_zonal_stats()  (WP2)
-   breaks / labels / method = fixed|quantile            zones: any polygons, nested ids
-   reference = AOI | zones | group raster               stats: mean, median, quantiles, sd, cv,
-   defaults: wapor_class_defaults()                     min, max, count, area_ha, coverage,
-   overrides: options(Rwapor.class_breaks)              sum_volume, class_share
-       |                                                        |
-       +-----------------------+--------------------------------+
-                               |
-            WP3 indicators: wapor_classify_adequacy(), wapor_calc_uniformity(),
-            wapor_calc_equity(), wapor_climate_norm(), wapor_classify_spots(),
-            exported wapor_calc_cv(), wapor_calc_peff()
-                               |
-            WP4 crops: perennial profiles, crop_type, stage_names      WP5 helpers: masks, plots, offline URLs
+            user rasters / wapor_run_seasonal_analysis() result
+                                |
+   +----------------------------+-----------------------------+
+   |                                                          |
+ wapor_classify()   (WP1)                           wapor_zonal_stats()   (WP2)
+  schemes + breaks/labels/method/reference            any zones, nested ids, weights (fraction masks)
+  direction, min_n, metadata                          mean, median, quantiles, sd, cv, cu, du_lq, gini,
+                                                      theil, min, max, count, n_eff, area_ha,
+                                                      mask_fraction, coverage, sum_volume, class_share
+   |                                                          |
+   +-----------------------------+----------------------------+
+                                 |
+  WP3 indicators: adequacy classes, uniformity (per method), equity, reliability, RWD,
+      productivity targets/gaps, spots, climate normalization, NIR / deficit
+  WP4 perennial crops + wapor_adjust_kc_climate()     WP5 masks (fractions), plots, offline URLs
+  WP6 effective rainfall methods + rainfed classes (seasonal-analysis engine)
 ```
 
 New files: `R/classify.R` (WP1), `R/zonal_stats.R` (WP2), `R/performance_indicators.R` (WP3),
-`R/mask_helpers.R` (WP5). Tests in matching `tests/testthat/test-*.R` files.
+`R/kc_adjust.R` (WP4), `R/mask_helpers.R` (WP5). WP6 edits existing files.
 
 ---
 
 ## 3. WP1: configurable classification engine (`ti-10` part 1)
 
-**Objective**: one classifier used by every classification in the package, with user-defined breaks,
-labels, fixed or percentile method, and reference groups; published thresholds only as defaults.
-
+**Objective**: one classifier for every classification, with literature defaults, user breaks,
+fixed or percentile methods, reference groups, class direction and attached metadata.
 **Effort**: small to medium. **Depends on**: nothing.
 
 ### Files
@@ -105,85 +139,76 @@ labels, fixed or percentile method, and reference groups; published thresholds o
 |---|---|
 | `R/classify.R` | new: `wapor_classify()`, `wapor_class_defaults()`, `wapor_class_info()`, internal helpers |
 | `tests/testthat/test-classify.R` | new |
-| `NEWS.md`, `NAMESPACE`, `man/*.Rd` | NEWS entry; regenerated by `devtools::document()` |
+| `NEWS.md`, `NAMESPACE`, `man/*.Rd` | NEWS entry; `devtools::document()` |
+
+### Default schemes (`wapor_class_defaults()`)
+
+Each scheme: `list(breaks, labels, method, right, direction, units, source, note)`.
+
+| scheme | method | breaks | labels | direction | source |
+|---|---|---|---|---|---|
+| `adequacy` | fixed | `c(0.68, 0.80, 1.00)` | poor, acceptable, good, above ETc | higher_better (up to 1) | Karimi et al. (2019) Remote Sens. 11, 705; as applied in Chukalla et al. (2022) HESS 26, 2759-2778 (Sect. 2.3.2). Note: "above ETc" is a package class, not published; it usually signals a Kc or data issue, not over-consumption. |
+| `equity` | fixed | `c(0.10, 0.25)` (CV as a fraction) | good, fair, poor | lower_better | Bastiaanssen et al. (1996); Karimi et al. (2019); quoted in Chukalla et al. (2022) |
+| `uniformity_surface` | fixed | `0.65` | below standard, meets standard | higher_better | Pitts et al. (1996), quoted in Chukalla et al. (2022); standard written for applied water |
+| `uniformity_sprinkler` | fixed | `0.75` | below standard, meets standard | higher_better | same |
+| `uniformity_pivot` | fixed | `0.75` | below standard, meets standard | higher_better | same |
+| `uniformity_drip` | fixed | `0.85` | below standard, meets standard | higher_better | same |
+| `spots` | quantile | `c(0.05, 0.95)` | dark, normal, bright | higher_better | Chukalla et al. (2020) WaPOR productivity protocol (Zenodo 10.5281/zenodo.4641360; WAPORWP Module 5): targets at P95, bright = at or above target. "dark" (at or below P5) is a package convention. |
+
+No default scheme for relative water deficit or beneficial fraction (no published class limits; Review
+§2 WP1). Molden & Gates (1990) adequacy and dependability bands are **not** shipped in 1.0.6 (their exact
+bands are UNVERIFIED; decision D11).
+
+Project-wide overrides: `options(Rwapor.class_breaks = list(<scheme> = list(breaks = ..., labels = ...)))`
+merged field by field over the defaults.
 
 ### API
 
 ```r
-wapor_class_defaults(scheme = NULL)
-```
-Returns a named list of schemes (or one scheme when `scheme` is given). Each scheme is
-`list(breaks, labels, method, right, units, source)`. Values:
-
-| scheme | method | breaks | labels | source |
-|---|---|---|---|---|
-| `adequacy` | fixed | `c(0.68, 0.8, 1)` | poor, acceptable, good, above demand | Chukalla et al. (2022), HESS 26, 2759-2778, Table A1 |
-| `equity` | fixed | `c(0.10, 0.25)` (CV as a fraction) | good, fair, poor | Chukalla et al. (2022) |
-| `uniformity` | fixed | `c(0.65, 0.75, 0.85)` (1 - CV) | below 65%, 65 to 75%, 75 to 85%, 85% and above | irrigation-method standards used in the training: furrow 65%, sprinkler 75%, drip 85% |
-| `spots` | quantile | `c(0.05, 0.95)` | dark, normal, bright | WaPOR bright/dark spot practice (training notebook) |
-
-Project-wide overrides: `options(Rwapor.class_breaks = list(adequacy = list(breaks = ..., labels = ...)))`
-are merged over these defaults (only the given fields replace the default fields).
-
-```r
 wapor_classify(x, breaks = NULL, labels = NULL, method = c("fixed", "quantile"),
-               reference = NULL, id = NULL, scheme = NULL, right = TRUE)
+               reference = NULL, id = NULL, scheme = NULL, right = TRUE, min_n = 30)
+wapor_class_defaults(scheme = NULL)
+wapor_class_info(x)
 ```
 
 - `x`: SpatRaster (one or more layers) or numeric vector.
-- `scheme`: name of a default scheme; any of `breaks`, `labels`, `method` left `NULL` is taken from it
-  (after applying `options(Rwapor.class_breaks)`). Without `scheme`, `breaks` is required and
-  `method` defaults to `"fixed"`.
-- `method = "fixed"`: `breaks` are values. Intervals with `right = TRUE`:
-  class 1 = `(-Inf, b1]`, class k = `(b[k-1], b[k]]`, last class = `(b_n, Inf)`.
-  With `right = FALSE`: `[b[k-1], b[k])`. (Adequacy default with `right = TRUE` gives
-  poor <= 0.68 < acceptable <= 0.8 < good <= 1 < above demand, exactly the training notebook.)
-- `method = "quantile"`: `breaks` are probabilities in (0, 1). Thresholds are quantiles
-  (`stats::quantile(type = 7)`) of the non-NA values of `x` within each reference group:
-  - `reference = NULL`: one group, all non-NA cells (or values) of `x`;
-  - `reference` = SpatRaster of group codes (same grid as `x`, else resampled with `"near"`): one set of
-    thresholds per group code;
-  - `reference` = polygons (sf / SpatVector / path) + `id` column: groups are the polygons
-    (rasterized to the grid of `x` with `terra::rasterize(..., field = id)`; cells outside all polygons
-    get NA).
-  Then classify with the fixed rule above using the group's thresholds.
-- Returns, for a SpatRaster, an integer SpatRaster (codes `1..(length(breaks) + 1)`, NA stays NA) that is
-  categorical: `terra::levels(r) <- data.frame(value = codes, class = labels)`; for a numeric vector, a
-  factor with `levels = labels`.
-- The result carries attribute `"wapor_classes"` (for SpatRaster also stored with `terra::metags()` so it
-  survives `writeRaster()` in GeoTIFF metadata):
-  `list(scheme, method, breaks, labels, right, thresholds)` where `thresholds` is a data.frame with
-  columns `group` (NA for one group) and `t1..tn` (actual values used).
-- Validation (each an error with a clear message): `breaks` numeric, finite, strictly increasing and
-  unique; `length(labels) == length(breaks) + 1` (when `labels` is `NULL` use `"class_1"`, ...);
-  quantile breaks strictly between 0 and 1; `reference` group raster must overlap `x`; `id` required
-  when `reference` is polygons; unknown `scheme` name lists the available ones.
-- Edge cases: a group with fewer than `length(breaks) + 1` non-NA values gets NA thresholds and its cells
-  NA, with one warning listing such groups; ties at a threshold follow `right`.
+- `scheme`: default scheme name; `breaks`, `labels`, `method` left `NULL` come from it (after
+  `options(Rwapor.class_breaks)`). Without `scheme`, `breaks` is required and `method = "fixed"`.
+- `method = "fixed"`: intervals with `right = TRUE`: `(-Inf, b1]`, `(b[k-1], b[k]]`, `(b_n, Inf)`;
+  `right = FALSE`: `[b[k-1], b[k])`. Adequacy with `right = TRUE`: poor <= 0.68 < acceptable <= 0.80 <
+  good <= 1.00 < above ETc.
+- `method = "quantile"`: `breaks` are probabilities in (0, 1); thresholds =
+  `stats::quantile(type = 7)` of the non-NA values within each reference group
+  (`reference = NULL`: all values; a SpatRaster of group codes, resampled with `"near"` if needed; or
+  polygons + `id`, rasterized to the grid of `x`). Groups with fewer than `min_n` values get NA
+  thresholds and NA classes, with one warning listing them (`min_n = 30` matches the existing
+  `wapor_calc_p95_aeti()` default).
+- Returns an integer categorical SpatRaster (codes `1..length(breaks) + 1`,
+  `terra::levels(r) <- data.frame(value, class)`) or a factor for numeric input.
+- Attribute `"wapor_classes"` (also written with `terra::metags()` so it survives GeoTIFF):
+  `list(scheme, method, breaks, labels, right, direction, thresholds, source)`; `thresholds` is a
+  data.frame (`group`, `t1..tn`).
+- Validation errors: non-numeric, non-finite, unsorted or duplicate breaks; `length(labels) !=
+  length(breaks) + 1`; quantile breaks outside (0, 1); `id` missing for polygon references; unknown scheme
+  (message lists the available ones).
 
-Also export `wapor_class_info(x)`: returns the `"wapor_classes"` list of a classified result
-(reads the attribute, or the metadata tags of a raster read from file).
+### Tests (`test-classify.R`; expected values from Review §5)
 
-### Tests (`test-classify.R`)
-
-1. Fixed, numeric: `wapor_classify(c(0.5, 0.68, 0.7, 0.8, 0.9, 1, 1.2), scheme = "adequacy")` gives
-   `poor, poor, acceptable, acceptable, good, good, above demand`.
-2. `right = FALSE` moves the boundary values: 0.68 -> acceptable, 0.8 -> good, 1 -> above demand.
-3. Custom breaks and labels on a SpatRaster (4 x 4, values 1..16, breaks `c(4, 8, 12)`): codes
-   `rep(1:4, each = 4)` in cell order; `terra::levels()` holds the labels; `wapor_class_info()` returns
-   the breaks.
-4. Quantile, one group: values 1..100, `breaks = c(0.05, 0.95)`: thresholds equal
-   `quantile(1:100, c(0.05, 0.95), type = 7)`; counts per class 5 / 90 / 5.
-5. Quantile per group: two groups of values 1..100 and 101..200; each group gets its own thresholds
-   (group 2 thresholds = group 1 + 100) and counts 5 / 90 / 5 per group. Same result with a group raster
-   and with two polygons + `id`.
-6. Option override (`old <- options(...); on.exit(options(old))`): set
-   `Rwapor.class_breaks = list(adequacy = list(breaks = c(0.6, 0.8, 1)))`; 0.65 becomes acceptable;
-   labels still the defaults.
-7. Validation errors: unsorted, duplicated, non-finite breaks; wrong number of labels; quantile break
-   1.0; unknown scheme (message lists `adequacy`, `equity`, `uniformity`, `spots`).
-8. Metadata survives a GeoTIFF round trip: write the classified raster, read it back,
-   `wapor_class_info()` returns the same breaks and labels.
+1. Adequacy tie rule: `c(0.68, 0.80, 1.00, 1.0001)` -> poor, acceptable, good, above ETc.
+2. `right = FALSE` moves the boundary values up one class.
+3. Custom breaks on a 4 x 4 SpatRaster (values 1..16, breaks `c(4, 8, 12)`): codes `rep(1:4, each = 4)`;
+   `terra::levels()` holds the labels; `wapor_class_info()` returns breaks, source and direction.
+4. Quantile, one group, values 1..100, `c(0.05, 0.95)`: thresholds 5.95 and 95.05 (type 7); counts
+   5 / 90 / 5.
+5. Quantile per group (values 1..100 and 101..200): thresholds per group; 5 / 90 / 5 per group; same result
+   with a group raster and with two polygons + `id`.
+6. `min_n`: a group of 20 values gets NA classes and a warning.
+7. Uniformity per method: 0.70 is "meets standard" with `uniformity_surface`, "below standard" with
+   `uniformity_sprinkler`.
+8. Option override: `Rwapor.class_breaks = list(adequacy = list(breaks = c(0.6, 0.8, 1)))` makes 0.65
+   acceptable; labels stay the defaults.
+9. Validation errors (each case above) and the unknown-scheme message.
+10. Metadata survives a GeoTIFF round trip (`wapor_class_info()` after `writeRaster()` / `rast()`).
 
 ### Validation
 
@@ -196,27 +221,25 @@ $R = "C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe"
 
 ### Done criteria
 
-- [ ] All 8 test groups pass; known-answer tests unchanged and passing
-- [ ] Class thresholds appear only inside `wapor_class_defaults()` (code review; no literal
-      0.68 / 0.95 class thresholds elsewhere in `R/`)
-- [ ] `?wapor_classify` documents every argument, the interval rule, and the defaults table with sources
+- [ ] 10 test groups pass; known-answer unchanged
+- [ ] Class thresholds exist only in `wapor_class_defaults()`; every scheme has a `source`
+- [ ] `?wapor_classify` documents the interval rule, `min_n`, `direction`, and the defaults table with sources
 
 ---
 
 ## 4. WP2: `wapor_zonal_stats()`, the general zonal engine (`ti-10` part 2, `ti-16`)
 
-**Objective**: area-weighted statistics, water volumes, data coverage and class shares for any polygons
-(nested levels possible) on any WaPOR raster or analysis result.
-
+**Objective**: weighted statistics, volumes, crop share, data coverage and class shares for any polygons
+(nested levels) on any WaPOR raster or analysis result, correct at every WaPOR resolution.
 **Effort**: medium. **Depends on**: WP1.
 
 ### Files
 
 | File | Change |
 |---|---|
-| `R/zonal_stats.R` | new: `wapor_zonal_stats()`, `wapor_zonal_wide()`, internal helpers |
-| `tests/testthat/test-zonal-stats.R` | new (synthetic grids) |
-| `tests/testthat/test-zonal-known-answer.R` | new (uses the existing known-answer fixture) |
+| `R/zonal_stats.R` | new: `wapor_zonal_stats()`, `wapor_zonal_wide()`, internal statistics helpers (`.wapor_wmean`, `.wapor_wsd`, `.wapor_wquantile`, `.wapor_cu`, `.wapor_du_lq`, `.wapor_wgini`, `.wapor_wtheil`) |
+| `tests/testthat/test-zonal-stats.R` | new (synthetic) |
+| `tests/testthat/test-zonal-known-answer.R` | new (existing known-answer fixture) |
 | `NEWS.md`, `NAMESPACE`, `man/*.Rd` | as usual |
 
 ### API
@@ -224,161 +247,152 @@ $R = "C:\Users\Mohammedal\AppData\Local\Programs\R\R-4.5.3\bin\Rscript.exe"
 ```r
 wapor_zonal_stats(
   x, zones, id,
-  stats = c("mean", "area_ha", "coverage"),
+  stats = c("mean", "area_ha", "mask_fraction", "coverage"),
   probs = c(0.1, 0.9),
-  mask = NULL,
-  dissolve = TRUE,
-  aoi = TRUE,
+  mask = NULL, weights = NULL,
+  dissolve = TRUE, aoi = TRUE,
   classes = NULL, breaks = NULL, labels = NULL, method = NULL, scheme = NULL,
-  min_coverage = 0.5,
-  normalize_id = TRUE,
-  layers = NULL,
+  min_coverage = 0.5, min_cell_fraction = 0, min_mask_area_ha = 0,
+  sd_type = c("population", "sample"),
+  days = NULL, season = NULL,
+  normalize_id = TRUE, layers = NULL,
   format = c("long", "wide", "sf")
 )
-wapor_zonal_wide(z)   # long result -> one row per zone, one column per variable_stat[_class]
+wapor_zonal_wide(z)
 ```
 
-**Arguments**
+**Arguments** (differences from a plain zonal mean are the point of this engine):
 
-- `x`: a SpatRaster (each layer = one variable or one time step; layer names are used as `variable`), or a
-  `wapor_run_seasonal_analysis()` result. For a result, `layers` selects outputs by name; the default
-  set is those present among `seasonal_aeti`, `seasonal_t`, `seasonal_ret`, `seasonal_pcp`,
-  `seasonal_peff`, `etc` (from `etc_by_class`, combined), `adequacy_etc`, `adequacy_p95`,
-  `beneficial_fraction`, `green_water`, `blue_water`, `seasonal_biomass_t`, `yield_raster`.
-  Internal helper `.wapor_result_layers(result, layers)` returns a named multi-layer SpatRaster
-  (list elements that are `list(raster = ...)` use `$raster`).
-- `zones`: sf, SpatVector, or a vector file path (read with `sf::st_read(quiet = TRUE)`).
-- `id`: one or more column names. Several = nested levels, from coarse to fine, e.g.
-  `c("governorate", "scheme", "farm")`: statistics are computed for each level
-  (level 1 zones = polygons dissolved by `governorate`; level 2 = dissolved by `governorate` + `scheme`;
-  ...). Each level is extracted from its own dissolved geometry (never by averaging child results, which
-  would be wrong for medians, percentiles and overlapping polygons).
-- `stats`: any of `"mean"`, `"median"`, `"quantiles"` (uses `probs`), `"sd"`, `"cv"`, `"min"`, `"max"`,
-  `"count"`, `"area_ha"`, `"coverage"`, `"sum_volume"`, `"class_share"`.
-- `mask`: optional SpatRaster (e.g. a crop mask); only cells where `mask` is not NA count. Resampled to
-  `x` with `"near"` when grids differ.
-- `dissolve`: merge polygons that share the same id (multi-part farms, districts).
-- `aoi`: also return one row set for the whole area of interest (`level = "AOI"`, `zone_id = "AOI"`),
-  extracted over `sf::st_union()` of all zones, so overlapping polygons are not counted twice.
-- `classes`, `breaks`, `labels`, `method`, `scheme`: for `"class_share"`. Either `x` layers are already
-  classified (integer codes; labels from `terra::levels()` or `classes`, a named character vector
-  `c("1" = "bright", ...)`), or `breaks`/`method`/`scheme` classify on the fly with `wapor_classify()`
-  (WP1) before extraction; the class info is attached to the output.
-- `min_coverage`: zones whose `coverage` is below this get NA statistics (the `coverage` row itself is
-  kept) and one warning naming the first 5 such zones.
-- `normalize_id`: add a `zone_key` column = `toupper(trimws(as.character(id)))` for joins; the original
-  `zone_id` is kept unchanged.
-- `format`: `"long"` (default) tidy table; `"wide"` = `wapor_zonal_wide()`; `"sf"` = the zones of the
-  finest level (plus the AOI when `aoi = TRUE`) with wide columns attached.
+- `x`: SpatRaster (layer names = variables or time steps) or a `wapor_run_seasonal_analysis()` result
+  (`layers` selects outputs; default: present among `seasonal_aeti`, `seasonal_t`, `seasonal_ret`,
+  `seasonal_pcp`, `seasonal_peff`, `etc` (combined from `etc_by_class`), `adequacy_etc`, `adequacy_p95`,
+  `beneficial_fraction`, `green_water`, `blue_water`, `seasonal_biomass_t`, `yield_raster`; internal
+  `.wapor_result_layers()`; elements `list(raster = ...)` use `$raster`).
+- `zones`: sf, SpatVector or vector file path. `id`: one or more columns; several = nested levels from
+  coarse to fine; each level is extracted from its own dissolved geometry (never by averaging children).
+- `mask`: optional binary mask (cells where `mask` is NA do not count). `weights`: optional fractional
+  weight raster in [0, 1] (e.g. the crop fraction from `wapor_harmonize_mask()`, WP5); cell weight =
+  covered area x fraction. Use `weights` rather than a hard mask at L1/L2, where most pixels are mixed
+  (Review §3.10).
+- `stats`: `"mean"`, `"median"`, `"quantiles"` (`probs`), `"sd"`, `"cv"`, `"cu"`, `"du_lq"`, `"gini"`,
+  `"theil"`, `"min"`, `"max"`, `"count"`, `"n_eff"`, `"area_ha"`, `"mask_fraction"`, `"coverage"`,
+  `"sum_volume"`, `"class_share"`.
+- `min_cell_fraction`: drop cells whose covered fraction of the cell is below this (removes mixed edge
+  pixels from spread statistics; default 0).
+- `min_coverage`: applies to `coverage` only (valid share of the **masked** area); zones below it get NA
+  statistics (except the area terms, `count`, `n_eff`), with one warning naming the first 5 zones.
+- `min_mask_area_ha`: zones whose masked (crop) area is smaller get NA statistics (default 0).
+- `sd_type`: population (default, as the IHE Delft WaPOR protocol) or sample.
+- `days`: per-layer day counts (numeric vector or data.frame with `layer`, `days`) used to turn rate
+  layers (mm/day) into depths for `sum_volume`.
+- `season`: optional season id (character) written to the output `season` column (reserved for
+  multi-season support; default NA, or taken from the analysis result when available).
+- `classes`/`breaks`/`labels`/`method`/`scheme`: for `class_share` (already classified integer layers, or
+  classify on the fly with WP1).
+- `format`: long (default), wide (`wapor_zonal_wide()`), or sf (finest level plus AOI, wide columns).
 
-**Output (long)**: data.frame of class `c("wapor_zonal", "data.frame")` with columns
-`level`, `zone_id`, `zone_key`, one column per coarser id level (parent ids), `variable`, `period`,
-`stat`, `class`, `value`, `unit`.
-- `period`: parsed from the layer name when it looks like a date (`YYYY-MM` or `YYYY-MM-DD`), else NA.
-- `stat` for quantiles: `"p10"`, `"p90"` (from `probs`).
-- `class`: NA except for `class_share` rows, which come in pairs per class: `stat = "class_area_ha"` and
-  `stat = "class_pct"`; every class appears for every zone (zero rows included) so tables are complete.
-- `unit`: the raster unit (`terra::units()`) for value statistics; `"ha"`, `"fraction"`, `"m3"`,
-  `"%"` as appropriate.
-- Attributes: `"wapor_classes"` (when class shares were computed), `"wapor_zonal_call"`
-  (stats, mask used, min_coverage, CRS of the areas).
+**Output (long)**: data.frame of class `c("wapor_zonal", "data.frame")`: `level`, `zone_id`,
+`zone_key` (`toupper(trimws(id))`), parent id columns, `season`, `variable`, `period`, `stat`, `class`,
+`value`, `unit`. Class shares: `stat = "class_area_ha"` and `"class_pct"` per class, every class listed
+(zero included), plus a `"no data"` class area row. Attributes: `"wapor_classes"`, `"wapor_zonal_call"`
+(stats, mask/weights used, thresholds, sd_type, area method).
 
 ### Algorithm (normative)
 
-1. Normalize inputs: `x` -> SpatRaster; `zones` -> sf, `sf::st_make_valid()`, drop empty geometries
-   (warn with count); check every `id` column exists (error lists available columns).
-2. Build the zone sets per level (`dissolve`: group by the id combination and `sf::st_union()` the
-   geometries per group, keeping the id columns; no dplyr dependency).
-3. Reproject each zone set to `terra::crs(x)` with `sf::st_transform()`.
-4. Apply `mask`: `x <- terra::mask(x, mask_on_x_grid)`.
-5. For `"class_share"` with on-the-fly classification: `x_cls <- wapor_classify(x, ...)`.
-6. Extract with `exactextractr::exact_extract(x, zones, include_cell = FALSE, coverage_area = TRUE,
-   max_cells_in_memory = <from the processing planner memory budget, .wapor_memory_budget_bytes() / 8>,
-   progress = FALSE)`: per zone a data.frame of cell values plus `coverage_area` (the covered area of each
-   cell in m2; exactextractr computes it geodesically for geographic rasters, which satisfies the
-   "never planar lon/lat" rule). Process zones in batches of 500 to bound memory for many zones.
-7. Per zone and layer, with `v` = values, `w` = `coverage_area` (m2), `ok = !is.na(v)`:
-   - `mean` = `sum(v[ok] * w[ok]) / sum(w[ok])`
-   - `sd` = `sqrt(sum(w[ok] * (v[ok] - mean)^2) / sum(w[ok]))` (area-weighted population sd; document it)
-   - `cv` = `sd / mean` (NA when mean is 0)
-   - `median`, quantiles: area-weighted quantile: sort by `v`, cumulative weight share
-     `c = cumsum(w) / sum(w)`, value at the first `c >= p` (document the definition)
-   - `min`, `max` over `ok` cells with `w > 0`
-   - `count` = number of `ok` cells with `w > 0`
-   - `area_ha` = zone area in ha from the geometry, measured in an equal-area projection:
-     `sf::st_area(sf::st_transform(zone, laea))` with `laea = "+proj=laea +lat_0=<zone centroid lat>
-     +lon_0=<zone centroid lon> +datum=WGS84"`, computed with `sf::sf_use_s2(FALSE)` restored on exit
-     (fixes the training's s2 "degenerate edge" failure, ti-16)
-   - `coverage` = `sum(w[ok]) / zone_area_m2`, clamped to `[0, 1]`
-   - `sum_volume` = `sum(v[ok] / 1000 * w[ok])` in m3; only for layers whose unit starts with `"mm"`
-     (else the row is skipped with one warning per layer); also report `stat = "sum_volume_mcm"`
-     (million m3)
-   - `class_share`: for each class code `k`: `class_area_ha = sum(w[ok & v == k]) / 1e4`;
-     `class_pct = 100 * sum(w[ok & v == k]) / sum(w[ok])`
-8. Zones with `coverage < min_coverage`: set all statistics except `coverage`, `area_ha` and `count` to
-   NA; one warning.
-9. Assemble the long table; add the AOI row set when `aoi = TRUE`; attach attributes.
+1. Normalize inputs; `sf::st_make_valid()`; drop empty geometries (warning); check `id` columns (error
+   lists available columns).
+2. Dissolve per level (group by the id combination, `sf::st_union()` per group; no dplyr).
+3. Transform zones to `terra::crs(x)`.
+4. Extract with `exactextractr::exact_extract(x_stack, zones, coverage_area = TRUE,
+   max_cells_in_memory = <.wapor_memory_budget_bytes() / 8>, progress = FALSE)` where `x_stack` includes
+   the value layers, the mask indicator and the weight raster; zones in batches of 500. `coverage_area` is
+   the covered area of each cell in m2 (geodesic for geographic rasters).
+5. Per zone: `a` = `coverage_area`; `frac` = covered fraction of the cell (`coverage_fraction`); drop
+   cells with `frac < min_cell_fraction`; `m` = mask indicator (1 inside, 0 outside); `f` = weight
+   fraction (1 without `weights`); weight `w = a * m * f`; `ok = !is.na(v) & w > 0`.
+   - Areas: `zone_area_ha` from the geometry, equal-area: for projected CRSs `sf::st_area()`; for
+     geographic CRSs `sf::st_area()` with `sf::sf_use_s2(FALSE)` (ellipsoidal geodesic via lwgeom),
+     restored on exit (fixes the s2 "degenerate edge" failure, ti-16). `mask_area_ha = sum(a * m * f) /
+     1e4`; `valid_area_ha = sum(w[ok]) / 1e4`.
+   - `mask_fraction = mask_area_ha / zone_area_ha`; `coverage = valid_area_ha / mask_area_ha` (clamp
+     [0, 1]).
+   - `mean = sum(w v) / sum(w)` over `ok`.
+   - `sd` population: `sqrt(sum(w (v - mean)^2) / sum(w))`; sample: multiply the variance by
+     `V1^2 / (V1^2 - V2)` with `V1 = sum(w)`, `V2 = sum(w^2)` (reduces to n/(n-1) for equal weights).
+   - `cv = sd / mean` (NA if mean is 0).
+   - Weighted quantile that reduces to `type = 7` for equal weights: sort by `v`; positions
+     `pos_i = (cumsum(w)_i - w_i) / (sum(w) - w_n)`; linear interpolation of `v` at `p` on `pos`
+     (Review §2 WP2, issue 2.3). Test the equal-weight case against `quantile(type = 7)`.
+   - `cu = 1 - sum(w |v - mean|) / (mean * sum(w))` (Christiansen 1942).
+   - `du_lq` = weighted mean of the lowest 25% of the weight distribution / `mean` (Merriam & Keller
+     1978): take the cells in increasing `v` until their cumulative weight reaches 25% of `sum(w)`
+     (split the boundary cell's weight).
+   - `gini`: weighted Gini `sum_i sum_j w_i w_j |v_i - v_j| / (2 * sum(w)^2 * mean)` (compute with the
+     sorted-cumulative formula, O(n log n)).
+   - `theil = sum(w (v/mean) ln(v/mean)) / sum(w)` over `v > 0`.
+   - `min`, `max`, `count` (number of `ok` cells), `n_eff = sum(frac[ok])`.
+   - `sum_volume` (m3) = `sum(depth / 1000 * w)`; `depth = v` for depth units (`mm`, `mm/season`,
+     `mm/month`, `mm/year`, or `mm/dekad` for a dekad total); for rate units (`mm/day`) `depth = v *
+     days[layer]`, and without `days` the volume row is skipped with one warning per layer. Also
+     `sum_volume_mcm` (million m3).
+   - `class_share`: `class_area_ha = sum(w[ok & v == k]) / 1e4`; `class_pct = 100 * sum(w[ok & v == k])
+     / sum(w[ok])`; plus `no data` area = `(mask_area_ha - valid_area_ha)`.
+6. Apply `min_coverage` and `min_mask_area_ha`; warn once.
+7. Warn once per call when zones have `n_eff < 9` for spread statistics (sd, cv, cu, du_lq, gini, theil,
+   quantiles): "fewer than about 3 x 3 whole cells: spread statistics are unreliable at this resolution"
+   (heuristic, Review §2 issue 2.6).
+8. Assemble the long table; AOI row set over `sf::st_union()` of all zones when `aoi = TRUE`.
 
-### Tests (`test-zonal-stats.R`, synthetic, fast, offline)
+Performance (optional, allowed): exactextractr's built-in summary operations may be used for `mean`,
+`count` and `frac` when they give identical results; custom statistics use the R path above. Verify
+equality in a test before using them.
 
-Use a projected 10 x 10 grid (EPSG:32636, 20 m cells, origin at x = 700000, y = 3600000), values
-`1:100` row-wise, unit `"mm"`.
+### Tests (`test-zonal-stats.R`, synthetic; EPSG:32636 10 x 10 grid of 20 m cells at x = 700000,
+y = 3600000, values `1:100` row-wise, unit `"mm"`)
 
-1. **Aligned zones**: two polygons covering the left 5 columns and the right 5 columns exactly. `mean`
-   equals the plain mean of the covered cells (independently computed from the value vector); `count` =
-   50; `area_ha` = 50 x 400 / 1e4 = 2 ha; `coverage` = 1.
-2. **Fractional cell**: a polygon covering exactly half of one cell -> `count` 1, weight 200 m2,
-   `area_ha` 0.02, `coverage` 1, `mean` = that cell's value.
-3. **Weighted mean with partial cells**: polygon covering one full cell (value a) and half of a second
-   (value b): `mean = (a * 400 + b * 200) / 600`.
-4. **Volume**: `sum_volume` = `sum(values_mm / 1000 * 400)` m3 for the left zone; equals
-   `mean * area_m2 / 1000`; `sum_volume_mcm` = that / 1e6. A layer with unit `"-"` produces no volume
-   row and a warning.
-5. **Nested levels**: 4 polygons (quadrants) with columns `scheme` (left/right) and `farm` (q1..q4),
-   one quadrant made smaller: level `scheme` has 2 zones, level `farm` 4; the `scheme` mean equals the
-   mean over its cells (not the mean of the two quadrant means).
-6. **Dissolve**: two separate polygons with the same `farm` id give one zone whose `count` is the sum.
-7. **AOI and overlap**: two overlapping polygons; the AOI `area_ha` equals the union area, not the sum.
-8. **Mask**: mask keeping only even values: `count` halves; `mean` is the mean of the even values.
-9. **Coverage / NA**: set 60% of one zone's cells to NA with `min_coverage = 0.5`: coverage 0.4, mean
-   NA, a warning; with `min_coverage = 0.3` the mean is the mean of the valid cells.
-10. **Class share**: classify `1:100` with `breaks = c(25, 50, 75)` (4 classes): left zone shares
-    computed independently by counting; shares sum to 100 per zone; every class has a row even when 0.
-11. **Class share on the fly with quantiles and labels**: `scheme = "spots"` gives 3 labelled classes;
-    the `wapor_classes` attribute holds the thresholds.
-12. **Geographic raster**: test 1 on an EPSG:4326 grid of 0.01 degree cells near 32 N: `area_ha` equals
-    `terra::expanse()` of the polygon in ha within 0.1%; per-cell weights match
-    `terra::cellSize(unit = "m")` within 0.1%.
-13. **Formats**: `"wide"` has one row per zone and columns such as `<layer>_mean`; `"sf"` returns an sf
-    with those columns; `normalize_id` makes `" f01 "` and `"F01"` the same `zone_key`.
-14. **Errors**: missing id column (message lists columns); zones not overlapping `x` (coverage 0,
-    warning); `class_share` on a non-integer layer without `breaks`/`scheme` (error explaining how to
-    classify).
+1. Aligned halves: mean = plain mean of the covered cells; count 50; area 2 ha; coverage 1; mask_fraction 1.
+2. Half a cell: count 1, weight 200 m2, area 0.02 ha, mean = that cell's value, `n_eff` 0.5.
+3. Partial cells: one full cell (a = 10) and half of another (b = 20): mean = 13.333.
+4. `min_cell_fraction = 0.6` drops the half cell of test 3: mean = 10.
+5. Crop share vs coverage (Review test 11): zone of 100 cells, mask keeps 20, 5 of those NA:
+   `mask_fraction` 0.20, `coverage` 0.75, statistics not NA at `min_coverage = 0.5`.
+6. Fraction weights (Review test 15): two equal cells, values 500 (fraction 1.0) and 300 (fraction 0.25):
+   mean 460.
+7. Volumes: depth layer 100 mm over 2 ha = 2000 m3; rate layer 2.0 mm/day over 1 ha with `days = 8` =
+   160 m3; rate layer without `days`: no volume row, one warning. Dekad day counts: February 2023 third
+   dekad 8 days, February 2024 third dekad 9, January third dekad 11 (independent check via
+   `lubridate::days_in_month()` or base date arithmetic).
+8. Nested levels: `scheme` (2) and `farm` (4) with one smaller quadrant: parent mean = mean over the
+   parent's cells (not the mean of child means); when children partition the parent, parent volume = sum
+   of child volumes (1e-9 relative).
+9. Dissolve: two polygons with the same id -> one zone, count = sum.
+10. AOI over overlapping polygons: AOI area = union area.
+11. Coverage threshold: 60% of a zone's cells NA with `min_coverage = 0.5` -> coverage 0.4, mean NA,
+    warning; with 0.3 the mean of valid cells.
+12. Spread statistics on 1..100 with equal weights (Review test 8): `1 - cv` (population) 0.42840, `cu`
+    0.504950, `du_lq` 0.257426, `gini` 0.33; `theil` of `c(1, 2, 3, 4)` 0.106440; `sd_type = "sample"`
+    equals `sd()`.
+13. Weighted quantile with equal weights equals `quantile(x, p, type = 7)` for random x and p in
+    {0.05, 0.5, 0.95}.
+14. Class share: classes from `breaks = c(25, 50, 75)`; shares by independent counting; sum 100; zero
+    classes listed; "no data" area row.
+15. Geographic raster (EPSG:4326, 0.01 degree cells near 32 N): `area_ha` equals `terra::expanse()` of the
+    polygon within 0.1%; per-cell weights match `terra::cellSize(unit = "m")` within 0.1%.
+16. `n_eff < 9` warning for a zone of 4 cells when `stats` includes `sd`.
+17. Formats (`wide`, `sf`) and `normalize_id` (`" f01 "` and `"F01"` share a `zone_key`).
+18. Errors: missing id column (message lists columns); no overlap (coverage 0, warning); `class_share`
+    on a non-integer layer without `breaks`/`scheme` (error explains how to classify).
 
 ### Tests (`test-zonal-known-answer.R`, real data)
 
-Use `tests/testthat/fixtures/known-answer/citrus` (see its README; unstack as in `test-known-answer.R`:
-copy the small helpers, do not source that file). Run the citrus seasonal analysis exactly as in
-`test-known-answer.R` (memory mode). Build zones on the fixture grid: 4 quadrant polygons (10 x 10 pixels
-each) with columns `scheme` (`"north"`, `"south"`) and `block` (`q1`..`q4`), in the fixture's CRS.
+Use `tests/testthat/fixtures/known-answer/citrus` (unstack as in `test-known-answer.R`; copy the small
+helpers). Run the citrus analysis exactly as in `test-known-answer.R` (memory mode). Zones: four 10 x 10
+pixel quadrants with `scheme` (north/south) and `block` (q1..q4) in the fixture CRS.
 
-1. `wapor_zonal_stats(result, zones, id = "block", stats = c("mean", "count", "area_ha"))`: for every
-   layer, the quadrant means equal plain `mean()` of the corresponding 100 cells (independent path via
-   `terra::values()` and index arithmetic) within 1e-9; area 4 ha each (100 x 400 m2).
-2. AOI mean of `seasonal_aeti` equals the golden mean in `golden.csv` (446.3228, within 1e-6).
-3. AOI mean of `etc` equals 1050.9293 (golden) within 1e-6.
-4. `sum_volume` of `seasonal_aeti` for the AOI = `446.3228 / 1000 * 160000` m3 (16 ha) within 1e-6
-   relative.
-5. Class share of `adequacy_etc` with `scheme = "adequacy"`: shares sum to 100 per block and AOI, and
-   equal independent pixel counts per class (all pixels are full cells).
-
-### Optional local acceptance (not in CI; skip when the training data are absent)
-
-`tests/testthat/test-zonal-training-acceptance.R` with `skip_on_ci()` and a skip when
-`training/wapor_data` does not exist: dissolve `training/data/citrus/Citrus_farms_final.geojson` by
-`Name`, run `wapor_zonal_stats()` on the notebook's citrus indicator stack and compare farm means with the
-notebook's `terra::extract(..., fun = mean, weights = TRUE)` result: relative difference below 0.5% for
-every farm (terra's weights are approximate, exactextractr's are exact). Do not commit training data.
+1. Quadrant means of every layer = plain means of the 100 cells (independent index arithmetic), 1e-9.
+2. AOI mean `seasonal_aeti` = 446.3228 and `etc` = 1050.9293 (golden.csv), 1e-6.
+3. AOI `sum_volume` of `seasonal_aeti` = 446.3228 / 1000 * 160000 m3 (16 ha), 1e-6 relative.
+4. Class share of `adequacy_etc` with `scheme = "adequacy"`: sums to 100; equals independent pixel counts.
 
 ### Validation
 
@@ -391,100 +405,76 @@ every farm (terra's weights are approximate, exactextractr's are exact). Do not 
 
 ### Done criteria
 
-- [ ] All synthetic (14) and fixture (5) tests pass; known-answer unchanged
-- [ ] Areas never computed with planar math on lon/lat (test 12 passes; code review of area helpers)
-- [ ] A 300 m country-size example documented as `\dontrun{}`; exactextractr `max_cells_in_memory` set
-      from the planner
-- [ ] `?wapor_zonal_stats` documents every statistic formula, the weighted sd/quantile definitions,
-      units, and the class-share denominator
+- [ ] 18 synthetic and 4 fixture test groups pass; known-answer unchanged
+- [ ] Crop share and coverage reported separately; volumes only from depths or with `days`
+- [ ] One sd definition (population default) and a weighted quantile equal to type 7 for equal weights
+- [ ] `?wapor_zonal_stats` documents every formula, units, the class-share denominator, and the
+      resolution caveats (n_eff, mixed pixels, fraction weights)
 
 ---
 
-## 5. WP3: irrigation performance indicators and bright/dark spots (`ti-09`, `ti-13`)
+## 5. WP3: irrigation performance indicators, productivity gaps and spots (`ti-09`, `ti-13`)
 
-**Objective**: the Chukalla et al. (2022) indicators for any units, and spot analysis for pixels or
-zones, all built on WP1 and WP2 and all classes configurable.
-
-**Effort**: medium. **Depends on**: WP1, WP2.
+**Objective**: the core WaPOR irrigation performance indicators for any units, built on WP1/WP2, with
+literature definitions and configurable classes. **Effort**: medium. **Depends on**: WP1, WP2.
 
 ### Files
 
 | File | Change |
 |---|---|
 | `R/performance_indicators.R` | new: functions below |
-| `R/analysis_indicators.R` | add `@export` and full roxygen to `wapor_calc_cv()` (line ~883) and `wapor_calc_peff()` (line ~858); no behaviour change |
+| `R/analysis_indicators.R` | `@export` and full roxygen for `wapor_calc_cv()` (~line 883), `wapor_calc_peff()` (~858), `wapor_calc_theil()` (~917); no behaviour change |
 | `tests/testthat/test-performance-indicators.R` | new |
 | `NEWS.md`, `NAMESPACE`, `man/*.Rd` | as usual |
 
-### API
+### API and definitions
 
-```r
-wapor_classify_adequacy(adequacy, breaks = NULL, labels = NULL, right = TRUE)
-# = wapor_classify(adequacy, breaks, labels, method = "fixed", scheme = "adequacy", right = right)
+| Function | Definition | Source |
+|---|---|---|
+| `wapor_classify_adequacy(adequacy, breaks = NULL, labels = NULL, right = TRUE)` | `wapor_classify(scheme = "adequacy")` | Karimi et al. (2019); Chukalla et al. (2022) |
+| `wapor_calc_rwd(aeti, etx = NULL, etx_method = c("etc", "percentile"), p = 0.95, reference = NULL, id = NULL)` | RWD = 1 - AETI / ETx; ETx = ETc raster, or the percentile `p` of AETI within each reference group (the IHE Delft protocol uses ETp or P99; package adequacy uses P95). Not clamped in stored data. Also returns deficit depth `ETx - AETI` (mm). | Bastiaanssen & Bos (1999); Chukalla et al. (2020) WAPORWP Module 3 |
+| `wapor_calc_uniformity(aeti, units, id = NULL, mask = NULL, weights = NULL, irrigation_method = c("unknown", "surface", "sprinkler", "pivot", "drip"), measures = c("uniformity_cv", "cu", "du_lq"), min_area_ha = 1, min_cell_fraction = 0.5, sd_type = "population")` | Per unit: `uniformity_cv = 1 - CV` (Chukalla proxy), Christiansen CU, low-quarter DU (WP2 statistics). Classes from `uniformity_<method>` (one standard per method) applied to `uniformity_cv`; `"unknown"`: values only, no classes. Units with valid area below `min_area_ha` are NA. Docs state that the standards are for applied water and 1 - CV of ET overstates irrigation uniformity (DU_lq is the closer comparison). | Chukalla et al. (2022); Pitts et al. (1996); Christiansen (1942); Merriam & Keller (1978) |
+| `wapor_calc_equity(aeti, units, id = NULL, mask = NULL, weights = NULL, unit_weights = c("none", "area"), min_area_ha = 1, sd_type = "population")` | CV of the unit means (unweighted by default, as the literature; `"area"` optional). Class from scheme `equity`. | Bastiaanssen et al. (1996); Chukalla et al. (2022) |
+| `wapor_calc_reliability(ratio_stack, zones = NULL, id = NULL, sd_type = "population")` | Temporal CV of relative ET per pixel (or per zone via WP2): input is a stack of monthly AETI_t / ETc_t (the engine's `monthly_aeti` and `monthly_etc`; helper `wapor_relative_et_stack(result)` builds it). Monthly by default (dekadal relative ET is noisy). No default class scheme. | Bastiaanssen & Bos (1999) |
+| `wapor_calc_climate_norm(ret, zones = NULL, id = NULL, weights = c("area", "none"), mask = NULL)` | f_norm = mean(RET) / RET per pixel; the mean is area-weighted over the masked area (Chukalla weights by field size and growing length; season length weighting is the caller's choice via per-season inputs). | Chukalla et al. (2022) Eq. 3 |
+| `wapor_apply_climate_norm(x, f_norm, type = c("depth", "productivity"))` | depth indicators multiplied by f_norm; productivity divided by f_norm. Docs: this application rule follows from WP being inversely related to evaporative demand (UNVERIFIED as a published convention; say so). | Review §2 WP3 issue 3.6 |
+| `wapor_calc_productivity_gap(x, p = 0.95, reference = NULL, id = NULL, zones = NULL, zone_id = NULL)` | target = P`p` of `x` within the reference group; gap = max(0, target - x); production gap = sum(gap x area) via WP2 (units from `x`, e.g. t/ha -> t). | Chukalla et al. (2020) protocol (WAPORWP Module 5) |
+| `wapor_classify_spots(lp, wp, breaks = NULL, labels = NULL, reference = NULL, id = NULL, zones = NULL, zone_id = NULL, min_cell_fraction = 0.5)` | Protocol pair: land productivity `lp` (biomass or yield) and water productivity `wp`. bright = `lp >= P_high` AND `wp >= P_high`; dark = `lp <= P_low` AND `wp <= P_low` (package convention); else normal. Built with explicit `>=`/`<=` comparisons (a value equal to a threshold is bright/dark). Zone mode (`zones`) classifies zone means (recommended for management use). Warns when `reference = NULL` and the AOI has more than one crop class. | Chukalla et al. (2020) |
+| `wapor_calc_nir(etc_monthly, peff_monthly)` | Net irrigation requirement NIR = sum over months of max(0, ETc_m - Peff_m) (mm); volume via WP2. | Allen et al. (1998); Smith (1992) CROPWAT |
 
-wapor_calc_uniformity(aeti, units, id = NULL, mask = NULL, min_pixels = 100,
-                      breaks = NULL, labels = NULL)
-wapor_calc_equity(aeti, units, id = NULL, mask = NULL, min_pixels = 100,
-                  breaks = NULL, labels = NULL)
-wapor_climate_norm(ret, mask = NULL)
-wapor_classify_spots(cwp, yield = NULL, breaks = NULL, labels = NULL,
-                     method = NULL, reference = NULL, id = NULL, zones = NULL, zone_id = NULL)
-```
+Block units: `units` may be a single number (block size in metres; projected CRS required, else an error
+suggesting polygons or `terra::project()`): blocks are generated with `sf::st_make_grid()` and evaluated
+with the WP2 engine (one code path, one sd definition). Docs: blocks are a fallback when field
+boundaries are missing and measure landscape heterogeneity, not field uniformity.
 
-- `units`: either polygons (sf/SpatVector/path, with `id`) or a single number = block size in metres
-  (regular grid). For blocks, the raster must be projected (error otherwise, suggesting polygons or
-  `terra::project()`); `fact = round(units / terra::res(aeti)[1])`, must be >= 2.
-- **Uniformity** per unit = `1 - sd / mean` of AETI inside the unit; units with fewer than `min_pixels`
-  valid pixels excluded (NA).
-  - Blocks: computed exactly as the training notebook (`training/water-productivity-training.qmd`, chunk
-    `wheat-performance-uniformity`): `terra::aggregate(aeti, fact, fun = "mean")`, `fun = "sd"`, and
-    pixel counts; uniformity raster painted on the block grid.
-  - Polygons: from `wapor_zonal_stats(stats = c("mean", "sd", "count"))` (area-weighted sd; document the
-    difference from the block path's sample sd).
-  - Returns `list(raster = <block raster or NULL>, table = data.frame(unit, n_pixels, mean, sd,
-    uniformity, class), summary = list(mean, min, n_units), classes = <wapor_classes>)`, with `class`
-    from `wapor_classify(scheme = "uniformity")` (overridable by `breaks`/`labels`).
-- **Equity** = CV of the unit means = `sd(unit_means) / mean(unit_means)` (sample sd, as in the notebook),
-  over units with at least `min_pixels` valid pixels; class from `wapor_classify(scheme = "equity")`.
-  Returns `list(cv, class, n_units, table, classes)`.
-- **Climate normalization** `f_norm = mean(RET over the masked area) / RET` per pixel, masked (notebook
-  chunk computing `f_norm`).
-- **Spots**:
-  - Pixel mode (`zones = NULL`): thresholds via `wapor_classify(method = "quantile", scheme = "spots")`
-    on `cwp` (and on `yield` when given), per `reference` group. Class: bright when `cwp >= high`
-    threshold and (`yield` is NULL or `yield >= high`); dark when `cwp <= low` and (`yield` NULL or
-    `yield <= low`); otherwise normal. With more than two breaks, the first and last thresholds define
-    dark and bright; document it.
-  - Zone mode (`zones` + `zone_id` given): classify the zone means from
-    `wapor_zonal_stats(stats = "mean")` instead of pixels; returns a table.
-  - Result carries `wapor_classes`. Shares per zone/AOI: pass the spot raster to
-    `wapor_zonal_stats(stats = "class_share")`.
+### Tests (`test-performance-indicators.R`; independent values from Review §5)
 
-### Tests (`test-performance-indicators.R`)
+1. Adequacy classes on the known-answer wheat fixture's `adequacy_etc`: counts = independent
+   `table(cut(values, c(-Inf, 0.68, 0.8, 1, Inf)))`.
+2. RWD: AETI 400, ETc 500 -> 0.20; percentile ETx on 1..100 with `p = 0.99` -> ETx 99.01.
+3. Uniformity: a unit with values 1..100 -> `uniformity_cv` 0.42840, `cu` 0.504950, `du_lq` 0.257426;
+   `irrigation_method = "surface"` with 1 - CV = 0.70 -> meets standard; `"sprinkler"` -> below;
+   `"unknown"` -> no class column values.
+4. `min_area_ha`: a 0.5 ha unit is NA at the default 1 ha.
+5. Equity: unit means c(10, 12, 14): population CV 0.13608, sample 0.16667, class "fair" both.
+6. Reliability: a pixel with monthly ratios c(1, 1, 1) -> 0; c(0.5, 1.0, 1.5) -> population CV 0.40825.
+7. Climate norm: RET constant -> 1; RET c(2, 4) on equal areas -> c(1.5, 0.75); apply: depth 100 x 1.5 =
+   150; productivity 1.2 / 1.5 = 0.8.
+8. Productivity gap: yields 1..100 -> target 95.05; gap at 90 = 5.05, at 100 = 0; production gap over 1 ha
+   cells = 4469.75.
+9. Spots: lp = wp = 1..100 -> 5 bright (96..100), 5 dark (1..5); wp reversed -> 0 bright, 0 dark; a value
+   equal to a user-fixed threshold is bright.
+10. Spots per reference group (two groups) -> 5 + 5 bright per group; zone mode returns one class per zone;
+    `class_share` of the spot raster sums to 100 per zone.
+11. NIR: ETc c(100, 80), Peff c(30, 90) -> 70 mm.
+12. `wapor_calc_cv()`, `wapor_calc_peff()`, `wapor_calc_theil()` are exported and documented.
 
-1. Adequacy classes on the known-answer wheat fixture's `adequacy_etc`: counts per class equal
-   `table(cut(values, c(-Inf, 0.68, 0.8, 1, Inf), right = TRUE))` computed independently.
-2. Custom adequacy breaks change the counts accordingly.
-3. Uniformity, blocks, synthetic projected 100 x 100 grid of 20 m pixels, `units = 400` (fact 20):
-   25 blocks; for each block `1 - sd/mean` equals the value computed with base R on the block's cells
-   (sample sd); `min_pixels = 500` makes all blocks NA (400 cells each) with a warning.
-4. Uniformity, polygons: 2 polygons; values equal `1 - sd_w/mean_w` from `wapor_zonal_stats()`.
-5. Equity: unit means `c(10, 12, 14)` -> `sd(c(10, 12, 14)) / 12` = 0.1667 -> class `"fair"` by
-   default; with `breaks = c(0.2, 0.3)` -> `"good"`.
-6. Climate normalization: RET constant -> all 1; RET `c(2, 4)` -> `c(1.5, 0.75)`.
-7. Spots, pixel mode: cwp and yield both 1..100 -> 5 bright, 5 dark, 90 normal; with yield reversed
-   (100..1) -> no bright and no dark pixel.
-8. Spots with a reference group raster (two groups) -> 5 + 5 per group.
-9. Spots zone mode returns one class per zone; `class_share` of the spot raster per zone sums to 100.
-10. `wapor_calc_cv()` and `wapor_calc_peff()` are exported and documented (in `getNamespaceExports()`;
-    examples run).
+### Optional local example check (never a standard; skip without training data, skip on CI)
 
-### Optional local acceptance (skip without training data, not on CI)
-
-Reproduce the training notebook's wheat results (JEN, 2023/24, full cereal mask) with the package
-functions: adequacy classes poor 73.6%, acceptable 24.6%, good 1.8%, above demand 0.0%; 1 km blocks:
-1015 blocks used, mean uniformity 89.1%, minimum 77%, equity CV 9.6% -> good; `f_norm` range 0.98 to
-1.19. Tolerance: percentages +-0.1 point, counts exact.
+With the training notebook data present, run the package functions on the wheat case and print the
+results next to the notebook's (adequacy classes, block uniformity/equity, f_norm). Differences are
+expected where the package uses literature defaults (population sd, `min_area_ha`); report them, do not
+tune the package to match.
 
 ### Validation
 
@@ -497,175 +487,275 @@ functions: adequacy classes poor 73.6%, acceptable 24.6%, good 1.8%, above deman
 
 ### Done criteria
 
-- [ ] 10 test groups pass; known-answer unchanged
-- [ ] Every class threshold comes from `wapor_class_defaults()` or user arguments
-- [ ] Each function's help cites Chukalla et al. (2022) and states its formula
+- [ ] 12 test groups pass; known-answer unchanged
+- [ ] Every class threshold from `wapor_class_defaults()` or user arguments; every function's help cites
+      its source and formula and states known caveats (proxy uniformity, rainfed/deficit adequacy)
 
 ---
 
-## 6. WP4: perennial (tree) crop support (`ti-11`)
+## 6. WP4: perennial crops and Kc climate adjustment (`ti-11`)
 
-**Objective**: tree crops get correct FAO-56 profiles and are protected from the field-crop yield chain.
-
-**Effort**: medium. **Depends on**: nothing (can run in parallel with WP1 to WP3).
+**Objective**: correct FAO-56 data for tree and vine crops, evergreen and deciduous behaviour, and an
+optional climate adjustment of tabulated Kc. **Effort**: medium. **Depends on**: nothing.
 
 ### Files
 
 | File | Change |
 |---|---|
-| `R/crop_defaults.R` | new columns and rows in `FAO_CROP_DEFAULTS`; `crop_type` and `stage_names` in `wapor_create_crop_params()` / `wapor_custom_crop()`; fix the `fc` documentation (line ~143) |
-| the file where `yield_npp` / `cwp_bwp` are computed (`R/analysis_engine.R` or `R/analysis_registry.R`; locate with grep) | skip the yield chain for perennials, with one warning |
-| `tests/testthat/test-perennial.R` | new (existing crop-default tests stay unchanged) |
+| `R/crop_defaults.R` | new columns and verified rows in `FAO_CROP_DEFAULTS`; `crop_type`, `kc_dormant`, `start_month`, `stage_names` in `wapor_create_crop_params()` / `wapor_custom_crop()`; `fc` documentation; corrected `notes` of existing rows (values unchanged, decision D5) |
+| `R/kc_adjust.R` | new: `wapor_adjust_kc_climate()` |
+| the file that builds daily Kc for the season (`wapor_build_kc()` in `R/analysis.R`, and the kernel profile code in `R/processing_kernel.R`; locate with grep) | dormant Kc outside the stages for deciduous crops |
+| the file where `yield_npp` / `cwp_bwp` are computed (grep) | skip the NPP yield chain for perennial classes |
+| `tests/testthat/test-perennial.R` | new |
 | `NEWS.md`, `man/*.Rd` | as usual |
 
 ### Steps
 
-1. Add to `FAO_CROP_DEFAULTS` the columns `crop_type` (`"annual"` for all 12 existing rows) and
-   `stage_names` (character, `"|"`-separated, `NA` for existing rows). Do not change existing columns or
-   values (grep usages of `FAO_CROP_DEFAULTS` first; existing tests must pass).
-2. Add perennial rows. **Citrus values are verified** (FAO-56 Table 12, used in the training):
+1. New columns in `FAO_CROP_DEFAULTS` (grep all usages first; existing tests must pass):
+   `crop_type` (`"annual"`, `"perennial_evergreen"`, `"perennial_deciduous"`; `"annual"` for the 12
+   existing rows), `kc_dormant` (NA except deciduous), `start_month` (FAO-56 Table 11 start month, NA
+   where not given), `stage_names` (NA = FAO-56 names initial / development / mid-season / late season).
+2. New rows, **all values VERIFIED from FAO-56 Tables 11 and 12 in the review** (Review §2 WP4):
 
-   | crop_name | kc_ini | kc_mid | kc_end | max_height_m |
-   |---|---|---|---|---|
-   | Citrus, no ground cover, 70% canopy | 0.70 | 0.65 | 0.70 | 4.0 |
-   | Citrus, no ground cover, 50% canopy | 0.65 | 0.60 | 0.65 | 3.0 |
-   | Citrus, no ground cover, 20% canopy | 0.50 | 0.45 | 0.55 | 2.0 |
-   | Citrus, active ground cover, 70% canopy | 0.75 | 0.70 | 0.75 | 4.0 |
-   | Citrus, active ground cover, 50% canopy | 0.80 | 0.80 | 0.80 | 3.0 |
-   | Citrus, active ground cover, 20% canopy | 0.85 | 0.85 | 0.85 | 2.0 |
+   | crop_name | kc_ini | kc_mid | kc_end | h (m) | stages ini/dev/mid/late | start_month | crop_type |
+   |---|---|---|---|---|---|---|---|
+   | Citrus, no ground cover, 70% canopy | 0.70 | 0.65 | 0.70 | 4 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Citrus, no ground cover, 50% canopy | 0.65 | 0.60 | 0.65 | 3 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Citrus, no ground cover, 20% canopy | 0.50 | 0.45 | 0.55 | 2 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Citrus, active ground cover, 70% canopy | 0.75 | 0.70 | 0.75 | 4 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Citrus, active ground cover, 50% canopy | 0.80 | 0.80 | 0.80 | 3 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Citrus, active ground cover, 20% canopy | 0.85 | 0.85 | 0.85 | 2 | 60/90/120/95 | 1 | perennial_evergreen |
+   | Olives (40 to 60% ground cover) | 0.65 | 0.70 | 0.70 | 4 (3 to 5) | 30/90/60/90 | 3 | perennial_evergreen |
+   | Grapes, table or raisin | 0.30 | 0.85 | 0.45 | 2 | 20/40/120/60 | 4 | perennial_deciduous |
+   | Grapes, wine | 0.30 | 0.70 | 0.45 | 1.75 (1.5 to 2) | 30/60/40/80 | 4 | perennial_deciduous |
+   | Pistachios, no ground cover | 0.40 | 1.10 | 0.45 | 4 (3 to 5) | 20/60/30/40 | 2 | perennial_deciduous |
+   | Apples, cherries, pears (no ground cover, killing frost) | 0.45 | 0.95 | 0.70 | 4 | 20/70/120/60 | 3 | perennial_deciduous |
+   | Stone fruit (no ground cover, killing frost) | 0.45 | 0.90 | 0.65 | 3 | 20/70/120/60 | 3 | perennial_deciduous |
 
-   The first and fourth rows are the values the training used and cited; before committing, the
-   implementer re-checks all six rows against FAO-56 Table 12 (Allen et al., 1998) and reports any
-   difference instead of guessing. Stage lengths for citrus (FAO-56 Table 11, Mediterranean, start
-   March): `l_ini_days = 60`, `l_mid_days = 120`, `l_late_days = 95` (development = remainder of the
-   365-day year = 90). `stage_names = "Flowering and new growth|Fruit set and early growth|Fruit
-   development|Maturation and harvest"`. `region = "Mediterranean"`, `crop_type = "perennial"`, `notes`
-   citing "FAO-56 Table 12 (Kc), Table 11 (stages)". For perennial rows set `HI`, `MC`, `AOT` to `NA`
-   and `fc = 1.0`. **Olive, grape and date palm**: add only after transcribing their Kc values and stage
-   lengths from FAO-56 Tables 11 and 12 with the table row cited in `notes`; if the values cannot be
-   verified from the source, do not add these rows and report it (decision D3; never invent numbers).
-3. `wapor_create_crop_params()` and `wapor_custom_crop()`: new arguments `crop_type = c("annual",
-   "perennial")` (default: from the base crop, else `"annual"`) and `stage_names = NULL`; stored in the
-   returned params.
-4. Seasonal analysis: when a class's `crop_type` is `"perennial"` and the indicators include
-   `yield_npp` or `cwp_bwp`, skip those two for that class and warn once:
-   "Yield and CWP/BWP from NPP are for field crops; skipped for perennial class <k>. Supply measured
-   yields instead." (Decision D1 may later add a yield input.) Other indicators are unchanged.
-5. Fix `@param fc` in `R/crop_defaults.R` to: "Light use efficiency correction factor (fc); 1 for C3
-   crops such as wheat (WaPOR methodology)." (matches `R/analysis_indicators.R:661`).
+   `region` = the Table 11 region (Mediterranean or low latitudes as in the review table); `notes` cite
+   "FAO-56 Table 12 (Kc, h), Table 11 (stages, start)" and the relevant footnotes (citrus: +0.1 to 0.2 in
+   humid/subhumid climates, footnotes 21 and 22; olives: 40 to 60% cover, footnote 24; deciduous:
+   footnote 18). Deciduous `kc_dormant = 0.20` (footnote 18: bare dry soil or dead cover; document that
+   0.50 to 0.80 applies with active ground cover). `HI`, `MC`, `AOT` = NA for perennial rows; `fc = 1.0`.
+   **Not added** (UNVERIFIED in the review): date palm (no Table 11 row found), avocado (stages not
+   checked), banana (two-year crop; later with multi-season support).
+3. `wapor_create_crop_params()` / `wapor_custom_crop()`: new arguments `crop_type`, `kc_dormant`,
+   `start_month`, `stage_names`, stored in the params (defaults from the base crop, else `"annual"`/NA).
+4. Kc curve: for `perennial_deciduous`, days of the season outside the four stages get `kc_dormant`;
+   evergreen and annual crops unchanged (known-answer ETc unchanged). Seasons crossing 1 January must
+   work (test with a January to December citrus year and an October to September water year).
+5. Yield chain: for perennial classes, skip `yield_npp` and `cwp_bwp` with one warning ("NPP-based yield
+   uses field-crop factors; skipped for perennial class <k>; supply measured yields (decision D1)").
+6. `wapor_adjust_kc_climate(kc_mid, kc_end, u2, rh_min, h)` (exported, pure numeric): FAO-56 Eq. 62
+   `Kc_mid = Kc_mid_tab + (0.04 (u2 - 2) - 0.004 (rh_min - 45)) (h / 3)^0.3`, and Eq. 65 for `kc_end` only
+   when `kc_end_tab > 0.45`. Clamp inputs to the validity range (1 <= u2 <= 6 m/s, 20 <= rh_min <= 80 %,
+   0.1 < h < 10 m) with a warning. **Re-read the constants on the FAO-56 page
+   (https://www.fao.org/4/x0490e/x0490e0b.htm) before coding** and cite the equation numbers. Not applied
+   automatically in 1.0.6 (decision D10).
+7. `@param fc`: "Light use efficiency correction factor: crop LUE / WaPOR generic LUE; about 1 for C3 crops,
+   above 1 for C4 crops (e.g. 1.6 for sugarcane in Chukalla et al. 2022)." Same text in
+   `R/analysis_indicators.R`.
+8. Existing rows (decision D5): correct only the `notes` column now (Winter Wheat: Kc_ini 0.40 is the
+   FAO-56 frozen-soil value, non-frozen is 0.7; Sorghum: Table 12 grain sorghum Kc_ini is 0.2; Sugarcane:
+   stage lengths do not match a single Table 11 row; Alfalfa: one cutting cycle). Values unchanged.
 
-### Tests
+### Tests (`test-perennial.R`)
 
-1. `wapor_list_crops()` includes the citrus rows; values match the table above exactly.
-2. `wapor_custom_crop(base_crop = "Citrus, no ground cover, 70% canopy", class_value = 1L)` returns
-   `crop_type = "perennial"`, the stage names, and the Kc values.
-3. The known-answer citrus configuration run with the new citrus profile (kc 0.70/0.65/0.70, stages
-   60/120/95) gives the golden ETc 1050.9293 within 1e-6.
-4. A perennial class with `yield_npp` requested: no `yield_raster`, one warning; an annual class
-   unchanged (wheat known-answer yield 5.0362).
-5. Existing crop-default tests pass unchanged.
+1. All new rows present with exactly the values in the table above; `crop_type`, `start_month` correct
+   (citrus start 1).
+2. `wapor_custom_crop(base_crop = "Citrus, no ground cover, 70% canopy")` carries crop_type and stages;
+   stage names default to the FAO-56 names.
+3. The known-answer citrus configuration with this profile gives golden ETc 1050.9293 (1e-6).
+4. Deciduous dormant Kc: a 365-day year with stages 20/70/120/60 and `kc_dormant = 0.20`: the 95 remaining
+   days have Kc 0.20; the annual mean Kc equals the hand-computed piecewise-linear mean.
+5. Year-crossing seasons (January to December; October to September) build a Kc curve of the right length.
+6. Perennial class with `yield_npp` requested: no yield raster, one warning; wheat known-answer yield
+   5.0362 unchanged.
+7. Eq. 62: citrus 0.65, u2 3, RHmin 30, h 4 -> 0.75901; wheat 1.15, u2 4, RHmin 25, h 1 -> 1.26508;
+   Eq. 65 not applied for kc_end 0.30; out-of-range inputs clamped with a warning.
+8. Existing crop-default tests pass unchanged; existing values unchanged.
 
 ### Done criteria
 
-- [ ] Tests pass; known-answer unchanged; every new crop row cites its FAO-56 table
-- [ ] `fc` documented identically in both places
+- [ ] Tests pass; known-answer unchanged; every new row cites FAO-56; no UNVERIFIED crop added
 
 ---
 
 ## 7. WP5: mask helpers, plots, offline URL lists (`ti-12`, `ti-14`, `ti-15`)
 
-**Objective**: remove three traps met in the training.
-
-**Effort**: small. **Depends on**: nothing.
+**Objective**: masks that work on any grid and return fractions usable as weights; safe plots; offline
+URL lists. **Effort**: small. **Depends on**: nothing (WP2 uses the fraction output).
 
 ### Files
 
 | File | Change |
 |---|---|
 | `R/mask_helpers.R` | new: `wapor_rasterize_mask()`, `wapor_harmonize_mask()` |
-| `R/viz.R` | remove `aes_string()` (lines ~27 and ~89); full-resolution maps; calendar Kc axis |
-| the file where `wapor_generate_urls()` fetches and caches API responses (`R/api_client.R` / `R/metadata.R`; locate with grep) | stale-cache fallback when offline |
-| `tests/testthat/test-mask-helpers.R`, `tests/testthat/test-viz-basic.R`, `tests/testthat/test-offline-urls.R` | new |
+| `R/viz.R` | remove `aes_string()` (lines ~27, ~89); `requireNamespace("ggplot2")` guard; calendar/stage Kc plot |
+| the file where `wapor_generate_urls()` caches API responses (grep `Rwapor.cache_ttl`) | stale-cache fallback when offline |
+| `tests/testthat/test-mask-helpers.R`, `test-viz-basic.R`, `test-offline-urls.R` | new |
 
 ### Steps
 
-1. `wapor_rasterize_mask(polygons, template, field = NULL, value = 1L, touches = FALSE)`: reads polygons
-   (sf/SpatVector/path), reprojects them to `terra::crs(template)` automatically, rasterizes (`field`
-   column or constant `value`, background NA), names the layer `"crop_mask"`. Area check: ratio of mask
-   area (`terra::expanse()` of non-NA cells) to polygon area (equal-area, as in WP2); warn when outside
-   0.9 to 1.1; return the ratio as attribute `"area_ratio"`.
-2. `wapor_harmonize_mask(crop_map, template, class, min_fraction = 0.5, value = NULL)`: for each value in
-   `class`: binary (1 where `crop_map == class`, 0 elsewhere including NA), fraction on the template grid
-   with `terra::project(binary, template, method = "average")`; keep cells with fraction >=
-   `min_fraction`; with several classes a cell takes the class with the largest fraction; output codes =
-   `value` (default = `class`). For one class this is exactly the notebook method (chunk
-   `wheat-isolate-mask`).
-3. `R/viz.R`: replace `ggplot2::aes_string("x", "y", fill = "value")` with
-   `ggplot2::aes(x = .data$x, y = .data$y, fill = .data$value)` (`.data` via `@importFrom rlang .data`
-   only if rlang is already imported; otherwise use `utils::globalVariables(c("x", "y", "value", ...))`
-   and bare names); same for the Kc plot; use `ggplot2::geom_tile()` if `geom_raster()` warns about
-   uneven intervals; convert with `terra::as.data.frame(r, xy = TRUE)` (no down-sampling).
+1. `wapor_rasterize_mask(polygons, template, field = NULL, value = 1L, touches = FALSE, fraction = FALSE)`:
+   reproject polygons to the template CRS automatically; rasterize (`field` or constant `value`,
+   background NA), layer name `"crop_mask"`. With `fraction = TRUE`, return the covered fraction per cell
+   (from `exactextractr::coverage_fraction()`), usable as `weights` in WP2. Area check: mask area vs
+   polygon area (as WP2); tolerance depends on polygon size in cells (warn outside 0.9 to 1.1 only for
+   polygons of at least 25 cells); attribute `"area_ratio"`.
+2. `wapor_harmonize_mask(crop_map, template, class, min_fraction = 0.5, value = NULL, return_fraction = TRUE)`:
+   per class, binary (1 = class, 0 otherwise including NA) -> `terra::project(method = "average")` to the
+   template grid = fraction; binary mask where fraction >= `min_fraction` (heuristic majority rule,
+   documented); several classes -> largest fraction wins; returns `list(mask, fraction)` when
+   `return_fraction = TRUE` (the fraction is the recommended WP2 weight at L1/L2).
+3. `R/viz.R`: guard with `requireNamespace("ggplot2", quietly = TRUE)` (clear error if missing);
+   replace `aes_string()` with `aes()` on bare names plus `utils::globalVariables(c("x", "y", "value",
+   "day", "kc"))` (rlang is not imported); keep `geom_raster()` for regular grids (fast; `geom_tile()` only
+   for irregular grids); full data via `terra::as.data.frame(r, xy = TRUE)`.
    `wapor_plot_kc_curve(kc_daily, save = NULL, dpi = 300, start_date = NULL, stage_days = NULL,
-   stage_names = NULL)`: with `start_date`, the x axis shows dates; with `stage_days` + `stage_names`,
-   stages are shaded and labelled. Old calls produce the same plot as before.
-4. Offline URL lists: read how `wapor_generate_urls()` caches API responses (`options(Rwapor.cache_ttl)`).
-   When the live request fails and a cached response exists (even if older than the TTL), use it with
-   one message: "No connection to the WaPOR server; using the URL list cached on <date>." Without a
-   cache, keep the current error. Never use a stale cache when the server answers.
+   stage_names = NULL)`: date axis with `start_date`; shaded stages with FAO-56 names by default; dormant
+   periods shown; seasons crossing 1 January; old calls unchanged.
+4. Offline URL lists: when the live request fails and a cached response exists (even beyond the TTL), use
+   it with one message "No connection to the WaPOR server; using the URL list cached on <date>."; without
+   a cache keep the current error; never use a stale cache when the server answers.
 
 ### Tests
 
-1. Rasterize lon/lat polygons onto a UTM template: non-empty mask, area ratio within 0.9 to 1.1; the same
-   polygons rasterized directly with `terra::rasterize()` (no reprojection) give an empty mask
-   (documents the trap).
-2. Harmonize: a 10 m map with a 20 m template, class present in 3 of 4 sub-cells -> kept at
-   `min_fraction = 0.5`, dropped at 0.8; with two classes the larger fraction wins.
-3. Plots: `wapor_plot_map()` and `wapor_plot_kc_curve()` produce no warnings (`expect_no_warning()`);
-   the plotted data of a 1000 x 1000 raster has 1e6 rows.
-4. Offline: mock the HTTP layer to fail after one successful cached call: URLs returned from the cache
-   with the message; without a cache: the previous error; with a working server: a fresh request.
+1. Lon/lat polygons on a UTM template: non-empty mask, area ratio within 0.9 to 1.1; direct
+   `terra::rasterize()` without reprojection gives an empty mask (documents the trap).
+2. `fraction = TRUE`: a polygon covering half of a cell gives 0.5 in that cell.
+3. Harmonize: a 10 m map on a 20 m template, class in 3 of 4 sub-cells: fraction 0.75, kept at 0.5,
+   dropped at 0.8; two classes: largest fraction wins.
+4. Plots: no warnings (`expect_no_warning()`), full-resolution data (1e6 rows for 1000 x 1000); clear
+   error when ggplot2 is not available (mock `requireNamespace`).
+5. Offline: mocked failing HTTP after a cached call -> cached URLs + message; no cache -> previous error;
+   working server -> fresh request.
 
 ### Done criteria
 
-- [ ] Tests pass; no `aes_string` left in `R/`; known-answer unchanged
+- [ ] Tests pass; no `aes_string` in `R/`; known-answer unchanged
 
 ---
 
-## 8. Release and documentation (after WP1 to WP5)
+## 8. WP6: effective rainfall methods and rainfed classes (new task `p2-peff`)
 
-1. `DESCRIPTION`: `Version: 1.1.0`; NEWS section `# Rwapor 1.1.0` summarising the new functions.
-2. New vignette `vignettes/zonal-statistics.Rmd`, evaluated on a copy of the known-answer citrus fixture
-   in `inst/extdata/example-citrus/` so it runs offline: zonal statistics at two levels, volumes, class
-   shares of adequacy and spots per zone and AOI, custom breaks, uniformity/equity with blocks.
-3. `devtools::check()` 0 errors / 0 warnings; CI green on `version-1.1.0`; live release checks pass
-   (`inst/bench/live_release_checks.R`).
-4. Separate task: update the training notebook to call the package functions instead of its helpers
-   (acceptance: identical checkpoint values).
+**Objective**: effective rainfall and the green/blue split that suit any climate and water source,
+without changing current results by default. **Effort**: small to medium. **Depends on**: nothing.
+
+### Files
+
+| File | Change |
+|---|---|
+| `R/indicators_math.R` / `R/analysis_indicators.R` (where `wapor_math_peff_usda` and `wapor_calc_peff` live) | `peff_method` argument and new methods |
+| the engine/registry code computing monthly Peff and green/blue (`R/analysis_engine.R`, `R/analysis_registry.R`; grep `monthly_green_water`) | pass `config$peff_method`, `config$peff_fraction`; rainfed classes |
+| `R/crop_defaults.R` | `water_source` (`"irrigated"` default, `"rainfed"`) in crop params |
+| `tests/testthat/test-peff-methods.R` | new |
+| `NEWS.md`, `man/*.Rd` | as usual |
+
+### Steps
+
+1. `wapor_calc_peff(monthly_rasters, method = c("usda_cropwat", "fao_aglw", "fixed", "none"),
+   fraction = NULL)`:
+   - `usda_cropwat` (default, current behaviour): P <= 250: P (125 - 0.2 P) / 125; else 125 + 0.1 P
+     (Smith 1992, CROPWAT). Documented as the CROPWAT simplification, not the full USDA-SCS NEH 623 method.
+   - `fao_aglw` (dependable rain): P <= 70: max(0, 0.6 P - 10); else 0.8 P - 24 (Smith 1992 CROPWAT; the
+     primary document is UNVERIFIED in the review: cite as "FAO/AGLW formula as implemented in CROPWAT").
+   - `fixed`: `fraction * P`; `fraction` required (no default; error otherwise).
+   - `none`: Peff = P.
+   Monthly totals only (document: formulas are calibrated on monthly totals; partial start/end months
+   slightly overestimate; a dekadal split gives more blue water).
+2. Seasonal analysis config: `peff_method` (default `"usda_cropwat"`) and `peff_fraction`; recorded in the
+   result metadata and exports.
+3. Crop params `water_source`: for `"rainfed"` classes, blue water = 0, green = AETI, and the difference
+   `AETI - Peff` (positive part) is returned as `unexplained_water` ("stored soil water or other sources")
+   instead of blue water. Irrigated classes unchanged.
+4. Help pages state: green/blue from min(AETI, Peff) ignores soil water stored before the season (winter
+   rain used by Mediterranean crops and trees is booked as blue water for irrigated classes); WaPOR
+   precipitation is much coarser than L3 AETI, so field-scale green/blue variation comes from AETI.
+
+### Tests (independent values, Review §5 tests 16 to 18)
+
+1. `usda_cropwat`: P 100 -> 84.0; 250 -> 150.0; 300 -> 155.0.
+2. `fao_aglw`: P 10 -> 0; 50 -> 20; 70 -> 32; 100 -> 56.
+3. `fixed` with 0.7: P 100 -> 70; `fixed` without `fraction` -> error. `none`: P 100 -> 100.
+4. Rainfed class: AETI 300, Peff 200 -> green 300, blue 0, unexplained 100.
+5. Default run: known-answer tests unchanged (all 236 golden values).
+6. A run with `peff_method = "fao_aglw"` changes `seasonal_peff` and green/blue exactly as recomputed
+   independently from the fixture's monthly precipitation.
+
+### Done criteria
+
+- [ ] Tests pass; known-answer unchanged with defaults; method and fraction recorded in results
 
 ---
 
-## 9. Open decisions (need the user before the affected step)
+## 9. Release and documentation (after WP1 to WP6)
 
-| # | Decision | Affects | Default if not decided |
+1. `DESCRIPTION`: `Version: 1.0.6`; rename the NEWS section to `# Rwapor 1.0.6` and summarise.
+2. Vignette `vignettes/zonal-statistics-and-performance.Rmd`, evaluated offline on a copy of the
+   known-answer citrus fixture in `inst/extdata/example-citrus/`: zonal statistics at two levels, crop
+   share vs coverage, volumes, class shares of adequacy and spots per zone and AOI, custom breaks,
+   uniformity per irrigation method, equity, productivity gaps. The example is neutral: it demonstrates
+   the functions, it does not set standards.
+3. `devtools::check()` 0 errors / 0 warnings; CI green on `version-1.0.6`; live release checks pass.
+4. Separate task: update the training notebook to use the package functions (differences caused by the
+   literature defaults are documented in the notebook, not removed).
+
+---
+
+## 10. Decisions
+
+### Decided (user, 2026-09-30)
+
+- Zones of any scale; class shares per zone and AOI; every class break and percentile configurable.
+- `wapor_zonal_stats()` never downloads; `coverage` reports missing data.
+- Release 1.0.6 (1.0.7 if 1.0.6 is released first).
+- Generalize: literature defaults; the training is an example only.
+
+### Defaults adopted from the expert review (change any by telling the planner)
+
+| # | Topic | Adopted in this plan |
+|---|---|---|
+| A1 | SD definition | population, area-weighted; `sd_type = "sample"` optional |
+| A2 | Uniformity | headline `1 - CV` (Chukalla proxy) with CU and DU_lq also returned; classes only with a known `irrigation_method` |
+| A3 | Spots | protocol bright rule (both LP and WP at or above P95); dark = both at or below P5 as a documented package convention |
+| A4 | Fraction masks | accepted as `weights` in WP2 (recommended at L1/L2) |
+| A5 | Peff default | `usda_cropwat` unchanged (known answers stable); `fao_aglw`, `fixed`, `none` as options |
+| A6 | Rainfed classes | `water_source = "rainfed"` gives blue = 0 and an `unexplained_water` diagnostic |
+| A7 | Adequacy label above 1 | "above ETc" |
+
+### Open (need the user before the affected step)
+
+| # | Decision | Affects | Default until decided |
 |---|---|---|---|
-| D1 | Allow measured (survey) yields as input (table per zone or raster) so CWP works for perennial crops? | WP4 step 4 | Yield chain skipped for perennials with a warning |
-| D2 | Download cache location for `wapor_download()` (project folder vs R user cache dir) | P3 (ti-06), not this plan | not needed here |
-| D3 | Add olive, grape and date palm profiles in WP4 or later | WP4 step 2 | Only when the implementer can cite verified FAO-56 values; otherwise later |
-
-Decided on 2026-09-30: zones of any scale; class shares per zone and AOI; every class break or percentile
-user-configurable; `wapor_zonal_stats()` never downloads (coverage reports missing data).
+| D1 | Measured (survey) yields as input (table per zone or raster) so CWP works for perennials and any crop | WP4 step 5 | NPP yield chain skipped for perennials with a warning |
+| D2 | Download cache location (project folder vs R user cache dir) | P3 (ti-06) | not needed here |
+| D5 | Correct the existing crop-table values (Winter Wheat Kc_ini 0.4 -> 0.7 non-frozen, Sorghum 0.3 -> 0.2, Sugarcane stages); this changes golden values | WP4 step 8 | notes corrected, values unchanged |
+| D6 | RWD separate from the existing `adequacy_etc` / `adequacy_p95`, or reuse them | WP3 | separate function, reusing ETc and P95 inputs |
+| D10 | Apply the Kc climate adjustment automatically from AgERA5 wind and humidity, or keep it a manual helper | WP4 step 6 | manual helper only |
+| D11 | Confirm the Molden & Gates (1990) bands from the original paper before shipping them as alternative schemes | WP1 | not shipped |
+| D12 | Confirm WaPOR v3 specifics (native resolution of PCP and RET, generic LUE, NBWP definition) from the v3 methodology document | docs | documented as UNVERIFIED |
 
 ---
 
-## 10. Handoff notes per model
+## 11. Handoff notes per model
 
 - **Codex** (`agent-workflow/scripts/codex_task.ps1`): one WP per run:
   `codex_task.ps1 -Plan docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md` with the
   instruction "Implement WP<n> only". Codex reads `AGENTS.override.md` and `.agents/skills/`
   (`rwapor-plan-executor`, `rwapor-r-dev`).
-- **Antigravity / Gemini / others**: read `agent-workflow/START-HERE.md` and this file; implement one WP;
-  report as: STATUS / FILES / VALIDATION (result line per command) / DONE CRITERIA (with evidence) /
+- **Antigravity / Gemini / others**: read `agent-workflow/START-HERE.md`, this plan and the review; implement
+  one WP; report as STATUS / FILES / VALIDATION (result line per command) / DONE CRITERIA (with evidence) /
   DEVIATIONS / QUESTIONS.
-- **Reviewer (Claude or the user)**: per WP, check `git diff --stat` against the WP file table, rerun the
-  validation commands, confirm tests compare against independent calculations (never against the
-  function's own output), and that `test-known-answer.R` is unchanged and passing.
+- **Reviewer (Claude or the user)**: per WP, check `git diff --stat` against the file table, rerun the
+  validation commands, confirm tests use independent expected values, `test-known-answer.R` unchanged and
+  passing, and no UNVERIFIED value became a default.
+
+## 12. References
+
+Full citations with evidence labels are in the review, section 7
+(`docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`). Key sources: Allen et al. (1998) FAO-56;
+Chukalla et al. (2022) HESS 26, 2759-2778; Chukalla et al. (2020) WaPOR productivity protocol (Zenodo
+10.5281/zenodo.4641360); Karimi et al. (2019) Remote Sens. 11, 705; Bastiaanssen et al. (1996);
+Bastiaanssen & Bos (1999); Pitts et al. (1996); Christiansen (1942); Merriam & Keller (1978); Smith (1992)
+FAO-46 CROPWAT.

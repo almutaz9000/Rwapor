@@ -171,6 +171,12 @@ Every P0 fix must come with a regression test that fails before the fix.
 
 ## P2: features the training had to build by hand
 
+> **SUPERSEDED IN DETAIL (2026-09-30, later the same day)**: the implementation plan v2
+> (`docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md`), revised after a domain
+> expert review (`docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`), is authoritative for
+> functions, formulas, defaults and sources. The training notebook is an example only, not a standard.
+> The block below is kept as the design history.
+>
 > **REVISED 2026-09-30 (approved by the user): generalized to any zones.**
 > The features below must work for any polygons at any scale (field, farm,
 > irrigation scheme, district, basin, country, or a whole AOI), not only for farms.
