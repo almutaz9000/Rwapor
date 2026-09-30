@@ -4,6 +4,24 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-29 — v1.0.5 released, correctness gates, P1 steps logged (Claude + Codex)
+
+- ETc regression fixed (ISS-20260929-017, `aaa0739`): kernel Kc used the unshifted dekad
+  table since `94b1533`; wheat ETc was 0, citrus 9% low. Tagged **v1.0.5** at `aaa0739`.
+- **New rule for every session**: `tests/testthat/fixtures/known-answer/golden.csv` pins
+  all 236 seasonal-analysis outputs (real WaPOR data, v1.0.3 values, independently
+  checked). A failing known-answer test is a bug unless the methodology changed on
+  purpose; then regenerate `golden.csv`, explain it in NEWS.md and cite the method
+  (see the fixture README).
+- Monitoring hardening (ISS-20260929-018), `options(Rwapor.verbose)`, `?Rwapor` options
+  page, live ETc check in `inst/bench/live_release_checks.R` (commit `324a513`,
+  default branch `e19ed3e`).
+- Release workflow: push work to a `version-*` branch first (CI runs there), then
+  fast-forward the default branch once green.
+- P1 maintainer steps (release, `main` rename, branch protection, R-universe) are
+  logged as board tasks `p1-*`; commands in
+  `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`.
+
 ## 2026-09-28 — GitHub-installation release audit (Codex)
 
 - Fixed four P0 user-facing defects locally: raw WaPOR scale output in
