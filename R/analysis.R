@@ -378,41 +378,61 @@ build_dekad_table <- function(start_date, end_date) {
   if (is.character(start_date)) start_date <- as.Date(start_date)
   if (is.character(end_date)) end_date <- as.Date(end_date)
 
-  dekads <- list()
-  current <- start_date
-  while (current <= end_date) {
-    yr <- as.integer(format(current, "%Y"))
-    mo <- as.integer(format(current, "%m"))
-    dy <- as.integer(format(current, "%d"))
-
-    if (dy <= 10) {
-      d_start <- as.Date(sprintf("%04d-%02d-01", yr, mo))
-      d_end   <- as.Date(sprintf("%04d-%02d-10", yr, mo))
-    } else if (dy <= 20) {
-      d_start <- as.Date(sprintf("%04d-%02d-11", yr, mo))
-      d_end   <- as.Date(sprintf("%04d-%02d-20", yr, mo))
-    } else {
-      d_start <- as.Date(sprintf("%04d-%02d-21", yr, mo))
-      d_end   <- as.Date(sprintf("%04d-%02d-%02d", yr, mo,
-                                  lubridate::days_in_month(current)))
-    }
-    # Store the unclipped standard dekad start as the key for matching
-    d_key <- d_start
-
-    # Clamp to the requested range for weighting
-    d_start <- max(d_start, start_date)
-    d_end   <- min(d_end, end_date)
-
-    dekads[[length(dekads) + 1]] <- data.frame(
-      dekad_start = d_start, 
-      dekad_end = d_end,
-      dekad_key = d_key,
-      n_days = as.integer(d_end - d_start) + 1L,
+  if (is.na(start_date) || is.na(end_date) || start_date > end_date) {
+    return(data.frame(
+      dekad_start = as.Date(character(0)),
+      dekad_end   = as.Date(character(0)),
+      dekad_key   = as.Date(character(0)),
+      n_days      = integer(0),
       stringsAsFactors = FALSE
-    )
-    current <- d_end + 1L
+    ))
   }
-  do.call(rbind, dekads)
+
+  # Optimization: Vectorizing year/month/dekad sequence generation across months
+  # and constructing atomic vectors for single-pass data.frame creation eliminates
+  # iterative day-by-day while loops, date formatting calls, and do.call(rbind, ...) overhead.
+  start_ym <- as.integer(format(start_date, "%Y")) * 12L + as.integer(format(start_date, "%m")) - 1L
+  end_ym   <- as.integer(format(end_date, "%Y")) * 12L + as.integer(format(end_date, "%m")) - 1L
+
+  ym_seq <- seq.int(start_ym, end_ym)
+  yrs <- ym_seq %/% 12L
+  mos <- (ym_seq %% 12L) + 1L
+
+  # Standard dekad start keys and end dates for each month in the range
+  d1_key <- as.Date(sprintf("%04d-%02d-01", yrs, mos))
+  d1_end <- as.Date(sprintf("%04d-%02d-10", yrs, mos))
+
+  d2_key <- as.Date(sprintf("%04d-%02d-11", yrs, mos))
+  d2_end <- as.Date(sprintf("%04d-%02d-20", yrs, mos))
+
+  d3_key <- as.Date(sprintf("%04d-%02d-21", yrs, mos))
+  next_yrs <- ifelse(mos == 12L, yrs + 1L, yrs)
+  next_mos <- ifelse(mos == 12L, 1L, mos + 1L)
+  d3_end   <- as.Date(sprintf("%04d-%02d-01", next_yrs, next_mos)) - 1L
+
+  # Interleave dekads 1, 2, 3 in chronological order
+  all_d_key   <- structure(as.vector(t(cbind(d1_key, d2_key, d3_key))), class = "Date")
+  all_std_end <- structure(as.vector(t(cbind(d1_end, d2_end, d3_end))), class = "Date")
+
+  # Clamp dekad boundaries to requested analysis date range
+  clamped_start <- structure(pmax(all_d_key, start_date), class = "Date")
+  clamped_end   <- structure(pmin(all_std_end, end_date), class = "Date")
+
+  # Filter dekads overlapping [start_date, end_date]
+  valid <- clamped_start <= clamped_end
+
+  res_start <- clamped_start[valid]
+  res_end   <- clamped_end[valid]
+  res_key   <- all_d_key[valid]
+  n_days    <- as.integer(res_end - res_start) + 1L
+
+  data.frame(
+    dekad_start = res_start,
+    dekad_end   = res_end,
+    dekad_key   = res_key,
+    n_days      = n_days,
+    stringsAsFactors = FALSE
+  )
 }
 
 #' Build Dekadal Season Weights and Days
