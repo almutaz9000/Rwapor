@@ -224,6 +224,27 @@ Every P0 fix must come with a regression test that fails before the fix.
 >   whole-AOI shares of bright/normal/dark via `wapor_zonal_stats(stats = "class_share")`.
 > - ti-11: a general perennial profile type (citrus, olive, date palm, grape follow it).
 >
+> **User-configurable class breaks (added 2026-09-30, applies to every classification)**
+> - No classification has hard-coded thresholds. Every classifier takes the same
+>   arguments: `breaks` (numeric cut points), `labels` (one per class), `method =
+>   c("fixed", "quantile")` (fixed values, or percentiles computed from the data) and
+>   `reference` (for quantiles: whole AOI, or within each zone/group).
+> - One shared engine, `wapor_classify(x, breaks, labels, method, reference)`, used by
+>   `wapor_classify_adequacy()`, the equity/uniformity rating, `wapor_classify_spots()`
+>   and any user-defined scheme; any number of classes.
+> - Published values are only defaults, listed in `wapor_class_defaults()`:
+>   adequacy (Chukalla et al. 2022) `breaks = c(0.68, 0.8, 1)`, labels poor /
+>   acceptable / good / above demand; equity CV `c(0.10, 0.25)` good / fair / poor;
+>   spots `method = "quantile"`, `c(0.05, 0.95)` dark / normal / bright. Project-wide
+>   overrides with `options(Rwapor.class_breaks = list(adequacy = ...))`.
+> - Validation: breaks sorted and unique; `length(labels) == length(breaks) + 1`;
+>   quantile breaks within 0 to 1; clear error messages.
+> - Reproducibility: the breaks, labels, method and reference used are returned with
+>   every result (attribute on rasters, columns in tables) and written to exports, so a
+>   reported "74% poor" always states which thresholds produced it.
+> - `wapor_zonal_stats(stats = "class_share")` accepts either a classified raster or
+>   the same `breaks`/`labels`/`method` arguments to classify on the fly.
+>
 > **Tests**: known answers per level from the training data (113 citrus farms vs the
 > notebook farm table; a nested scheme aggregate; a block grid); `sum_volume` =
 > mean mm x area / 1000; class shares sum to 100 and match pixel counts on a fixture.
