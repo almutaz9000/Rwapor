@@ -914,7 +914,7 @@
         "R/indicators_math.R"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design: ",
+      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
@@ -929,7 +929,7 @@
         "R/farm_extract.R"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 1. Absorbs ti-16. Design: ",
+      "notes": "APPROVED 2026-09-30, delivery step 1. Absorbs ti-16. Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
@@ -978,7 +978,7 @@
         "NAMESPACE"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design: ",
+      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
