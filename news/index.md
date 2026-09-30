@@ -1,5 +1,26 @@
 # Changelog
 
+## Rwapor 1.0.6 (development)
+
+### Reliability
+
+- Known-answer tests pin every output of
+  [`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)
+  (236 values, memory, stream and tiled modes) to real WaPOR data from
+  the 2026 training case studies (citrus year from 1 March, wheat season
+  from 1 November), independently checked against plain formulas. A
+  change in any number now fails the test suite.
+- [`wapor_save_raster_blobs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_save_raster_blobs.md)
+  (monitoring) applies the WaPOR scale factor exactly once, independent
+  of the terra version; reports layers it could not save with a warning
+  and returns `list(variable, saved, existing, failed)`; never stores a
+  layer under today’s date when its date cannot be read.
+- `options(Rwapor.verbose = FALSE)` silences progress messages (warnings
+  still show). All package options are listed in
+  [`?Rwapor`](https://almutaz9000.github.io/Rwapor/reference/Rwapor-package.md).
+- The live-API release gate also checks seasonal ETc and adequacy
+  against an independent daily Kc x RET calculation.
+
 ## Rwapor 1.0.5
 
 ### Correctness fixes (upgrade recommended)
@@ -740,24 +761,4 @@ Features
 - Parallel download support via `furrr` package
 - Progress reporting via `progressr` package
 - API response caching via `memoise` package
-- Unit conversion between day/dekad/month/year \# Rwapor 1.0.6
-  (development)
-
-### Reliability
-
-- Known-answer tests pin every output of
-  [`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)
-  (236 values, memory, stream and tiled modes) to real WaPOR data from
-  the 2026 training case studies (citrus year from 1 March, wheat season
-  from 1 November), independently checked against plain formulas. A
-  change in any number now fails the test suite.
-- [`wapor_save_raster_blobs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_save_raster_blobs.md)
-  (monitoring) applies the WaPOR scale factor exactly once, independent
-  of the terra version; reports layers it could not save with a warning
-  and returns `list(variable, saved, existing, failed)`; never stores a
-  layer under today’s date when its date cannot be read.
-- `options(Rwapor.verbose = FALSE)` silences progress messages (warnings
-  still show). All package options are listed in
-  [`?Rwapor`](https://almutaz9000.github.io/Rwapor/reference/Rwapor-package.md).
-- The live-API release gate also checks seasonal ETc and adequacy
-  against an independent daily Kc x RET calculation.
+- Unit conversion between day/dekad/month/year

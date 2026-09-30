@@ -42,6 +42,18 @@
     </div>
 
     <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.6" id="rwapor-106-development">Rwapor 1.0.6 (development)<a class="anchor" aria-label="anchor" href="#rwapor-106-development"></a></h2>
+<div class="section level3">
+<h3 id="reliability-1-0-6">Reliability<a class="anchor" aria-label="anchor" href="#reliability-1-0-6"></a></h3>
+<ul><li>Known-answer tests pin every output of <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> (236 values, memory, stream and tiled modes) to real WaPOR data from the 2026 training case studies (citrus year from 1 March, wheat season from 1 November), independently checked against plain formulas. A change in any number now fails the test suite.</li>
+<li>
+<code><a href="../reference/wapor_save_raster_blobs.html">wapor_save_raster_blobs()</a></code> (monitoring) applies the WaPOR scale factor exactly once, independent of the terra version; reports layers it could not save with a warning and returns <code>list(variable, saved, existing, failed)</code>; never stores a layer under today’s date when its date cannot be read.</li>
+<li>
+<code>options(Rwapor.verbose = FALSE)</code> silences progress messages (warnings still show). All package options are listed in <code><a href="../reference/Rwapor-package.html">?Rwapor</a></code>.</li>
+<li>The live-API release gate also checks seasonal ETc and adequacy against an independent daily Kc x RET calculation.</li>
+</ul></div>
+</div>
+    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.0.5" id="rwapor-105">Rwapor 1.0.5<a class="anchor" aria-label="anchor" href="#rwapor-105"></a></h2>
 <div class="section level3">
 <h3 id="correctness-fixes-upgrade-recommended-1-0-5">Correctness fixes (upgrade recommended)<a class="anchor" aria-label="anchor" href="#correctness-fixes-upgrade-recommended-1-0-5"></a></h3>
@@ -494,18 +506,9 @@
 <ul><li>Parallel download support via <code>furrr</code> package</li>
 <li>Progress reporting via <code>progressr</code> package</li>
 <li>API response caching via <code>memoise</code> package</li>
-<li>Unit conversion between day/dekad/month/year # Rwapor 1.0.6 (development)</li>
+<li>Unit conversion between day/dekad/month/year</li>
 </ul></div>
 </div>
-<div class="section level3">
-<h3 id="reliability-0-1-0">Reliability<a class="anchor" aria-label="anchor" href="#reliability-0-1-0"></a></h3>
-<ul><li>Known-answer tests pin every output of <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> (236 values, memory, stream and tiled modes) to real WaPOR data from the 2026 training case studies (citrus year from 1 March, wheat season from 1 November), independently checked against plain formulas. A change in any number now fails the test suite.</li>
-<li>
-<code><a href="../reference/wapor_save_raster_blobs.html">wapor_save_raster_blobs()</a></code> (monitoring) applies the WaPOR scale factor exactly once, independent of the terra version; reports layers it could not save with a warning and returns <code>list(variable, saved, existing, failed)</code>; never stores a layer under today’s date when its date cannot be read.</li>
-<li>
-<code>options(Rwapor.verbose = FALSE)</code> silences progress messages (warnings still show). All package options are listed in <code><a href="../reference/Rwapor-package.html">?Rwapor</a></code>.</li>
-<li>The live-API release gate also checks seasonal ETc and adequacy against an independent daily Kc x RET calculation.</li>
-</ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
