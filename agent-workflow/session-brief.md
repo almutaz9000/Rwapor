@@ -20,8 +20,14 @@ individually.
 
 **Next**: MAINTAINER does P1 tasks `p1-release`, `p1-branch-main`, `p1-protect`,
 `p1-runiverse` (commands: `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`),
-then an agent does `p1-readme-runiverse`. P2 (ti-06, ti-07, ti-09 to ti-16) explained
-to the user, awaiting approval before planning. Free disk space on C:.
+then an agent does `p1-readme-runiverse`. Free disk space on C:.
+
+**P2 (approved 2026-09-30, ready to implement)**: start with batch B1, board task `p2-b1`, brief
+`docs/superpowers/plans/p2-batches/B1-classification.md`. One batch at a time (B1 → B2 → B3 → B4 → B5 →
+release 1.0.6); each batch is verified at gate G1-G10 (master plan
+`docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md`, section 1A) before the next starts.
+Defaults follow the domain expert review (`docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`);
+the training notebook is an example only, never a standard.
 
 ## Previous Session — 2026-09-29 — 1.0.5 released to the default branch
 

@@ -933,7 +933,7 @@
     },
     {
       "id": "ti-11",
-      "title": "Perennial crop support: general perennial profile type (citrus, olive, date palm, grape), FAO-56 Table 12, crop_type flag, stage names, fc docs",
+      "title": "Perennial crops: verified FAO-56 rows (citrus x6, olives, grapes x2, pistachio, deciduous x2), evergreen/deciduous + dormant Kc, Kc climate helper (manual), fc docs",
       "status": "pending",
       "priority": "medium",
       "model": null,
