@@ -910,11 +910,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/analysis_indicators.R",
-        "R/indicators_math.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP3). APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
@@ -926,10 +925,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/farm_extract.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 1. Absorbs ti-16. Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP1+WP2). APPROVED 2026-09-30, delivery step 1. Absorbs ti-16. Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
@@ -941,12 +940,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/crop_defaults.R",
-        "inst/extdata/fao_growth_stages.csv",
-        "R/analysis_engine.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 3. Open: allow survey yields as input for CWP of tree crops. Design: ",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP4). APPROVED 2026-09-30, delivery step 3. Open: allow survey yields as input for CWP of tree crops. Design: ",
       "updated_utc": "2026-09-30"
     },
     {
@@ -958,11 +955,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/mask_helpers.R",
-        "R/analysis.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 4. Design: ",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP5). APPROVED 2026-09-30, delivery step 4. Design: ",
       "updated_utc": "2026-09-30"
     },
     {
@@ -974,11 +970,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/analysis_indicators.R",
-        "NAMESPACE"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP3). APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
       "updated_utc": "2026-09-30"
     },
     {
@@ -990,11 +985,11 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/viz.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-14).",
-      "updated_utc": "2026-09-24"
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP5). REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-14).",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-15",
@@ -1005,13 +1000,11 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/metadata.R",
-        "R/api_client.R",
-        "R/wapor_metadata_cache.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-15).",
-      "updated_utc": "2026-09-24"
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP5). REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-15).",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-16",
@@ -1022,10 +1015,10 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        "R/utils.R"
+        "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
       ],
       "issue_ref": null,
-      "notes": "APPROVED 2026-09-30, part of ti-10. Design: ",
+      "notes": "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP2). APPROVED 2026-09-30, part of ti-10. Design: ",
       "updated_utc": "2026-09-30"
     },
     {
