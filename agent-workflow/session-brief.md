@@ -3,7 +3,18 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-29/30 — ETc fix, v1.0.5 tag, P0 gates, P1 logged (Claude)
+## Current Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
+
+**What happened**: Reviewed board vs source. P2 B1 is the only next implementation slice.
+Claimed `p2-b1` and `ti-10` (WP1 only). Dispatched an implementer plus a WaPOR oracle.
+Implementer landed `wapor_classify()`; oracle confirmed type-7 expected values (5.95/95.05, 5/90/5).
+Parent filled missing polygon-reference tests, documented the defaults table, and fixed raster
+`reference = NULL` using ncell not nlyr. classify tests PASS 35. Known-answer memory PASS 1419;
+stream/tiled skipped (disk). B2 not started. Committed 4254ab9 on version-1.0.6.
+
+**Next**: B1 committed as 4254ab9 on version-1.0.6; push for G9 CI. B2 waits for green.
+
+## Previous Session — 2026-09-29/30 — ETc fix, v1.0.5 tag, P0 gates, P1 logged (Claude)
 
 **What happened**: Verified 1.0.5 on Windows against the training notebook and found
 ISS-20260929-017 (kernel ETc from a shifted Kc curve since `94b1533`: wheat ETc 0,
