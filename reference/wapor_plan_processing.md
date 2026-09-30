@@ -116,7 +116,7 @@ wapor_plan_processing(aoi = c(35, 33, 36.5, 34.5), resolution = 20,
 #>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)
 #>   working set : 312.7 GB (budget 6.9 GB, 1 worker(s))
 #>   batch size  : 1 dekad(s)
-#>   tile size   : 1898 px
+#>   tile size   : 1896 px
 #>   GDAL chunk  : 10.0 MB
 #>   reasons     :
 #>     - Estimated working set in memory: 312.7 GB (budget 6.9 GB per worker, 1 worker(s)).
