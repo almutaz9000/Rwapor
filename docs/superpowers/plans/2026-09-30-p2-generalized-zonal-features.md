@@ -33,8 +33,9 @@ winter wheat in Jendouba) is only one example that showed which features were mi
 ## 0. How to use this plan (every implementer)
 
 1. Start every session with `agent-workflow/START-HERE.md` (preflight, board, session brief).
-2. Implement **one work package (WP) per run**: WP1 -> WP2 -> WP3; WP4, WP5 and WP6 are independent
-   and can run in any order after WP1.
+2. Implement **one batch per run** as defined in section 1A (B1 -> B2 -> B3 -> B4 -> B5), using the
+   batch brief in `docs/superpowers/plans/p2-batches/`. The next batch starts only after the previous
+   batch passed its verification gate.
 3. Claim the board task first:
    `.\agent-workflow\scripts\board_claim.ps1 -Id <task-id> -Model <your-model> -Status active -Notes "plan: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md WP<n>"`
 4. Edit **only** the files in the WP's file table. If another file must change, stop and report.
@@ -100,6 +101,61 @@ dekadal Peff, soil-water-balance green/blue split, normalized biomass WP (needs 
 `wapor_ts()`/monitoring refactor onto the zonal engine.
 
 ---
+
+## 1A. Execution roadmap: batches, priorities and verification gates
+
+Work is delivered in **five batches**. Each batch is implemented by one agent run, then **verified at a
+gate**. The next batch starts only after its gate passes. Work packages that belong together (shared
+inputs or files) are grouped in one batch and verified together.
+
+| Batch | Priority | Contents | Why grouped / order | Depends on | Brief (give this file to the implementing agent) |
+|---|---|---|---|---|---|
+| **B1** | P2-1 (foundation) | WP1 classification engine | Every classification in B2 to B4 uses it | none | `docs/superpowers/plans/p2-batches/B1-classification.md` |
+| **B2** | P2-1 (foundation) | WP2 zonal engine + WP5A mask helpers (WP5 steps 1-2, tests 1-3) | Fraction masks from WP5A are the `weights` input of WP2; verified together | B1 passed | `docs/superpowers/plans/p2-batches/B2-zonal-and-masks.md` |
+| **B3** | P2-2 (core value) | WP3 performance indicators, productivity gaps, spots | Built on B1 + B2 | B2 passed | `docs/superpowers/plans/p2-batches/B3-indicators.md` |
+| **B4** | P2-2 (core value) | WP4 perennial crops + Kc helper, WP6 effective rainfall + rainfed | Both extend the crop parameters (`crop_type`, `water_source`) and the seasonal engine; one engine change, one verification | B1 passed (independent of B2/B3) | `docs/superpowers/plans/p2-batches/B4-crops-and-peff.md` |
+| **B5** | P2-3 (polish) | WP5B plots and offline URL lists (WP5 steps 3-4, tests 4-5) | Small, independent | B1 passed | `docs/superpowers/plans/p2-batches/B5-plots-offline.md` |
+| **R** | release | Release checklist (section 9): vignette, version 1.0.6, check, CI, live checks | After all gates | B1-B5 passed | this plan, section 9 |
+
+Order: B1 -> B2 -> B3 -> B4 -> B5 -> R. B4 and B5 may run before B3 if an agent is free, but never
+two batches at the same time on the same branch.
+
+### Orchestration commands (the coordinating agent runs these)
+
+```powershell
+# 1. Claim and start a batch (example B1). Each batch has a gate task p2-b1 .. p2-b5 on the board;
+#    the verifier sets it to done only after gate G1-G10 passes. Feature tasks (ti-*) are claimed too.
+.\agent-workflow\scripts\board_claim.ps1 -Id p2-b1 -Model codex -Status active -Notes "B1: docs/superpowers/plans/p2-batches/B1-classification.md"
+.\agent-workflow\scripts\board_claim.ps1 -Id ti-10 -Model codex -Status active -Notes "B1 (WP1)"
+powershell -ExecutionPolicy Bypass -File .\agent-workflow\scripts\codex_task.ps1 -Plan docs/superpowers/plans/p2-batches/B1-classification.md -Effort high
+#    (run in the background; other agents: give them the brief file and "implement this batch only")
+
+# 2. After the agent reports, run the gate (section below). If it fails, one fix round:
+powershell -ExecutionPolicy Bypass -File .\agent-workflow\scripts\codex_task.ps1 -Plan docs/superpowers/plans/p2-batches/B1-classification.md -Fix "1. <file>:<line> <problem and required change>. 2. ..."
+
+# 3. Gate passed: commit on version-1.0.6, push that branch (CI runs), wait for CI green,
+#    mark the board tasks done, then start the next batch.
+```
+
+### Verification gate (same checklist for every batch; the verifier is not the implementer)
+
+A batch passes only when **every** item holds. Record the evidence in the board note and `task-status.md`.
+
+| # | Check | How |
+|---|---|---|
+| G1 | Scope | `git status --short`, `git diff --stat`: only files in the batch's file tables changed |
+| G2 | Specification | Read each changed function against the WP steps: signatures, defaults, formulas, units, error messages, sources in the docs |
+| G3 | Own test run | Rerun the batch's validation commands yourself; 0 failures, 0 unexpected skips |
+| G4 | Independent expectations | Each new test compares with a hand or base-R value (Review §5 or the WP test list), never with the function's own output; spot-check at least three values by hand |
+| G5 | Regression proof | For fixes and engine changes: the new test fails when the change is reverted (revert locally, run, restore) |
+| G6 | Known answers | `devtools::test(filter = 'known-answer')` passes unchanged (4251 expectations); `golden.csv` untouched |
+| G7 | Science | No UNVERIFIED value became a default or golden value; every threshold has a source or a "heuristic" label |
+| G8 | Full suite | `devtools::test()` 0 failures (if the local disk is full, rerun failing files individually and rely on CI) |
+| G9 | CI | Push `version-1.0.6`; R-CMD-check (Windows, macOS, Ubuntu x3), lint and install smoke all green |
+| G10 | Records | NEWS entry, board tasks done with evidence, `task-status.md` updated, commit message lists the batch and gate results |
+
+Fix rounds: at most two per batch, each with numbered concrete failures (file, line, required change).
+If the batch still fails, the verifier fixes it directly or rewrites the brief; the next batch waits.
 
 ## 2. Architecture
 
@@ -550,8 +606,9 @@ optional climate adjustment of tabulated Kc. **Effort**: medium. **Depends on**:
    `Kc_mid = Kc_mid_tab + (0.04 (u2 - 2) - 0.004 (rh_min - 45)) (h / 3)^0.3`, and Eq. 65 for `kc_end` only
    when `kc_end_tab > 0.45`. Clamp inputs to the validity range (1 <= u2 <= 6 m/s, 20 <= rh_min <= 80 %,
    0.1 < h < 10 m) with a warning. **Re-read the constants on the FAO-56 page
-   (https://www.fao.org/4/x0490e/x0490e0b.htm) before coding** and cite the equation numbers. Not applied
-   automatically in 1.0.6 (decision D10).
+   (https://www.fao.org/4/x0490e/x0490e0b.htm) before coding** and cite the equation numbers. It is a
+   manual helper only: the seasonal analysis never applies it automatically (decision D10, user
+   2026-09-30); the help page shows how to feed its result into `wapor_custom_crop()`.
 7. `@param fc`: "Light use efficiency correction factor: crop LUE / WaPOR generic LUE; about 1 for C3 crops,
    above 1 for C4 crops (e.g. 1.6 for sugarcane in Chukalla et al. 2022)." Same text in
    `R/analysis_indicators.R`.
@@ -585,6 +642,10 @@ optional climate adjustment of tabulated Kc. **Effort**: medium. **Depends on**:
 
 **Objective**: masks that work on any grid and return fractions usable as weights; safe plots; offline
 URL lists. **Effort**: small. **Depends on**: nothing (WP2 uses the fraction output).
+
+**Split for delivery (section 1A)**: **WP5A** = steps 1-2 and tests 1-3 (`R/mask_helpers.R`,
+`test-mask-helpers.R`), delivered in batch B2 with WP2. **WP5B** = steps 3-4 and tests 4-5 (`R/viz.R`,
+offline URL lists, `test-viz-basic.R`, `test-offline-urls.R`), delivered in batch B5.
 
 ### Files
 
@@ -711,6 +772,9 @@ without changing current results by default. **Effort**: small to medium. **Depe
 - `wapor_zonal_stats()` never downloads; `coverage` reports missing data.
 - Release 1.0.6 (1.0.7 if 1.0.6 is released first).
 - Generalize: literature defaults; the training is an example only.
+- **D10: the FAO-56 Eq. 62/65 Kc climate adjustment stays a manual helper** (`wapor_adjust_kc_climate()`);
+  it is never applied automatically (user, 2026-09-30).
+- Delivery in batches with a verification gate after each (section 1A).
 
 ### Defaults adopted from the expert review (change any by telling the planner)
 
@@ -732,7 +796,6 @@ without changing current results by default. **Effort**: small to medium. **Depe
 | D2 | Download cache location (project folder vs R user cache dir) | P3 (ti-06) | not needed here |
 | D5 | Correct the existing crop-table values (Winter Wheat Kc_ini 0.4 -> 0.7 non-frozen, Sorghum 0.3 -> 0.2, Sugarcane stages); this changes golden values | WP4 step 8 | notes corrected, values unchanged |
 | D6 | RWD separate from the existing `adequacy_etc` / `adequacy_p95`, or reuse them | WP3 | separate function, reusing ETc and P95 inputs |
-| D10 | Apply the Kc climate adjustment automatically from AgERA5 wind and humidity, or keep it a manual helper | WP4 step 6 | manual helper only |
 | D11 | Confirm the Molden & Gates (1990) bands from the original paper before shipping them as alternative schemes | WP1 | not shipped |
 | D12 | Confirm WaPOR v3 specifics (native resolution of PCP and RET, generic LUE, NBWP definition) from the v3 methodology document | docs | documented as UNVERIFIED |
 
@@ -740,13 +803,12 @@ without changing current results by default. **Effort**: small to medium. **Depe
 
 ## 11. Handoff notes per model
 
-- **Codex** (`agent-workflow/scripts/codex_task.ps1`): one WP per run:
-  `codex_task.ps1 -Plan docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md` with the
-  instruction "Implement WP<n> only". Codex reads `AGENTS.override.md` and `.agents/skills/`
-  (`rwapor-plan-executor`, `rwapor-r-dev`).
-- **Antigravity / Gemini / others**: read `agent-workflow/START-HERE.md`, this plan and the review; implement
-  one WP; report as STATUS / FILES / VALIDATION (result line per command) / DONE CRITERIA (with evidence) /
-  DEVIATIONS / QUESTIONS.
+- **Codex** (`agent-workflow/scripts/codex_task.ps1`): one batch per run:
+  `codex_task.ps1 -Plan docs/superpowers/plans/p2-batches/B<n>-<name>.md -Effort high` (section 1A).
+  Codex reads `AGENTS.override.md` and `.agents/skills/` (`rwapor-plan-executor`, `rwapor-r-dev`).
+- **Antigravity / Gemini / others**: read `agent-workflow/START-HERE.md`, the batch brief, this plan and
+  the review; implement that batch only; report as STATUS / FILES / VALIDATION (result line per command) /
+  DONE CRITERIA (with evidence) / DEVIATIONS / QUESTIONS.
 - **Reviewer (Claude or the user)**: per WP, check `git diff --stat` against the file table, rerun the
   validation commands, confirm tests use independent expected values, `test-known-answer.R` unchanged and
   passing, and no UNVERIFIED value became a default.
