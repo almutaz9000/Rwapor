@@ -3,7 +3,27 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-29 — 1.0.5 released to the default branch
+## Current Session — 2026-09-29/30 — ETc fix, v1.0.5 tag, P0 gates, P1 logged (Claude)
+
+**What happened**: Verified 1.0.5 on Windows against the training notebook and found
+ISS-20260929-017 (kernel ETc from a shifted Kc curve since `94b1533`: wheat ETc 0,
+citrus 9% low); fixed (`aaa0739`), tagged v1.0.5. Implemented P0 (plan
+`docs/superpowers/plans/2026-09-29-prod-p0.md`, Codex + Claude verification): real-data
+known-answer tests (236 golden values, 3 modes), monitoring hardening
+(ISS-20260929-018), `options(Rwapor.verbose)`, live ETc check. Default branch at
+`e19ed3e`. Training notebook fixes: offline detection, Float32-tolerant checks.
+
+**Verification**: CI 9/9 green on `324a513`; live checks 6/6 (ETc 316.53 vs formula
+316.54 mm); reverting only the old Kc line fails exactly the 22 ETc/adequacy golden
+rows. Local full suite hit disk-full errors (C: had 1.8 GB free); failing files pass
+individually.
+
+**Next**: MAINTAINER does P1 tasks `p1-release`, `p1-branch-main`, `p1-protect`,
+`p1-runiverse` (commands: `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`),
+then an agent does `p1-readme-runiverse`. P2 (ti-06, ti-07, ti-09 to ti-16) explained
+to the user, awaiting approval before planning. Free disk space on C:.
+
+## Previous Session — 2026-09-29 — 1.0.5 released to the default branch
 
 **What happened**: Added a live-API CI gate (Windows + Linux; `devtools::test()` /
 `devtools::check()` with live tests, `remote_smoke_test.R`, new

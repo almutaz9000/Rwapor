@@ -1,7 +1,7 @@
 {
   "$schema_note": "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md 'Cross-model coordination'.",
   "schema_version": 1,
-  "updated_utc": "2026-09-29T16:35:56Z",
+  "updated_utc": "2026-09-30T09:47:45Z",
   "known_models": [
     "claude",
     "codex",
@@ -835,19 +835,19 @@
     {
       "id": "ti-05",
       "title": "Release Rwapor 1.0.2 (monthly green/blue fix) and align registry step_peff_green_blue",
-      "status": "pending",
+      "status": "done",
       "priority": "critical",
-      "model": null,
-      "attribution": null,
-      "claimed_utc": null,
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-30T09:47:45Z",
       "files": [
         "R/analysis_registry.R",
         "DESCRIPTION",
         "NEWS.md"
       ],
       "issue_ref": "ISS-20260923-005",
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-05).",
-      "updated_utc": "2026-09-24"
+      "notes": "Shipped: monthly green/blue split in 1.0.2 (ISS-20260923-005); pinned by known-answer tests (324a513).",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-06",
@@ -886,11 +886,11 @@
     {
       "id": "ti-08",
       "title": "Reduce disk footprint: keep_intermediates/include_dekadal default FALSE, Float32 outputs, disk-space preflight",
-      "status": "pending",
+      "status": "done",
       "priority": "high",
-      "model": null,
-      "attribution": null,
-      "claimed_utc": null,
+      "model": "claude",
+      "attribution": "recorded",
+      "claimed_utc": "2026-09-30T09:47:45Z",
       "files": [
         "R/analysis_engine.R",
         "R/processing_plan.R",
@@ -898,8 +898,8 @@
         "R/analysis_validation.R"
       ],
       "issue_ref": "ISS-20260925-009",
-      "notes": "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-08).",
-      "updated_utc": "2026-09-25"
+      "notes": "Shipped in 1.0.5 (WP1, fe75e5a): keep_intermediates/include_dekadal default FALSE, Float32 outputs, disk-space preflight.",
+      "updated_utc": "2026-09-30"
     },
     {
       "id": "ti-09",
@@ -1118,7 +1118,7 @@
     {
       "id": "prod-p0",
       "title": "P0 correctness gates: known-answer tests, monitoring scale/skip hardening, Rwapor.verbose, live ETc check",
-      "status": "active",
+      "status": "done",
       "priority": "high",
       "model": "codex",
       "attribution": "recorded",
@@ -1130,7 +1130,7 @@
         "inst/bench/live_release_checks.R"
       ],
       "issue_ref": "ISS-20260929-017",
-      "notes": "plan: docs/superpowers/plans/2026-09-29-prod-p0.md",
+      "notes": "Commit 324a513 (branch version-1.0.6). Known-answer 4251 exp (3 modes), monitoring 15, verbose 5, live checks 6/6. Claude fixed 3 bugs found in verification (paste0 empty, early return skipped warning, live Kc/dekad length).",
       "updated_utc": "2026-09-29"
     },
     {
@@ -1142,12 +1142,86 @@
       "attribution": null,
       "claimed_utc": null,
       "files": [
-        ".github/workflows/",
-        "README.md"
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
       ],
       "issue_ref": "ISS-20260929-017",
-      "notes": "User approved 2026-09-29 (production roadmap P0/P1).",
-      "updated_utc": "2026-09-29"
+      "notes": "Split into p1-release, p1-branch-main, p1-protect, p1-runiverse, p1-readme-runiverse (steps 1-5 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md). Done: v1.0.5 tag at aaa0739 (CI green, 2026-09-29).",
+      "updated_utc": "2026-09-30"
+    },
+    {
+      "id": "p1-release",
+      "title": "Publish GitHub release v1.0.5 (tag exists at aaa0739)",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "MAINTAINER action (GitHub admin/public; agents are blocked). Step 1 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md (exact commands and done criteria there). Do in step order.",
+      "updated_utc": "2026-09-30"
+    },
+    {
+      "id": "p1-branch-main",
+      "title": "Make main the default branch (archive stale main, rename version-1.0.4 -> main)",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "MAINTAINER action (GitHub admin/public; agents are blocked). Step 2 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md (exact commands and done criteria there). Do in step order.",
+      "updated_utc": "2026-09-30"
+    },
+    {
+      "id": "p1-protect",
+      "title": "Branch protection on main: require 5 CI checks, enforce for admins",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "MAINTAINER action (GitHub admin/public; agents are blocked). Step 3 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md (exact commands and done criteria there). Do in step order.",
+      "updated_utc": "2026-09-30"
+    },
+    {
+      "id": "p1-runiverse",
+      "title": "R-universe binaries: create almutaz9000.r-universe.dev registry + install GitHub app",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "MAINTAINER action (GitHub admin/public; agents are blocked). Step 4 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md (exact commands and done criteria there). Do in step order.",
+      "updated_utc": "2026-09-30"
+    },
+    {
+      "id": "p1-readme-runiverse",
+      "title": "README + CI install smoke for the R-universe route (agent task, after p1-runiverse)",
+      "status": "pending",
+      "priority": "high",
+      "model": null,
+      "attribution": null,
+      "claimed_utc": null,
+      "files": [
+        "docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md"
+      ],
+      "issue_ref": "ISS-20260929-017",
+      "notes": "Agent task once the maintainer confirms R-universe is live. Step 5 of docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md (exact commands and done criteria there). Do in step order.",
+      "updated_utc": "2026-09-30"
     }
   ],
   "issues": [

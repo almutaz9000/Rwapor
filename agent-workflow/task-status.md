@@ -10,10 +10,16 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
   (236 values, 3 modes), monitoring hardening (ISS-20260929-018),
   `options(Rwapor.verbose)`, live ETc check. Next: CI green, then fast-forward the
   default branch.
-- **prod-p1: release engineering** — PARTIAL. v1.0.5 tagged at `aaa0739` (CI green).
-  Left for the maintainer (blocked for agents as public/admin actions): GitHub
-  release v1.0.5, default branch -> `main` (archive the stale `main` first),
-  branch protection with required checks, R-universe registry.
+- **prod-p1: release engineering** — PARTIAL, waiting for the MAINTAINER. Done:
+  v1.0.5 tagged at `aaa0739` (CI green). The rest are GitHub admin/public actions
+  agents are blocked from. Exact commands and done criteria:
+  `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`. In order:
+  1. `p1-release`: publish the GitHub release v1.0.5.
+  2. `p1-branch-main`: archive the stale `main` as `archive/main-2026-09-22`, rename
+     `version-1.0.4` -> `main`, update the local clone and docs.
+  3. `p1-protect`: branch protection on `main`, 5 required checks, enforced for admins.
+  4. `p1-runiverse`: registry repo `almutaz9000.r-universe.dev` + R-universe GitHub app.
+  5. `p1-readme-runiverse` (agent, after 4): README install line + CI smoke test.
 
 - **Production readiness 1.0.5 (WP0 to WP6)** — DONE on branch (Claude, 2026-09-28).
   Plan: `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`. Commits
