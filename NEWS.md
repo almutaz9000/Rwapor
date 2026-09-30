@@ -1,5 +1,9 @@
 # Rwapor 1.0.6 (development)
 
+## Classification
+
+* Added configurable fixed and type-7 quantile classification with literature-backed adequacy, equity, irrigation-method uniformity, and productivity-spot schemes. Results retain thresholds and source metadata, including through GeoTIFF metadata.
+
 ## Reliability
 
 * Known-answer tests pin every output of `wapor_run_seasonal_analysis()` (236 values,
