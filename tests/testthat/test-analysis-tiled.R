@@ -233,8 +233,8 @@ test_that("kernel tiles reproduce a full weighted sum exactly", {
     h_start = terra::setValues(template, 1L), h_end = terra::setValues(template, 30L),
     variables = list(x = list(variable = "x", paths = paths, multipliers = c(1, 1, 1)))
   )
-  plan <- structure(list(mode = "tiled", tile_size = 2L, batch_size = 1L, workers = 1L,
-                         gdal_chunk_bytes = 1e6), class = "wapor_plan")
+  plan <- structure(list(mode = "tiled", tile_size = 2L, batch_size = 1L, workers = 1L),
+                    class = "wapor_plan")
   tiled <- .wapor_run_kernel(job, template, plan, output_dir = tempfile("rwapor-kernel-"))
   expect_equal(
     as.numeric(terra::values(tiled$rasters$x__season)),

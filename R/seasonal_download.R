@@ -126,7 +126,7 @@ download_seasonal_rasters <- function(variable, period, l3_code, reg_info, folde
     code_batch <- .wapor_resolve_batch_size(batch_size, io_plan)
     batches <- split(seq_along(vsicurl_urls), ceiling(seq_along(vsicurl_urls) / code_batch))
     r <- tryCatch(
-      .wapor_with_gdal_chunk(io_plan$gdal_chunk_bytes, {
+      .wapor_with_remote_io({
         parts <- lapply(batches, function(idx) {
           .wapor_retry_remote_operation(function() {
             out <- terra::rast(vsicurl_urls[idx])

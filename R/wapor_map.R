@@ -533,6 +533,8 @@ wapor_map <- function(
     io_plan <- .wapor_io_plan(urls, reg_info, processing = processing, n_targets = 2L)
     var_batch <- .wapor_resolve_batch_size(batch_size, io_plan)
     log_msg(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, var_batch))
+    volume_note <- .wapor_volume_note(io_plan, var)
+    if (!is.null(volume_note)) log_msg(volume_note)
     url_chunks <- get_url_chunks(urls, batching = batching, batch_size = var_batch)
     n_workers <- .wapor_n_workers()
     
@@ -644,11 +646,12 @@ wapor_map <- function(
     }
 
     # Process all chunks, using future_lapply if parallel is TRUE
-    chunk_results <- .wapor_with_gdal_chunk(io_plan$gdal_chunk_bytes, {
+    chunk_results <- .wapor_with_remote_io({
       if (parallel) {
         log_msg("  Processing chunks in parallel...")
+        # Entered again per chunk: each parallel worker is its own process.
         future.apply::future_lapply(seq_along(url_chunks), function(i) {
-          process_chunk(url_chunks[[i]], i)
+          .wapor_with_remote_io(process_chunk(url_chunks[[i]], i))
         }, future.seed = TRUE)
       } else {
         lapply(seq_along(url_chunks), function(i) {

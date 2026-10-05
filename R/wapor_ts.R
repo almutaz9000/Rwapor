@@ -462,6 +462,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   io_plan <- .wapor_io_plan(urls, reg_info, processing = processing, n_targets = 3L)
   batch_size <- .wapor_resolve_batch_size(batch_size, io_plan)
   .wapor_inform(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, batch_size))
+  volume_note <- .wapor_volume_note(io_plan, variable)
+  if (!is.null(volume_note)) .wapor_inform(volume_note)
   max_cells <- max(1e6, floor(io_plan$budget_bytes / (8 * 3 * batch_size)))
   url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
   n_chunks <- length(url_idx_chunks)
@@ -626,10 +628,13 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Process all batches: load, crop, extract stats, release memory
-  all_batch_results <- .wapor_with_gdal_chunk(io_plan$gdal_chunk_bytes, {
+  all_batch_results <- .wapor_with_remote_io({
     if (parallel && n_chunks > 1) {
       .wapor_inform(sprintf("  Processing %d batches in parallel...", n_chunks))
-      future.apply::future_lapply(seq_len(n_chunks), process_batch, future.seed = TRUE)
+      # Entered again per batch: each parallel worker is its own process.
+      future.apply::future_lapply(seq_len(n_chunks), function(ci) {
+        .wapor_with_remote_io(process_batch(ci))
+      }, future.seed = TRUE)
     } else {
       lapply(seq_len(n_chunks), process_batch)
     }

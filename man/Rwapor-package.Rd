@@ -17,6 +17,8 @@ Downloads and processes WaPOR (Water Productivity Open-access portal) and AgERA5
 \item{\code{Rwapor.cache_ttl}}{URL metadata cache lifetime in seconds (default \code{86400}).}
 \item{\code{Rwapor.remote_fallback}}{Remote-read fallback mode (default \code{"stream"}; use \code{"download"} for the local cache).}
 \item{\code{Rwapor.configure_gdal}}{Configure GDAL on package load when needed (default \code{TRUE}).}
+\item{\code{Rwapor.fix_proj}}{Point PROJ to the database shipped with sf or terra on package load when a foreign one (for example PostGIS) is on the path (default \code{TRUE}).}
+\item{\code{Rwapor.remote_extension_filter}}{While Rwapor reads remote rasters, limit \verb{/vsicurl/} to \code{.tif} files to avoid failing side-file requests (default \code{TRUE}).}
 \item{\code{Rwapor.max_season_profiles}}{Maximum number of per-pixel season profiles (default \code{64}).}
 \item{\code{Rwapor.plan_thresholds}}{Optional named processing-mode thresholds; defaults are calculated from the memory budget.}
 \item{\code{Rwapor.remote_cache_dir}}{Directory for cached remote rasters; by default the R user cache directory is used.}

@@ -45,7 +45,7 @@ each month). Default \code{1 + ceiling(n_layers / 3)}.}
 \value{
 An object of class \code{wapor_plan} with the chosen \code{mode}, the
 estimate (\code{working_set_bytes}, \code{budget_bytes}), \code{batch_size}, \code{tile_size},
-\code{gdal_chunk_bytes}, and the \code{reasons} for the choice.
+and the \code{reasons} for the choice.
 }
 \description{
 Estimates the memory a job needs and chooses how to run it:

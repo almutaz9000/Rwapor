@@ -621,8 +621,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     n_layers = nrow(job$dekad_table),
     n_targets = 1L + length(job$month_targets),
     n_profiles = nrow(job$profiles),
-    processing = processing, workers = workers,
-    bytes_per_file_window = max(native_cells) * 4
+    processing = processing, workers = workers
   )
 }
 
