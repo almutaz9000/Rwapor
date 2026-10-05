@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-09-30T15:45:57Z",
+    "updated_utc":  "2026-09-30T20:36:38Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -932,7 +932,7 @@
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "B1 (WP1 only): wapor_classify. WP2 zonal engine waits until p2-b1 gate G1-G10.",
+                      "notes":  "B2 (WP2 zonal engine). WP1 shipped in 4254ab9.",
                       "updated_utc":  "2026-09-30"
                   },
                   {
@@ -953,16 +953,16 @@
                   {
                       "id":  "ti-12",
                       "title":  "Mask helpers for any crop polygons or classified map (any class codes, any resolution) onto any WaPOR level, with area check",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-30T20:36:38Z",
                       "files":  [
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP5). APPROVED 2026-09-30, delivery step 4. Design: ",
+                      "notes":  "B2 WP5A mask helpers only (not plots/offline).",
                       "updated_utc":  "2026-09-30"
                   },
                   {
@@ -1013,16 +1013,16 @@
                   {
                       "id":  "ti-16",
                       "title":  "Robust area calculation (equal-area/UTM, never lon/lat) - delivered inside ti-10 wapor_zonal_stats()",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-30T20:36:37Z",
                       "files":  [
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP2). APPROVED 2026-09-30, part of ti-10. Design: ",
+                      "notes":  "B2 area via WP2 (s2 off for geographic).",
                       "updated_utc":  "2026-09-30"
                   },
                   {
@@ -1238,7 +1238,7 @@
                   {
                       "id":  "p2-b1",
                       "title":  "P2 batch B1 gate: classification engine (WP1)",
-                      "status":  "active",
+                      "status":  "done",
                       "priority":  "high",
                       "model":  "hermes",
                       "attribution":  "recorded",
@@ -1247,22 +1247,22 @@
                                     "docs/superpowers/plans/p2-batches/B1-classification.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Disk: pip cache purge +2.8GB. Full known-answer 6-mode filled C: to 453MB and was killed; Rtmp cleaned, 6.6GB free. Memory known-answer previously PASS 1419. classify PASS 35. G9 needs explicit push. B2 not started.",
+                      "notes":  "G9 green: R-CMD-check 36745355279 success on 548170f (5 OS/R + lint + install smoke). classify PASS 35. Memory known-answer PASS 1419. Live API skipped. B2 may start.",
                       "updated_utc":  "2026-09-30"
                   },
                   {
                       "id":  "p2-b2",
                       "title":  "P2 batch B2 gate: zonal engine + mask helpers (WP2, WP5A)",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-09-30T20:36:37Z",
                       "files":  [
                                     "docs/superpowers/plans/p2-batches/B2-zonal-and-masks.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Order 2 of 5. Brief: docs/superpowers/plans/p2-batches/B2-zonal-and-masks.md. Done ONLY when the verifier passes gate G1-G10 (docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md section 1A). Next batch waits for this.",
+                      "notes":  "B2 WP2+WP5A. Brief: docs/superpowers/plans/p2-batches/B2-zonal-and-masks.md",
                       "updated_utc":  "2026-09-30"
                   },
                   {

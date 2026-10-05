@@ -11,13 +11,8 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
   roadmap and gate). Science review: `docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`.
   **Implement one batch at a time, in order; the next batch starts only after the verifier passes
   gate G1-G10 and sets the batch's board task to done.** Briefs (give one to the implementing agent):
-  1. `p2-b1` → `docs/superpowers/plans/p2-batches/B1-classification.md` (classification engine) — ACTIVE (hermes).
-     Code in tree: `R/classify.R`, `tests/testthat/test-classify.R`. `devtools::test(filter='classify')`
-     [ FAIL 0 | WARN 0 | SKIP 0 | PASS 35 ]. Known-answer memory [ FAIL 0 | SKIP 4 | PASS 1419 ]
-     (stream/tiled skipped). Full 6-mode known-answer fills C: and was killed; disk
-     recovered to ~6.6 GB after Rtmp cleanup (pip cache purge freed 2.8 GB). G9 CI
-     needs an explicit push. Gate G1-G10 not closed; B2 waits.
-  2. `p2-b2` → `B2-zonal-and-masks.md` (zonal engine + mask helpers)
+  1. `p2-b1` → classification engine — DONE (hermes). SHA 548170f, R-CMD-check 36745355279 green.
+  2. `p2-b2` → `B2-zonal-and-masks.md` (zonal engine + mask helpers) — ACTIVE (hermes)
   3. `p2-b3` → `B3-indicators.md` (irrigation indicators, gaps, spots)
   4. `p2-b4` → `B4-crops-and-peff.md` (perennial crops, Kc helper, Peff methods, rainfed)
   5. `p2-b5` → `B5-plots-offline.md` (plots, offline URLs)
