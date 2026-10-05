@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-09-30T20:36:38Z",
+    "updated_utc":  "2026-10-05T14:23:51Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -867,25 +867,25 @@
                                     "R/analysis.R"
                                 ],
                       "issue_ref":  "ISS-20260925-008",
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06).",
-                      "updated_utc":  "2026-09-25"
+                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06). 2026-10-05: re-measure after perf-a (task perf-c) before building the cache; see docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 5.",
+                      "updated_utc":  "2026-10-05"
                   },
                   {
                       "id":  "ti-07",
                       "title":  "Faster remote opening of many layers (parallel / GDAL HTTP multiplexing)",
-                      "status":  "pending",
+                      "status":  "done",
                       "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-05T14:23:51Z",
                       "files":  [
                                     "R/gdal_config.R",
                                     "R/wapor_map.R",
                                     "R/processing_kernel.R"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-07).",
-                      "updated_utc":  "2026-09-24"
+                      "notes":  "CLOSED 2026-10-05 by perf-a / perf-c: opening 36 remote L3 layers takes 4.9 s (8.8 s with the old settings); root cause of slow remote reads was the 10 MB GDAL chunk default (ISS-20261005-001), fixed on branch perf/remote-io-1.0.6. No parallel opening needed.",
+                      "updated_utc":  "2026-10-05"
                   },
                   {
                       "id":  "ti-08",
@@ -1309,9 +1309,93 @@
                       "issue_ref":  null,
                       "notes":  "Order 5 of 5. Brief: docs/superpowers/plans/p2-batches/B5-plots-offline.md. Done ONLY when the verifier passes gate G1-G10 (docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md section 1A). Next batch waits for this.",
                       "updated_utc":  "2026-09-30"
+                  },
+                  {
+                      "id":  "perf-a",
+                      "title":  "Remote I/O settings: remove the 10 MB GDAL chunk default, scoped extension filter, PROJ fix independent of auto-config",
+                      "status":  "done",
+                      "priority":  "high",
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-05T12:55:18Z",
+                      "files":  [
+                                    "R/gdal_config.R",
+                                    "R/processing_kernel.R",
+                                    "R/processing_plan.R",
+                                    "R/wapor_ts.R",
+                                    "R/wapor_map.R",
+                                    "R/seasonal_download.R",
+                                    "inst/bench/remote_io_benchmark.R"
+                                ],
+                      "issue_ref":  "ISS-20261005-001",
+                      "notes":  "DONE 2026-10-05 on branch perf/remote-io-1.0.6 (not committed; maintainer to review and merge). wapor_ts() benchmark: L2 342.7 s / 1,091 MB -\u003e 20.7 s / 17.4 MB; L3 66.3 s / 232 MB -\u003e 26.9 s / 14.3 MB; values identical; 0 x 404. Full suite 0 failures, live checks 6/6, known-answer pass. Record: docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 8.",
+                      "updated_utc":  "2026-10-05"
+                  },
+                  {
+                      "id":  "perf-b",
+                      "title":  "Zonal engine speed: same output about 10x faster, chunked layer reads, sf geometry fix",
+                      "status":  "blocked",
+                      "priority":  "high",
+                      "model":  null,
+                      "attribution":  null,
+                      "claimed_utc":  null,
+                      "files":  [
+                                    "R/zonal_stats.R",
+                                    "tests/testthat/test-zonal-stats.R",
+                                    "tests/testthat/helper-zonal-reference.R",
+                                    "inst/bench/zonal_benchmark.R"
+                                ],
+                      "issue_ref":  "ISS-20261005-002",
+                      "notes":  "APPROVED 2026-10-05 but BLOCKED: p2-b2 is active under hermes, which holds R/zonal_stats.R. Start when p2-b2 is done or the maintainer releases the file. Plan: docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 4; prototype with identical output in the evidence folder (zonal_lean.R). Also fixes ISS-20261005-003.",
+                      "updated_utc":  "2026-10-05"
+                  },
+                  {
+                      "id":  "perf-c",
+                      "title":  "Level 3 staging: re-measure ti-06 / ti-07 cases after perf-a before building a cache",
+                      "status":  "done",
+                      "priority":  "medium",
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-05T14:23:51Z",
+                      "files":  [
+                                    "docs/superpowers/plans/2026-10-05-perf-io-zonal.md"
+                                ],
+                      "issue_ref":  null,
+                      "notes":  "DONE 2026-10-05 (measurement). Citrus seasonal analysis: 196 s local, 220 s API with new settings (27.6 MB), 295 s API with old settings (556 MB); adequacy 0.980 in all. wapor_map 36 L3 dekads: open 4.9 s, total 25.6 s. Streaming within 12% of local: no cache needed for speed. Record: plan section 8.",
+                      "updated_utc":  "2026-10-05"
                   }
               ],
     "issues":  [
+                   {
+                       "id":  "ISS-20261005-003",
+                       "title":  "wapor_zonal_stats(format = \"sf\") attaches wrong or empty geometries with more than one statistic",
+                       "status":  "open",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  null,
+                       "where":  "R/zonal_stats.R:214",
+                       "summary":  "Geometry is indexed by result row position instead of zone. 4 zones x 2 statistics: zone 2 rows get zone 3 geometry, zones 3 and 4 get empty geometry. Fix included in perf-b step 5."
+                   },
+                   {
+                       "id":  "ISS-20261005-002",
+                       "title":  "wapor_zonal_stats() is 9 to 12 times slower than needed and holds all layers in memory",
+                       "status":  "open",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  null,
+                       "where":  "R/zonal_stats.R",
+                       "summary":  "One data.frame() per output value (66% of time) and unrequested statistics computed for every zone and layer; one extraction call for all layers. Fix planned as perf-b (after p2-b2)."
+                   },
+                   {
+                       "id":  "ISS-20261005-001",
+                       "title":  "Default GDAL HTTP chunk of 10 MB makes remote reads download far more than needed",
+                       "status":  "open",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  null,
+                       "where":  "R/gdal_config.R (.RWAPOR_GDAL_DEFAULTS), R/processing_kernel.R (.wapor_with_gdal_chunk)",
+                       "summary":  "L2 polygon time series: 415 s / 1,091 MB with the package default, 21.5 s / 17 MB without it. GDAL fixes the chunk size at the first remote read, so the planner per-job value never applied. Fix planned as perf-a."
+                   },
                    {
                        "id":  "ISS-20260928-013",
                        "title":  "wapor_map() returned a status list instead of file paths (since 1.0.1)",
@@ -1443,6 +1527,15 @@
                    }
                ],
     "sessions":  [
+                     {
+                         "date":  "2026-10-05",
+                         "label":  "perf review and benchmarks",
+                         "model":  "claude",
+                         "attribution":  "recorded",
+                         "summary":  "Reviewed 14 external improvement suggestions against the code; benchmarked remote I/O settings and the zonal engine; wrote docs/superpowers/plans/2026-10-05-perf-io-zonal.md (WP-A, WP-B, WP-C) with evidence. No package code changed.",
+                         "commit":  null,
+                         "tests":  "benchmarks only (evidence folder next to the plan)"
+                     },
                      {
                          "date":  "2026-09-28",
                          "label":  "production-readiness plan",

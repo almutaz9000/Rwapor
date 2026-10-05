@@ -1,0 +1,11 @@
+config,method,level,npoly,rep,get_requests,range_requests,mb_requested,exit,head_requests,http_404
+gdal_default,direct,L2,150,1,325,324,15.14,0,360,324
+no_chunk,direct,L2,150,1,288,288,17.39,0,108,72
+no_chunk_ext,direct,L2,150,1,288,288,17.39,0,36,0
+gdal_default,direct,L2,150,2,325,324,15.14,0,360,324
+no_chunk,direct,L2,150,2,288,288,17.39,0,108,72
+no_chunk_ext,direct,L2,150,2,288,288,17.39,0,36,0
+rwapor_now,direct,L3,1,1,324,324,44.04,0,108,72
+no_chunk_ext,direct,L3,1,1,288,288,12.25,0,36,0
+no_chunk_ext,direct,L2,1,1,288,288,17.39,0,36,0
+no_chunk_ext,crop_first,L2,1,1,288,288,17.39,0,36,0
