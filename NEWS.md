@@ -1,5 +1,28 @@
 # Rwapor 1.0.6 (development)
 
+## Faster remote reads
+
+* The package no longer sets the GDAL HTTP chunk size (`CPL_VSIL_CURL_CHUNK_SIZE`) to
+  10 MB on load. GDAL reads remote files in whole chunks, so every remote file open
+  downloaded far more than the window it needed. Measured with `wapor_ts()` on 150
+  polygons and 36 dekads: Level 2 took 343 s and requested 1,091 MB before, 21 s and
+  17 MB now; Level 3 took 66 s and 232 MB before, 27 s and 14 MB now. Results are
+  identical. GDAL fixes this value at the first remote read of a session, so the per-job
+  chunk size in `wapor_plan_processing()` never applied and has been removed
+  (`gdal_chunk_bytes` is no longer part of the plan). `wapor_configure_gdal(chunk_size = )`
+  now defaults to `NULL` (leave GDAL's default) and accepts 1024 to 10485760; to use your
+  own value, set it before the first remote read.
+* While Rwapor reads remote rasters it limits `/vsicurl/` to `.tif` files, which stops two
+  failing side-file requests per raster. The limit is removed after each read; switch it
+  off with `options(Rwapor.remote_extension_filter = FALSE)`.
+* The PROJ fix on package load no longer depends on `RWAPOR_AUTO_CONFIG`; it has its own
+  switch, `options(Rwapor.fix_proj = FALSE)`. Without the fix, a foreign PROJ database on
+  the path (for example PostGIS) costs about 0.35 s per raster open.
+* `wapor_ts()` and `wapor_map()` print one note when a request reads more than about 2 GB
+  of cells, naming the coarser level as an option.
+* New `inst/bench/remote_io_benchmark.R` counts HTTP requests and requested megabytes for
+  a standard polygon time series and fails when its limits are exceeded.
+
 ## Zonal statistics and masks
 
 * Added weighted polygon zonal statistics, irrigation spread measures, coverage and mask fractions, and raster mask harmonization helpers.

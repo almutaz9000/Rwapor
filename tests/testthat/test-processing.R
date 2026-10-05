@@ -143,10 +143,16 @@ test_that("planner respects forced modes, worker counts and option overrides", {
   expect_error(Rwapor:::.wapor_plan_thresholds(), "named numeric")
 })
 
-test_that("GDAL chunk size follows the window size within 256 KB to 10 MB", {
-  expect_equal(Rwapor:::.wapor_gdal_chunk_bytes(1000), 256L * 1024L)
-  expect_equal(Rwapor:::.wapor_gdal_chunk_bytes(3e6), 4L * 1024L^2)
-  expect_equal(Rwapor:::.wapor_gdal_chunk_bytes(1e12), 10L * 1024L^2)
+test_that("plans carry no GDAL chunk size and large requests get one informative note", {
+  withr::local_options(Rwapor.memory_budget_mb = 1024)
+  small <- Rwapor:::.wapor_plan_core(100, 100, 1e4, n_layers = 36, n_targets = 3, workers = 1)
+  expect_false("gdal_chunk_bytes" %in% names(small))
+  expect_null(Rwapor:::.wapor_volume_note(small, "L2-AETI-D"))
+
+  big <- Rwapor:::.wapor_plan_core(40000, 40000, 16e8, n_layers = 36, n_targets = 3, workers = 1)
+  expect_match(Rwapor:::.wapor_volume_note(big, "L3-AETI-D"), "Large request.*36 layer.*Level 2")
+  expect_match(Rwapor:::.wapor_volume_note(big, "L2-AETI-D"), "Level 1 \\(300 m\\)")
+  expect_false(grepl("Level", Rwapor:::.wapor_volume_note(big, "AGERA5-ET0-E")))
 })
 
 test_that("wapor_plan_processing works from an AOI and resolution and prints", {

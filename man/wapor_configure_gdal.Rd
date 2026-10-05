@@ -5,7 +5,7 @@
 \title{Configure GDAL for Efficient HTTP Streaming}
 \usage{
 wapor_configure_gdal(
-  chunk_size = 10485760L,
+  chunk_size = NULL,
   vsi_cache = TRUE,
   vsi_cache_size = 100000000L,
   gdal_cachemax = 512L,
@@ -15,11 +15,13 @@ wapor_configure_gdal(
 )
 }
 \arguments{
-\item{chunk_size}{Integer. HTTP read chunk size in bytes.
-The GDAL built-in default (16 KB) forces hundreds of HTTP round-trips per
-raster file. Increasing this to 10 MB (default here) reduces those to a
-handful of large requests. Set higher (e.g., \code{32 * 1024^2} = 32 MB) on
-fast connections.}
+\item{chunk_size}{\code{NULL} (default) or an integer between 1024 and 10485760:
+the HTTP read chunk size in bytes (\code{CPL_VSIL_CURL_CHUNK_SIZE}). \code{NULL}
+leaves the variable alone, so GDAL uses its own default (16 KB, grown
+automatically for sequential reads). GDAL reads this value once, at the
+first remote read of the R session: set it before any remote read, or it
+has no effect. Large values make every remote file open download a whole
+chunk, which is slow for the small windows Rwapor reads.}
 
 \item{vsi_cache}{Logical. Enable the VSI (virtual file system) in-memory
 LRU cache. Avoids re-fetching raster blocks already read. Default \code{TRUE}.}
@@ -54,27 +56,33 @@ or to inspect what the package applied.
 \subsection{Why these settings matter}{
 
 WaPOR/AgERA5 rasters are hosted as Cloud-Optimized GeoTIFFs (COGs).
-GDAL accesses them via HTTP range requests through \verb{/vsicurl/}. Three
-settings have by far the largest impact:
+GDAL accesses them via HTTP range requests through \verb{/vsicurl/}.
 \enumerate{
-\item \strong{\code{CPL_VSIL_CURL_CHUNK_SIZE}} — Each GDAL block read becomes one HTTP
-range request. At the 16 KB default, a single dekadal raster crop
-may issue 200–1000 requests. At 10 MB, the same operation needs 3–5.
 \item \strong{\code{GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR"}} — GDAL normally issues
 a directory listing request before opening a remote file. Disabling it
-saves one HTTP round-trip per file.
+saves HTTP round-trips for every file.
 \item \strong{\code{VSI_CACHE = TRUE}} — Caches recently read bytes in RAM so that
 repeated access to the same raster area (e.g., during \code{crop()} + \code{mask()})
 does not re-fetch from the server.
+\item \strong{\code{CPL_VSIL_CURL_CHUNK_SIZE} is left at GDAL's default.} Up to version
+1.0.5 the package set it to 10 MB. Measured with \code{\link[=wapor_ts]{wapor_ts()}} on WaPOR v3
+(150 polygons, 36 dekads): Level 2 took 343 s and requested 1,091 MB with
+the 10 MB chunk, against 21 s and 17 MB without it; Level 3 took 66 s and
+232 MB against 27 s and 14 MB. Extracted values were identical.
 }
+
+While the package itself reads remote rasters it also limits \verb{/vsicurl/} to
+\code{.tif} files (\code{CPL_VSIL_CURL_ALLOWED_EXTENSIONS}), which stops two failing
+side-file requests per raster. The limit is removed again after each read;
+switch it off with \code{options(Rwapor.remote_extension_filter = FALSE)}.
 }
 }
 \examples{
 # Apply package defaults (also called automatically on attach)
 wapor_configure_gdal()
 
-# Larger chunks for high-bandwidth connections
-wapor_configure_gdal(chunk_size = 32L * 1024L * 1024L)
+# A specific HTTP chunk size; only effective before the first remote read
+wapor_configure_gdal(chunk_size = 1024L * 1024L)
 
 # Confirm what was applied
 wapor_gdal_settings()

@@ -637,16 +637,28 @@
   invisible(n)
 }
 
-#' Temporarily set the GDAL HTTP chunk size for one job
+#' Limit /vsicurl/ to GeoTIFF files while Rwapor reads remote rasters
+#'
+#' For every remote raster terra asks the server for `<file>.tif.vat.dbf` and
+#' `<file>.tif.aux.json`, which do not exist. `CPL_VSIL_CURL_ALLOWED_EXTENSIONS`
+#' stops those requests before they are sent. Unlike the HTTP chunk size, GDAL
+#' reads this option at run time, so it is set only for the duration of `code`
+#' and the user's own `/vsicurl/` reads of other formats are not affected.
+#' A filter the user already set is kept. Nested calls are safe: the inner call
+#' sees the filter of the outer one and leaves it alone.
+#'
+#' @param code Expression that performs the remote reads.
+#' @return The value of `code`.
 #' @keywords internal
 #' @noRd
-.wapor_with_gdal_chunk <- function(chunk_bytes, code) {
-  old <- tryCatch(terra::getGDALconfig("CPL_VSIL_CURL_CHUNK_SIZE"), error = function(e) "")
-  if (is.null(old) || !length(old) || is.na(old) || !nzchar(old)) {
-    old <- Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE", unset = "")
-  }
-  try(terra::setGDALconfig("CPL_VSIL_CURL_CHUNK_SIZE", as.character(as.integer(chunk_bytes))), silent = TRUE)
-  on.exit(try(terra::setGDALconfig("CPL_VSIL_CURL_CHUNK_SIZE", old), silent = TRUE), add = TRUE)
+.wapor_with_remote_io <- function(code) {
+  key <- "CPL_VSIL_CURL_ALLOWED_EXTENSIONS"
+  if (!isTRUE(getOption("Rwapor.remote_extension_filter", TRUE))) return(force(code))
+  old <- tryCatch(terra::getGDALconfig(key), error = function(e) "")
+  if (is.null(old) || !length(old) || is.na(old)) old <- ""
+  if (nzchar(old)) return(force(code))
+  try(terra::setGDALconfig(key, .RWAPOR_REMOTE_EXTENSIONS), silent = TRUE)
+  on.exit(try(terra::setGDALconfig(key, ""), silent = TRUE), add = TRUE)
   force(code)
 }
 
@@ -693,8 +705,7 @@
       }
       rasters[[nm]] <<- r
     }
-    .wapor_with_gdal_chunk(
-      plan$gdal_chunk_bytes,
+    .wapor_with_remote_io(
       .wapor_kernel_window(job, template, plan$batch_size, emit = emit)
     )
     return(list(rasters = rasters[intersect(out_names, names(rasters))], n_tiles = 1L, n_tiles_resumed = 0L,
@@ -781,7 +792,8 @@
 
   run_one <- function(i) {
     .wapor_worker_init(n_workers)
-    rec <- .wapor_with_gdal_chunk(plan$gdal_chunk_bytes, run_tile(windows[[i]]))
+    # Entered per tile: under a parallel plan each worker is its own process.
+    rec <- .wapor_with_remote_io(run_tile(windows[[i]]))
     # Return the finished tile's working memory before the next tile starts.
     invisible(gc(verbose = FALSE))
     rec

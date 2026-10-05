@@ -103,8 +103,7 @@
 #' @noRd
 .wapor_plan_core <- function(analysis_nrow, analysis_ncol, native_cells, n_layers,
                              n_targets = 1L, n_profiles = 1L,
-                             processing = "auto", workers = NULL,
-                             bytes_per_file_window = NULL) {
+                             processing = "auto", workers = NULL) {
   processing <- match.arg(processing, .wapor_processing_modes)
   workers <- workers %||% .wapor_n_workers()
   workers <- max(1L, as.integer(workers))
@@ -181,8 +180,6 @@
     batch_size <- fit_batch(frac)
   }
 
-  chunk <- .wapor_gdal_chunk_bytes(bytes_per_file_window)
-
   structure(
     list(
       mode = mode,
@@ -199,7 +196,6 @@
       budget_bytes = budget,
       tile_size = tile_size,
       batch_size = as.integer(batch_size),
-      gdal_chunk_bytes = chunk,
       reasons = reasons
     ),
     class = "wapor_plan"
@@ -238,7 +234,7 @@
   min(full, cells)
 }
 
-#' Plan batch size and GDAL chunk size for a download or time-series job
+#' Plan the batch size for a download or time-series job
 #'
 #' @param urls Source paths or /vsicurl/ URLs, one per layer.
 #' @param reg_info Parsed region.
@@ -247,14 +243,38 @@
 #' @noRd
 .wapor_io_plan <- function(urls, reg_info, processing = "auto", n_targets = 3L) {
   n_layers <- max(1L, length(urls))
-  first <- tryCatch(terra::rast(urls[[1]]), error = function(e) NULL)
+  first <- tryCatch(.wapor_with_remote_io(terra::rast(urls[[1]])), error = function(e) NULL)
   cells <- if (is.null(first)) 1e6 else max(1, .wapor_region_cells(first, reg_info))
   side <- sqrt(cells)
   .wapor_plan_core(
     analysis_nrow = side, analysis_ncol = side, native_cells = cells,
-    n_layers = n_layers, n_targets = n_targets, processing = processing,
-    bytes_per_file_window = cells * 4
+    n_layers = n_layers, n_targets = n_targets, processing = processing
   )
+}
+
+#' One-line note when a download or time-series job reads a very large volume
+#'
+#' Informational only: nothing is refused. Uses the cells inside the region
+#' from the plan (header information, no pixel reads).
+#' @param plan `wapor_plan` from [.wapor_io_plan()].
+#' @param variable Variable code, used to name a coarser level.
+#' @param threshold_bytes Volume above which the note is returned.
+#' @return A character string, or `NULL` below the threshold.
+#' @keywords internal
+#' @noRd
+.wapor_volume_note <- function(plan, variable, threshold_bytes = 2 * 1024^3) {
+  bytes <- as.numeric(plan$cells) * as.numeric(plan$n_layers) * 4
+  if (!is.finite(bytes) || bytes <= threshold_bytes) return(NULL)
+  coarser <- if (grepl("^L3-", variable)) {
+    " Level 2 (100 m) or Level 1 (300 m) reads far less."
+  } else if (grepl("^L2-", variable)) {
+    " Level 1 (300 m) reads about 9 times less."
+  } else {
+    ""
+  }
+  sprintf("  Large request: about %s cells x %d layer(s), roughly %s uncompressed.%s",
+          format(round(plan$cells), big.mark = ",", scientific = FALSE), as.integer(plan$n_layers),
+          .wapor_format_bytes(bytes), coarser)
 }
 
 #' Batch size from an explicit value or the plan (capped for retry granularity)
@@ -268,18 +288,6 @@
     return(as.integer(batch_size))
   }
   as.integer(max(1L, min(cap, plan$batch_size)))
-}
-
-#' GDAL HTTP chunk size matched to the bytes one file window needs
-#' @keywords internal
-#' @noRd
-.wapor_gdal_chunk_bytes <- function(bytes_per_file_window = NULL) {
-  lo <- 256 * 1024
-  hi <- 10 * 1024^2
-  if (is.null(bytes_per_file_window) || !is.finite(bytes_per_file_window)) {
-    return(as.integer(hi))
-  }
-  as.integer(max(lo, min(hi, 2^ceiling(log2(max(1, bytes_per_file_window))))))
 }
 
 .wapor_format_bytes <- function(x) {
@@ -321,7 +329,7 @@
 #'
 #' @return An object of class `wapor_plan` with the chosen `mode`, the
 #'   estimate (`working_set_bytes`, `budget_bytes`), `batch_size`, `tile_size`,
-#'   `gdal_chunk_bytes`, and the `reasons` for the choice.
+#'   and the `reasons` for the choice.
 #'
 #' @details
 #' The memory budget is half of the free RAM divided by the number of workers.
@@ -374,8 +382,7 @@ wapor_plan_processing <- function(template = NULL, aoi = NULL, resolution = NULL
   .wapor_plan_core(
     analysis_nrow = nr, analysis_ncol = nc, native_cells = native_cells,
     n_layers = n_layers, n_targets = n_targets, n_profiles = n_profiles,
-    processing = processing, workers = workers,
-    bytes_per_file_window = max(native_cells) * 4
+    processing = processing, workers = workers
   )
 }
 
@@ -393,7 +400,6 @@ print.wapor_plan <- function(x, ...) {
               .wapor_format_bytes(x$working_set_bytes), .wapor_format_bytes(x$budget_bytes), x$workers))
   cat(sprintf("  batch size  : %d dekad(s)\n", x$batch_size))
   if (!is.na(x$tile_size)) cat(sprintf("  tile size   : %d px\n", x$tile_size))
-  cat(sprintf("  GDAL chunk  : %s\n", .wapor_format_bytes(x$gdal_chunk_bytes)))
   cat("  reasons     :\n")
   for (r in x$reasons) cat("    - ", r, "\n", sep = "")
   invisible(x)
