@@ -77,6 +77,24 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Pending — Next Session (Production Hardening continuation)
 
+- **Performance: remote I/O settings and zonal engine speed (perf-a, perf-b, perf-c)** —
+  APPROVED by the maintainer 2026-10-05. **perf-a DONE** on branch `perf/remote-io-1.0.6`
+  (NOT committed: maintainer to review, commit and merge into `version-1.0.6`). **perf-c DONE**
+  (measurements). **perf-b BLOCKED** until `p2-b2` is done (Hermes holds `R/zonal_stats.R`).
+  Results and deviations: plan section 8. Plan with benchmarks:
+  `docs/superpowers/plans/2026-10-05-perf-io-zonal.md`; scripts and result tables in the
+  `-evidence` folder next to it. Decisions D-A1, D-A2, D-B1, D-O1 are in plan section 6.
+  1. `perf-a` (plan section 3): remove the 10 MB GDAL chunk default, scoped `.tif` extension
+     filter, PROJ fix independent of auto-config. Measured: Level 2, 150 polygons x 36 dekads,
+     415 s / 1,091 MB now, 21.5 s / 17 MB proposed; Level 3 12.2 s to 5.3 s; values identical.
+     Own branch `perf/remote-io-1.0.6`; touches no P2 file. ISS-20261005-001. Replaces the
+     approach of `ti-07`.
+  2. `perf-b` (plan section 4): `wapor_zonal_stats()` same output about 10 times faster, layers
+     read in chunks, `format = "sf"` geometry fix. **Starts only after `p2-b2` is done.**
+     ISS-20261005-002, ISS-20261005-003.
+  3. `perf-c` (plan section 5): after `perf-a`, re-measure the `ti-06` and `ti-07` cases before
+     anyone builds a download cache.
+
 - **Training-driven Rwapor improvements (ti-01 to ti-16)** —
   Proposed 2026-09-24 from the WaPOR training case studies; nothing approved or
   started. Review each item (accept / change / reject, target release) in

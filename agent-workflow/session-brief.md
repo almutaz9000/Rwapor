@@ -3,7 +3,35 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
+## Current Session — 2026-10-05 — Review of external suggestions, benchmarks, performance plan (Claude)
+
+**What happened**: Reviewed 14 improvement suggestions from another AI model against the code.
+Most are already implemented; gdalcubes/stars, `scoff()` retention and new plotting packages are
+not worth it (reasons in the plan, section 1). Live benchmarks found two large problems of our own:
+the 10 MB GDAL chunk default (Level 2 extraction 415 s / 1,091 MB against 21.5 s / 17 MB) and the
+R bookkeeping in `wapor_zonal_stats()` (56 s against 6 s, identical output). Wrote
+`docs/superpowers/plans/2026-10-05-perf-io-zonal.md` (WP-A, WP-B, WP-C) with an evidence folder.
+Logged ISS-20261005-001/-002/-003 and board tasks `perf-a`, `perf-b`, `perf-c` (pending).
+No package code changed; `R/zonal_stats.R` (Hermes, `p2-b2`) not touched.
+
+**Verification**: benchmarks only; extracted values identical across all GDAL settings; prototype
+zonal loop identical to the current function in 7 cases.
+
+**Later the same day (approved: perf-a first, then the proposed order)**: implemented `perf-a` on
+branch `perf/remote-io-1.0.6` (uncommitted): no GDAL chunk default, scoped `.tif` filter
+(`.wapor_with_remote_io()`), chunk plan removed, PROJ fix independent of auto-config, volume note,
+`inst/bench/remote_io_benchmark.R`, NEWS. Verified: real `wapor_ts()` Level 2 342.7 s / 1,091 MB
+to 20.7 s / 17.4 MB, Level 3 66.3 s / 232 MB to 26.9 s / 14.3 MB, values identical; full suite
+0 failures; live checks 6/6; live API tests 124 pass; known-answer pass. `perf-c` measured: citrus
+seasonal analysis 196 s local, 220 s streamed (295 s with old settings); opening 36 L3 layers 4.9 s.
+`ti-07` closed; `ti-06` only needed for offline work. `perf-b` not started: `p2-b2` still active.
+
+**Next**: maintainer reviews and commits the branch (working tree also holds the workflow logs and
+the plan), merges it into `version-1.0.6`; decides D-B1; releases or finishes `p2-b2` so `perf-b`
+can start. Open observation: `exact_extract()` inside `wapor_ts()` at Level 3 varies 4 to 34 s
+(plan section 8).
+
+## Previous Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
 
 **What happened**: Reviewed board vs source. P2 B1 is the only next implementation slice.
 Claimed `p2-b1` and `ti-10` (WP1 only). Dispatched an implementer plus a WaPOR oracle.

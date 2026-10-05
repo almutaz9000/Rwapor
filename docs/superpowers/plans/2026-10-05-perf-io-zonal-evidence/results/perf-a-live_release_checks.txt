@@ -1,0 +1,10 @@
+[PASS] L1-AETI-D map = raw COG x scale (x 10 days)                   3.9s  scale 0.1; 324 px; mean raw 38.0 -> 3.799 mm/day, 37.99 mm/dekad; max diff 2e-07 / 7e-15
+[PASS] L3-AETI-D (JVA) map = raw COG x scale (x 10 days)             2.5s  scale 0.1; 11172 px; mean raw 22.4 -> 2.240 mm/day, 22.40 mm/dekad; max diff 2e-07 / 7e-15
+[PASS] seasonal analysis: API stream equals local downloads          9.3s  seasonal AETI mean 110.16 mm (API) vs 110.16 mm (local), max |diff| 3e-14
+Warning message:
+[is.lonlat] coordinates are out of range for lon/lat 
+[PASS] seasonal ETc = daily Kc x RET from raw COGs (season from 1 March)   10.4s  ETc 316.53 mm (package) vs 316.54 mm (formula); adequacy 0.575
+[PASS] dashboard download confirmation (file.exists(unlist(result)))    0.9s  4 file(s) found
+[PASS] run_wapor(): live L3 list and HTTP 200                       42.1s  HTTP 200; L3 list from the API (37 regions)
+
+6 live check(s), 0 failed.

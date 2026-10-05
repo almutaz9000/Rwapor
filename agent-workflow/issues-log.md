@@ -5,6 +5,53 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20261005-001 — RESOLVED 2026-10-05 (branch `perf/remote-io-1.0.6`, not yet merged): default GDAL HTTP chunk of 10 MB made remote reads download far more than needed
+
+- **Where**: `R/gdal_config.R` `.RWAPOR_GDAL_DEFAULTS` (`CPL_VSIL_CURL_CHUNK_SIZE = 10485760`, set on
+  load); `R/processing_kernel.R` `.wapor_with_gdal_chunk()`.
+- **Root cause**: GDAL reads remote files in whole chunks, and fixes the chunk size at the first
+  remote read of the session. Opening one global Level 2 file and reading a 1 km window requests
+  20 MB (0.23 MB with GDAL's default). The planner's per-job chunk value is set too late and has
+  never applied. In addition terra asks for `<file>.tif.vat.dbf` and `<file>.tif.aux.json` for
+  every file (two 404 responses each).
+- **Impact**: `wapor_ts()`-style extraction, 150 polygons x 36 dekads: Level 2 415 s and 1,091 MB
+  requested (21.5 s and 17 MB without the chunk setting and with a `.tif` extension filter);
+  Level 3 12.2 s against 5.3 s. Extracted values identical. Explains most of `ti-07`.
+- **Fix / mitigation**: `perf-a` implemented (plan section 8): the chunk default is gone,
+  `wapor_configure_gdal(chunk_size = NULL)`; `.wapor_with_remote_io()` limits `/vsicurl/` to
+  `.tif` only while the package reads; the unused per-job chunk plan is removed; the PROJ fix no
+  longer depends on `RWAPOR_AUTO_CONFIG`. Real `wapor_ts()`, 150 polygons x 36 dekads: Level 2
+  342.7 s / 1,090.6 MB before, 20.7 s / 17.4 MB after; Level 3 66.3 s / 232.3 MB before,
+  26.9 s / 14.3 MB after; values identical. Users of 1.0.5 can set
+  `CPL_VSIL_CURL_CHUNK_SIZE=16384` in `.Renviron` until they upgrade.
+- **Regression tests**: `test-gdal_config.R` (no chunk default, scoped filter, PROJ fix on load),
+  `test-processing.R`; `inst/bench/remote_io_benchmark.R` (live, fails above 25 MB / 15 MB or any 404).
+- **Verification**: 2026-10-05, GDAL 3.12.1, terra 1.9.34; scripts and CSVs in
+  `docs/superpowers/plans/2026-10-05-perf-io-zonal-evidence/` (`net_worker.R`, `sticky.R`).
+
+### ISS-20261005-002 — `wapor_zonal_stats()` is 9 to 12 times slower than needed and holds all layers in memory
+
+- **Where**: `R/zonal_stats.R` (`add()` at line 177, `vals` at line 179, single `exact_extract()` at 145).
+- **Root cause**: one `data.frame()` per output value (66% of run time), a final `rbind` of all of
+  them (11%), and Gini, Theil, DU and CU computed for every zone and layer even when not requested.
+  All layers are extracted in one call, so memory grows with the number of layers.
+- **Impact**: 400 zones x 12 layers on 800 x 800 cells: 56 s (6 s with a restructured loop, output
+  identical). Default call (two id levels, AOI) on 1500 x 1500: 140 to 573 s, up to 2.45 GB.
+- **Fix / mitigation**: not fixed yet. Planned as `perf-b` (plan section 4), after `p2-b2`.
+- **Regression tests**: none yet (equivalence tests against the frozen current function, plan step 6).
+- **Verification**: 2026-10-05, evidence folder (`zonal_bench.R`, `zonal_prof.R`, `zonal_lean.R`).
+
+### ISS-20261005-003 — `wapor_zonal_stats(format = "sf")` attaches wrong or empty geometries
+
+- **Where**: `R/zonal_stats.R:214`.
+- **Root cause**: zone geometries are indexed with row positions of the result
+  (`match(ans$zone_key, ans$zone_key)`) instead of zone positions.
+- **Impact**: with more than one statistic per zone. 4 zones x 2 statistics: rows of zone 2 carry
+  the geometry of zone 3; rows of zones 3 and 4 have empty geometry. One statistic is correct.
+- **Fix / mitigation**: not fixed yet. Included in `perf-b` step 5; can also be fixed inside `p2-b2`.
+- **Regression tests**: none yet.
+- **Verification**: 2026-10-05, evidence folder (`sf_check.R`).
+
 ### ISS-20260929-018 — RESOLVED 2026-09-29: monitoring layers lost silently, scale depends on terra
 
 - **Where**: `R/wapor_monitoring.R` `wapor_save_raster_blobs()`.

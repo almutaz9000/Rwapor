@@ -1,0 +1,11 @@
+"config","method","level","npoly","planned_chunk","batch","t_open","t_total","checksum"
+"gdal_default","direct","L2",150,262144,36,49.72,58.92,7689.98769
+"no_chunk","direct","L2",150,262144,36,25.15,35.04,7689.98769
+"no_chunk_ext","direct","L2",150,262144,36,14.06,21.4,7689.98769
+"gdal_default","direct","L2",150,262144,36,40.08,48.72,7689.98769
+"no_chunk","direct","L2",150,262144,36,20.76,30.17,7689.98769
+"no_chunk_ext","direct","L2",150,262144,36,13.64,21.63,7689.98769
+"rwapor_now","direct","L3",1,4194304,36,14.65,29.09,64.9551664
+"no_chunk_ext","direct","L3",1,4194304,36,2.06,6.22,64.9551664
+"no_chunk_ext","direct","L2",1,262144,36,12.42,18.59,50.63650811
+"no_chunk_ext","crop_first","L2",1,262144,36,11.33,17.02,50.63650811

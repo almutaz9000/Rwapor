@@ -135,6 +135,16 @@ merge or remove stale entries rather than letting it grow unbounded._
   `python -m json.tool` check on it needs `encoding='utf-8-sig'` too. Found
   2026-09-17 when this silently broke the dashboard on every board update
   since the tool was created — see `issues-log.md` ISS-20260917-001.
+- **GDAL fixes `CPL_VSIL_CURL_CHUNK_SIZE` at the first remote read of the session.** Setting it
+  later (env or `terra::setGDALconfig()`) changes what `getGDALconfig()` reports but not the
+  requests. Large values make every remote open download a whole chunk (10 MB chunk: 20 MB for a
+  1 km window of a Level 2 file). `CPL_VSIL_CURL_ALLOWED_EXTENSIONS`, in contrast, works at run
+  time. Measured 2026-10-05 (GDAL 3.12.1) — ISS-20261005-001.
+- **Benchmark remote I/O by requests and megabytes, in a fresh process per setting.** Run the
+  child with `CPL_CURL_VERBOSE=YES`, capture stderr, count `Range: bytes=a-b` lines. If
+  `RWAPOR_AUTO_CONFIG=false` is used to control settings, set `PROJ_LIB`/`PROJ_DATA` yourself:
+  without the PROJ fix every raster open costs about 0.35 s on this machine (PostGIS PROJ on the
+  path) and timings are wrong by seconds. Scripts: `docs/superpowers/plans/2026-10-05-perf-io-zonal-evidence/`.
 
 ## Stable Project Constraints
 
