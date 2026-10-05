@@ -1,5 +1,9 @@
 # Rwapor 1.0.6 (development)
 
+## Zonal statistics and masks
+
+* Added weighted polygon zonal statistics, irrigation spread measures, coverage and mask fractions, and raster mask harmonization helpers.
+
 ## Classification
 
 * Added configurable fixed and type-7 quantile classification with literature-backed adequacy, equity, irrigation-method uniformity, and productivity-spot schemes. Results retain thresholds and source metadata, including through GeoTIFF metadata.
