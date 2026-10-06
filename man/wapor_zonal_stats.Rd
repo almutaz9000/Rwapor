@@ -43,7 +43,7 @@ wapor_zonal_stats(
 
 \item{mask}{Optional binary raster.}
 
-\item{weights}{Optional fractional raster in \link{0, 1}.}
+\item{weights}{Optional fractional raster in 0 to 1.}
 
 \item{dissolve}{Dissolve duplicate zone ids.}
 

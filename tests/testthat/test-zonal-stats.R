@@ -137,3 +137,120 @@ test_that("wide format", {
   w <- wapor_zonal_stats(r, z, "id", stats = c("mean", "count"), aoi = FALSE, format = "wide")
   expect_true("mean" %in% names(w))
 })
+
+# =============================================================================
+# perf-b: the restructured engine returns exactly the table of the frozen
+# reference (tests/testthat/helper-zonal-reference.R), for any layer chunk size
+# =============================================================================
+
+.zeq_fixture <- function() {
+  set.seed(7)
+  r <- terra::rast(nrows = 60, ncols = 60, xmin = 700000, xmax = 701200, ymin = 3600000, ymax = 3601200,
+                   crs = "EPSG:32636", nlyrs = 6)
+  x <- round(stats::runif(60 * 60 * 6, 0, 80)) / 10
+  x[sample(length(x), 600)] <- NA
+  terra::values(r) <- x
+  names(r) <- sprintf("d%02d", 1:6)
+  terra::units(r) <- "mm/day"
+  r[[1]][1:20, 1:20] <- NA                      # one zone falls below min_coverage in layer 1
+  g <- expand.grid(i = 0:2, j = 0:2)
+  z <- sf::st_sf(
+    scheme = paste0("S", g$i %/% 2), farm = sprintf("f%02d ", seq_len(9)),
+    geometry = sf::st_sfc(lapply(seq_len(9), function(k) {
+      x0 <- 700000 + g$i[k] * 400 + 7; y0 <- 3600000 + g$j[k] * 400 + 13   # borders cut cells
+      sf::st_polygon(list(cbind(x0 + c(0, 290, 290, 0, 0), y0 + c(0, 0, 250, 250, 0))))
+    }), crs = 32636)
+  )
+  square <- function(x0, y0, side) sf::st_sfc(sf::st_polygon(list(cbind(
+    x0 + c(0, side, side, 0, 0), y0 + c(0, 0, side, side, 0)))), crs = 32636)
+  z <- rbind(z,
+             sf::st_sf(scheme = "S9", farm = "away", geometry = square(900000, 3600000, 50)),   # no overlap
+             sf::st_sf(scheme = "S0", farm = "tiny", geometry = square(700905, 3600905, 30)))   # under 3 x 3 cells
+  full <- terra::rast(r[[1]]); terra::values(full) <- round(stats::runif(3600, 0, 80)) / 10
+  names(full) <- "full"; terra::units(full) <- "mm"
+  mk <- terra::rast(r[[1]]); terra::values(mk) <- stats::rbinom(3600, 1, .7)
+  wt <- terra::rast(r[[1]]); terra::values(wt) <- stats::runif(3600)
+  cl <- terra::rast(r[[1]]); terra::values(cl) <- sample(1:4, 3600, TRUE); names(cl) <- "cls"
+  list(r = r, z = z, full = full, mask = mk, weights = wt, classes = cl)
+}
+
+.zeq_run <- function(f, args) {
+  w <- character()
+  v <- withCallingHandlers(
+    tryCatch(do.call(f, args), error = function(e) paste("ERROR:", conditionMessage(e))),
+    warning = function(cnd) { w <<- c(w, conditionMessage(cnd)); invokeRestart("muffleWarning") }
+  )
+  list(value = v, warnings = w)
+}
+
+.zeq_cases <- function(fx) {
+  all_stats <- c("mean", "sd", "cv", "cu", "du_lq", "gini", "theil", "min", "max", "count", "n_eff",
+                 "quantiles", "area_ha", "mask_fraction", "coverage", "sum_volume")
+  list(
+    defaults_two_levels_aoi = list(x = fx$r, zones = fx$z, id = c("scheme", "farm")),
+    all_stats_with_days = list(x = fx$r, zones = fx$z, id = "farm", stats = all_stats, days = rep(10, 6),
+                               dissolve = FALSE, aoi = FALSE),
+    all_stats_volume_skipped = list(x = fx$r, zones = fx$z, id = "farm", stats = all_stats, aoi = FALSE),
+    mask_and_weights = list(x = fx$r, zones = fx$z, id = "farm", mask = fx$mask, weights = fx$weights,
+                            stats = c("mean", "sd", "coverage", "mask_fraction", "quantiles")),
+    sample_sd_thresholds = list(x = fx$r, zones = fx$z, id = "farm", stats = c("mean", "sd", "cv", "quantiles"),
+                                sd_type = "sample", probs = c(.05, .5, .95), min_coverage = .9,
+                                min_cell_fraction = .5, min_mask_area_ha = 1),
+    class_share_breaks = list(x = fx$full, zones = fx$z, id = "farm", stats = c("mean", "class_share"),
+                              breaks = c(2, 4, 6), labels = c("a", "b", "c", "d"), aoi = FALSE),
+    class_share_integer_layer = list(x = fx$classes, zones = fx$z, id = "farm", stats = "class_share"),
+    count_only = list(x = fx$r, zones = fx$z, id = "farm", stats = "count", aoi = FALSE),
+    layers_season_raw_ids = list(x = fx$r, zones = fx$z, id = "farm", layers = c(3, 5), season = "2024",
+                                 normalize_id = FALSE),
+    wide = list(x = fx$r[[1:2]], zones = fx$z, id = "farm", stats = c("mean", "coverage"), format = "wide",
+                aoi = FALSE),
+    class_share_error = list(x = fx$r[[2]], zones = fx$z, id = "farm", stats = "class_share")
+  )
+}
+
+test_that("restructured wapor_zonal_stats() equals the frozen reference, tables and warnings", {
+  skip_if_not_installed("exactextractr")
+  fx <- .zeq_fixture()
+  cases <- .zeq_cases(fx)
+  for (nm in names(cases)) {
+    ref <- .zeq_run(reference_zonal_stats, cases[[nm]])
+    new <- .zeq_run(Rwapor::wapor_zonal_stats, cases[[nm]])
+    expect_identical(new$value, ref$value, info = nm)
+    expect_identical(new$warnings, ref$warnings, info = nm)
+  }
+  # The cases exercise what they claim to.
+  expect_true(any(grepl("no overlap", .zeq_run(reference_zonal_stats, cases$defaults_two_levels_aoi)$warnings)))
+  expect_true(any(grepl("below min_coverage", .zeq_run(reference_zonal_stats, cases$defaults_two_levels_aoi)$warnings)))
+  expect_match(.zeq_run(reference_zonal_stats, cases$class_share_error)$value, "^ERROR: class_share needs")
+  expect_true(any(.zeq_run(reference_zonal_stats, cases$class_share_breaks)$value$stat == "class_pct"))
+})
+
+test_that("wapor_zonal_stats() gives the same table whatever the number of layers read at once", {
+  skip_if_not_installed("exactextractr")
+  fx <- .zeq_fixture()
+  cases <- .zeq_cases(fx)[c("defaults_two_levels_aoi", "all_stats_volume_skipped", "mask_and_weights")]
+  for (budget_mb in c(0.02, 0.5)) {              # one layer per read, and a few
+    withr::with_options(list(Rwapor.memory_budget_mb = budget_mb), {
+      for (nm in names(cases)) {
+        ref <- .zeq_run(reference_zonal_stats, cases[[nm]])
+        new <- .zeq_run(Rwapor::wapor_zonal_stats, cases[[nm]])
+        expect_identical(new$value, ref$value, info = paste(nm, budget_mb))
+        expect_identical(new$warnings, ref$warnings, info = paste(nm, budget_mb))
+      }
+    })
+  }
+})
+
+test_that("format = 'sf' gives every row the geometry of its own zone (ISS-20261005-003)", {
+  skip_if_not_installed("exactextractr")
+  fx <- .zeq_fixture()
+  z <- fx$z[1:4, ]
+  out <- suppressWarnings(Rwapor::wapor_zonal_stats(fx$r[[2:3]], z, id = "farm", dissolve = FALSE, aoi = FALSE,
+                                                    stats = c("mean", "area_ha"), format = "sf"))
+  expect_s3_class(out, "sf")
+  expect_equal(nrow(out), 4 * 2 * 2)
+  expect_false(any(sf::st_is_empty(out)))
+  own <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(z)))[match(out$zone_id, toupper(trimws(z$farm))), ]
+  got <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(out)))
+  expect_equal(unname(got), unname(own))
+})
