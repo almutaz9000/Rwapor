@@ -2,16 +2,18 @@
 % Please edit documentation in R/zonal_stats.R
 \name{wapor_zonal_wide}
 \alias{wapor_zonal_wide}
-\title{Convert a long zonal result to one row per zone and variable.}
+\title{One Row per Zone and Variable from a Long Zonal Table}
 \usage{
 wapor_zonal_wide(z)
 }
 \arguments{
-\item{z}{A \code{wapor_zonal} or long data frame.}
+\item{z}{A long table returned by \code{\link[=wapor_zonal_stats]{wapor_zonal_stats()}}.}
 }
 \value{
-Wide data frame.
+A data frame with \code{level}, \code{zone_id}, \code{zone_key}, the id columns,
+\code{season} and \code{variable}, and one column per statistic. Class rows become
+columns named \verb{<stat>.<class>} (for example \code{class_pct.good}).
 }
 \description{
-Convert a long zonal result to one row per zone and variable.
+One Row per Zone and Variable from a Long Zonal Table
 }

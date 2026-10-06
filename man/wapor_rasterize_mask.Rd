@@ -2,7 +2,7 @@
 % Please edit documentation in R/mask_helpers.R
 \name{wapor_rasterize_mask}
 \alias{wapor_rasterize_mask}
-\title{Rasterize polygon masks on a template grid.}
+\title{Rasterize Polygons to a Mask on a Template Grid}
 \usage{
 wapor_rasterize_mask(
   polygons,
@@ -14,21 +14,46 @@ wapor_rasterize_mask(
 )
 }
 \arguments{
-\item{polygons}{sf, SpatVector, or vector file path.}
+\item{polygons}{\code{sf}, \code{SpatVector}, or a vector file path.}
 
-\item{template}{Template terra SpatRaster.}
+\item{template}{\code{SpatRaster} whose grid the mask gets.}
 
-\item{field}{Optional polygon attribute to rasterize.}
+\item{field}{Optional polygon attribute to write into the mask instead of \code{value}.}
 
-\item{value}{Constant value when \code{field} is NULL.}
+\item{value}{Value of mask cells when \code{field} is \code{NULL}. Default \code{1}.}
 
-\item{touches}{Include cells touched by polygons.}
+\item{touches}{Logical. Include every cell a polygon touches, not only cells
+whose centre is inside. Ignored with \code{fraction = TRUE}.}
 
-\item{fraction}{Return covered fractions instead of a binary raster.}
+\item{fraction}{Logical. Return the fraction of each cell covered by the
+polygons (0 to 1; overlapping or adjacent polygons are merged first)
+instead of a binary mask. Use it as \code{weights} in \code{\link[=wapor_zonal_stats]{wapor_zonal_stats()}},
+especially at 100 m and 300 m, where most cells along field borders are mixed.}
 }
 \value{
-A SpatRaster named \code{crop_mask}; fraction rasters carry \code{area_ratio}.
+A \code{SpatRaster} named \code{crop_mask} (cells outside are \code{NA} for a binary
+mask, \code{0} for a fraction). Attribute \code{"area_ratio"} is the mask area
+divided by the polygon area.
 }
 \description{
-Rasterize polygon masks on a template grid.
+Turns polygons (for example crop fields) into a mask on the grid of a WaPOR
+raster. The polygons are reprojected to the template's CRS first: rasterizing
+lon/lat polygons directly on a UTM grid (WaPOR Level 3) gives an empty mask.
+}
+\details{
+Area check: a warning is given when the mask area differs from the polygon
+area by more than 10\% and the polygons cover at least 25 cells. For smaller
+polygons a centre-based mask is too coarse for the check to mean anything;
+use \code{fraction = TRUE} there.
+}
+\examples{
+template <- terra::rast(nrows = 10, ncols = 10, xmin = 700000, xmax = 700200,
+                        ymin = 3600000, ymax = 3600200, crs = "EPSG:32636")
+field <- sf::st_sf(id = 1, geometry = sf::st_as_sfc(sf::st_bbox(
+  c(xmin = 700030, ymin = 3600030, xmax = 700130, ymax = 3600130), crs = 32636)))
+m <- wapor_rasterize_mask(field, template, fraction = TRUE)
+attr(m, "area_ratio")
+}
+\seealso{
+\code{\link[=wapor_harmonize_mask]{wapor_harmonize_mask()}}, \code{\link[=wapor_zonal_stats]{wapor_zonal_stats()}}.
 }
