@@ -3,7 +3,36 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-10-05 — Review of external suggestions, benchmarks, performance plan (Claude)
+## Current Session — 2026-10-06 — ti-06 taken over: wapor_download() and config$cache_dir (Claude)
+
+**What happened**: `version-1.0.6` pushed (perf-a, perf-b, plan; `c4172eb`). The maintainer
+assigned `ti-06`. Implemented on branch `feat/wapor-download-1.0.6` (uncommitted): exported
+`wapor_download()` (one scaled Float32 file per date under `<folder>/<variable>/`, skips saved
+files, writes under a temporary name, works offline from saved files with a warning, refuses
+another area in the same folder) and opt-in `config$cache_dir` in the seasonal engine (saves what
+the run needs, then runs as a local run). Not available with `l3_mode = "mosaic_all"`.
+
+**Verification**: `test-download-cache.R` 36 expectations; focused `analysis-engine` 78,
+`processing` 250, `internal-helpers` 29; full suite 0 failures (one test was edited while the
+run was in progress and passes on rerun); live release checks 6/6; R CMD check without tests
+0 errors, 0 warnings, 3 notes (time, `training.zip`, unqualified `approx`/`median`/`setNames`
+in the B2 files). Live: cache equals stream within 6e-06 mm; second run 1.9 s vs 7.0 s; offline OK.
+
+**Later**: on the maintainer's instruction, fixed ISS-20261005-004 (zone areas in an equal-area
+projection, no lwgeom, no s2 switch) and ISS-20261005-005 (`wapor_classify()` accepts NA/NaN as
+missing) on the same branch, with regression tests; qualified `stats::approx`, `stats::setNames`,
+`stats::median` in the B2 files. Training notebook: `download_wapor()` now calls
+`wapor_download()` when the installed Rwapor has it and keeps its own code for older versions;
+checked on the saved citrus data online and through a dead proxy (72 files returned, none
+rewritten). Full render against this branch (temporary library, separate output file): exit 0
+in 23 minutes, 47 PASS lines and the one intended CHECK (F001) as in the existing HTML, no
+warnings. Final gates on the branch: full suite 0 failures (7 skips), R CMD check without tests
+0 errors, 0 warnings, 2 notes (clock, `training.zip`).
+
+**Next**: maintainer reviews and commits the branch. Still open: Hermes rebase of `p2-b2`
+(`R/zonal_stats.R`, `R/classify.R`, `R/mask_helpers.R` changed), decision D-B1.
+
+## Previous Session — 2026-10-05 — Review of external suggestions, benchmarks, performance plan (Claude)
 
 **What happened**: Reviewed 14 improvement suggestions from another AI model against the code.
 Most are already implemented; gdalcubes/stars, `scoff()` retention and new plotting packages are

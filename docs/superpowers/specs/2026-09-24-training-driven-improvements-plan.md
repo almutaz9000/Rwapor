@@ -116,6 +116,15 @@ Every P0 fix must come with a regression test that fails before the fix.
 
 ### ti-06: download once, analyse many (built-in offline cache)
 
+> **Status 2026-10-06: IMPLEMENTED** (Claude, branch `feat/wapor-download-1.0.6`, assigned by the
+> maintainer). `wapor_download()` in `R/download_cache.R`; opt-in `config$cache_dir` in
+> `wapor_run_seasonal_analysis()`; item 3 below was already fixed in 1.0.4 (ISS-20260925-008).
+> Open question answered: there is no default cache location, the folder is always given by the
+> user, and it is tied to the area of its first download. The speed evidence below no longer
+> holds since perf-a (streamed 220 s against 196 s local, `2026-10-05-perf-io-zonal.md`
+> section 8); the feature is for offline and repeated work. Verified live: cached result within
+> 6e-06 mm of the streamed one (mean 98 mm), second run 1.9 s against 7.0 s, identical result
+> through a dead proxy.
 - **Evidence**: the API-streaming seasonal analysis of the small citrus AOI
   (0.93 M cells, 36 dekads, 4 variables) took about 30 minutes; downloading the
   same dekads as files took 55 s per variable (11 MB) and the local analysis

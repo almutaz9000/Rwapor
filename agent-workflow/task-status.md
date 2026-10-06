@@ -77,6 +77,15 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Pending — Next Session (Production Hardening continuation)
 
+- **ti-06: download once, work offline** — DONE 2026-10-06 (Claude) on branch
+  `feat/wapor-download-1.0.6`, NOT committed (maintainer to review). New exported
+  `wapor_download()` (`R/download_cache.R`: one scaled file per date, skips saved files, atomic
+  writes, offline fallback, one folder per area) and opt-in `config$cache_dir` in
+  `wapor_run_seasonal_analysis()`. Tests `test-download-cache.R` (36 expectations); full suite
+  0 failures on the final code path, live release checks 6/6, R CMD check (no tests) 0 errors,
+  0 warnings. Note for the B2 owner: the check NOTE "no visible global function definition for
+  approx / median / setNames" comes from `R/zonal_stats.R` and `R/mask_helpers.R`.
+
 - **Performance: remote I/O settings and zonal engine speed (perf-a, perf-b, perf-c)** —
   APPROVED by the maintainer 2026-10-05. **perf-a DONE** and committed to `version-1.0.6` (`a9e14b7`; originally on branch `perf/remote-io-1.0.6`
   (NOT committed: maintainer to review, commit and merge into `version-1.0.6`). **perf-c DONE**

@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-06T07:16:18Z",
+    "updated_utc":  "2026-10-06T09:10:13Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -856,19 +856,19 @@
                   {
                       "id":  "ti-06",
                       "title":  "Download-once cache: exported wapor_download() + config$cache_dir; local reader ignores _seasonal files",
-                      "status":  "pending",
+                      "status":  "done",
                       "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-06T07:53:19Z",
                       "files":  [
                                     "R/download_cache.R",
                                     "R/analysis_engine.R",
                                     "R/analysis.R"
                                 ],
                       "issue_ref":  "ISS-20260925-008",
-                      "notes":  "REVIEW FIRST: proposed from the WaPOR training case studies, not approved. Decide accept/change/reject and target release before coding. Details and evidence: docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md (section ti-06). 2026-10-05: re-measure after perf-a (task perf-c) before building the cache; see docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 5.",
-                      "updated_utc":  "2026-10-05"
+                      "notes":  "DONE 2026-10-06 on branch feat/wapor-download-1.0.6 (not committed; maintainer to review). wapor_download() (R/download_cache.R) and opt-in config$cache_dir in wapor_run_seasonal_analysis(); item 3 was already fixed in 1.0.4. Tests test-download-cache.R (36); full suite 0 failures; live checks 6/6; R CMD check (no tests) 0 errors / 0 warnings. Live: cache = stream within 6e-06 mm, second run 1.9 s vs 7.0 s, offline through a dead proxy identical.",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "ti-07",
@@ -1369,22 +1369,22 @@
                    {
                        "id":  "ISS-20261005-005",
                        "title":  "class_share with breaks or scheme fails when a zone contains NoData cells",
-                       "status":  "open",
+                       "status":  "resolved",
                        "model":  "claude",
                        "attribution":  "recorded",
                        "owner":  "hermes",
                        "where":  "R/zonal_stats.R (class_share block)",
-                       "summary":  "exactextractr returns NaN for NoData; wapor_classify() rejects NaN. Found during perf-b; behaviour of the B2 code, not fixed."
+                       "summary":  "exactextractr returns NaN for NoData; wapor_classify() rejects NaN. Found during perf-b; behaviour of the B2 code, not fixed. RESOLVED 2026-10-06 by claude on the maintainer instruction (branch feat/wapor-download-1.0.6), with regression tests."
                    },
                    {
                        "id":  "ISS-20261005-004",
                        "title":  "wapor_zonal_stats() fails on lon/lat rasters (Level 1, Level 2) without the lwgeom package",
-                       "status":  "open",
+                       "status":  "resolved",
                        "model":  "claude",
                        "attribution":  "recorded",
                        "owner":  "hermes",
                        "where":  "R/zonal_stats.R (sf_use_s2(FALSE) + st_area)",
-                       "summary":  "st_area() on geographic coordinates with s2 off needs lwgeom, which is not in DESCRIPTION. Found during perf-b; behaviour of the B2 code, not fixed."
+                       "summary":  "st_area() on geographic coordinates with s2 off needs lwgeom, which is not in DESCRIPTION. Found during perf-b; behaviour of the B2 code, not fixed. RESOLVED 2026-10-06 by claude on the maintainer instruction (branch feat/wapor-download-1.0.6), with regression tests."
                    },
                    {
                        "id":  "ISS-20261005-003",
