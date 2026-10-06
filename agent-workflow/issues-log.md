@@ -5,30 +5,35 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
-### ISS-20261005-004 — `wapor_zonal_stats()` fails on lon/lat rasters without the lwgeom package
+### ISS-20261005-004 — RESOLVED 2026-10-06: `wapor_zonal_stats()` failed on lon/lat rasters without the lwgeom package
 
 - **Where**: `R/zonal_stats.R`, `sf::sf_use_s2(FALSE)` followed by `sf::st_area(z)`.
 - **Root cause**: with s2 switched off, `sf::st_area()` on geographic coordinates needs lwgeom,
   which is not in `DESCRIPTION` (Imports or Suggests).
 - **Impact**: any Level 1 or Level 2 raster (both lon/lat) stops with "package lwgeom required,
   please install it first" unless the user happens to have lwgeom. Level 3 (UTM) works.
-- **Fix / mitigation**: not fixed (behaviour of the P2 B2 code, outside perf-b). Options for the
-  B2 owner: keep s2 on for the area, or transform the zones to an equal-area CRS before
-  `st_area()`, or add lwgeom to Imports. Workaround: `install.packages("lwgeom")`.
-- **Regression tests**: none; the perf-b equivalence tests use a UTM raster for this reason.
+- **Fix / mitigation**: fixed on the maintainer's instruction (Claude, branch
+  `feat/wapor-download-1.0.6`). New `.wapor_zone_area_ha()`: lon/lat zones are projected to a
+  Lambert azimuthal equal-area system centred on them before `st_area()`; the s2 switch is gone.
+  Projected rasters are measured exactly as before (equivalence tests unchanged).
+- **Regression tests**: `test-zonal-stats.R` "works on lon/lat rasters without lwgeom" (areas
+  equal `terra::expanse()` within 1e-4; the s2 setting is left alone).
 - **Verification**: 2026-10-05, sf with PROJ 9.7.1, lwgeom not installed; same error from the
   frozen pre-perf-b function and from the restructured one.
 
-### ISS-20261005-005 — `class_share` with `breaks` fails when a zone contains NoData cells
+### ISS-20261005-005 — RESOLVED 2026-10-06: `class_share` with `breaks` failed when a zone contained NoData cells
 
 - **Where**: `R/zonal_stats.R`, `wapor_classify(v, breaks = ...)` inside the `class_share` block.
 - **Root cause**: exactextractr returns NaN for NoData cells of float rasters; `wapor_classify()`
   rejects NaN ("x must contain only finite numeric values or NA").
 - **Impact**: `wapor_zonal_stats(stats = "class_share", breaks = ...)` (or `scheme = ...`) stops
   for any zone that touches a NoData cell, which is the normal case along masks and coasts.
-- **Fix / mitigation**: not fixed (P2 B2 behaviour, outside perf-b). Suggested: classify
-  `v[ok]` only, or convert NaN to NA before classifying.
-- **Regression tests**: none; the perf-b equivalence test for this path uses a raster without NoData.
+- **Fix / mitigation**: fixed at the root on the maintainer's instruction (Claude). The input
+  check of `wapor_classify()` was `any(!is.finite(x), na.rm = TRUE)`, which is TRUE for NA and
+  NaN, so every vector with a missing value was refused although the message says "or NA" and
+  the code below handles NA. It now refuses only infinite values; NA and NaN get class NA.
+- **Regression tests**: `test-classify.R` "treats NA and NaN as missing"; `test-zonal-stats.R`
+  "class_share with breaks works when zones contain NoData cells" (shares 20:25:25:25 of 95 cells).
 - **Verification**: 2026-10-05; same error from the frozen pre-perf-b function and the new one.
 
 ### ISS-20261005-001 — RESOLVED 2026-10-05 (branch `perf/remote-io-1.0.6`, not yet merged): default GDAL HTTP chunk of 10 MB made remote reads download far more than needed

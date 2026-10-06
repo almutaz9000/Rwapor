@@ -453,7 +453,19 @@ seasonal_shortcut <- function(season) list(
 # cut to the study area, and save it as one GeoTIFF per date. Values are saved
 # in physical units (the WaPOR scale factor is applied when reading). Files that
 # are already saved are skipped, and without internet the saved files are used.
+# Rwapor 1.0.6 and later has this built in as wapor_download(); it is used when
+# your installed version has it. The lines after it do the same for older versions.
 download_wapor <- function(variable, aoi, period, folder, l3_region = NULL, mask = TRUE) {
+  if (exists("wapor_download", envir = asNamespace("Rwapor"), inherits = FALSE)) {
+    files <- withCallingHandlers(
+      Rwapor::wapor_download(variable, sf::st_as_sf(aoi), period, folder, l3_region = l3_region, mask = mask),
+      warning = function(w) {     # no connection: say so in one line and carry on with the saved files
+        message("No connection to the WaPOR server: using the files already saved in ", file.path(folder, variable))
+        invokeRestart("muffleWarning")
+      }
+    )
+    return(as.character(files))
+  }
   out_dir <- file.path(folder, variable)
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   urls <- tryCatch(wapor_generate_urls(variable, l3_region = l3_region, period = period),
