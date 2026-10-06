@@ -40,7 +40,22 @@
 
 ## Zonal statistics and masks
 
-* Added weighted polygon zonal statistics, irrigation spread measures, coverage and mask fractions, and raster mask harmonization helpers.
+* New `wapor_zonal_stats()`: area-weighted statistics for any polygons at one or several nested
+  levels (for example scheme and farm), on a raster or directly on the result of
+  `wapor_run_seasonal_analysis()`. It reports crop share (`mask_fraction`) and data coverage
+  separately, weighted mean, median and quantiles (equal to `quantile(type = 7)` for equal
+  weights), population or sample standard deviation, CV, Christiansen uniformity, low-quarter
+  distribution uniformity, Gini, Theil, volumes in m3 and million m3 (from depths, or from rates
+  with `days`), and class shares with every class listed. Output is a long table with the id
+  columns; `format = "wide"` or `"sf"` and `wapor_zonal_wide()` give one row per zone and layer.
+* New `wapor_rasterize_mask()` (polygons to a mask or a covered fraction on any grid, with an
+  area check) and `wapor_harmonize_mask()` (a classified map at any resolution to a mask and a
+  class fraction). The fractions are the `weights` input of `wapor_zonal_stats()`.
+* Fixed before release, found while completing this batch: polygons sharing an id were not
+  merged, so a parent level with several polygons was reported once per polygon; on lon/lat
+  rasters cell areas came from a sphere (0.3% too large at 32 degrees north) and now use the
+  WGS84 ellipsoid; fractions of adjacent polygons in one cell now add up; cells without data in
+  a classified map count as "not the class".
 * `wapor_zonal_stats()` returns the same table about eight to ten times faster (400 zones and
   12 layers: 56 s before, 6.5 s now; 2,025 zones: 237 s before, 27 s now). Only the requested
   statistics are computed, and layers are read in groups sized to the memory budget
