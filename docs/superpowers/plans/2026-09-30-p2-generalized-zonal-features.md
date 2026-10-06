@@ -503,7 +503,7 @@ G4 expected values from index arithmetic on the 10 x 10 grid, `quantile(type = 7
 `terra::expanse()`, `terra::cellSize()` and `golden.csv`; G5 the nested-level and lon/lat volume
 tests fail on the Hermes code; G6 known answers unchanged; G7 the two thresholds without a
 source (`n_eff < 9`, `min_fraction = 0.5`) are labelled heuristic; G8 full suite 0 failures
-(6 skips, all live tests); G9 and G10 see the board.
+(6 skips, all live tests); G9 CI green on `55b54c9` (Windows, macOS, Ubuntu x3, lint, install smoke x3, coverage); G10 NEWS, board and logs updated.
 
 ## 5. WP3: irrigation performance indicators, productivity gaps and spots (`ti-09`, `ti-13`)
 

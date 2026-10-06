@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-06T10:20:28Z",
+    "updated_utc":  "2026-10-06T11:31:15Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -923,7 +923,7 @@
                   {
                       "id":  "ti-10",
                       "title":  "wapor_zonal_stats(): general zonal engine for any polygons (farm to country), nested levels, volumes, coverage, class shares per zone and AOI",
-                      "status":  "active",
+                      "status":  "done",
                       "priority":  "medium",
                       "model":  "claude",
                       "attribution":  "recorded",
@@ -932,7 +932,7 @@
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Taken over from hermes on the maintainer\u0027s instruction, 2026-10-06. Review found B2 below its gate: wapor_zonal_stats() lacks analysis-result input, median, sum_volume_mcm, parent id columns, classes, spec\u0027d wide/sf formats and full docs; fixture tests are a skipped stub; several synthetic tests missing. Completing on branch feat/p2-b2-completion.",
+                      "notes":  "DONE 2026-10-06. Implemented by hermes (3bd6966), reviewed against the gate and completed by claude on the maintainer\u0027s instruction (3882163). Gate G1-G10 passed: zonal 212, mask-helpers 27, classify 39 expectations; full suite 0 failures; known answers unchanged; R CMD check 0 errors / 0 warnings; CI on 55b54c9 green (Windows, macOS, Ubuntu x3, lint, install smoke x3, coverage). Gate record: P2 master plan section 4.",
                       "updated_utc":  "2026-10-06"
                   },
                   {
@@ -953,7 +953,7 @@
                   {
                       "id":  "ti-12",
                       "title":  "Mask helpers for any crop polygons or classified map (any class codes, any resolution) onto any WaPOR level, with area check",
-                      "status":  "active",
+                      "status":  "done",
                       "priority":  "medium",
                       "model":  "claude",
                       "attribution":  "recorded",
@@ -962,7 +962,7 @@
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Taken over from hermes on the maintainer\u0027s instruction, 2026-10-06. Review found B2 below its gate: wapor_zonal_stats() lacks analysis-result input, median, sum_volume_mcm, parent id columns, classes, spec\u0027d wide/sf formats and full docs; fixture tests are a skipped stub; several synthetic tests missing. Completing on branch feat/p2-b2-completion.",
+                      "notes":  "DONE 2026-10-06. Implemented by hermes (3bd6966), reviewed against the gate and completed by claude on the maintainer\u0027s instruction (3882163). Gate G1-G10 passed: zonal 212, mask-helpers 27, classify 39 expectations; full suite 0 failures; known answers unchanged; R CMD check 0 errors / 0 warnings; CI on 55b54c9 green (Windows, macOS, Ubuntu x3, lint, install smoke x3, coverage). Gate record: P2 master plan section 4.",
                       "updated_utc":  "2026-10-06"
                   },
                   {
@@ -1013,7 +1013,7 @@
                   {
                       "id":  "ti-16",
                       "title":  "Robust area calculation (equal-area/UTM, never lon/lat) - delivered inside ti-10 wapor_zonal_stats()",
-                      "status":  "active",
+                      "status":  "done",
                       "priority":  "low",
                       "model":  "claude",
                       "attribution":  "recorded",
@@ -1022,7 +1022,7 @@
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Taken over from hermes on the maintainer\u0027s instruction, 2026-10-06. Review found B2 below its gate: wapor_zonal_stats() lacks analysis-result input, median, sum_volume_mcm, parent id columns, classes, spec\u0027d wide/sf formats and full docs; fixture tests are a skipped stub; several synthetic tests missing. Completing on branch feat/p2-b2-completion.",
+                      "notes":  "DONE 2026-10-06. Implemented by hermes (3bd6966), reviewed against the gate and completed by claude on the maintainer\u0027s instruction (3882163). Gate G1-G10 passed: zonal 212, mask-helpers 27, classify 39 expectations; full suite 0 failures; known answers unchanged; R CMD check 0 errors / 0 warnings; CI on 55b54c9 green (Windows, macOS, Ubuntu x3, lint, install smoke x3, coverage). Gate record: P2 master plan section 4.",
                       "updated_utc":  "2026-10-06"
                   },
                   {
@@ -1253,7 +1253,7 @@
                   {
                       "id":  "p2-b2",
                       "title":  "P2 batch B2 gate: zonal engine + mask helpers (WP2, WP5A)",
-                      "status":  "active",
+                      "status":  "done",
                       "priority":  "high",
                       "model":  "claude",
                       "attribution":  "recorded",
@@ -1262,7 +1262,7 @@
                                     "docs/superpowers/plans/p2-batches/B2-zonal-and-masks.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Taken over from hermes on the maintainer\u0027s instruction, 2026-10-06. Review found B2 below its gate: wapor_zonal_stats() lacks analysis-result input, median, sum_volume_mcm, parent id columns, classes, spec\u0027d wide/sf formats and full docs; fixture tests are a skipped stub; several synthetic tests missing. Completing on branch feat/p2-b2-completion.",
+                      "notes":  "DONE 2026-10-06. Implemented by hermes (3bd6966), reviewed against the gate and completed by claude on the maintainer\u0027s instruction (3882163). Gate G1-G10 passed: zonal 212, mask-helpers 27, classify 39 expectations; full suite 0 failures; known answers unchanged; R CMD check 0 errors / 0 warnings; CI on 55b54c9 green (Windows, macOS, Ubuntu x3, lint, install smoke x3, coverage). Gate record: P2 master plan section 4.",
                       "updated_utc":  "2026-10-06"
                   },
                   {
