@@ -469,6 +469,42 @@ pixel quadrants with `scheme` (north/south) and `block` (q1..q4) in the fixture 
 
 ---
 
+### B2 gate record (WP2 + WP5A), 2026-10-06
+
+Implemented by Hermes (`3bd6966`), then reviewed and completed by Claude on the maintainer's
+instruction (branch `feat/p2-b2-completion`). The review found the batch below its gate:
+
+| Finding | Resolution |
+|---|---|
+| Polygons with the same id were not dissolved (the grouping key included the geometry), so nested levels and `dissolve` were wrong for parents with several polygons | `.wapor_dissolve()` rewritten; tests 8, 9, 10 |
+| Not implemented: analysis-result input, `median`, `sum_volume_mcm`, `days` as a data frame, id columns in the output, `classes`, all classes listed, the specified `wide` and `sf` formats, call attributes | implemented as specified |
+| Fixture tests were a skipped stub; synthetic groups 2, 8, 9, 10, 11, 13, 15, 17 missing; group 5 only loosely checked | all 18 synthetic and 4 fixture groups present with independent expected values |
+| Help pages were one line per argument | formulas, units, class-share denominator and resolution caveats documented |
+| Mask helpers: no area check for binary masks, fractions of adjacent polygons not added, NoData counted towards the class fraction, no winner value for several classes | fixed, tests added |
+
+Deviations from this section, with reasons:
+
+- **Zone areas for lon/lat** (algorithm step 5): an equal-area projection centred on the zones
+  instead of `sf::st_area()` with s2 off, which needs lwgeom (not a dependency; ISS-20261005-004).
+- **Cell areas for lon/lat** (step 4): exactextractr's `coverage_area` uses a sphere there
+  (0.29% too large at 32 degrees north, so test 15 failed at its 0.1% limit). The engine now
+  multiplies the covered fraction by the cell's area on the WGS84 ellipsoid.
+- **Batches** (step 4): layers are read in groups sized to the memory budget instead of zones in
+  batches of 500 (perf-b, `docs/superpowers/plans/2026-10-05-perf-io-zonal.md`).
+- **`zone_id` and `zone_key`** hold only the id parts that apply (`"B"` for a scheme, `"B|B2"`
+  for a farm, `"AOI"`), not `"B|NA"`.
+- **Volume warning**: layers whose unit is neither a depth nor a rate get their own warning.
+- **`format = "sf"`** returns one row per zone and layer with statistics as columns, for the
+  finest level and the AOI, as specified (Hermes returned long rows).
+
+Gate: G1 scope (files of the batch, plus `R/classify.R` for ISS-20261005-005); G2 read against
+this section; G3 `zonal` 212, `mask-helpers` 27, `classify` 39 expectations, 0 failures, 0 skips;
+G4 expected values from index arithmetic on the 10 x 10 grid, `quantile(type = 7)`,
+`terra::expanse()`, `terra::cellSize()` and `golden.csv`; G5 the nested-level and lon/lat volume
+tests fail on the Hermes code; G6 known answers unchanged; G7 the two thresholds without a
+source (`n_eff < 9`, `min_fraction = 0.5`) are labelled heuristic; G8 full suite 0 failures
+(6 skips, all live tests); G9 and G10 see the board.
+
 ## 5. WP3: irrigation performance indicators, productivity gaps and spots (`ti-09`, `ti-13`)
 
 **Objective**: the core WaPOR irrigation performance indicators for any units, built on WP1/WP2, with
