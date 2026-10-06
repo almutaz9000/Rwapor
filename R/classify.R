@@ -130,7 +130,8 @@ wapor_classify <- function(x, breaks = NULL, labels = NULL,
                            id = NULL, scheme = NULL, right = TRUE, min_n = 30) {
   is_raster <- inherits(x, "SpatRaster")
   if (!is_raster && !is.numeric(x)) stop("x must be numeric or a terra SpatRaster", call. = FALSE)
-  if (!is_raster && any(!is.finite(x), na.rm = TRUE)) stop("x must contain only finite numeric values or NA", call. = FALSE)
+  # NA and NaN are missing values (NoData cells arrive as NaN) and get class NA; only +-Inf is refused.
+  if (!is_raster && any(is.infinite(x))) stop("x must contain only finite numeric values or NA", call. = FALSE)
   if (is_raster && terra::nlyr(x) != 1L) stop("x must have exactly one raster layer", call. = FALSE)
   if (!is.logical(right) || length(right) != 1L || is.na(right)) stop("right must be TRUE or FALSE", call. = FALSE)
   if (!is.numeric(min_n) || length(min_n) != 1L || !is.finite(min_n) || min_n < 1) stop("min_n must be a positive number", call. = FALSE)

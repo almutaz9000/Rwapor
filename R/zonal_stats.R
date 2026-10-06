@@ -25,7 +25,7 @@
   o <- order(x[ok]); x <- x[ok][o]; w <- w[ok][o]
   if (length(x) == 1L) return(rep(x, length(probs)))
   pos <- (cumsum(w) - w) / (sum(w) - tail(w, 1L))
-  vapply(probs, function(p) approx(pos, x, xout = p, method = "linear", ties = "ordered", rule = 2)$y, numeric(1))
+  vapply(probs, function(p) stats::approx(pos, x, xout = p, method = "linear", ties = "ordered", rule = 2)$y, numeric(1))
 }
 
 .wapor_cu <- function(x, w) {
@@ -75,6 +75,29 @@
     sf::st_sf(vals, geometry = g)
   })
   do.call(rbind, out)
+}
+
+#' Zone areas in hectares (internal)
+#'
+#' Zones in a projected CRS are measured as they are. Zones in lon/lat are first
+#' projected to a Lambert azimuthal equal-area system centred on them, which
+#' keeps areas exact on the ellipsoid. This needs neither s2, which fails on
+#' field polygons with duplicate vertices, nor the lwgeom package, which
+#' `sf::st_area()` requires for lon/lat when s2 is off (ISS-20261005-004).
+#' @param z `sf` zones in the CRS of the raster.
+#' @param lonlat Logical. Is that CRS geographic?
+#' @return Numeric vector, one area per zone.
+#' @keywords internal
+#' @noRd
+.wapor_zone_area_ha <- function(z, lonlat) {
+  if (isTRUE(lonlat)) {
+    bb <- sf::st_bbox(z)
+    z <- sf::st_transform(z, sprintf(
+      "+proj=laea +lat_0=%.6f +lon_0=%.6f +datum=WGS84 +units=m +no_defs",
+      mean(bb[c("ymin", "ymax")]), mean(bb[c("xmin", "xmax")])
+    ))
+  }
+  as.numeric(sf::st_area(z)) / 1e4
 }
 
 .wapor_extract_layer_names <- function(x) {
@@ -130,7 +153,7 @@ wapor_zonal_stats <- function(x, zones, id, stats = c("mean", "area_ha", "mask_f
     z$.level <- length(id)
   }
   if (isTRUE(aoi)) {
-    ao <- sf::st_sf(setNames(as.list(rep(NA_character_, length(id))), id), geometry = sf::st_union(sf::st_geometry(z)))
+    ao <- sf::st_sf(stats::setNames(as.list(rep(NA_character_, length(id))), id), geometry = sf::st_union(sf::st_geometry(z)))
     ao[[id[1]]] <- "AOI"; ao$.level <- 0L
     z <- rbind(z, ao)
   }
@@ -145,10 +168,7 @@ wapor_zonal_stats <- function(x, zones, id, stats = c("mean", "area_ha", "mask_f
   units <- tryCatch(terra::units(r), error = function(e) rep(NA_character_, terra::nlyr(r)))
   if (length(units) != terra::nlyr(r)) units <- rep(NA_character_, terra::nlyr(r))
   nval <- terra::nlyr(r); nzone <- nrow(z)
-  old_s2 <- sf::sf_use_s2()
-  on.exit(sf::sf_use_s2(old_s2), add = TRUE)
-  if (terra::is.lonlat(r)) sf::sf_use_s2(FALSE)
-  geom_area <- as.numeric(sf::st_area(z)) / 1e4
+  geom_area <- .wapor_zone_area_ha(z, terra::is.lonlat(r))
   zone_key <- vapply(seq_len(nzone), function(j) {
     key <- paste(as.character(unlist(as.data.frame(sf::st_drop_geometry(z[j, id, drop = FALSE])))), collapse = "|")
     if (normalize_id) toupper(trimws(key)) else key

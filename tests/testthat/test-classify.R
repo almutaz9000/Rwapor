@@ -104,3 +104,15 @@ test_that("raster metadata survives GeoTIFF", {
   expect_equal(wapor_class_info(terra::rast(path))$breaks, 2)
   expect_identical(wapor_class_info(terra::rast(path))$source, NULL)
 })
+
+test_that("wapor_classify treats NA and NaN as missing and refuses only infinite values", {
+  out <- wapor_classify(c(1, NA, NaN, 3), breaks = 2)
+  expect_identical(as.integer(out), c(1L, NA, NA, 2L))
+  expect_error(wapor_classify(c(1, -Inf), breaks = 2), "finite")
+  # Quantile classes ignore missing values when the thresholds are computed.
+  x <- c(seq_len(40), NA, NaN)
+  q <- suppressWarnings(wapor_classify(x, breaks = c(.25, .75), method = "quantile"))
+  expect_identical(as.integer(q)[41:42], c(NA_integer_, NA_integer_))
+  expect_identical(as.integer(q)[1:40],
+                   as.integer(suppressWarnings(wapor_classify(seq_len(40), breaks = c(.25, .75), method = "quantile"))))
+})
