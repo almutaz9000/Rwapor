@@ -12,7 +12,9 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
   **Implement one batch at a time, in order; the next batch starts only after the verifier passes
   gate G1-G10 and sets the batch's board task to done.** Briefs (give one to the implementing agent):
   1. `p2-b1` → classification engine — DONE (hermes). SHA 548170f, R-CMD-check 36745355279 green.
-  2. `p2-b2` → `B2-zonal-and-masks.md` (zonal engine + mask helpers) — ACTIVE (hermes)
+  2. `p2-b2` → `B2-zonal-and-masks.md` (zonal engine + mask helpers) — taken over by Claude on
+     2026-10-06 (maintainer's instruction); reviewed against the gate, completed to the
+     specification (gate record: master plan section 4). Next batch: `p2-b3`.
   3. `p2-b3` → `B3-indicators.md` (irrigation indicators, gaps, spots)
   4. `p2-b4` → `B4-crops-and-peff.md` (perennial crops, Kc helper, Peff methods, rainfed)
   5. `p2-b5` → `B5-plots-offline.md` (plots, offline URLs)

@@ -3,7 +3,23 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-10-06 — ti-06 taken over: wapor_download() and config$cache_dir (Claude)
+## Current Session — 2026-10-06 (afternoon) — P2 batch B2 taken over from Hermes and completed (Claude)
+
+**What happened**: `ti-06` and the two zonal fixes were committed and pushed (`cafe3c5`). The
+maintainer asked for a review and takeover of Hermes's work (`p2-b2`, `ti-10`, `ti-12`, `ti-16`).
+Review against master plan section 4 and 7: tests passed but the batch was below its gate
+(polygons with the same id not dissolved; analysis-result input, median, million-m3 volumes, id
+columns, `classes`, specified wide/sf formats missing; fixture tests a skipped stub; thin docs;
+mask helper gaps). Completed on branch `feat/p2-b2-completion`; ISS-20261006-001 logged.
+
+**Verification**: `zonal` 212, `mask-helpers` 27, `classify` 39; full suite 0 failures, 6 skips
+(live tests only); R CMD check without tests 0 errors, 0 warnings; zonal benchmark within limits
+(default call 32.6 s; 140 s before perf-b). Gate record in the master plan, section 4.
+
+**Next**: `p2-b3` (irrigation performance indicators), brief
+`docs/superpowers/plans/p2-batches/B3-indicators.md`. It builds on the zonal engine as it is now.
+
+## Previous Session — 2026-10-06 — ti-06 taken over: wapor_download() and config$cache_dir (Claude)
 
 **What happened**: `version-1.0.6` pushed (perf-a, perf-b, plan; `c4172eb`). The maintainer
 assigned `ti-06`. Implemented on branch `feat/wapor-download-1.0.6` (uncommitted): exported

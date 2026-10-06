@@ -5,6 +5,24 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20261006-001 — RESOLVED 2026-10-06: B2 zonal engine did not dissolve polygons and used spherical cell areas
+
+- **Where**: `R/zonal_stats.R` `.wapor_dissolve()`; the `coverage_area` extraction; `R/mask_helpers.R`.
+- **Root cause**: (1) the grouping key was built from `zones[ids]`, an `sf` subset that still
+  carries the geometry column, so every polygon was its own group; (2) exactextractr's
+  `coverage_area` uses a sphere for lon/lat rasters; (3) fractions of several polygons were
+  combined with `max`; (4) `crop_map == k` is NA for NoData and was ignored by the average.
+- **Impact**: (1) a scheme or AOI made of several polygons was reported once per polygon, each
+  with only its own cells; (2) volumes and mask areas on Level 1 and Level 2 were 0.29% too
+  large at 32 degrees north; (3) a cell shared by two adjacent fields got the larger share
+  instead of the sum; (4) class fractions were too high next to NoData.
+- **Fix / mitigation**: fixed while completing batch B2 (gate record in
+  `docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md`, section 4).
+- **Regression tests**: `test-zonal-stats.R` "nested levels...", "polygons with the same id are
+  dissolved...", "lon/lat cell weights match geodesic cell areas"; `test-mask-helpers.R`
+  "fractions of adjacent polygons add up", "harmonize counts NoData as not the class".
+- **Verification**: the first three failed on the committed B2 code (`3bd6966`), pass now.
+
 ### ISS-20261005-004 — RESOLVED 2026-10-06: `wapor_zonal_stats()` failed on lon/lat rasters without the lwgeom package
 
 - **Where**: `R/zonal_stats.R`, `sf::sf_use_s2(FALSE)` followed by `sf::st_area(z)`.
