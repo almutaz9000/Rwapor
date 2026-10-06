@@ -254,3 +254,52 @@ test_that("format = 'sf' gives every row the geometry of its own zone (ISS-20261
   got <- sf::st_coordinates(sf::st_centroid(sf::st_geometry(out)))
   expect_equal(unname(got), unname(own))
 })
+
+# =============================================================================
+# ISS-20261005-004 and -005: lon/lat rasters, and class shares with NoData
+# =============================================================================
+
+test_that("wapor_zonal_stats() works on lon/lat rasters without lwgeom, with geodesic zone areas", {
+  skip_if_not_installed("exactextractr")
+  r <- terra::rast(nrows = 40, ncols = 40, xmin = 35, xmax = 35.4, ymin = 32, ymax = 32.4, crs = "EPSG:4326")
+  terra::values(r) <- seq_len(1600) / 100
+  names(r) <- "aeti"; terra::units(r) <- "mm"
+  ring <- function(x0, y0, dx, dy) sf::st_polygon(list(cbind(x0 + c(0, dx, dx, 0, 0), y0 + c(0, 0, dy, dy, 0))))
+  z <- sf::st_sf(farm = c("a", "b"), geometry = sf::st_sfc(ring(35.05, 32.05, 0.1, 0.12), ring(35.2, 32.2, 0.15, 0.1),
+                                                           crs = 4326))
+  out <- Rwapor::wapor_zonal_stats(r, z, id = "farm", dissolve = FALSE, aoi = FALSE,
+                                   stats = c("mean", "area_ha", "coverage", "mask_fraction"))
+  area <- out$value[out$stat == "area_ha"]
+  expect_equal(area, terra::expanse(terra::vect(z), unit = "ha"), tolerance = 1e-4)
+  expect_equal(out$value[out$stat == "coverage"], c(1, 1))
+  # Cell areas come from exactextractr (sphere), zone areas from the ellipsoid: equal within 1%.
+  expect_equal(out$value[out$stat == "mask_fraction"], c(1, 1), tolerance = 0.01)
+  expect_true(all(is.finite(out$value[out$stat == "mean"])))
+  # Zone area helper: projected zones are measured as they are.
+  utm <- sf::st_transform(z, 32636)
+  expect_identical(Rwapor:::.wapor_zone_area_ha(utm, FALSE), as.numeric(sf::st_area(utm)) / 1e4)
+  # The s2 setting of the session is left alone.
+  before <- sf::sf_use_s2()
+  invisible(Rwapor::wapor_zonal_stats(r, z, id = "farm", stats = "mean"))
+  expect_identical(sf::sf_use_s2(), before)
+})
+
+test_that("class_share with breaks works when zones contain NoData cells", {
+  skip_if_not_installed("exactextractr")
+  r <- terra::rast(nrows = 10, ncols = 10, xmin = 700000, xmax = 700200, ymin = 3600000, ymax = 3600200,
+                   crs = "EPSG:32636")
+  v <- rep(c(1, 3, 5, 7), each = 25)        # 25 cells in each of four classes for breaks 2, 4, 6
+  v[c(1, 2, 3, 4, 5)] <- NA                 # five NoData cells in the first class
+  terra::values(r) <- v
+  names(r) <- "x"; terra::units(r) <- "mm"
+  z <- sf::st_sf(id = "all", geometry = sf::st_as_sfc(sf::st_bbox(c(xmin = 700000, ymin = 3600000, xmax = 700200,
+                                                                   ymax = 3600200), crs = 32636)))
+  out <- Rwapor::wapor_zonal_stats(r, z, id = "id", aoi = FALSE, stats = "class_share",
+                                   breaks = c(2, 4, 6), labels = c("a", "b", "c", "d"))
+  pct <- out[out$stat == "class_pct", ]
+  expect_identical(pct$class, c("a", "b", "c", "d"))
+  expect_equal(pct$value, 100 * c(20, 25, 25, 25) / 95)
+  expect_equal(sum(pct$value), 100)
+  no_data <- out$value[out$stat == "class_area_ha" & out$class == "no data"]
+  expect_equal(no_data, 5 * 400 / 1e4)       # five 20 m cells
+})

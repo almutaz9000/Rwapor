@@ -26,7 +26,7 @@ wapor_rasterize_mask <- function(polygons, template, field = NULL, value = 1L, t
     ratio <- if (poly_area > 0) raster_area/poly_area else NA_real_
     attr(out, "area_ratio") <- ratio
     if (is.finite(ratio) && ratio < .9 || is.finite(ratio) && ratio > 1.1) {
-      cells <- poly_area / median(terra::values(terra::cellSize(template, unit="m"))[,1], na.rm=TRUE)
+      cells <- poly_area / stats::median(terra::values(terra::cellSize(template, unit="m"))[,1], na.rm=TRUE)
       if (cells >= 25) warning("rasterized mask area differs from polygon area by more than 10%", call. = FALSE)
     }
     return(out)

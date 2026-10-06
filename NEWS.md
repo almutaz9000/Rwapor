@@ -1,5 +1,20 @@
 # Rwapor 1.0.6 (development)
 
+## Download once, work offline
+
+* New `wapor_download()` saves one GeoTIFF per time step for an area, in the layout the
+  seasonal analysis reads with `data_source = "local"`. Files already saved are skipped, so
+  the call can be repeated to complete or extend a period; without a connection it returns
+  the saved files and warns that it could not check the period. Values keep the source unit
+  with the WaPOR scale factor applied once. Files are written under a temporary name and
+  renamed when complete, and a folder is tied to the area of its first download.
+* `wapor_run_seasonal_analysis()` accepts `config$cache_dir`: with `data_source = "api"` the
+  sources a run needs are saved there first (only the missing files) and then read locally,
+  so later runs for the same area work without internet. Results equal a local run on the
+  same files. Not available with `l3_mode = "mosaic_all"`.
+* Streaming is now about as fast as local files (see "Faster remote reads"), so these are for
+  offline work and repeated analyses, not a requirement for speed.
+
 ## Faster remote reads
 
 * The package no longer sets the GDAL HTTP chunk size (`CPL_VSIL_CURL_CHUNK_SIZE`) to
@@ -33,6 +48,12 @@
   `inst/bench/zonal_benchmark.R` times the standard cases.
 * `wapor_zonal_stats(format = "sf")` now gives every row the geometry of its own zone. With more
   than one statistic, rows carried the geometry of another zone or an empty geometry.
+* `wapor_zonal_stats()` works on lon/lat rasters (Level 1 and Level 2) without the lwgeom
+  package. Zone areas are measured in an equal-area projection centred on the zones; the
+  session's s2 setting is no longer changed.
+* `wapor_classify()` treats `NA` and `NaN` as missing (class `NA`) instead of stopping, as its
+  error message already said; only infinite values are refused. This also makes
+  `wapor_zonal_stats(stats = "class_share", breaks = ...)` work for zones with NoData cells.
 
 ## Classification
 
