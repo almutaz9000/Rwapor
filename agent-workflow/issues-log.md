@@ -5,6 +5,32 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 
 ## Open
 
+### ISS-20261005-004 — `wapor_zonal_stats()` fails on lon/lat rasters without the lwgeom package
+
+- **Where**: `R/zonal_stats.R`, `sf::sf_use_s2(FALSE)` followed by `sf::st_area(z)`.
+- **Root cause**: with s2 switched off, `sf::st_area()` on geographic coordinates needs lwgeom,
+  which is not in `DESCRIPTION` (Imports or Suggests).
+- **Impact**: any Level 1 or Level 2 raster (both lon/lat) stops with "package lwgeom required,
+  please install it first" unless the user happens to have lwgeom. Level 3 (UTM) works.
+- **Fix / mitigation**: not fixed (behaviour of the P2 B2 code, outside perf-b). Options for the
+  B2 owner: keep s2 on for the area, or transform the zones to an equal-area CRS before
+  `st_area()`, or add lwgeom to Imports. Workaround: `install.packages("lwgeom")`.
+- **Regression tests**: none; the perf-b equivalence tests use a UTM raster for this reason.
+- **Verification**: 2026-10-05, sf with PROJ 9.7.1, lwgeom not installed; same error from the
+  frozen pre-perf-b function and from the restructured one.
+
+### ISS-20261005-005 — `class_share` with `breaks` fails when a zone contains NoData cells
+
+- **Where**: `R/zonal_stats.R`, `wapor_classify(v, breaks = ...)` inside the `class_share` block.
+- **Root cause**: exactextractr returns NaN for NoData cells of float rasters; `wapor_classify()`
+  rejects NaN ("x must contain only finite numeric values or NA").
+- **Impact**: `wapor_zonal_stats(stats = "class_share", breaks = ...)` (or `scheme = ...`) stops
+  for any zone that touches a NoData cell, which is the normal case along masks and coasts.
+- **Fix / mitigation**: not fixed (P2 B2 behaviour, outside perf-b). Suggested: classify
+  `v[ok]` only, or convert NaN to NA before classifying.
+- **Regression tests**: none; the perf-b equivalence test for this path uses a raster without NoData.
+- **Verification**: 2026-10-05; same error from the frozen pre-perf-b function and the new one.
+
 ### ISS-20261005-001 — RESOLVED 2026-10-05 (branch `perf/remote-io-1.0.6`, not yet merged): default GDAL HTTP chunk of 10 MB made remote reads download far more than needed
 
 - **Where**: `R/gdal_config.R` `.RWAPOR_GDAL_DEFAULTS` (`CPL_VSIL_CURL_CHUNK_SIZE = 10485760`, set on
@@ -29,7 +55,7 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Verification**: 2026-10-05, GDAL 3.12.1, terra 1.9.34; scripts and CSVs in
   `docs/superpowers/plans/2026-10-05-perf-io-zonal-evidence/` (`net_worker.R`, `sticky.R`).
 
-### ISS-20261005-002 — `wapor_zonal_stats()` is 9 to 12 times slower than needed and holds all layers in memory
+### ISS-20261005-002 — RESOLVED 2026-10-05 (branch `perf/zonal-engine-1.0.6`): `wapor_zonal_stats()` was 9 to 12 times slower than needed and held all layers in memory
 
 - **Where**: `R/zonal_stats.R` (`add()` at line 177, `vals` at line 179, single `exact_extract()` at 145).
 - **Root cause**: one `data.frame()` per output value (66% of run time), a final `rbind` of all of
@@ -41,7 +67,7 @@ entry format. Stable IDs: `ISS-YYYYMMDD-###`._
 - **Regression tests**: none yet (equivalence tests against the frozen current function, plan step 6).
 - **Verification**: 2026-10-05, evidence folder (`zonal_bench.R`, `zonal_prof.R`, `zonal_lean.R`).
 
-### ISS-20261005-003 — `wapor_zonal_stats(format = "sf")` attaches wrong or empty geometries
+### ISS-20261005-003 — RESOLVED 2026-10-05 (branch `perf/zonal-engine-1.0.6`): `wapor_zonal_stats(format = "sf")` attached wrong or empty geometries
 
 - **Where**: `R/zonal_stats.R:214`.
 - **Root cause**: zone geometries are indexed with row positions of the result

@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-05T14:23:51Z",
+    "updated_utc":  "2026-10-05T17:15:04Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -1334,11 +1334,11 @@
                   {
                       "id":  "perf-b",
                       "title":  "Zonal engine speed: same output about 10x faster, chunked layer reads, sf geometry fix",
-                      "status":  "blocked",
+                      "status":  "done",
                       "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "claude",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-05T14:35:20Z",
                       "files":  [
                                     "R/zonal_stats.R",
                                     "tests/testthat/test-zonal-stats.R",
@@ -1346,7 +1346,7 @@
                                     "inst/bench/zonal_benchmark.R"
                                 ],
                       "issue_ref":  "ISS-20261005-002",
-                      "notes":  "APPROVED 2026-10-05 but BLOCKED: p2-b2 is active under hermes, which holds R/zonal_stats.R. Start when p2-b2 is done or the maintainer releases the file. Plan: docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 4; prototype with identical output in the evidence folder (zonal_lean.R). Also fixes ISS-20261005-003.",
+                      "notes":  "DONE 2026-10-05 on branch perf/zonal-engine-1.0.6 (not committed), on the maintainer\u0027s instruction; hermes must rebase open p2-b2 work. Table and warnings identical to the frozen reference; 56 s -\u003e 6.5 s (400 zones, 12 layers), 237 s -\u003e 27 s (2025 zones); grouped layer reads; sf geometry fixed. Full suite 0 failures. New issues for the B2 owner: ISS-20261005-004, -005. Record: plan section 8.",
                       "updated_utc":  "2026-10-05"
                   },
                   {
@@ -1367,9 +1367,29 @@
               ],
     "issues":  [
                    {
+                       "id":  "ISS-20261005-005",
+                       "title":  "class_share with breaks or scheme fails when a zone contains NoData cells",
+                       "status":  "open",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "hermes",
+                       "where":  "R/zonal_stats.R (class_share block)",
+                       "summary":  "exactextractr returns NaN for NoData; wapor_classify() rejects NaN. Found during perf-b; behaviour of the B2 code, not fixed."
+                   },
+                   {
+                       "id":  "ISS-20261005-004",
+                       "title":  "wapor_zonal_stats() fails on lon/lat rasters (Level 1, Level 2) without the lwgeom package",
+                       "status":  "open",
+                       "model":  "claude",
+                       "attribution":  "recorded",
+                       "owner":  "hermes",
+                       "where":  "R/zonal_stats.R (sf_use_s2(FALSE) + st_area)",
+                       "summary":  "st_area() on geographic coordinates with s2 off needs lwgeom, which is not in DESCRIPTION. Found during perf-b; behaviour of the B2 code, not fixed."
+                   },
+                   {
                        "id":  "ISS-20261005-003",
                        "title":  "wapor_zonal_stats(format = \"sf\") attaches wrong or empty geometries with more than one statistic",
-                       "status":  "open",
+                       "status":  "resolved",
                        "model":  "claude",
                        "attribution":  "recorded",
                        "owner":  null,
@@ -1379,7 +1399,7 @@
                    {
                        "id":  "ISS-20261005-002",
                        "title":  "wapor_zonal_stats() is 9 to 12 times slower than needed and holds all layers in memory",
-                       "status":  "open",
+                       "status":  "resolved",
                        "model":  "claude",
                        "attribution":  "recorded",
                        "owner":  null,
@@ -1389,7 +1409,7 @@
                    {
                        "id":  "ISS-20261005-001",
                        "title":  "Default GDAL HTTP chunk of 10 MB makes remote reads download far more than needed",
-                       "status":  "open",
+                       "status":  "resolved",
                        "model":  "claude",
                        "attribution":  "recorded",
                        "owner":  null,

@@ -26,10 +26,16 @@ to 20.7 s / 17.4 MB, Level 3 66.3 s / 232 MB to 26.9 s / 14.3 MB, values identic
 seasonal analysis 196 s local, 220 s streamed (295 s with old settings); opening 36 L3 layers 4.9 s.
 `ti-07` closed; `ti-06` only needed for offline work. `perf-b` not started: `p2-b2` still active.
 
-**Next**: maintainer reviews and commits the branch (working tree also holds the workflow logs and
-the plan), merges it into `version-1.0.6`; decides D-B1; releases or finishes `p2-b2` so `perf-b`
-can start. Open observation: `exact_extract()` inside `wapor_ts()` at Level 3 varies 4 to 34 s
-(plan section 8).
+**Evening**: perf-a and the plan committed to `version-1.0.6` (`a9e14b7`, `66bd825`, not pushed).
+`perf-b` implemented on branch `perf/zonal-engine-1.0.6` (uncommitted) on the maintainer's
+instruction: `wapor_zonal_stats()` restructured, table and warnings identical to the frozen
+reference (`tests/testthat/helper-zonal-reference.R`), 56 s to 6.5 s (400 zones, 12 layers),
+237 s to 27 s (2025 zones), layers read in groups (memory in use flat at 113 MB over 72 layers),
+`format = "sf"` fixed. Full suite 0 failures. Logged ISS-20261005-004 and -005 (B2 code, not fixed).
+
+**Next**: maintainer reviews and commits `perf/zonal-engine-1.0.6`, merges into `version-1.0.6`,
+pushes; Hermes rebases open `p2-b2` work and takes ISS-20261005-004/-005; decide D-B1 and `ti-06`.
+Open observation: `exact_extract()` inside `wapor_ts()` at Level 3 varies 4 to 34 s (plan section 8).
 
 ## Previous Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
 

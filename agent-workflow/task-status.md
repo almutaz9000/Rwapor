@@ -80,7 +80,10 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 - **Performance: remote I/O settings and zonal engine speed (perf-a, perf-b, perf-c)** —
   APPROVED by the maintainer 2026-10-05. **perf-a DONE** on branch `perf/remote-io-1.0.6`
   (NOT committed: maintainer to review, commit and merge into `version-1.0.6`). **perf-c DONE**
-  (measurements). **perf-b BLOCKED** until `p2-b2` is done (Hermes holds `R/zonal_stats.R`).
+  (measurements). **perf-b DONE** on branch `perf/zonal-engine-1.0.6` (NOT committed), on the
+  maintainer's instruction of 2026-10-05; Hermes must rebase open `p2-b2` work on it. Same table,
+  56 s to 6.5 s (400 zones, 12 layers). New open issues ISS-20261005-004 (lon/lat rasters need
+  lwgeom) and -005 (`class_share` with `breaks` and NoData) belong to the B2 code.
   Results and deviations: plan section 8. Plan with benchmarks:
   `docs/superpowers/plans/2026-10-05-perf-io-zonal.md`; scripts and result tables in the
   `-evidence` folder next to it. Decisions D-A1, D-A2, D-B1, D-O1 are in plan section 6.
