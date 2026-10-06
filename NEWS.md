@@ -26,6 +26,13 @@
 ## Zonal statistics and masks
 
 * Added weighted polygon zonal statistics, irrigation spread measures, coverage and mask fractions, and raster mask harmonization helpers.
+* `wapor_zonal_stats()` returns the same table about eight to ten times faster (400 zones and
+  12 layers: 56 s before, 6.5 s now; 2,025 zones: 237 s before, 27 s now). Only the requested
+  statistics are computed, and layers are read in groups sized to the memory budget
+  (`options(Rwapor.memory_budget_mb = )`), so memory no longer grows with the number of layers.
+  `inst/bench/zonal_benchmark.R` times the standard cases.
+* `wapor_zonal_stats(format = "sf")` now gives every row the geometry of its own zone. With more
+  than one statistic, rows carried the geometry of another zone or an empty geometry.
 
 ## Classification
 
