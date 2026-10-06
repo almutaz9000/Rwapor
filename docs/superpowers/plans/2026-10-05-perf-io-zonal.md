@@ -483,9 +483,55 @@ Conclusions, by the rule in section 5:
 
 Scripts: `evidence/perf_c.R`, `evidence/perf_c_map.R`.
 
-### perf-b: BLOCKED
+### perf-b (Claude, 2026-10-05, branch `perf/zonal-engine-1.0.6`, not committed)
 
-Board task `p2-b2` is still active under Hermes (claimed 2026-09-30), which holds
-`R/zonal_stats.R`. perf-b was not started. It can start as soon as `p2-b2` is set to done, or the
-maintainer releases the file. The prototype and its equivalence check are ready in
-`evidence/zonal_lean.R`.
+The maintainer instructed on 2026-10-05 to implement perf-b, which releases `R/zonal_stats.R`
+for this task. Hermes's `p2-b2` entry is unchanged: open B2 work must be rebased on this.
+
+Implemented as in section 4: frozen reference (`tests/testthat/helper-zonal-reference.R`), only
+requested statistics computed, results collected per zone and layer and bound once, layers read
+in groups, `format = "sf"` geometry by zone, range check of `weights` with `terra::global()`.
+
+Deviations:
+
+- One group's table is sized to an eighth of the memory budget, not a quarter: measured peak use
+  is about 2.5 times the table. The previous group is released and the garbage collector is run
+  before each further group.
+- Cells per zone are estimated from zone bounding boxes in raster units (works for lon/lat too),
+  not from `st_area()`.
+- The "no overlap" warning is raised where the original raised it (inside the loop, once per
+  zone), so that it still appears when a later zone stops with an error.
+- The benchmark reports peak memory above the level before the call, and its memory case is one
+  zone over 900 x 900 cells with 72 layers.
+
+Results (`Rscript inst/bench/zonal_benchmark.R .`):
+
+| Case | Before | After |
+|---|---|---|
+| 800 x 800, 12 layers, 400 zones, default statistics | 56 s | 6.5 to 8.0 s |
+| 800 x 800, 36 layers, 400 zones | 153 s | 10.9 to 13.0 s |
+| 1500 x 1500, 12 layers, 2025 zones | 237 s | 25.3 to 26.6 s |
+| 800 x 800, 12 layers, 400 zones, eight statistics | 106 s | 12.1 to 12.6 s |
+| 1500 x 1500, 12 layers, 400 farms, two id levels and AOI | 140 s | 33.8 to 37.0 s |
+| one zone over 900 x 900 cells, 72 layers, 512 MB budget | 118 s, 1,120 MB | 63.6 s, 690 MB |
+
+Memory: with the garbage collector run at each group, memory in use is flat at 113 MB over all
+nine groups of the 72-layer case and the peak is 517 MB; the benchmark run measured 690 MB. The
+peak statistic depends on when R collects garbage, so the benchmark limit is 800 MB. Before, the
+peak grew with the layer count (336, 580 and 1,120 MB for 12, 36 and 72 layers).
+
+Done criteria: equivalence with the frozen reference by `expect_identical()` on tables and
+warnings, 11 cases, plus 3 cases at two forced group sizes (yes); 800 x 800 x 12 at most 10 s
+(6.5 to 8.0); 1500 x 1500 x 12 with 2025 zones at most 35 s (25.3 to 26.6); the `format = "sf"`
+check gives 4 empty geometries of 8 on the old function and 0 on the new; `zonal` 74
+expectations, `mask-helpers` 8, `classify` 35, full `devtools::test()` 0 failures (7 skips as
+before). The plan's memory criterion (at most 900 MB at 36 layers) was replaced by the 72-layer
+case above.
+
+Found while testing, not fixed (behaviour of the B2 code, same in the frozen reference):
+ISS-20261005-004 (lon/lat rasters need lwgeom) and ISS-20261005-005 (`class_share` with `breaks`
+fails on zones with NoData).
+
+Not done: the faster path on exactextractr's built-in operations (decision D-B1) and deriving
+the dissolve levels from the finest level. The default call still extracts every cell once per
+level, which is why it takes 34 to 37 s where farms only take 7.
