@@ -78,9 +78,9 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 ## Pending — Next Session (Production Hardening continuation)
 
 - **Performance: remote I/O settings and zonal engine speed (perf-a, perf-b, perf-c)** —
-  APPROVED by the maintainer 2026-10-05. **perf-a DONE** on branch `perf/remote-io-1.0.6`
+  APPROVED by the maintainer 2026-10-05. **perf-a DONE** and committed to `version-1.0.6` (`a9e14b7`; originally on branch `perf/remote-io-1.0.6`
   (NOT committed: maintainer to review, commit and merge into `version-1.0.6`). **perf-c DONE**
-  (measurements). **perf-b DONE** on branch `perf/zonal-engine-1.0.6` (NOT committed), on the
+  (measurements). **perf-b DONE** and committed to `version-1.0.6` (`8b109fb`, 2026-10-06, not pushed), on the
   maintainer's instruction of 2026-10-05; Hermes must rebase open `p2-b2` work on it. Same table,
   56 s to 6.5 s (400 zones, 12 layers). New open issues ISS-20261005-004 (lon/lat rasters need
   lwgeom) and -005 (`class_share` with `breaks` and NoData) belong to the B2 code.

@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-05T17:15:04Z",
+    "updated_utc":  "2026-10-06T07:16:18Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -1328,8 +1328,8 @@
                                     "inst/bench/remote_io_benchmark.R"
                                 ],
                       "issue_ref":  "ISS-20261005-001",
-                      "notes":  "DONE 2026-10-05 on branch perf/remote-io-1.0.6 (not committed; maintainer to review and merge). wapor_ts() benchmark: L2 342.7 s / 1,091 MB -\u003e 20.7 s / 17.4 MB; L3 66.3 s / 232 MB -\u003e 26.9 s / 14.3 MB; values identical; 0 x 404. Full suite 0 failures, live checks 6/6, known-answer pass. Record: docs/superpowers/plans/2026-10-05-perf-io-zonal.md section 8.",
-                      "updated_utc":  "2026-10-05"
+                      "notes":  "DONE and committed to version-1.0.6 (a9e14b7, not pushed). wapor_ts() benchmark: L2 342.7 s / 1,091 MB -\u003e 20.7 s / 17.4 MB; L3 66.3 s / 232 MB -\u003e 26.9 s / 14.3 MB; values identical; 0 x 404. Full suite 0 failures, live checks 6/6. Record: plan section 8.",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "perf-b",
@@ -1346,8 +1346,8 @@
                                     "inst/bench/zonal_benchmark.R"
                                 ],
                       "issue_ref":  "ISS-20261005-002",
-                      "notes":  "DONE 2026-10-05 on branch perf/zonal-engine-1.0.6 (not committed), on the maintainer\u0027s instruction; hermes must rebase open p2-b2 work. Table and warnings identical to the frozen reference; 56 s -\u003e 6.5 s (400 zones, 12 layers), 237 s -\u003e 27 s (2025 zones); grouped layer reads; sf geometry fixed. Full suite 0 failures. New issues for the B2 owner: ISS-20261005-004, -005. Record: plan section 8.",
-                      "updated_utc":  "2026-10-05"
+                      "notes":  "DONE and committed to version-1.0.6 (8b109fb, 2026-10-06, not pushed). Table and warnings identical to the frozen reference; 56 s -\u003e 6.5 s (400 zones, 12 layers), 237 s -\u003e 27 s (2025 zones); grouped layer reads; sf geometry fixed. Full suite 0 failures. hermes must rebase open p2-b2 work. Issues for the B2 owner: ISS-20261005-004, -005. Record: plan section 8.",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "perf-c",

@@ -33,8 +33,10 @@ reference (`tests/testthat/helper-zonal-reference.R`), 56 s to 6.5 s (400 zones,
 237 s to 27 s (2025 zones), layers read in groups (memory in use flat at 113 MB over 72 layers),
 `format = "sf"` fixed. Full suite 0 failures. Logged ISS-20261005-004 and -005 (B2 code, not fixed).
 
-**Next**: maintainer reviews and commits `perf/zonal-engine-1.0.6`, merges into `version-1.0.6`,
-pushes; Hermes rebases open `p2-b2` work and takes ISS-20261005-004/-005; decide D-B1 and `ti-06`.
+**2026-10-06**: perf-b committed to `version-1.0.6` (`8b109fb`, `595497f`); the branch is 4 commits ahead of origin, not pushed.
+
+**Next**: maintainer pushes `version-1.0.6`;
+Hermes rebases open `p2-b2` work and takes ISS-20261005-004/-005; decide D-B1 and `ti-06`.
 Open observation: `exact_extract()` inside `wapor_ts()` at Level 3 varies 4 to 34 s (plan section 8).
 
 ## Previous Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
