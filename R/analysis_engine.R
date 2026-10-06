@@ -18,6 +18,11 @@
 #'     (`options(Rwapor.disk_check = FALSE)` turns the check off).
 #'   * `output_dir`: folder for stream and tiled outputs (default: a folder
 #'     under [tempdir()]).
+#'   * `cache_dir`: with `data_source = "api"`, a folder in which the source
+#'     rasters this run needs are saved first with [wapor_download()] (only the
+#'     missing ones) and then read locally. Later runs for the same area read
+#'     the saved files and work without internet. One folder per area; not
+#'     available with `l3_mode = "mosaic_all"`.
 #'   * `reference_layer`, `resampling_method`: target grid and per-layer
 #'     resampling (see Details).
 #' @param crop_params data.frame of crop class parameters (Kc, HI, etc.).
@@ -154,6 +159,36 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     resampling_method[[layer]] %||% default
   }
 
+  # Variable whose grid is the analysis grid when no raster is given for it.
+  reference_var <- switch(
+    reference_layer,
+    aeti = if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var,
+    ret = ret_var,
+    pcp = precip_var,
+    npp = npp_var,
+    if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
+  )
+
+  # Download-once cache: save the sources this run needs (only the missing
+  # files), then continue exactly as a local run on that folder.
+  if (!use_local && !is.null(config$cache_dir)) {
+    if (is.null(aoi_region)) {
+      stop("config$cache_dir needs an area: supply 'aoi_region' or a crop mask.", call. = FALSE)
+    }
+    if (identical(l3_mode, "mosaic_all")) {
+      stop("config$cache_dir cannot be combined with l3_mode = \"mosaic_all\".", call. = FALSE)
+    }
+    needed <- .wapor_needed_inputs(indicators)
+    codes <- list(aeti = aeti_var, ret = ret_var, pcp = precip_var, npp = npp_var, t = t_var)
+    wanted <- names(codes)[vapply(names(codes), function(k) isTRUE(needed[[k]]), logical(1))]
+    cache_vars <- unique(c(unlist(codes[wanted]), if (!identical(reference_layer, "crop_mask")) reference_var))
+    cache_vars <- cache_vars[!is.na(cache_vars) & nzchar(cache_vars)]
+    progress_callback(0.03, "Saving source rasters to the cache folder...")
+    wapor_download(cache_vars, aoi_region, period, config$cache_dir, l3_region = l3_code, mask = FALSE)
+    use_local <- TRUE
+    folder <- config$cache_dir
+  }
+
   if (identical(reference_layer, "crop_mask")) {
     if (is.null(rasters$crop_mask) || !inherits(rasters$crop_mask, "SpatRaster")) {
       stop("reference_layer = \"crop_mask\" requires rasters$crop_mask.", call. = FALSE)
@@ -163,14 +198,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   } else if (identical(reference_layer, "template") && inherits(config$template, "SpatRaster")) {
     template_r <- config$template
   } else {
-    template_var <- switch(
-      reference_layer,
-      aeti = if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var,
-      ret = ret_var,
-      pcp = precip_var,
-      npp = npp_var,
-      if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
-    )
+    template_var <- reference_var
     if (use_local) {
       paths <- wapor_local_rasters(folder, template_var, period[1], period[2])
       if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
@@ -244,14 +272,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     .wapor_align_paths_to_dekads(paths, target_dates)
   }
 
-  needs <- list(
-    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators),
-    ret = any(c("agg_ret", "etc", "adequacy_etc") %in% indicators),
-    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators),
-    npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators),
-    t = any(c("agg_t", "beneficial_fraction") %in% indicators),
-    etc = any(c("etc", "adequacy_etc") %in% indicators)
-  )
+  needs <- .wapor_needed_inputs(indicators)
   var_codes <- list(aeti = aeti_var, ret = ret_var, pcp = precip_var, npp = npp_var, t = t_var)
 
   kernel_vars <- list()
@@ -600,6 +621,22 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   progress_callback(0.95, "Finalizing...")
   results$crop_params <- crop_params
   return(results)
+}
+
+#' Source variables an indicator selection needs (internal)
+#' @param indicators Normalised indicator codes.
+#' @return Named list of logicals: `aeti`, `ret`, `pcp`, `npp`, `t`, `etc`.
+#' @keywords internal
+#' @noRd
+.wapor_needed_inputs <- function(indicators) {
+  list(
+    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators),
+    ret = any(c("agg_ret", "etc", "adequacy_etc") %in% indicators),
+    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators),
+    npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators),
+    t = any(c("agg_t", "beneficial_fraction") %in% indicators),
+    etc = any(c("etc", "adequacy_etc") %in% indicators)
+  )
 }
 
 #' Plan a kernel job from its actual source grids

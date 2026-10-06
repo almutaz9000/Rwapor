@@ -256,7 +256,7 @@
 #'
 #' Informational only: nothing is refused. Uses the cells inside the region
 #' from the plan (header information, no pixel reads).
-#' @param plan `wapor_plan` from [.wapor_io_plan()].
+#' @param plan `wapor_plan` from `.wapor_io_plan()`.
 #' @param variable Variable code, used to name a coarser level.
 #' @param threshold_bytes Volume above which the note is returned.
 #' @return A character string, or `NULL` below the threshold.
