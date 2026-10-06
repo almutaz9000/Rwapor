@@ -28,6 +28,11 @@ and warns when the output or temporary folder has less free space
 (\code{options(Rwapor.disk_check = FALSE)} turns the check off).
 \item \code{output_dir}: folder for stream and tiled outputs (default: a folder
 under \code{\link[=tempdir]{tempdir()}}).
+\item \code{cache_dir}: with \code{data_source = "api"}, a folder in which the source
+rasters this run needs are saved first with \code{\link[=wapor_download]{wapor_download()}} (only the
+missing ones) and then read locally. Later runs for the same area read
+the saved files and work without internet. One folder per area; not
+available with \code{l3_mode = "mosaic_all"}.
 \item \code{reference_layer}, \code{resampling_method}: target grid and per-layer
 resampling (see Details).
 }}
