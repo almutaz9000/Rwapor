@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-06T11:31:15Z",
+    "updated_utc":  "2026-10-06T12:46:30Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -908,17 +908,17 @@
                   {
                       "id":  "ti-09",
                       "title":  "Irrigation performance indicators for any units: adequacy classes (also per zone), uniformity within and equity between any polygons or grid",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-06T12:46:30Z",
                       "files":  [
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP3). APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
-                      "updated_utc":  "2026-09-30"
+                      "notes":  "B3 WP3 irrigation performance indicators",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "ti-10",
@@ -968,17 +968,17 @@
                   {
                       "id":  "ti-13",
                       "title":  "Export wapor_calc_cv and raster Peff; wapor_classify_spots() for pixels or zones with reference groups; bright/dark shares per zone and AOI",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "low",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-06T12:46:30Z",
                       "files":  [
                                     "docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "IMPLEMENTATION PLAN: docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md (WP3). APPROVED 2026-09-30, delivery step 2 (after ti-10). Design:  All class breaks/percentiles user-configurable via shared wapor_classify(breaks, labels, method, reference); published values only defaults (wapor_class_defaults()); breaks used are returned with results.",
-                      "updated_utc":  "2026-09-30"
+                      "notes":  "B3 WP3 export cv/peff/theil and classify_spots",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "ti-14",
@@ -1268,17 +1268,17 @@
                   {
                       "id":  "p2-b3",
                       "title":  "P2 batch B3 gate: irrigation performance indicators, gaps, spots (WP3)",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "high",
-                      "model":  null,
-                      "attribution":  null,
-                      "claimed_utc":  null,
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "claimed_utc":  "2026-10-06T12:46:30Z",
                       "files":  [
                                     "docs/superpowers/plans/p2-batches/B3-indicators.md"
                                 ],
                       "issue_ref":  null,
-                      "notes":  "Order 3 of 5. Brief: docs/superpowers/plans/p2-batches/B3-indicators.md. Done ONLY when the verifier passes gate G1-G10 (docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md section 1A). Next batch waits for this.",
-                      "updated_utc":  "2026-09-30"
+                      "notes":  "B3: docs/superpowers/plans/p2-batches/B3-indicators.md WP3; verifying absence then TDD",
+                      "updated_utc":  "2026-10-06"
                   },
                   {
                       "id":  "p2-b4",

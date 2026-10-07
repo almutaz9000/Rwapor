@@ -19,6 +19,7 @@
 
 # Package
 *.tar.gz
+*.zip
 *.check/
 *.Rcheck/
 pkgdown-site/

@@ -639,25 +639,46 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
     cls <- as.character(row$class_value)
 
     td <- if (length(total_days) == 1) total_days else total_days[cls]
-    l_dev <- td - (row$l_ini_days + row$l_mid_days + row$l_late_days)
+    sum_fixed <- row$l_ini_days + row$l_mid_days + row$l_late_days
 
-    if (is.na(l_dev) || l_dev < 0) {
-      warning(sprintf("Class %s: l_dev=%s (total=%s, ini+mid+late=%s). Skipping.",
-                       cls, l_dev, td,
-                       row$l_ini_days + row$l_mid_days + row$l_late_days),
+    if (is.na(td) || td <= 0) {
+      warning(sprintf('Class %s: invalid season duration total_days=%s. Skipping.', cls, td),
               call. = FALSE)
       result[[cls]] <- numeric(0)
       next
+    }
+
+    if (td < sum_fixed) {
+      warning(sprintf('Class %s: season length (%d days) is shorter than sum of standard stages (%d days). Proportionally scaling stage lengths.',
+                      cls, as.integer(td), as.integer(sum_fixed)),
+              call. = FALSE)
+      scale_factor <- td / (sum_fixed + 10)
+      l_ini <- max(1L, as.integer(round(row$l_ini_days * scale_factor)))
+      l_mid <- max(1L, as.integer(round(row$l_mid_days * scale_factor)))
+      l_late <- max(1L, as.integer(round(row$l_late_days * scale_factor)))
+      if (l_ini + l_mid + l_late > td) {
+        l_ini <- max(1L, as.integer(floor(td * (row$l_ini_days / sum_fixed))))
+        l_mid <- max(1L, as.integer(floor(td * (row$l_mid_days / sum_fixed))))
+        l_late <- max(0L, as.integer(td - l_ini - l_mid))
+        l_dev <- 0L
+      } else {
+        l_dev <- as.integer(td - (l_ini + l_mid + l_late))
+      }
+    } else {
+      l_ini <- as.integer(row$l_ini_days)
+      l_mid <- as.integer(row$l_mid_days)
+      l_late <- as.integer(row$l_late_days)
+      l_dev <- as.integer(td - sum_fixed)
     }
 
     result[[cls]] <- wapor_build_kc(
       kc_ini  = row$kc_ini,
       kc_mid  = row$kc_mid,
       kc_end  = row$kc_end,
-      l_ini   = row$l_ini_days,
+      l_ini   = l_ini,
       l_dev   = l_dev,
-      l_mid   = row$l_mid_days,
-      l_late  = row$l_late_days
+      l_mid   = l_mid,
+      l_late  = l_late
     )
   }
   result

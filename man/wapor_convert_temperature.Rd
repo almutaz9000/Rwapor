@@ -27,6 +27,8 @@ This conversion is automatically applied during download for:
 \itemize{
 \item AGERA5-TMIN-E (Minimum Air Temperature)
 \item AGERA5-TMAX-E (Maximum Air Temperature)
+\item AGERA5-TAVG-E (Mean Air Temperature)
+\item AGERA5-TDEW-E (Dew Point Temperature)
 }
 }
 \examples{

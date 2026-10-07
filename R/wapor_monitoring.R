@@ -981,7 +981,7 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   
   # Query all dekadal rasters in range
   query <- "
-    SELECT date_key, raster_blob
+    SELECT date_key, raster_blob, raster_path
     FROM monitoring_rasters
     WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
@@ -997,35 +997,51 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   if (nrow(df) == 0) {
     # Fallback to legacy
     df <- DBI::dbGetQuery(con, 
-      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ? ORDER BY date_key",
+      "SELECT date_key, raster_blob, NULL as raster_path FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ? ORDER BY date_key",
       params = list(farm_id, variable, as.character(start_date), as.character(end_date)))
     
     if (nrow(df) == 0) return(NULL)
   }
   
   # Collect rasters
-  # DYNAMIC CLIP: Each global raster must be clipped to the farm geom
+  # DYNAMIC CLIP: Each raster is clipped to the farm geom (preferring windowed read from COG path)
   f_bb <- sf::st_bbox(farm_geom)
   f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
                      as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
 
   r_list <- lapply(seq_len(nrow(df)), function(i) {
+    p <- df$raster_path[[i]]
+    if (!is.null(p) && !is.na(p) && nzchar(p) && file.exists(p)) {
+      r_crop <- tryCatch(terra::rast(p, win = f_ext), error = function(e) NULL)
+      if (!is.null(r_crop)) return(r_crop)
+    }
     r_global <- wapor_raster_from_blob(df$raster_blob[[i]])
     if (is.null(r_global)) return(NULL)
     terra::crop(r_global, f_ext)
   })
-  r_list <- r_list[!sapply(r_list, is.null)]
-  if (length(r_list) == 0) return(NULL)
-  
-  # Stack rasters
-  s <- terra::rast(r_list)
+  valid_idx <- which(!vapply(r_list, is.null, logical(1)))
+  if (length(valid_idx) == 0) return(NULL)
+  r_list <- r_list[valid_idx]
   
   # Determine aggregation method
   is_flux <- grepl("AETI|PCP|NPP|^-T-|^E-", variable, ignore.case = TRUE)
   
   if (is_flux) {
+    u <- tryCatch(as.character(terra::units(r_list[[1]])[1]), error = function(e) "")
+    # If layers have daily rate units (/day or /d), multiply each layer by dekad day count
+    if (grepl("/(day|d)$", u, ignore.case = TRUE)) {
+      dates <- as.Date(df$date_key[valid_idx])
+      for (i in seq_along(r_list)) {
+        d <- dates[i]
+        day <- as.integer(format(d, "%d"))
+        n_days <- if (day <= 10) 10 else if (day <= 20) 10 else lubridate::days_in_month(d) - 20
+        r_list[[i]] <- r_list[[i]] * n_days
+      }
+    }
+    s <- terra::rast(r_list)
     res <- terra::app(s, fun = "sum", na.rm = TRUE)
   } else {
+    s <- terra::rast(r_list)
     res <- terra::app(s, fun = "mean", na.rm = TRUE)
   }
   
@@ -1056,7 +1072,7 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
 
   # 1. Generate the Seasonal Sum Raster for the mask_variable
   query_mask <- "
-    SELECT date_key, raster_blob
+    SELECT date_key, raster_blob, raster_path
     FROM monitoring_rasters
     WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
@@ -1068,7 +1084,7 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
   if (nrow(mask_df) == 0) {
     # Fallback to legacy
     mask_df <- DBI::dbGetQuery(con, 
-      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
+      "SELECT date_key, raster_blob, NULL as raster_path FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
       params = list(farm_id, mask_variable, as.character(start_date), as.character(end_date)))
     
     if (nrow(mask_df) == 0) {
@@ -1078,15 +1094,23 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
     }
   }
 
-  # Accumulate the seasonal sum
-  r_list <- lapply(mask_df$raster_blob, wapor_raster_from_blob)
-  
-  # DYNAMIC CLIP for the seasonal sum base
+  # DYNAMIC CLIP for the seasonal sum base (preferring windowed reads from file paths)
   f_bb <- sf::st_bbox(polygon)
   f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
                      as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
-  
-  r_list_clipped <- lapply(r_list, function(r) terra::crop(r, f_ext))
+
+  r_list_clipped <- lapply(seq_len(nrow(mask_df)), function(i) {
+    p <- mask_df$raster_path[[i]]
+    if (!is.null(p) && !is.na(p) && nzchar(p) && file.exists(p)) {
+      r_crop <- tryCatch(terra::rast(p, win = f_ext), error = function(e) NULL)
+      if (!is.null(r_crop)) return(r_crop)
+    }
+    r <- wapor_raster_from_blob(mask_df$raster_blob[[i]])
+    if (is.null(r)) return(NULL)
+    terra::crop(r, f_ext)
+  })
+  r_list_clipped <- r_list_clipped[!vapply(r_list_clipped, is.null, logical(1))]
+  if (length(r_list_clipped) == 0) return(NULL)
   seasonal_sum <- terra::app(terra::rast(r_list_clipped), "sum", na.rm = TRUE)
   
   # 2. Create the Binary Mask

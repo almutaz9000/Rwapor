@@ -242,11 +242,21 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
 
 #' Compute ETc-Based Adequacy
 #'
-#' Adequacy_ETc = Seasonal_AETI / Seasonal_ETc
+#' Adequacy_ETc = Seasonal_AETI / Seasonal_ETc.
+#' Measures whether water consumption meets crop water requirements. Values near 1.0
+#' represent full satisfaction, values below 1.0 indicate water deficit or stress,
+#' and values above 1.0 indicate water application in excess of standard crop demand.
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI.
 #' @param etc_seasonal SpatRaster or numeric. Seasonal ETc.
 #' @return SpatRaster or numeric of adequacy ratio.
+#' @references
+#' Molden, D. J., & Gates, T. K. (1990). Performance metrics for evaluation of
+#'   irrigation-water-delivery systems. Journal of Irrigation and Drainage Engineering, 116(6), 804-823.
+#'
+#' Karimi, P., Bastiaanssen, W. G., & Molden, D. (2019). Water accounting plus (WA+) -
+#'   a water accounting procedure for complex river basins based on satellite measurements.
+#'   Hydrology and Earth System Sciences, 17(7), 2459-2472.
 #' @export
 wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(etc_seasonal, "SpatRaster")) {
@@ -258,11 +268,21 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 
 #' Compute Beneficial Fraction
 #'
-#' Beneficial Fraction = Transpiration (T) / Actual Evapotranspiration (AETI)
+#' Beneficial Fraction = Transpiration (T) / Actual Evapotranspiration (AETI).
+#' Quantifies the proportion of consumed water that directly supports plant
+#' growth and productive biomass development, as opposed to non-beneficial
+#' soil evaporation and canopy interception losses.
 #'
 #' @param t_seasonal SpatRaster or numeric. Seasonal Transpiration (mm).
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @return SpatRaster or numeric of beneficial fraction (0-1).
+#' @references
+#' Perry, C. (2007). Efficient irrigation; inefficient communication; flawed
+#'   recommendations. Irrigation and Drainage, 56(4), 367-378.
+#'
+#' Molden, D., Oweis, T., Steduto, P., Bindraban, P., Hanjra, M. A., & Kijne, J. (2010).
+#'   Improving agricultural water productivity: Between optimism and realism.
+#'   Agricultural Water Management, 97(4), 528-535.
 #' @export
 wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
   if (!inherits(t_seasonal, "SpatRaster") && !inherits(aeti_seasonal, "SpatRaster")) {
@@ -275,12 +295,22 @@ wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
 #' Compute P95 of AETI Within Crop Class
 #'
 #' Extracts the 95th percentile of seasonal AETI for each crop class.
+#' In remote-sensing water accounting, the 95th percentile of AETI across homogeneous
+#' agro-ecological zones or crop classes serves as an empirical estimate of target
+#' (non-water-limited) crop evapotranspiration (ETx), filtering out localized extreme outliers.
 #'
 #' @param aeti_seasonal SpatRaster. Seasonal AETI raster.
 #' @param crop_mask SpatRaster. Crop mask with integer class values.
 #' @param min_pixels Integer. Minimum pixel count to compute P95.
 #'   Classes with fewer pixels return NA. Default 30.
 #' @return A data.frame with columns: class_value, p95_aeti, n_pixels, valid.
+#' @references
+#' Bastiaanssen, W. G., & Bos, M. G. (1999). Irrigation performance indicators based
+#'   on satellite remote sensing. Irrigation and Drainage Systems, 13(1), 3-36.
+#'
+#' de Bie, C. A., Khan, M. R., Smaling, E. M., Hirosawa, K., & Knox, J. W. (2011).
+#'   Analysis of the variation in water productivity for irrigated wheat in Egypt.
+#'   Agricultural Water Management, 102(1), 58-69.
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
@@ -431,12 +461,21 @@ wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
 
 #' Compute P95-Based Adequacy
 #'
-#' Adequacy_P95 = Seasonal_AETI / P95(Seasonal_AETI within crop class)
+#' Adequacy_P95 = Seasonal_AETI / P95(Seasonal_AETI within crop class).
+#' Measures the relative water consumption compared to the top 5% performing
+#' water-consuming areas of the same crop under local conditions.
 #'
 #' @param aeti_seasonal SpatRaster. Seasonal AETI raster.
 #' @param crop_mask SpatRaster. Crop mask.
 #' @param p95_table data.frame. Output from wapor_calc_p95_aeti().
 #' @return A SpatRaster of P95-based adequacy.
+#' @references
+#' Bastiaanssen, W. G., & Bos, M. G. (1999). Irrigation performance indicators based
+#'   on satellite remote sensing. Irrigation and Drainage Systems, 13(1), 3-36.
+#'
+#' Karimi, P., Bastiaanssen, W. G., & Molden, D. (2019). Water accounting plus (WA+) -
+#'   a water accounting procedure for complex river basins based on satellite measurements.
+#'   Hydrology and Earth System Sciences, 17(7), 2459-2472.
 #' @export
 wapor_calc_adequacy_p95 <- function(aeti_seasonal, crop_mask, p95_table) {
   # Build a raster of P95 values mapped from crop class
@@ -549,12 +588,20 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
 #' Compute Crop Water Productivity
 #'
 #' CWP = Yield / AETI, with unit conversion to kg/m3.
-#' AETI in mm is equivalent to l/m2; 1 mm = 10 m3/ha.
+#' AETI in mm is equivalent to m3/(10 ha) or 1 mm = 10 m3/ha.
+#' CWP measures the physical mass of harvested economic crop yield produced per cubic
+#' meter of total evapotranspired water.
 #'
 #' @param yield_value Numeric. Yield (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param yield_unit Character. Unit of yield: "kg/ha" (default) or "t/ha".
 #' @return Numeric or SpatRaster. CWP in kg/m3.
+#' @references
+#' Molden, D. (1997). Accounting for water use and productivity. SWIM Paper 1.
+#'   International Irrigation Management Institute (IIMI), Colombo, Sri Lanka.
+#'
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 #' @examples
 #' wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
@@ -573,11 +620,17 @@ wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' Compute Biomass Water Productivity
 #'
 #' BWP = Biomass / AETI, with unit conversion to kg/m3.
+#' AETI in mm is converted to m3/ha (1 mm = 10 m3/ha).
+#' BWP reflects total dry matter or above-ground biomass produced per cubic meter
+#' of water evaporated and transpired.
 #'
 #' @param biomass_value Numeric. Biomass (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param biomass_unit Character. Unit: "kg/ha" (default) or "t/ha".
 #' @return Numeric or SpatRaster. BWP in kg/m3.
+#' @references
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 #' @examples
 #' wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
@@ -600,11 +653,18 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' Compute Green Water Consumption
 #'
 #' Green water = min(AETI, Peff) — the portion of actual evapotranspiration
-#' sourced from effective precipitation (rainfall stored in the soil).
+#' sourced from effective precipitation (rainfall stored in the root-zone soil).
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
 #' @return SpatRaster or numeric. Green water consumption (mm).
+#' @references
+#' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
+#'   The new approach in ecohydrology. Earthscan, London.
+#'
+#' Chukalla, A. D., Krol, M. S., & Hoekstra, A. Y. (2015). Green and blue water
+#'   footprint reduction in irrigated agriculture: effect of irrigation techniques,
+#'   irrigation strategies and mulching. Hydrology and Earth System Sciences, 19(12), 4877-4891.
 #' @export
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
@@ -618,11 +678,17 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' Compute Blue Water Consumption
 #'
 #' Blue water = max(0, AETI - Peff) — the portion of actual evapotranspiration
-#' sourced from irrigation (surface water or groundwater).
+#' sourced from irrigation (surface water withdrawals or groundwater extraction).
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
 #' @return SpatRaster or numeric. Blue water consumption (mm).
+#' @references
+#' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
+#'   The new approach in ecohydrology. Earthscan, London.
+#'
+#' Hoekstra, A. Y., Chapagain, A. K., Aldaya, M. M., & Mekonnen, M. M. (2011).
+#'   The Water Footprint Assessment Manual: Setting the Global Standard. Earthscan, London.
 #' @export
 #' @examples
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
@@ -637,11 +703,23 @@ wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
 
 #' Convert NPP to Total Biomass Production (TBP)
 #'
-#' Converts seasonal NPP (gC/m2) to TBP (kgDM/ha) using the
-#' factor 22.222.
+#' Converts seasonal Net Primary Production (NPP, gC/m2) to Total Biomass Production
+#' (TBP, kgDM/ha) using the standard carbon fraction conversion factor 22.222.
 #'
-#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
-#' @return Numeric. TBP in kgDM/ha.
+#' Derivation:
+#' 1 gC/m2 = 10 kgC/ha.
+#' Assuming an average carbon fraction of dry plant biomass of 0.45 (45% carbon),
+#' TBP (kgDM/ha) = NPP * 10 / 0.45 = NPP * 22.2222.
+#'
+#' @param npp_gc_m2 Numeric or SpatRaster. Seasonal sum of NPP in gC/m2.
+#' @return Numeric or SpatRaster. TBP in kgDM/ha.
+#' @references
+#' FAO. (2020). WaPOR Database Methodology: Version 2 Release. Food and Agriculture
+#'   Organization of the United Nations, Rome.
+#'
+#' Running, S. W., Nemani, R. R., Heinsch, F. A., Zhao, M., Reeves, M., & Hashimoto, H. (2004).
+#'   A continuous satellite-derived measure of global terrestrial primary production.
+#'   BioScience, 54(6), 547-560.
 #' @export
 wapor_convert_npp_tbp <- function(npp_gc_m2) {
   if (inherits(npp_gc_m2, "SpatRaster")) {
@@ -652,16 +730,32 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
 
 #' Calculate Crop Yield from NPP
 #'
-#' Implementation of the provided yield formula based on NPP:
-#' AGBM = (aot * fc * (NPP * 22.222 / (1 - MC))) / 1000
-#' CropYield = HI * AGBM
+#' Implementation of the FAO WaPOR yield estimation formula based on Net Primary Production (NPP):
+#' \deqn{AGBM = \left(AOT \times f_c \times \frac{NPP \times 22.222}{1 - MC}\right) / 1000}
+#' \deqn{CropYield = HI \times AGBM}
 #'
-#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
+#' where:
+#' \itemize{
+#'   \item \code{NPP * 22.222} converts gC/m2 to dry matter production (kgDM/ha).
+#'   \item \code{1 / (1 - MC)} adjusts dry matter to fresh storage moisture content.
+#'   \item \code{AOT} is the above-ground over total biomass ratio (e.g. 0.8).
+#'   \item \code{fc} is the light use efficiency / crop-specific correction factor (typically 1.0).
+#'   \item \code{1000} converts kg/ha to t/ha.
+#'   \item \code{HI} is the Harvest Index (ratio of economic yield to above-ground biomass).
+#' }
+#'
+#' @param npp_gc_m2 Numeric or SpatRaster. Seasonal sum of NPP in gC/m2.
 #' @param mc Numeric. Moisture content (0-1).
 #' @param fc Numeric. Light use efficiency correction factor.
 #' @param aot Numeric. Above ground over total biomass production ratio.
 #' @param hi Numeric. Harvest index.
-#' @return Numeric. Crop yield in t/ha.
+#' @return Numeric or SpatRaster. Crop yield in t/ha.
+#' @references
+#' Steduto, P., Hsiao, T. C., Fereres, E., & Raes, D. (2012). Crop yield response to water.
+#'   FAO Irrigation and Drainage Paper 66. Food and Agriculture Organization of the United Nations, Rome.
+#'
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
   if (inherits(npp_gc_m2, "SpatRaster")) {
@@ -852,9 +946,18 @@ wapor_summary_by_class <- function(r, crop_mask, class_stats = NULL, var_name = 
 
 #' USDA-SCS effective precipitation from monthly rasters
 #'
+#' CROPWAT simplification (Smith 1992): Peff = P (125 - 0.2 P) / 125 for
+#' P <= 250 mm/month, else 125 + 0.1 P. Applied to each monthly raster, then
+#' summed to a seasonal total.
+#'
 #' @param monthly_rasters Named list of monthly precipitation SpatRasters (mm).
 #' @return List with `monthly` (Peff rasters) and `seasonal` (sum of monthly Peff).
-#' @keywords internal
+#' @source Smith (1992) CROPWAT.
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_peff(list(`2023-01` = p_jan, `2023-02` = p_feb))
+#' }
 wapor_calc_peff <- function(monthly_rasters) {
   if (is.null(monthly_rasters) || !length(monthly_rasters)) {
     stop("'monthly_rasters' must be a non-empty list of SpatRasters", call. = FALSE)
@@ -876,10 +979,19 @@ wapor_calc_peff <- function(monthly_rasters) {
 
 #' Spatial coefficient of variation
 #'
+#' CV = sd / mean over finite cells (optionally masked). By-class values use
+#' `terra::zonal()` means and sds. This is the existing package helper; the
+#' zonal engine in [wapor_zonal_stats()] is the area-weighted definition used
+#' by irrigation uniformity.
+#'
 #' @param r SpatRaster (typically seasonal AETI).
 #' @param crop_mask Optional SpatRaster mask / class raster.
 #' @return List with `overall` CV and optional `by_class` table.
-#' @keywords internal
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_cv(aeti, crop_mask)
+#' }
 wapor_calc_cv <- function(r, crop_mask = NULL) {
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster", call. = FALSE)
@@ -908,12 +1020,25 @@ wapor_calc_cv <- function(r, crop_mask = NULL) {
 
 #' Spatial Theil T inequality index
 #'
-#' Theil's T = mean( (x / xbar) * log(x / xbar) ) for positive finite values.
+#' Computes Theil's T index of spatial inequality / uniformity:
+#' \deqn{T = \frac{1}{N} \sum_{i=1}^N \frac{x_i}{\bar{x}} \ln\left(\frac{x_i}{\bar{x}}\right)}
+#' for positive finite values. Computed from block-wise sums so large rasters are
+#' not read into R. The area-weighted form used by [wapor_zonal_stats()] is
+#' \eqn{\sum w (x/\mu) \ln(x/\mu) / \sum w}.
 #'
 #' @param r SpatRaster.
 #' @param crop_mask Optional SpatRaster mask / class raster.
 #' @return List with `overall` Theil T and optional `by_class` table.
-#' @keywords internal
+#' @references
+#' Theil, H. (1967). Economics and Information Theory. North-Holland Publishing Company, Amsterdam.
+#'
+#' Sampath, R. K. (1988). Equity measures for irrigation performance evaluation.
+#'   Water International, 13(1), 25-32.
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_theil(aeti, crop_mask)
+#' }
 wapor_calc_theil <- function(r, crop_mask = NULL) {
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster", call. = FALSE)

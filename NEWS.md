@@ -1,4 +1,29 @@
-# Rwapor 1.0.6 (development)
+# Rwapor 1.0.6
+
+## Production readiness & scientific review fixes
+
+* **Literature Citations & Derivations**: Added formal mathematical equations, parameter derivations (e.g. carbon fraction $10 / 0.45 = 22.222$ for TBP), and authoritative peer-reviewed literature citations across 11 core indicators in `R/analysis_indicators.R` and `R/performance_indicators.R`.
+* **Short-Season Crop Phenology**: In `wapor_build_kc_by_class()`, when season duration is shorter than the sum of standard growth stages ($TD < L_{ini} + L_{mid} + L_{late}$), stage lengths are now proportionally scaled to fit the observed satellite phenology rather than aborting with `numeric(0)`.
+* **Generalized Temperature Conversion**: `is_temperature_variable()` and `wapor_convert_temperature()` now recognize all AgERA5 temperature products (`TMIN`, `TMAX`, `TAVG`, `TDEW`, and `TEMP`), automatically converting Kelvin to Celsius during download and caching.
+* **Farm Monitoring Aggregation**: `wapor_generate_seasonal_raster()` and `wapor_apply_seasonal_mask_recalc()` apply dekadal day length multipliers ($N \in [8, 11]$ days) before seasonal summation of flux variables, eliminating the ~10x seasonal accumulation underestimation.
+* **DuckDB Windowed Streaming**: Monitoring raster retrieval prioritizes COG file paths with windowed reads (`terra::rast(path, win = f_ext)`) over full raster BLOB deserialization, dramatically reducing memory overhead.
+* **Vignette Harmonization**: Updated `vignettes/wheat-water-productivity.Rmd` to use canonical indicator `peff_green_blue` and `cwp_summary` output structures.
+* **Cross-Platform & Packaging**: Added `SystemRequirements: GDAL (>= 3.0.0), GEOS (>= 3.8.0), PROJ (>= 6.0.0)` in `DESCRIPTION`. Added `macos-latest` to live API CI/CD matrix. Excluded large unversioned archives from package builds via `.Rbuildignore`.
+
+## Irrigation performance indicators
+
+* New `wapor_classify_adequacy()`, `wapor_calc_rwd()`, `wapor_calc_uniformity()`,
+  `wapor_calc_equity()`, `wapor_calc_reliability()`, `wapor_relative_et_stack()`,
+  `wapor_calc_climate_norm()`, `wapor_apply_climate_norm()`,
+  `wapor_calc_productivity_gap()`, `wapor_classify_spots()` and `wapor_calc_nir()`.
+  Adequacy classes, relative water deficit, uniformity (1 - CV, CU, DU_lq) per
+  irrigation method, equity, temporal reliability, climate normalisation,
+  productivity gaps and bright/dark spots, and net irrigation requirement.
+  Thresholds come from `wapor_class_defaults()`. Uniformity standards are for
+  applied water; 1 - CV of ET can overstate them. The climate-norm application
+  rule (depths multiplied, productivity divided) is documented as unverified as
+  a published convention.
+* `wapor_calc_cv()`, `wapor_calc_peff()` and `wapor_calc_theil()` are exported.
 
 ## Download once, work offline
 
