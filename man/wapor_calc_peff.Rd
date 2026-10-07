@@ -3,6 +3,9 @@
 \name{wapor_calc_peff}
 \alias{wapor_calc_peff}
 \title{USDA-SCS effective precipitation from monthly rasters}
+\source{
+Smith (1992) CROPWAT.
+}
 \usage{
 wapor_calc_peff(monthly_rasters)
 }
@@ -13,6 +16,12 @@ wapor_calc_peff(monthly_rasters)
 List with \code{monthly} (Peff rasters) and \code{seasonal} (sum of monthly Peff).
 }
 \description{
-USDA-SCS effective precipitation from monthly rasters
+CROPWAT simplification (Smith 1992): Peff = P (125 - 0.2 P) / 125 for
+P <= 250 mm/month, else 125 + 0.1 P. Applied to each monthly raster, then
+summed to a seasonal total.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+wapor_calc_peff(list(`2023-01` = p_jan, `2023-02` = p_feb))
+}
+}

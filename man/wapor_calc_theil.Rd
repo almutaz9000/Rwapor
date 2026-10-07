@@ -15,6 +15,20 @@ wapor_calc_theil(r, crop_mask = NULL)
 List with \code{overall} Theil T and optional \code{by_class} table.
 }
 \description{
-Theil's T = mean( (x / xbar) * log(x / xbar) ) for positive finite values.
+Computes Theil's T index of spatial inequality / uniformity:
+\deqn{T = \frac{1}{N} \sum_{i=1}^N \frac{x_i}{\bar{x}} \ln\left(\frac{x_i}{\bar{x}}\right)}
+for positive finite values. Computed from block-wise sums so large rasters are
+not read into R. The area-weighted form used by \code{\link[=wapor_zonal_stats]{wapor_zonal_stats()}} is
+\eqn{\sum w (x/\mu) \ln(x/\mu) / \sum w}.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+wapor_calc_theil(aeti, crop_mask)
+}
+}
+\references{
+Theil, H. (1967). Economics and Information Theory. North-Holland Publishing Company, Amsterdam.
+
+Sampath, R. K. (1988). Equity measures for irrigation performance evaluation.
+Water International, 13(1), 25-32.
+}

@@ -33,7 +33,7 @@ test_that("analysis config validation rejects unsupported period types", {
   expect_true(any(grepl("character or Date vector", validation$errors)))
 })
 
-test_that("analysis config validation allows missing ref_year", {
+test_that("analysis config validation allows missing ref_year or 1970", {
   cfg <- list(
     period = c("2023-01-01", "2023-01-10"),
     aeti_var = "L1-AETI-D",
@@ -43,4 +43,13 @@ test_that("analysis config validation allows missing ref_year", {
 
   validation <- wapor_validate_analysis_config(cfg)
   expect_true(validation$valid)
+
+  cfg$ref_year <- 1970
+  validation_1970 <- wapor_validate_analysis_config(cfg)
+  expect_true(validation_1970$valid)
+
+  cfg$ref_year <- 1800
+  validation_bad <- wapor_validate_analysis_config(cfg)
+  expect_false(validation_bad$valid)
+  expect_true(any(grepl("Reference year must be", validation_bad$errors)))
 })

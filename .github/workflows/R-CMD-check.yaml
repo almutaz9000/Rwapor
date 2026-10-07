@@ -157,7 +157,8 @@ jobs:
           cat("Dashboard served HTTP 200.\n")
 
   # Release gate against the live WaPOR API. Runs only on manual dispatch so
-  # routine pushes do not depend on the API being up.
+  # routine pushes do not depend on the API being up. Note: The FAO WaPOR v3 API
+  # is completely public and unauthenticated (requires no API keys or secrets).
   live-api:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
@@ -166,7 +167,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       RWAPOR_RUN_LIVE_TESTS: "true"
@@ -186,6 +187,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install gdal geos proj udunits
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:

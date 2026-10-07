@@ -18,8 +18,17 @@ Numeric or SpatRaster. CWP in kg/m3.
 }
 \description{
 CWP = Yield / AETI, with unit conversion to kg/m3.
-AETI in mm is equivalent to l/m2; 1 mm = 10 m3/ha.
+AETI in mm is equivalent to m3/(10 ha) or 1 mm = 10 m3/ha.
+CWP measures the physical mass of harvested economic crop yield produced per cubic
+meter of total evapotranspired water.
 }
 \examples{
 wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
+}
+\references{
+Molden, D. (1997). Accounting for water use and productivity. SWIM Paper 1.
+International Irrigation Management Institute (IIMI), Colombo, Sri Lanka.
+
+Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 }

@@ -239,3 +239,37 @@ test_that("total days and ldev computation works", {
   ldev_r <- wapor_season_ldev(total_r, 30, 40, 30)
   expect_equal(as.numeric(terra::values(ldev_r)[1, 1]), 60)  # 160 - 100
 })
+
+test_that('wapor_build_kc_by_class scales stages proportionally for short seasons', {
+  params <- data.frame(
+    class_value = 1,
+    kc_ini = 0.40,
+    kc_mid = 1.15,
+    kc_end = 0.30,
+    l_ini_days = 30L,
+    l_mid_days = 40L,
+    l_late_days = 30L,
+    stringsAsFactors = FALSE
+  )
+  # Total days = 80 (< 30 + 40 + 30 = 100 days)
+  expect_warning(
+    res <- wapor_build_kc_by_class(params, c('1' = 80)),
+    'Proportionally scaling stage lengths'
+  )
+  expect_equal(length(res[['1']]), 80)
+  expect_true(all(res[['1']] >= 0.30 & res[['1']] <= 1.15))
+
+  # Extremely short season = 25 days
+  expect_warning(
+    res_short <- wapor_build_kc_by_class(params, c('1' = 25)),
+    'Proportionally scaling stage lengths'
+  )
+  expect_equal(length(res_short[['1']]), 25)
+
+  # Invalid non-positive days returns numeric(0) with warning
+  expect_warning(
+    res_inv <- wapor_build_kc_by_class(params, c('1' = -5)),
+    'invalid season duration'
+  )
+  expect_equal(length(res_inv[['1']]), 0)
+})

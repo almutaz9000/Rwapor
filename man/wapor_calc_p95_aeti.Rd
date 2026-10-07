@@ -19,4 +19,15 @@ A data.frame with columns: class_value, p95_aeti, n_pixels, valid.
 }
 \description{
 Extracts the 95th percentile of seasonal AETI for each crop class.
+In remote-sensing water accounting, the 95th percentile of AETI across homogeneous
+agro-ecological zones or crop classes serves as an empirical estimate of target
+(non-water-limited) crop evapotranspiration (ETx), filtering out localized extreme outliers.
+}
+\references{
+Bastiaanssen, W. G., & Bos, M. G. (1999). Irrigation performance indicators based
+on satellite remote sensing. Irrigation and Drainage Systems, 13(1), 3-36.
+
+de Bie, C. A., Khan, M. R., Smaling, E. M., Hirosawa, K., & Knox, J. W. (2011).
+Analysis of the variation in water productivity for irrigated wheat in Egypt.
+Agricultural Water Management, 102(1), 58-69.
 }

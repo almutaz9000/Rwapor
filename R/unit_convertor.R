@@ -247,7 +247,7 @@ wapor_convert_raster <- function(r, variable, urls, unit_conversion) {
 #' @keywords internal
 #' @noRd
 is_temperature_variable <- function(variable) {
-  grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)
+  grepl("^AGERA5-(TMIN|TMAX|TAVG|TDEW|TEMP)-", variable, ignore.case = FALSE)
 }
 
 #' Convert Temperature Raster from Kelvin to Celsius
@@ -268,6 +268,8 @@ is_temperature_variable <- function(variable) {
 #' This conversion is automatically applied during download for:
 #' * AGERA5-TMIN-E (Minimum Air Temperature)
 #' * AGERA5-TMAX-E (Maximum Air Temperature)
+#' * AGERA5-TAVG-E (Mean Air Temperature)
+#' * AGERA5-TDEW-E (Dew Point Temperature)
 #'
 #' @export
 #'

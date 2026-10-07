@@ -18,7 +18,14 @@ Numeric or SpatRaster. BWP in kg/m3.
 }
 \description{
 BWP = Biomass / AETI, with unit conversion to kg/m3.
+AETI in mm is converted to m3/ha (1 mm = 10 m3/ha).
+BWP reflects total dry matter or above-ground biomass produced per cubic meter
+of water evaporated and transpired.
 }
 \examples{
 wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
+}
+\references{
+Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 }
