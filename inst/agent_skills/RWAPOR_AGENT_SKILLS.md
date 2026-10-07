@@ -344,6 +344,9 @@ config <- list(
     "cwp_bwp"         # Crop/Biomass Water Productivity (requires npp_var)
   ),
   data_source = "api",  # "api" (stream) or "local" (use files under `folder`)
+  # cache_dir = "wapor_data",  # optional, with "api": save the needed sources once
+  #                            # (wapor_download()), then read them locally; later runs
+  #                            # for the same area work offline. One folder per area.
   use_crop_mask      = TRUE,
   use_season_rasters = TRUE
 )

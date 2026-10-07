@@ -7,10 +7,12 @@
 wapor_suggest_tile_size(
   n_layers,
   n_workers = 1L,
-  bytes_per_val = 4L,
+  bytes_per_val = 8L,
   target_ram_mb = 4096,
   min_tile = 64L,
-  max_tile = 4096L
+  max_tile = 4096L,
+  n_vars = 1L,
+  overhead = 2.5
 )
 }
 \arguments{
@@ -20,29 +22,33 @@ wapor_suggest_tile_size(
 \item{n_workers}{Integer. Number of parallel tile workers. Each worker
 holds one tile in RAM simultaneously. Default \code{1L}.}
 
-\item{bytes_per_val}{Integer. Bytes per raster cell. Float32 COGs = 4.
-Default \code{4L}.}
+\item{bytes_per_val}{Integer. Bytes per cell in memory. terra holds values
+as 8-byte doubles, so the default is \code{8L}.}
 
 \item{target_ram_mb}{Numeric. RAM budget in megabytes. Default \code{4096} (4 GB).}
 
 \item{min_tile}{Integer. Minimum tile size to return. Default \code{64L}.}
 
 \item{max_tile}{Integer. Maximum tile size to return. Default \code{4096L}.}
+
+\item{n_vars}{Integer. Number of variables read per tile. Default \code{1L}.}
+
+\item{overhead}{Numeric. Multiplier for temporaries. Default \code{2.5}.}
 }
 \value{
 A single integer: recommended tile side length in pixels.
 }
 \description{
 Computes the largest square tile (in pixels) that fits within
-\code{target_ram_mb} of working memory, given the number of raster layers and
-parallel workers.  Use the returned value as the \code{tile_size} argument of
+\code{target_ram_mb} of working memory, given the number of raster layers,
+variables and parallel workers. \code{\link[=wapor_plan_processing]{wapor_plan_processing()}} chooses a tile
+size automatically; use this helper to pick one by hand for
 \code{\link[=wapor_run_seasonal_analysis_tiled]{wapor_run_seasonal_analysis_tiled()}}.
 }
 \details{
 Formula:
-bytes_per_tile = tile_size^2 * n_layers * bytes_per_val
+bytes_per_tile = tile_size^2 * n_layers * n_vars * bytes_per_val * overhead
 total_bytes    = bytes_per_tile * n_workers
-max_tile_size  = floor(sqrt(target_ram_mb * 1024^2 / (n_layers * bytes_per_val * n_workers)))
 
 The result is clamped to [min_tile, max_tile] so extreme inputs produce
 a usable value rather than an error.

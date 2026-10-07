@@ -79,26 +79,23 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, datatype = NULL, ...)
     }
   }, add = TRUE)
 
-  if (isTRUE(use_cog)) {
-    terra::writeRaster(
-      x,
-      tmp,
-      overwrite = TRUE,
-      filetype = "COG",
-      datatype = datatype,
-      gdal = c("COMPRESS=LZW", "OVERVIEWS=AUTO", predictor, paste0("BIGTIFF=", bigtiff)),
-      ...
-    )
-  } else {
-    terra::writeRaster(
-      x,
-      tmp,
-      overwrite = TRUE,
-      datatype = datatype,
-      gdal = c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES", predictor, paste0("BIGTIFF=", bigtiff)),
-      ...
-    )
+  # terra hands the creation options to its intermediate MEM/GTiff dataset,
+  # which rejects COG-only options with a harmless "does not support creation
+  # option" message; drop exactly those and keep every other warning.
+  muffle_option_notes <- function(w) {
+    if (grepl("does not support creation option", conditionMessage(w), fixed = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
   }
+
+  gdal_opts <- if (isTRUE(use_cog)) {
+    c("COMPRESS=LZW", "OVERVIEWS=AUTO", predictor, paste0("BIGTIFF=", bigtiff))
+  } else {
+    c("TILED=YES", "COMPRESS=LZW", "COPY_SRC_OVERVIEWS=YES", predictor, paste0("BIGTIFF=", bigtiff))
+  }
+  write_args <- list(x, tmp, overwrite = TRUE, datatype = datatype, gdal = gdal_opts, ...)
+  if (isTRUE(use_cog)) write_args$filetype <- "COG"
+  withCallingHandlers(do.call(terra::writeRaster, write_args), warning = muffle_option_notes)
 
   if (file.exists(filename)) {
     unlink(filename, force = TRUE)
@@ -114,7 +111,8 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, datatype = NULL, ...)
 
 #' Probe the output datatype from actual cell values
 #'
-#' Samples up to 10000 cells from the first layer of `x` and determines the
+#' Checks every value of `x` (all layers) when it holds up to 5 million values,
+#' otherwise a regular sample of up to 100000 cells per layer, and determines the
 #' smallest GDAL datatype that can losslessly represent all non-NA values.
 #' Integer-valued rasters within the INT4 range are classified as `"INT4S"` (or
 #' `"INT4U"` when all values are non-negative); everything else is `"FLT4S"`.
@@ -127,15 +125,20 @@ wapor_write_cog <- function(x, filename, overwrite = TRUE, datatype = NULL, ...)
   n <- terra::ncell(x)
   if (n == 0L) return("FLT4S")
 
-  sample_size <- min(n, 10000L)
-  ncol_x <- max(1L, as.integer(terra::ncol(x)))
-  sample_rows <- max(1L, ceiling(sample_size / ncol_x))
-
-  vals <- tryCatch(
-    as.numeric(terra::readValues(x, row = 1L, nrows = sample_rows, mat = TRUE)),
-    error = function(e) NULL
-  )
-  if (!is.null(vals) && length(vals) > sample_size) vals <- vals[seq_len(sample_size)]
+  # Sample a regular grid over the whole extent and every layer. Reading only
+  # the first rows of the first layer can see a band of zeros (or integers)
+  # and truncate fractional values elsewhere when written as an integer type.
+  # Rasters up to 5 million values are checked in full.
+  n_values <- as.numeric(n) * terra::nlyr(x)
+  vals <- tryCatch({
+    if (n_values <= 5e6) {
+      as.numeric(terra::values(x, mat = TRUE))
+    } else {
+      as.numeric(as.matrix(terra::spatSample(
+        x, size = min(n, 100000L), method = "regular", as.df = FALSE, warn = FALSE
+      )))
+    }
+  }, error = function(e) NULL)
   if (is.null(vals)) return("FLT4S")
 
   vals <- vals[!is.na(vals)]

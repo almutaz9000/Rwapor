@@ -38,12 +38,14 @@ wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental =
     return(total)
   }
 
-  # Multiply each layer by its weight and sum (faster but uses more peak disk/RAM)
-  weighted <- x * weights
-  if (!all(layer_multipliers == 1)) {
-    weighted <- weighted * layer_multipliers
+  # Accumulate one layer at a time with na.rm semantics (a pixel is NA only
+  # when every layer is NA), without materialising a weighted copy of the stack.
+  total <- NULL
+  for (i in seq_len(terra::nlyr(x))) {
+    current <- x[[i]] * (weights[[i]] * layer_multipliers[i])
+    total <- if (is.null(total)) current else sum(total, current, na.rm = TRUE)
   }
-  terra::app(weighted, fun = "sum", na.rm = TRUE)
+  total
 }
 
 #' Compute Seasonal AETI with Season Mask
@@ -240,11 +242,21 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
 
 #' Compute ETc-Based Adequacy
 #'
-#' Adequacy_ETc = Seasonal_AETI / Seasonal_ETc
+#' Adequacy_ETc = Seasonal_AETI / Seasonal_ETc.
+#' Measures whether water consumption meets crop water requirements. Values near 1.0
+#' represent full satisfaction, values below 1.0 indicate water deficit or stress,
+#' and values above 1.0 indicate water application in excess of standard crop demand.
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI.
 #' @param etc_seasonal SpatRaster or numeric. Seasonal ETc.
 #' @return SpatRaster or numeric of adequacy ratio.
+#' @references
+#' Molden, D. J., & Gates, T. K. (1990). Performance metrics for evaluation of
+#'   irrigation-water-delivery systems. Journal of Irrigation and Drainage Engineering, 116(6), 804-823.
+#'
+#' Karimi, P., Bastiaanssen, W. G., & Molden, D. (2019). Water accounting plus (WA+) -
+#'   a water accounting procedure for complex river basins based on satellite measurements.
+#'   Hydrology and Earth System Sciences, 17(7), 2459-2472.
 #' @export
 wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(etc_seasonal, "SpatRaster")) {
@@ -256,11 +268,21 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 
 #' Compute Beneficial Fraction
 #'
-#' Beneficial Fraction = Transpiration (T) / Actual Evapotranspiration (AETI)
+#' Beneficial Fraction = Transpiration (T) / Actual Evapotranspiration (AETI).
+#' Quantifies the proportion of consumed water that directly supports plant
+#' growth and productive biomass development, as opposed to non-beneficial
+#' soil evaporation and canopy interception losses.
 #'
 #' @param t_seasonal SpatRaster or numeric. Seasonal Transpiration (mm).
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @return SpatRaster or numeric of beneficial fraction (0-1).
+#' @references
+#' Perry, C. (2007). Efficient irrigation; inefficient communication; flawed
+#'   recommendations. Irrigation and Drainage, 56(4), 367-378.
+#'
+#' Molden, D., Oweis, T., Steduto, P., Bindraban, P., Hanjra, M. A., & Kijne, J. (2010).
+#'   Improving agricultural water productivity: Between optimism and realism.
+#'   Agricultural Water Management, 97(4), 528-535.
 #' @export
 wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
   if (!inherits(t_seasonal, "SpatRaster") && !inherits(aeti_seasonal, "SpatRaster")) {
@@ -273,53 +295,187 @@ wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
 #' Compute P95 of AETI Within Crop Class
 #'
 #' Extracts the 95th percentile of seasonal AETI for each crop class.
+#' In remote-sensing water accounting, the 95th percentile of AETI across homogeneous
+#' agro-ecological zones or crop classes serves as an empirical estimate of target
+#' (non-water-limited) crop evapotranspiration (ETx), filtering out localized extreme outliers.
 #'
 #' @param aeti_seasonal SpatRaster. Seasonal AETI raster.
 #' @param crop_mask SpatRaster. Crop mask with integer class values.
 #' @param min_pixels Integer. Minimum pixel count to compute P95.
 #'   Classes with fewer pixels return NA. Default 30.
 #' @return A data.frame with columns: class_value, p95_aeti, n_pixels, valid.
+#' @references
+#' Bastiaanssen, W. G., & Bos, M. G. (1999). Irrigation performance indicators based
+#'   on satellite remote sensing. Irrigation and Drainage Systems, 13(1), 3-36.
+#'
+#' de Bie, C. A., Khan, M. R., Smaling, E. M., Hirosawa, K., & Knox, J. W. (2011).
+#'   Analysis of the variation in water productivity for irrigated wheat in Egypt.
+#'   Agricultural Water Management, 102(1), 58-69.
 #' @export
 wapor_calc_p95_aeti <- function(aeti_seasonal, crop_mask,
                                        min_pixels = 30L) {
-  # Fast grouped quantile calculation using terra::zonal
-  # Note: zonal only works with functions that return a single value
-  p95_vals <- terra::zonal(aeti_seasonal, crop_mask, fun = function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) < min_pixels) return(NA_real_)
-    stats::quantile(x, 0.95, na.rm = TRUE)
-  })
+  # Exact type-7 quantile per class, read block by block so memory stays
+  # bounded however many pixels a class has.
+  q <- .wapor_zonal_quantile_exact(aeti_seasonal, crop_mask, prob = 0.95, min_n = min_pixels)
 
-  # Count valid analysis pixels, not just mask pixels.
-  valid_count_rast <- terra::ifel(is.na(aeti_seasonal), 0L, 1L)
-  count_vals <- terra::zonal(valid_count_rast, crop_mask, fun = "sum", na.rm = TRUE)
-  count_vals <- as.data.frame(count_vals)
-  names(count_vals)[seq_len(min(2, ncol(count_vals)))] <- c("class_value", "n_pixels")[seq_len(min(2, ncol(count_vals)))]
-  
-  # Merge results
+  # Classes present in the mask but without valid AETI still get a row.
+  u <- terra::unique(crop_mask, na.rm = TRUE)
+  classes <- if (is.null(u) || !length(u)) numeric(0) else sort(as.numeric(u[[1]]))
+  idx <- match(classes, q$class_value)
   result <- data.frame(
-    class_value = as.integer(p95_vals[[1]]),
-    p95_aeti    = as.numeric(p95_vals[[2]]),
+    class_value = as.integer(classes),
+    p95_aeti    = ifelse(is.na(idx), NA_real_, q$quantile[idx]),
+    n_pixels    = as.integer(ifelse(is.na(idx), 0, q$n[idx])),
     stringsAsFactors = FALSE
   )
-  
-  # Add counts and valid flag
-  result <- merge(result, count_vals[, c("class_value", "n_pixels")], by = "class_value", all.x = TRUE)
-  
-  result$n_pixels <- as.integer(result$n_pixels)
   result$valid <- !is.na(result$p95_aeti) & result$n_pixels >= min_pixels
-  
   result[, c("class_value", "p95_aeti", "n_pixels", "valid")]
+}
+
+#' Exact per-zone quantile with bounded memory
+#'
+#' Matches `stats::quantile(type = 7)`. Each pass streams the raster in terra
+#' blocks. While a zone holds more than `max_values` candidate values, a
+#' histogram narrows the range to the bins holding the two order statistics
+#' needed and the pass repeats on that range; the final candidates are sorted
+#' exactly.
+#' @keywords internal
+#' @noRd
+.wapor_zonal_quantile_exact <- function(x, zones, prob, min_n = 1L,
+                                        max_values = 1e6, n_bins = 4096L) {
+  s <- c(zones[[1]], x[[1]])
+  blocks <- terra::blocks(s)
+
+  scan <- function(fun) {
+    terra::readStart(s)
+    on.exit(terra::readStop(s), add = TRUE)
+    for (i in seq_len(blocks$n)) {
+      v <- terra::readValues(s, row = blocks$row[i], nrows = blocks$nrows[i], mat = TRUE)
+      ok <- !is.na(v[, 1]) & !is.na(v[, 2])
+      if (any(ok)) fun(v[ok, 1], v[ok, 2])
+    }
+  }
+
+  # Pass 1: valid-value count per zone.
+  counts <- numeric(0)
+  scan(function(z, val) {
+    t <- table(z)
+    k <- names(t)
+    prev <- counts[k]
+    prev[is.na(prev)] <- 0
+    counts[k] <<- prev + as.numeric(t)
+  })
+  zone_ids <- sort(as.numeric(names(counts)))
+  out <- data.frame(
+    class_value = zone_ids,
+    n = as.numeric(counts[as.character(zone_ids)]),
+    quantile = rep(NA_real_, length(zone_ids))
+  )
+  active <- as.character(zone_ids[out$n >= max(1L, min_n)])
+  if (!length(active)) return(out)
+
+  # Per zone: nested bin filters and how many values sit below them.
+  state <- lapply(stats::setNames(active, active), function(k) {
+    n <- counts[[k]]
+    h <- (n - 1) * prob + 1
+    list(k1 = floor(h), k2 = ceiling(h), h = h, below = 0, levels = list(), n_in = n, done = FALSE)
+  })
+  in_levels <- function(val, levels) {
+    keep <- rep(TRUE, length(val))
+    for (lv in levels) {
+      b <- pmin(lv$bins, floor((val - lv$lo) / (lv$hi - lv$lo) * lv$bins) + 1)
+      keep <- keep & val >= lv$lo & val <= lv$hi & b >= lv$j1 & b <= lv$j2
+    }
+    keep
+  }
+  set_quantile <- function(k, value) {
+    out$quantile[out$class_value == as.numeric(k)] <<- value
+    state[[k]]$done <<- TRUE
+  }
+
+  repeat {
+    pending <- names(state)[!vapply(state, `[[`, logical(1), "done")]
+    if (!length(pending)) break
+    collect <- pending[vapply(state[pending], function(st) st$n_in <= max_values, logical(1))]
+    refine <- setdiff(pending, collect)
+
+    # One pass: candidate values for small zones, range for large ones.
+    mins <- stats::setNames(rep(Inf, length(refine)), refine)
+    maxs <- stats::setNames(rep(-Inf, length(refine)), refine)
+    vals <- stats::setNames(vector("list", length(collect)), collect)
+    scan(function(z, val) {
+      zk <- as.character(z)
+      for (k in intersect(unique(zk), pending)) {
+        sel <- val[zk == k]
+        sel <- sel[in_levels(sel, state[[k]]$levels)]
+        if (!length(sel)) next
+        if (k %in% collect) {
+          vals[[k]] <<- c(vals[[k]], sel)
+        } else {
+          mins[[k]] <<- min(mins[[k]], sel)
+          maxs[[k]] <<- max(maxs[[k]], sel)
+        }
+      }
+    })
+    for (k in collect) {
+      st <- state[[k]]
+      v <- sort(vals[[k]])
+      x1 <- v[st$k1 - st$below]
+      x2 <- v[st$k2 - st$below]
+      set_quantile(k, x1 + (st$h - st$k1) * (x2 - x1))
+    }
+    for (k in refine) {
+      # Every remaining candidate has the same value.
+      if (maxs[[k]] <= mins[[k]]) set_quantile(k, mins[[k]])
+    }
+    refine <- refine[!vapply(state[refine], `[[`, logical(1), "done")]
+    if (!length(refine)) next
+
+    # Histogram pass: find the bins holding both order statistics.
+    hist <- lapply(stats::setNames(refine, refine), function(k) numeric(n_bins))
+    scan(function(z, val) {
+      zk <- as.character(z)
+      for (k in intersect(unique(zk), refine)) {
+        sel <- val[zk == k]
+        sel <- sel[in_levels(sel, state[[k]]$levels)]
+        if (!length(sel)) next
+        b <- pmin(n_bins, floor((sel - mins[[k]]) / (maxs[[k]] - mins[[k]]) * n_bins) + 1)
+        hist[[k]] <<- hist[[k]] + tabulate(b, nbins = n_bins)
+      }
+    })
+    for (k in refine) {
+      st <- state[[k]]
+      cum <- cumsum(hist[[k]])
+      j1 <- which(cum >= st$k1 - st$below)[1]
+      j2 <- which(cum >= st$k2 - st$below)[1]
+      below_add <- if (j1 > 1) cum[j1 - 1] else 0
+      state[[k]]$levels <- c(st$levels, list(list(
+        lo = mins[[k]], hi = maxs[[k]], bins = n_bins, j1 = j1, j2 = j2
+      )))
+      state[[k]]$below <- st$below + below_add
+      state[[k]]$n_in <- cum[j2] - below_add
+    }
+  }
+  out
 }
 
 #' Compute P95-Based Adequacy
 #'
-#' Adequacy_P95 = Seasonal_AETI / P95(Seasonal_AETI within crop class)
+#' Adequacy_P95 = Seasonal_AETI / P95(Seasonal_AETI within crop class).
+#' Measures the relative water consumption compared to the top 5% performing
+#' water-consuming areas of the same crop under local conditions.
 #'
 #' @param aeti_seasonal SpatRaster. Seasonal AETI raster.
 #' @param crop_mask SpatRaster. Crop mask.
 #' @param p95_table data.frame. Output from wapor_calc_p95_aeti().
 #' @return A SpatRaster of P95-based adequacy.
+#' @references
+#' Bastiaanssen, W. G., & Bos, M. G. (1999). Irrigation performance indicators based
+#'   on satellite remote sensing. Irrigation and Drainage Systems, 13(1), 3-36.
+#'
+#' Karimi, P., Bastiaanssen, W. G., & Molden, D. (2019). Water accounting plus (WA+) -
+#'   a water accounting procedure for complex river basins based on satellite measurements.
+#'   Hydrology and Earth System Sciences, 17(7), 2459-2472.
 #' @export
 wapor_calc_adequacy_p95 <- function(aeti_seasonal, crop_mask, p95_table) {
   # Build a raster of P95 values mapped from crop class
@@ -432,12 +588,20 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
 #' Compute Crop Water Productivity
 #'
 #' CWP = Yield / AETI, with unit conversion to kg/m3.
-#' AETI in mm is equivalent to l/m2; 1 mm = 10 m3/ha.
+#' AETI in mm is equivalent to m3/(10 ha) or 1 mm = 10 m3/ha.
+#' CWP measures the physical mass of harvested economic crop yield produced per cubic
+#' meter of total evapotranspired water.
 #'
 #' @param yield_value Numeric. Yield (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param yield_unit Character. Unit of yield: "kg/ha" (default) or "t/ha".
 #' @return Numeric or SpatRaster. CWP in kg/m3.
+#' @references
+#' Molden, D. (1997). Accounting for water use and productivity. SWIM Paper 1.
+#'   International Irrigation Management Institute (IIMI), Colombo, Sri Lanka.
+#'
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 #' @examples
 #' wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
@@ -456,11 +620,17 @@ wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' Compute Biomass Water Productivity
 #'
 #' BWP = Biomass / AETI, with unit conversion to kg/m3.
+#' AETI in mm is converted to m3/ha (1 mm = 10 m3/ha).
+#' BWP reflects total dry matter or above-ground biomass produced per cubic meter
+#' of water evaporated and transpired.
 #'
 #' @param biomass_value Numeric. Biomass (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param biomass_unit Character. Unit: "kg/ha" (default) or "t/ha".
 #' @return Numeric or SpatRaster. BWP in kg/m3.
+#' @references
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 #' @examples
 #' wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
@@ -483,11 +653,18 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' Compute Green Water Consumption
 #'
 #' Green water = min(AETI, Peff) — the portion of actual evapotranspiration
-#' sourced from effective precipitation (rainfall stored in the soil).
+#' sourced from effective precipitation (rainfall stored in the root-zone soil).
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
 #' @return SpatRaster or numeric. Green water consumption (mm).
+#' @references
+#' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
+#'   The new approach in ecohydrology. Earthscan, London.
+#'
+#' Chukalla, A. D., Krol, M. S., & Hoekstra, A. Y. (2015). Green and blue water
+#'   footprint reduction in irrigated agriculture: effect of irrigation techniques,
+#'   irrigation strategies and mulching. Hydrology and Earth System Sciences, 19(12), 4877-4891.
 #' @export
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
@@ -501,11 +678,17 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' Compute Blue Water Consumption
 #'
 #' Blue water = max(0, AETI - Peff) — the portion of actual evapotranspiration
-#' sourced from irrigation (surface water or groundwater).
+#' sourced from irrigation (surface water withdrawals or groundwater extraction).
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
 #' @return SpatRaster or numeric. Blue water consumption (mm).
+#' @references
+#' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
+#'   The new approach in ecohydrology. Earthscan, London.
+#'
+#' Hoekstra, A. Y., Chapagain, A. K., Aldaya, M. M., & Mekonnen, M. M. (2011).
+#'   The Water Footprint Assessment Manual: Setting the Global Standard. Earthscan, London.
 #' @export
 #' @examples
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
@@ -520,11 +703,23 @@ wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
 
 #' Convert NPP to Total Biomass Production (TBP)
 #'
-#' Converts seasonal NPP (gC/m2) to TBP (kgDM/ha) using the
-#' factor 22.222.
+#' Converts seasonal Net Primary Production (NPP, gC/m2) to Total Biomass Production
+#' (TBP, kgDM/ha) using the standard carbon fraction conversion factor 22.222.
 #'
-#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
-#' @return Numeric. TBP in kgDM/ha.
+#' Derivation:
+#' 1 gC/m2 = 10 kgC/ha.
+#' Assuming an average carbon fraction of dry plant biomass of 0.45 (45% carbon),
+#' TBP (kgDM/ha) = NPP * 10 / 0.45 = NPP * 22.2222.
+#'
+#' @param npp_gc_m2 Numeric or SpatRaster. Seasonal sum of NPP in gC/m2.
+#' @return Numeric or SpatRaster. TBP in kgDM/ha.
+#' @references
+#' FAO. (2020). WaPOR Database Methodology: Version 2 Release. Food and Agriculture
+#'   Organization of the United Nations, Rome.
+#'
+#' Running, S. W., Nemani, R. R., Heinsch, F. A., Zhao, M., Reeves, M., & Hashimoto, H. (2004).
+#'   A continuous satellite-derived measure of global terrestrial primary production.
+#'   BioScience, 54(6), 547-560.
 #' @export
 wapor_convert_npp_tbp <- function(npp_gc_m2) {
   if (inherits(npp_gc_m2, "SpatRaster")) {
@@ -535,16 +730,32 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
 
 #' Calculate Crop Yield from NPP
 #'
-#' Implementation of the provided yield formula based on NPP:
-#' AGBM = (aot * fc * (NPP * 22.222 / (1 - MC))) / 1000
-#' CropYield = HI * AGBM
+#' Implementation of the FAO WaPOR yield estimation formula based on Net Primary Production (NPP):
+#' \deqn{AGBM = \left(AOT \times f_c \times \frac{NPP \times 22.222}{1 - MC}\right) / 1000}
+#' \deqn{CropYield = HI \times AGBM}
 #'
-#' @param npp_gc_m2 Numeric. Seasonal sum of NPP in gC/m2.
+#' where:
+#' \itemize{
+#'   \item \code{NPP * 22.222} converts gC/m2 to dry matter production (kgDM/ha).
+#'   \item \code{1 / (1 - MC)} adjusts dry matter to fresh storage moisture content.
+#'   \item \code{AOT} is the above-ground over total biomass ratio (e.g. 0.8).
+#'   \item \code{fc} is the light use efficiency / crop-specific correction factor (typically 1.0).
+#'   \item \code{1000} converts kg/ha to t/ha.
+#'   \item \code{HI} is the Harvest Index (ratio of economic yield to above-ground biomass).
+#' }
+#'
+#' @param npp_gc_m2 Numeric or SpatRaster. Seasonal sum of NPP in gC/m2.
 #' @param mc Numeric. Moisture content (0-1).
 #' @param fc Numeric. Light use efficiency correction factor.
 #' @param aot Numeric. Above ground over total biomass production ratio.
 #' @param hi Numeric. Harvest index.
-#' @return Numeric. Crop yield in t/ha.
+#' @return Numeric or SpatRaster. Crop yield in t/ha.
+#' @references
+#' Steduto, P., Hsiao, T. C., Fereres, E., & Raes, D. (2012). Crop yield response to water.
+#'   FAO Irrigation and Drainage Paper 66. Food and Agriculture Organization of the United Nations, Rome.
+#'
+#' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
+#'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
   if (inherits(npp_gc_m2, "SpatRaster")) {
@@ -735,9 +946,18 @@ wapor_summary_by_class <- function(r, crop_mask, class_stats = NULL, var_name = 
 
 #' USDA-SCS effective precipitation from monthly rasters
 #'
+#' CROPWAT simplification (Smith 1992): Peff = P (125 - 0.2 P) / 125 for
+#' P <= 250 mm/month, else 125 + 0.1 P. Applied to each monthly raster, then
+#' summed to a seasonal total.
+#'
 #' @param monthly_rasters Named list of monthly precipitation SpatRasters (mm).
 #' @return List with `monthly` (Peff rasters) and `seasonal` (sum of monthly Peff).
-#' @keywords internal
+#' @source Smith (1992) CROPWAT.
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_peff(list(`2023-01` = p_jan, `2023-02` = p_feb))
+#' }
 wapor_calc_peff <- function(monthly_rasters) {
   if (is.null(monthly_rasters) || !length(monthly_rasters)) {
     stop("'monthly_rasters' must be a non-empty list of SpatRasters", call. = FALSE)
@@ -759,10 +979,19 @@ wapor_calc_peff <- function(monthly_rasters) {
 
 #' Spatial coefficient of variation
 #'
+#' CV = sd / mean over finite cells (optionally masked). By-class values use
+#' `terra::zonal()` means and sds. This is the existing package helper; the
+#' zonal engine in [wapor_zonal_stats()] is the area-weighted definition used
+#' by irrigation uniformity.
+#'
 #' @param r SpatRaster (typically seasonal AETI).
 #' @param crop_mask Optional SpatRaster mask / class raster.
 #' @return List with `overall` CV and optional `by_class` table.
-#' @keywords internal
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_cv(aeti, crop_mask)
+#' }
 wapor_calc_cv <- function(r, crop_mask = NULL) {
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster", call. = FALSE)
@@ -791,39 +1020,59 @@ wapor_calc_cv <- function(r, crop_mask = NULL) {
 
 #' Spatial Theil T inequality index
 #'
-#' Theil's T = mean( (x / xbar) * log(x / xbar) ) for positive finite values.
+#' Computes Theil's T index of spatial inequality / uniformity:
+#' \deqn{T = \frac{1}{N} \sum_{i=1}^N \frac{x_i}{\bar{x}} \ln\left(\frac{x_i}{\bar{x}}\right)}
+#' for positive finite values. Computed from block-wise sums so large rasters are
+#' not read into R. The area-weighted form used by [wapor_zonal_stats()] is
+#' \eqn{\sum w (x/\mu) \ln(x/\mu) / \sum w}.
 #'
 #' @param r SpatRaster.
 #' @param crop_mask Optional SpatRaster mask / class raster.
 #' @return List with `overall` Theil T and optional `by_class` table.
-#' @keywords internal
+#' @references
+#' Theil, H. (1967). Economics and Information Theory. North-Holland Publishing Company, Amsterdam.
+#'
+#' Sampath, R. K. (1988). Equity measures for irrigation performance evaluation.
+#'   Water International, 13(1), 25-32.
+#' @export
+#' @examples
+#' \dontrun{
+#' wapor_calc_theil(aeti, crop_mask)
+#' }
 wapor_calc_theil <- function(r, crop_mask = NULL) {
   if (!inherits(r, "SpatRaster")) {
     stop("'r' must be a SpatRaster", call. = FALSE)
   }
-  theil_t <- function(vals) {
-    vals <- vals[is.finite(vals) & vals > 0]
-    if (!length(vals)) return(NA_real_)
-    xbar <- mean(vals)
-    if (!is.finite(xbar) || xbar <= 0) return(NA_real_)
-    mean((vals / xbar) * log(vals / xbar))
-  }
+  # T = sum(x ln x) / (N * mean) - ln(mean) over positive finite x. Only
+  # block-wise sums are needed, so large rasters are never read into R.
   target <- if (is.null(crop_mask)) {
-    r
+    r[[1]]
   } else {
-    r * terra::ifel(is.na(crop_mask), NA, 1L)
+    r[[1]] * terra::ifel(is.na(crop_mask), NA, 1L)
   }
-  overall <- theil_t(terra::values(target, mat = FALSE))
+  pos <- terra::ifel(target > 0, target, NA)
+  parts <- c(pos, pos * log(pos), terra::ifel(is.na(pos), NA, 1))
+  names(parts) <- c("s1", "s2", "n")
+  theil_from <- function(s1, s2, n) {
+    if (!is.finite(n) || n <= 0 || !is.finite(s1) || s1 <= 0) return(NA_real_)
+    mu <- s1 / n
+    s2 / (n * mu) - log(mu)
+  }
+  g <- terra::global(parts, "sum", na.rm = TRUE)$sum
+  overall <- theil_from(g[1], g[2], g[3])
 
   by_class <- NULL
   if (!is.null(crop_mask)) {
-    classes <- sort(unique(terra::values(crop_mask, mat = FALSE)))
+    u <- terra::unique(crop_mask, na.rm = TRUE)
+    classes <- if (is.null(u) || !length(u)) numeric(0) else sort(as.numeric(u[[1]]))
     classes <- classes[is.finite(classes)]
+    z <- as.data.frame(terra::zonal(parts, crop_mask, fun = "sum", na.rm = TRUE))
+    idx <- match(classes, z[[1]])
     by_class <- data.frame(
       class_value = classes,
-      theil = vapply(classes, function(cls) {
-        m <- terra::ifel(crop_mask == cls, target, NA)
-        theil_t(terra::values(m, mat = FALSE))
+      theil = vapply(seq_along(classes), function(i) {
+        if (is.na(idx[i])) return(NA_real_)
+        theil_from(z$s1[idx[i]], z$s2[idx[i]], z$n[idx[i]])
       }, numeric(1)),
       stringsAsFactors = FALSE
     )

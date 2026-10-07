@@ -19,17 +19,30 @@ test_that("wapor_configure_gdal rejects non-logical vsi_cache", {
 # wapor_configure_gdal() — environment variables are set
 # =============================================================================
 
-test_that("wapor_configure_gdal sets CPL_VSIL_CURL_CHUNK_SIZE", {
+test_that("wapor_configure_gdal sets an explicit CPL_VSIL_CURL_CHUNK_SIZE", {
+  withr::local_envvar(CPL_VSIL_CURL_CHUNK_SIZE = NA)
   wapor_configure_gdal(chunk_size = 5242880L)  # 5 MB
   expect_equal(Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE"), "5242880")
-
-  # Restore default
-  wapor_configure_gdal()
 })
 
-test_that("wapor_configure_gdal sets the correct default chunk size (10 MB)", {
-  wapor_configure_gdal()
-  expect_equal(Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE"), "10485760")
+test_that("wapor_configure_gdal leaves the chunk size alone by default (ISS-20261005-001)", {
+  # Not created: GDAL's own default applies.
+  withr::local_envvar(CPL_VSIL_CURL_CHUNK_SIZE = NA)
+  applied <- wapor_configure_gdal()
+  expect_identical(Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE", unset = NA), NA_character_)
+  expect_false("CPL_VSIL_CURL_CHUNK_SIZE" %in% names(applied))
+  expect_false("CPL_VSIL_CURL_CHUNK_SIZE" %in% names(Rwapor:::.RWAPOR_GDAL_DEFAULTS))
+
+  # Not changed: a value the user set survives a default call, even with overwrite.
+  withr::local_envvar(CPL_VSIL_CURL_CHUNK_SIZE = "65536")
+  wapor_configure_gdal(overwrite = TRUE)
+  expect_identical(Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE"), "65536")
+})
+
+test_that("wapor_configure_gdal accepts only chunk sizes GDAL accepts", {
+  expect_error(wapor_configure_gdal(chunk_size = 512), "between 1024 and 10485760")
+  expect_error(wapor_configure_gdal(chunk_size = 32 * 1024^2), "between 1024 and 10485760")
+  expect_error(wapor_configure_gdal(chunk_size = NA_real_), "chunk_size")
 })
 
 test_that("wapor_configure_gdal sets GDAL_DISABLE_READDIR_ON_OPEN", {
@@ -67,7 +80,6 @@ test_that("wapor_configure_gdal returns invisibly a named character vector", {
   result <- wapor_configure_gdal()
   expect_type(result, "character")
   expect_named(result)
-  expect_true("CPL_VSIL_CURL_CHUNK_SIZE" %in% names(result))
   expect_true("GDAL_DISABLE_READDIR_ON_OPEN" %in% names(result))
 })
 
@@ -100,23 +112,60 @@ test_that("wapor_gdal_settings includes all expected keys", {
 })
 
 test_that("wapor_gdal_settings reflects current environment after configure", {
-  wapor_configure_gdal(chunk_size = 20971520L)  # 20 MB
+  withr::local_envvar(CPL_VSIL_CURL_CHUNK_SIZE = NA)
+  wapor_configure_gdal(chunk_size = 2097152L)  # 2 MB
   settings <- wapor_gdal_settings()
-  expect_equal(settings[["CPL_VSIL_CURL_CHUNK_SIZE"]], "20971520")
-
-  # Restore default
-  wapor_configure_gdal()
+  expect_equal(settings[["CPL_VSIL_CURL_CHUNK_SIZE"]], "2097152")
 })
 
 # =============================================================================
 # .onLoad — package attach applies defaults
 # =============================================================================
 
-test_that("Package defaults are applied (chunk size is not the GDAL 16 KB default)", {
-  # After package load, the chunk size should be our 10 MB default, not GDAL's 16 KB
-  chunk <- Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE")
-  expect_false(chunk == "" || chunk == "16384",
-               info = "GDAL default 16 KB chunk size is still set — .onLoad may not have fired")
+test_that("package load applies the defaults but never a chunk size", {
+  withr::local_envvar(CPL_VSIL_CURL_CHUNK_SIZE = NA, GDAL_DISABLE_READDIR_ON_OPEN = NA,
+                      RWAPOR_AUTO_CONFIG = "true")
+  withr::local_options(Rwapor.configure_gdal = TRUE, Rwapor.gdal_checked = TRUE)
+  Rwapor:::.onLoad("", "Rwapor")
+  expect_identical(Sys.getenv("GDAL_DISABLE_READDIR_ON_OPEN"), "EMPTY_DIR")
+  expect_identical(Sys.getenv("CPL_VSIL_CURL_CHUNK_SIZE", unset = NA), NA_character_)
+})
+
+# =============================================================================
+# .wapor_with_remote_io() — scoped /vsicurl/ extension filter
+# =============================================================================
+
+test_that("remote extension filter is set during the call and cleared after it", {
+  key <- "CPL_VSIL_CURL_ALLOWED_EXTENSIONS"
+  withr::local_envvar(CPL_VSIL_CURL_ALLOWED_EXTENSIONS = NA)
+  terra::setGDALconfig(key, "")
+  inside <- Rwapor:::.wapor_with_remote_io(unname(terra::getGDALconfig(key)))
+  expect_identical(inside, Rwapor:::.RWAPOR_REMOTE_EXTENSIONS)
+  expect_identical(unname(terra::getGDALconfig(key)), "")
+
+  # Nested calls keep the filter until the outer call ends.
+  nested <- Rwapor:::.wapor_with_remote_io({
+    Rwapor:::.wapor_with_remote_io(NULL)
+    unname(terra::getGDALconfig(key))
+  })
+  expect_identical(nested, Rwapor:::.RWAPOR_REMOTE_EXTENSIONS)
+  expect_identical(unname(terra::getGDALconfig(key)), "")
+
+  # Cleared when the code fails.
+  expect_error(Rwapor:::.wapor_with_remote_io(stop("remote read failed")), "remote read failed")
+  expect_identical(unname(terra::getGDALconfig(key)), "")
+})
+
+test_that("remote extension filter respects the user's filter and the opt-out", {
+  key <- "CPL_VSIL_CURL_ALLOWED_EXTENSIONS"
+  terra::setGDALconfig(key, ".tif,.vrt")
+  on.exit(terra::setGDALconfig(key, ""), add = TRUE)
+  expect_identical(Rwapor:::.wapor_with_remote_io(unname(terra::getGDALconfig(key))), ".tif,.vrt")
+  expect_identical(unname(terra::getGDALconfig(key)), ".tif,.vrt")
+
+  terra::setGDALconfig(key, "")
+  withr::local_options(Rwapor.remote_extension_filter = FALSE)
+  expect_identical(Rwapor:::.wapor_with_remote_io(unname(terra::getGDALconfig(key))), "")
 })
 
 test_that("remote capability probe returns a stable contract", {
@@ -128,15 +177,63 @@ test_that("remote capability probe returns a stable contract", {
 
 test_that("remote source resolver has explicit error and stream modes", {
   old <- getOption("Rwapor.remote_fallback")
-  on.exit(options(Rwapor.remote_fallback = old), add = TRUE)
+  old_caps <- getOption("Rwapor.remote_capabilities")
+  on.exit(options(Rwapor.remote_fallback = old, Rwapor.remote_capabilities = old_caps), add = TRUE)
   options(Rwapor.remote_fallback = "error")
+  # Simulate a GDAL build without curl (the probe result is cached in this option).
+  options(Rwapor.remote_capabilities = list(
+    has_curl = FALSE, has_cog = TRUE, streaming = FALSE,
+    message = "curl /vsicurl support is missing."
+  ))
   expect_error(
     Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
     "Remote COG streaming is unavailable"
+  )
+  # With curl available, error mode streams instead of failing.
+  options(Rwapor.remote_capabilities = list(
+    has_curl = TRUE, has_cog = TRUE, streaming = TRUE, message = "ok"
+  ))
+  expect_identical(
+    Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
+    "/vsicurl/https://example.invalid/test.tif"
   )
   options(Rwapor.remote_fallback = "stream")
   expect_identical(
     Rwapor:::.wapor_resolve_remote_sources("https://example.invalid/test.tif"),
     "/vsicurl/https://example.invalid/test.tif"
   )
+})
+test_that("load-time configuration keeps GDAL variables the user already set", {
+  withr::local_envvar(GDAL_HTTP_VERSION = "1.1", GDAL_CACHEMAX = "")
+  applied <- wapor_configure_gdal(overwrite = FALSE)
+  expect_identical(Sys.getenv("GDAL_HTTP_VERSION"), "1.1")
+  expect_false("GDAL_HTTP_VERSION" %in% names(applied))
+  expect_identical(Sys.getenv("GDAL_CACHEMAX"), "512")
+
+  # Manual calls still override by default.
+  wapor_configure_gdal()
+  expect_identical(Sys.getenv("GDAL_HTTP_VERSION"), "2")
+})
+
+test_that(".onLoad can be switched off with RWAPOR_AUTO_CONFIG", {
+  withr::local_envvar(RWAPOR_AUTO_CONFIG = "false", GDAL_CACHEMAX = "")
+  Rwapor:::.onLoad("", "Rwapor")
+  expect_identical(Sys.getenv("GDAL_CACHEMAX"), "")
+})
+
+test_that("the PROJ fix runs on load even when GDAL auto-configuration is off", {
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    wapor_fix_proj = function(...) { calls <<- calls + 1L; invisible("") },
+    .package = "Rwapor"
+  )
+  withr::local_envvar(RWAPOR_AUTO_CONFIG = "false", GDAL_CACHEMAX = "")
+  withr::local_options(Rwapor.fix_proj = NULL)
+  Rwapor:::.onLoad("", "Rwapor")
+  expect_identical(calls, 1L)
+  expect_identical(Sys.getenv("GDAL_CACHEMAX"), "")
+
+  withr::local_options(Rwapor.fix_proj = FALSE)
+  Rwapor:::.onLoad("", "Rwapor")
+  expect_identical(calls, 1L)
 })

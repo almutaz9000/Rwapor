@@ -4,6 +4,91 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-09-29 — v1.0.5 released, correctness gates, P1 steps logged (Claude + Codex)
+
+- ETc regression fixed (ISS-20260929-017, `aaa0739`): kernel Kc used the unshifted dekad
+  table since `94b1533`; wheat ETc was 0, citrus 9% low. Tagged **v1.0.5** at `aaa0739`.
+- **New rule for every session**: `tests/testthat/fixtures/known-answer/golden.csv` pins
+  all 236 seasonal-analysis outputs (real WaPOR data, v1.0.3 values, independently
+  checked). A failing known-answer test is a bug unless the methodology changed on
+  purpose; then regenerate `golden.csv`, explain it in NEWS.md and cite the method
+  (see the fixture README).
+- Monitoring hardening (ISS-20260929-018), `options(Rwapor.verbose)`, `?Rwapor` options
+  page, live ETc check in `inst/bench/live_release_checks.R` (commit `324a513`,
+  default branch `e19ed3e`).
+- Release workflow: push work to a `version-*` branch first (CI runs there), then
+  fast-forward the default branch once green.
+- P1 maintainer steps (release, `main` rename, branch protection, R-universe) are
+  logged as board tasks `p1-*`; commands in
+  `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`.
+
+## 2026-09-28 — GitHub-installation release audit (Codex)
+
+- Fixed four P0 user-facing defects locally: raw WaPOR scale output in
+  separate map files, historic `ref_year = 1970` kernel compatibility,
+  direct single-season export, and silently ignored supplied crop masks.
+  Added focused regressions, corrected the default-branch CI trigger, and
+  verified an isolated source installation. Changes are intentionally
+  uncommitted; GitHub users do not receive them until a maintainer commits and
+  pushes the working tree.
+
+## 2026-09-24 — Claude plans, Codex implements (delegation setup)
+
+- Protocol: Claude writes a plan (`templates/codex-plan.md` →
+  `docs/superpowers/plans/<date>-<task-id>.md`), hands it to Codex with
+  `scripts/codex_task.ps1` (wraps the openai-codex Claude Code plugin; `-Fix`
+  resumes the same Codex thread for fix rounds), then verifies the diff and reruns
+  the tests itself. Claude skill: `.claude/skills/codex-delegate/`.
+- `AGENTS.override.md` (new, tracked): Codex reads it instead of the ~29 KB
+  `AGENTS.md`, so the fable-skill block is no longer loaded on every Codex run
+  (it's still available as the user-level `fable-skill` Codex skill). Other
+  agents still read `AGENTS.md`.
+- Codex project skills in `.agents/skills/`: `rwapor-plan-executor` (scope rules,
+  no `agent-workflow/` reads for delegated work, ~25-line report format) and
+  `rwapor-r-dev` (Rscript path, devtools commands, conventions). Claude adds more
+  with the `codex-skill-author` skill. `.agents/` and `.claude/` are git-ignored,
+  so these skills are local to this machine.
+
+## 2026-09-23 — Size-aware processing and native-resolution aggregation (1.0.1)
+
+- Branch `perf/large-raster-1.0.1`; design and decisions in
+  `docs/superpowers/specs/2026-09-23-large-raster-performance-design.md`.
+- New `R/processing_plan.R` (`wapor_plan_processing()`, budget, thresholds,
+  I/O plans) and `R/processing_kernel.R` (one window kernel for
+  memory/stream/tiled; profile-split native aggregation; coverage). The
+  engine and `wapor_run_seasonal_analysis_tiled()` now run on it; the old
+  tile helpers in `R/analysis_tiled.R` were removed.
+- Defaults changed on purpose: nearest-neighbour resampling for continuous
+  variables, `min_coverage = 1`, AOI defaults to the crop mask extent,
+  `batch_size = NULL` (planner) in `wapor_map()`/`wapor_ts()`. See NEWS 1.0.1.
+- Took over `R/utils.R`, `R/wapor_map.R`, `R/wapor_ts.R` from Codex's
+  `seasonal-dashboard-semantics` task by user decision; Codex's board entry
+  is untouched, so check this entry before editing those files.
+- Tags: the ambiguous local `version-1.0.0` tag was replaced by
+  `v1.0.0-final` (a9176dd, the pre-change code). The published `v1.0.0`
+  tag (82cd8b5) is unchanged. Nothing pushed.
+- Benchmark and live smoke-test scripts live in `inst/bench/`.
+
+## 2026-09-22 — New independent training notebook (`training/water-productivity-training.qmd`)
+
+- Added a standalone Quarto training notebook, deliberately kept outside
+  `vignettes/`/pkgdown/R CMD check (`training/` added to `.Rbuildignore`).
+  Calls only exported `Rwapor` functions; no package source touched.
+- Two live, step-by-step worked examples (Citrus: polygon used as both
+  mask+AOI, season 2024-03-01→2025-02-28, no built-in FAO Kc profile so
+  built from scratch via FAO-56 Table 6.2 + this repo's
+  `fao_growth_stages.csv`; Wheat: separate cereal mask raster + AOI
+  boundary, season 2023-11-01→2024-05-31, reuses the built-in "Winter
+  Wheat" profile), each running the full indicator chain with a plot or
+  summary and an equation explanation at every step, plus `leaflet`
+  input/output exploration.
+- While ground-truthing the indicator codes and result fields against
+  `R/analysis_engine.R`/`R/analysis_registry.R`/`NAMESPACE`, found three
+  real bugs/gaps in the existing `vignettes/wheat-water-productivity.Rmd`
+  and one usability gap in `wapor_run_seasonal_analysis()`'s `aoi_region`
+  handling — logged as `ISS-20260922-001` in `issues-log.md`, not fixed
+  (out of scope for this session; vignette/package source left untouched).
+
 ## 2026-09-22 — Repo cleanup, README overhaul, pkgdown site, wheat vignette
 
 - Deleted 184 of 233 remote branches (auto-agent `bolt-*`/`jules-*`/`copilot/*`
@@ -168,3 +253,14 @@ structure changes, and fixes that affect future sessions belong here._
   (`.cursor`, `.continue`, `.windsurf`, `.clinerules`, `.roo`, `.trae`,
   `.kilocode`, `.kiro`, `.augment`) without touching their managed
   fable-skill files.
+- 2026-09-23 (claude): Training notebook tested end-to-end on real data (Citrus NJV + sampled farms, Jendouba cereal mask) shipped in `training/data/`; fixed notebook order/config bugs (use_crop_mask, ref_year, result names, UTM mask harmonisation, export call). Package 1.0.2: seasonal green/blue water now summed from monthly splits (ISS-20260923-005). Logged ISS-003 (ref_year=1970 rejected) and ISS-004 (single-season export).
+- 2026-09-23 (claude): Training notebook switched to WaPOR L3 AETI/T/NPP (JVA, JEN); citrus Kc corrected to FAO-56 Table 12 'no ground cover, 70% canopy' (0.70/0.65/0.70, 4 m) with link. Full L3 render passes (34 min).
+- 2026-09-24 (claude): Training-driven improvement plan saved (docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md); 16 pending REVIEW-FIRST tasks ti-01 to ti-16 added to agents-board.json. Training folder made offline-ready (wapor_data/, check_setup.R, WaPOR_Training.Rproj, Note_to_Participants.docx); ISS-20260924-006 logged.
+- 2026-09-25 (claude): Lessons from the training logged: register L1-L21 (implemented vs not) in the improvement plan; ISS-20260925-007/-008/-009 added; project-memory (patterns + pitfalls), task-status (pending review + completed), session-brief and board (training-notebook-2026-09 done; ti-04/06/08 linked to issues) updated. HTML now self-contained; PDF added.
+- 2026-10-05 (claude): Reviewed external improvement suggestions; benchmarked remote I/O and zonal statistics; plan docs/superpowers/plans/2026-10-05-perf-io-zonal.md (perf-a, perf-b, perf-c, pending approval) with evidence folder; ISS-20261005-001/-002/-003 logged. No package code changed.
+- 2026-10-05 (claude): perf-a implemented on branch perf/remote-io-1.0.6 (uncommitted): GDAL 10 MB chunk default removed, scoped .tif filter, PROJ fix decoupled, remote_io_benchmark.R; wapor_ts L2 342.7 s/1,091 MB -> 20.7 s/17.4 MB, values identical; full suite 0 failures, live checks 6/6. perf-c measured (streamed citrus analysis 220 s vs 196 s local); ti-07 closed. perf-b blocked on p2-b2. ISS-20261005-001 resolved.
+- 2026-10-05 (claude): perf-a + plan committed to version-1.0.6 (a9e14b7, 66bd825). perf-b implemented on branch perf/zonal-engine-1.0.6 (uncommitted): wapor_zonal_stats() identical output 8-10x faster, grouped layer reads, sf geometry fix, zonal_benchmark.R; full suite 0 failures. ISS-20261005-002/-003 resolved; -004 (lwgeom on lon/lat) and -005 (class_share + breaks + NoData) logged for the B2 owner.
+- 2026-10-06 (claude): version-1.0.6 pushed (c4172eb). ti-06 implemented on branch feat/wapor-download-1.0.6 (uncommitted): exported wapor_download() and opt-in config$cache_dir; tests test-download-cache.R; full suite 0 failures, live checks 6/6, R CMD check (no tests) 0 errors / 0 warnings.
+- 2026-10-06 (claude): fixed ISS-20261005-004 (lon/lat zonal stats without lwgeom) and -005 (wapor_classify accepts NA/NaN; class_share with NoData) with regression tests; training notebook helper uses wapor_download() when available. Same branch feat/wapor-download-1.0.6, uncommitted.
+- 2026-10-06 (claude): final gates on feat/wapor-download-1.0.6: full suite 0 failures, R CMD check (no tests) 0 errors / 0 warnings / 2 notes, training notebook rendered in full against the branch (47 PASS, intended CHECK F001 only).
+- 2026-10-06 (claude): P2 batch B2 taken over from hermes on the maintainer's instruction, reviewed against its gate and completed (dissolve fix, analysis-result input, median, Mm3 volumes, id columns, classes, wide/sf formats, ellipsoidal cell areas, fixture tests, docs, mask helper fixes). ISS-20261006-001. Gate record in the P2 master plan section 4.

@@ -4,6 +4,64 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **P2: zonal statistics, configurable classes, irrigation performance, perennial crops,
+  effective rainfall (target 1.0.6)** — APPROVED. B1 claimed 2026-09-30 by hermes (grok-4.6
+  orchestrator) on `feat/production-gates`; WP1 implementer dispatched. B2-B5 wait for gate G1-G10.
+  Master plan: `docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md` (v2, section 1A =
+  roadmap and gate). Science review: `docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`.
+  **Implement one batch at a time, in order; the next batch starts only after the verifier passes
+  gate G1-G10 and sets the batch's board task to done.** Briefs (give one to the implementing agent):
+  1. `p2-b1` → classification engine — DONE (hermes). SHA 548170f, R-CMD-check 36745355279 green.
+  2. `p2-b2` → `B2-zonal-and-masks.md` (zonal engine + mask helpers) — taken over by Claude on
+     2026-10-06 (maintainer's instruction); reviewed against the gate, completed to the
+     specification (gate record: master plan section 4). DONE: gate G1-G10 passed, CI green on
+     `55b54c9`. Next batch: `p2-b3` (unassigned).
+  3. `p2-b3` → `B3-indicators.md` (irrigation indicators, gaps, spots)
+  4. `p2-b4` → `B4-crops-and-peff.md` (perennial crops, Kc helper, Peff methods, rainfed)
+  5. `p2-b5` → `B5-plots-offline.md` (plots, offline URLs)
+  6. Release 1.0.6 (master plan section 9).
+  Open user decisions (safe defaults in place): D1 survey yields, D5 existing crop-table values,
+  D6, D11, D12. Decided: D10 Kc climate adjustment = manual helper only.
+
+- **prod-p0: correctness gates (1.0.6 dev)** — DONE (Codex implemented, Claude
+  verified, 2026-09-29). Commit `324a513`, branch `version-1.0.6`. Plan:
+  `docs/superpowers/plans/2026-09-29-prod-p0.md`. Known-answer fixture + golden.csv
+  (236 values, 3 modes), monitoring hardening (ISS-20260929-018),
+  `options(Rwapor.verbose)`, live ETc check. Next: CI green, then fast-forward the
+  default branch.
+- **prod-p1: release engineering** — PARTIAL, waiting for the MAINTAINER. Done:
+  v1.0.5 tagged at `aaa0739` (CI green). The rest are GitHub admin/public actions
+  agents are blocked from. Exact commands and done criteria:
+  `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`. In order:
+  1. `p1-release`: publish the GitHub release v1.0.5.
+  2. `p1-branch-main`: archive the stale `main` as `archive/main-2026-09-22`, rename
+     `version-1.0.4` -> `main`, update the local clone and docs.
+  3. `p1-protect`: branch protection on `main`, 5 required checks, enforced for admins.
+  4. `p1-runiverse`: registry repo `almutaz9000.r-universe.dev` + R-universe GitHub app.
+  5. `p1-readme-runiverse` (agent, after 4): README install line + CI smoke test.
+
+- **Production readiness 1.0.5 (WP0 to WP6)** — DONE on branch (Claude, 2026-09-28).
+  Plan: `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`. Commits
+  WP3 `c59d03e`, WP1 `fe75e5a`, WP2 `8ca48d1`, WP4 `9d88ea4`, WP6 `4f8fd0d`,
+  version 1.0.5. Maintainer steps left: merge into the default branch, Windows
+  and live checks, tag v1.0.5 (plan section 5).
+
+- **Critical install/run review (1.0.4)** — DONE (Claude, 2026-09-28).
+  Branch `claude/ecstatic-allen-xdfb2g`. Fixed ISS-20260928-010/-011/-012 and
+  ISS-20260925-008; 240 tests / 0 failures on terra 1.7.65 and 1.9.50.
+  Proposals left open are listed in `session-brief.md` (2026-09-28).
+
+- **Large-raster performance and size-aware processing (1.0.1)** — Owner:
+  Claude. Branch `perf/large-raster-1.0.1`. Design and all 19 grilled
+  decisions (plus A–D on accuracy): `docs/superpowers/specs/2026-09-23-large-raster-performance-design.md`.
+  Planner (`wapor_plan_processing()`, `processing = "auto"`), shared window
+  kernel for memory/stream/tiled, native-resolution aggregation, coverage,
+  exact block-wise P95/Theil, closed-form trend, `wapor_map`/`wapor_ts`
+  batching and chunk sizing, dashboard mode selector. Took over
+  `R/utils.R`, `R/wapor_map.R`, `R/wapor_ts.R` from the Codex task below by
+  user decision (Codex's board entry left untouched). Resolves
+  ISS-20260923-001/-003/-004; ISS-20260923-002 (DuckDB blobs) left open.
+
 - **Seasonal summary semantics in the dashboard** — Add the shared
   variable-aware `sum`/`mean`/`std`/`min`/`max`/`median` contract to both
   Shiny paths and reject invalid state/rate sums. Status: Active. Owner:
@@ -21,6 +79,55 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 - None open as of 2026-09-15.
 
 ## Pending — Next Session (Production Hardening continuation)
+
+- **ti-06: download once, work offline** — DONE 2026-10-06 (Claude) on branch
+  `feat/wapor-download-1.0.6`, NOT committed (maintainer to review). New exported
+  `wapor_download()` (`R/download_cache.R`: one scaled file per date, skips saved files, atomic
+  writes, offline fallback, one folder per area) and opt-in `config$cache_dir` in
+  `wapor_run_seasonal_analysis()`. Tests `test-download-cache.R` (36 expectations); full suite
+  0 failures on the final code path, live release checks 6/6, R CMD check (no tests) 0 errors,
+  0 warnings. Note for the B2 owner: the check NOTE "no visible global function definition for
+  approx / median / setNames" comes from `R/zonal_stats.R` and `R/mask_helpers.R`.
+
+- **Performance: remote I/O settings and zonal engine speed (perf-a, perf-b, perf-c)** —
+  APPROVED by the maintainer 2026-10-05. **perf-a DONE** and committed to `version-1.0.6` (`a9e14b7`; originally on branch `perf/remote-io-1.0.6`
+  (NOT committed: maintainer to review, commit and merge into `version-1.0.6`). **perf-c DONE**
+  (measurements). **perf-b DONE** and committed to `version-1.0.6` (`8b109fb`, 2026-10-06, not pushed), on the
+  maintainer's instruction of 2026-10-05; Hermes must rebase open `p2-b2` work on it. Same table,
+  56 s to 6.5 s (400 zones, 12 layers). New open issues ISS-20261005-004 (lon/lat rasters need
+  lwgeom) and -005 (`class_share` with `breaks` and NoData) belong to the B2 code.
+  Results and deviations: plan section 8. Plan with benchmarks:
+  `docs/superpowers/plans/2026-10-05-perf-io-zonal.md`; scripts and result tables in the
+  `-evidence` folder next to it. Decisions D-A1, D-A2, D-B1, D-O1 are in plan section 6.
+  1. `perf-a` (plan section 3): remove the 10 MB GDAL chunk default, scoped `.tif` extension
+     filter, PROJ fix independent of auto-config. Measured: Level 2, 150 polygons x 36 dekads,
+     415 s / 1,091 MB now, 21.5 s / 17 MB proposed; Level 3 12.2 s to 5.3 s; values identical.
+     Own branch `perf/remote-io-1.0.6`; touches no P2 file. ISS-20261005-001. Replaces the
+     approach of `ti-07`.
+  2. `perf-b` (plan section 4): `wapor_zonal_stats()` same output about 10 times faster, layers
+     read in chunks, `format = "sf"` geometry fix. **Starts only after `p2-b2` is done.**
+     ISS-20261005-002, ISS-20261005-003.
+  3. `perf-c` (plan section 5): after `perf-a`, re-measure the `ti-06` and `ti-07` cases before
+     anyone builds a download cache.
+
+- **Training-driven Rwapor improvements (ti-01 to ti-16)** —
+  Proposed 2026-09-24 from the WaPOR training case studies; nothing approved or
+  started. Review each item (accept / change / reject, target release) in
+  `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`, which
+  also holds the lessons register (L1 to L21, implemented or not). P0 before the
+  training: ti-01 scale factor, ti-02 ref_year compatibility, ti-03 single-season
+  export, and ti-04 crop-mask safety are DONE locally (Codex, 2026-09-28; focused
+  tests and isolated source installation pass). They remain uncommitted and thus
+  are not yet available from GitHub. ti-05 release 1.0.2. P1: ti-06 download cache
+  (ISS-20260925-008), ti-07 remote opening, ti-08 disk footprint (ISS-20260925-009).
+  P2: ti-09 to ti-16 (performance indicators, farm extraction, perennial crops,
+  mask helpers, exports, plotting, offline metadata, polygon areas).
+- **Uncommitted work to commit or discard (user decision)**: Rwapor 1.0.2 (monthly
+  green/blue split in `R/analysis_engine.R`, regression test, `DESCRIPTION`,
+  `NEWS.md`); `training/` (notebook, HTML, PDF, `check_setup.R`, `.Rproj`,
+  participant note, `data/`, `images/`; `wapor_data/` and `outputs/` are git-ignored);
+  `.gitignore`; agent-workflow logs. GitHub still serves 1.0.1, but the
+  participant note installs from GitHub and the notebook requires 1.0.2.
 
 ### Medium priority (from IMPROVEMENT_PLAN.md open items)
 
@@ -112,6 +219,27 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 - None.
 
 ## Recently Completed
+
+- **WaPOR training notebook and participant package (2026-09-23 to 25, Claude)** —
+  `training/water-productivity-training.qmd`: manual-style notebook with two L3
+  (20 m) case studies, citrus in the North Jordan Valley (JVA; consumption,
+  adequacy, green/blue water, 113 surveyed farms joined with a de-identified
+  survey, CWP from surveyed yield) and wheat in Jendouba (JEN; yield equation
+  with HI 0.43, AOT 0.75, fc 1.0, MC 0.15; Chukalla 2022 performance indicators).
+  Offline-ready: all WaPOR dekads saved in `training/wapor_data/` (249 files,
+  251 MB), local run equal to API run. Final render: 42 checkpoints, 41 PASS,
+  1 intended CHECK (survey yield F001). Also `check_setup.R`,
+  `WaPOR_Training.Rproj`, self-contained HTML, 83-page PDF,
+  `Note_to_Participants.docx` (3-day agenda, laptop requirements, installation,
+  folder layout); dependency scan: every package loaded is installed by the
+  note's two commands (plus R's recommended Matrix, nlme, mgcv). Reusable
+  skill: `~/.claude/skills/wapor-training-builder/`.
+
+### 2026-09-24 — Claude→Codex delegation setup
+
+- Claude plans (`templates/codex-plan.md`), Codex implements (`scripts/codex_task.ps1`),
+  Claude verifies. Slim `AGENTS.override.md` for Codex, Codex skills in `.agents/skills/`,
+  Claude skills `codex-delegate` and `codex-skill-author`. Details: `change-log.md` 2026-09-24.
 
 ### 2026-09-17 — RET/PCP level-fallback dedup (Phase 7.1)
 

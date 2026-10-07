@@ -35,6 +35,19 @@ body {
   letter-spacing: -0.5px;
 }
 
+/* Keep tab labels readable on the dark gradient (the theme's active colour is dark). */
+.navbar .nav-link,
+.navbar .nav-link:focus {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
+  color: #fff !important;
+}
+.navbar .nav-link.active {
+  box-shadow: inset 0 -3px 0 #fff;
+}
+
 /* ── Cards & Containers ────────────────────────── */
 .card {
   border: none;

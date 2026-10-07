@@ -1,0 +1,19 @@
+Running L3 / package ...
+Running L3 / old ...
+Running L2 / package ...
+Running L2 / old ...
+
+  config level seconds get head http_404     mb checksum rows
+ package    L3    26.9 477   36        0   14.3 54403.49 5400
+     old    L3    66.3 648  108       72  232.3 54403.49 5400
+ package    L2    20.7 288   36        0   17.4 78018.54 5400
+     old    L2   342.7 180  108       72 1090.6 78018.54 5400
+L3: 26.9 s and 14.3 MB now; 66.3 s and 232.3 MB with the old settings (2.5 times faster, 16 times less data)
+L2: 20.7 s and 17.4 MB now; 342.7 s and 1090.6 MB with the old settings (16.6 times faster, 63 times less data)
+
+FAILED:
+  - L3: 26.9 s, limit 9 s
+
+exit: 1
+
+[exited with code 1]

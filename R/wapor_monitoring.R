@@ -486,12 +486,16 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
 #' @param period Date range c(start, end).
 #' @param log_fn Function for logging.
 #' @param l3_region Optional L3 region code.
-#' @return NULL (invisibly).
+#' @return An invisible list with `variable`, the number of newly `saved`
+#'   layers, the number already `existing`, and date keys that `failed`.
 #' @keywords internal
 wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = message, l3_region = NULL) {
-  if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(NULL))
+  empty_result <- function() list(variable = variable, saved = 0L, existing = 0L, failed = character(0))
+  if (!requireNamespace("duckdb", quietly = TRUE)) return(invisible(empty_result()))
 
-  tryCatch({
+  # The body is a function so its early return() calls end the body only, not
+  # wapor_save_raster_blobs(): the summary log and the warning below always run.
+  save_layers <- function() {
     # Determine target unit conversion
     unit_conv <- resolve_output_unit_conversion(variable, NULL)
 
@@ -520,7 +524,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       ),
       error = function(e) { log_fn(sprintf("  Raster URLs error: %s", e$message)); NULL }
     )
-    if (is.null(urls) || length(urls) == 0) return(invisible(NULL))
+    if (is.null(urls) || length(urls) == 0) return(empty_result())
 
     urls_vs <- .wapor_resolve_remote_sources(urls)
     log_fn(sprintf("  Clipping & saving %d global raster layers for %s...", length(urls_vs), variable))
@@ -542,17 +546,20 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
         as.character(di$start_date)
       }, error = function(e) {
         m <- regmatches(basename(urls[i]), regexpr("[0-9]{4}-[0-9]{2}-[0-9]{2}", basename(urls[i])))
-        if (length(m) > 0) m[1] else format(Sys.Date(), "%Y-%m-%d")
+        if (length(m) > 0) m[1] else NA_character_
       })
     }, character(1))
 
-    pending_idx <- which(!(date_keys %in% existing_dates))
-    n_ok   <- 0L
-    n_skip <- length(urls) - length(pending_idx)
+    # paste0() with a zero-length input returns "undated:", so guard the empty case
+    undated <- urls[is.na(date_keys)]
+    failed <- if (length(undated)) paste0("undated:", basename(undated)) else character(0)
+    pending_idx <- which(!is.na(date_keys) & !(date_keys %in% existing_dates))
+    n_existing <- sum(!is.na(date_keys) & date_keys %in% existing_dates)
+    n_ok <- 0L
 
     if (length(pending_idx) == 0L) {
-      log_fn(sprintf("  All %d layers already saved for %s.", length(urls), variable))
-      return(invisible(NULL))
+      if (n_existing > 0L) log_fn(sprintf("  All %d layers already saved for %s.", n_existing, variable))
+      return(list(variable = variable, saved = n_ok, existing = n_existing, failed = failed))
     }
 
     # 1. BATCH OPEN: open every pending layer's vsicurl URL for this variable
@@ -575,13 +582,17 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
         tryCatch(suppressWarnings(terra::rast(urls_vs[i])), error = function(e) NULL)
       })
       ok_pos <- !vapply(layer_rasters, is.null, logical(1))
+      if (any(!ok_pos)) failed <- c(failed, date_keys[pending_idx[!ok_pos]])
       if (!any(ok_pos)) {
         log_fn(sprintf("  Error loading any layer for %s.", variable))
-        return(invisible(NULL))
+        return(list(variable = variable, saved = n_ok, existing = n_existing, failed = failed))
       }
       pending_idx <- pending_idx[ok_pos]
       r_stack <- terra::rast(layer_rasters[ok_pos])
     }
+
+    src <- .wapor_detach_source_scale(r_stack)
+    r_stack <- src$raster
 
     # 2. CRS HANDLING: Some variables are WGS84 (L1/L2), some are UTM (L3).
     # Determined once for the whole batch since all layers of one variable
@@ -602,7 +613,8 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     if (check_ext$xmin >= r_ext$xmax || check_ext$xmax <= r_ext$xmin ||
         check_ext$ymin >= r_ext$ymax || check_ext$ymax <= r_ext$ymin) {
       log_fn(sprintf("  Batch for %s does not overlap AOI; skipping.", variable))
-      return(invisible(NULL))
+      return(list(variable = variable, saved = n_ok, existing = n_existing,
+                  failed = c(failed, date_keys[pending_idx])))
     }
 
     # 4. CHUNKED CLIPPING: crop the whole stack once (vsicurl only downloads
@@ -610,8 +622,10 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
     r_stack_crop <- tryCatch(terra::crop(r_stack, check_ext), error = function(e) NULL)
     if (is.null(r_stack_crop)) {
       log_fn(sprintf("  Batch crop failed for %s.", variable))
-      return(invisible(NULL))
+      return(list(variable = variable, saved = n_ok, existing = n_existing,
+                  failed = c(failed, date_keys[pending_idx])))
     }
+    r_stack_crop <- .wapor_apply_source_scale(r_stack_crop, src$scale, src$offset)
 
     store_dir     <- .wapor_monitoring_raster_store_dir(con)
     gdal_version  <- tryCatch(as.character(terra::gdal()), error = function(e) NA_character_)
@@ -624,7 +638,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
       date_key <- date_keys[i]
 
       r_crop <- tryCatch(r_stack_crop[[k]], error = function(e) NULL)
-      if (is.null(r_crop)) { n_skip <- n_skip + 1L; next }
+      if (is.null(r_crop)) { failed <- c(failed, date_key); next }
 
       r_crop <- Rwapor::wapor_convert_raster(r_crop, variable, urls[i], unit_conv)
       r_crop <- Rwapor::wapor_convert_temperature(r_crop, variable)
@@ -643,7 +657,7 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
 
           terra::project(r_crop, wgs84_template, method = "bilinear")
         }, error = function(e) NULL)
-        if (is.null(r_crop)) { n_skip <- n_skip + 1L; next }
+        if (is.null(r_crop)) { failed <- c(failed, date_key); next }
       }
 
       # Final metadata for the cropped/projected result
@@ -682,14 +696,30 @@ wapor_save_raster_blobs <- function(con, farms_sf, variable, period, log_fn = me
           terra_version = terra_version, nodata = nodata_val, band_count = band_count
         )
         n_ok <- n_ok + 1L
-      }, error = function(e) log_fn(sprintf("  Error saving global blob: %s", e$message)))
+      }, error = function(e) {
+        log_fn(sprintf("  Error saving global blob: %s", e$message))
+        failed <<- c(failed, date_key)
+      })
     }
 
-    log_fn(sprintf("  Processed %d global layers for variable %s (%d already saved).", n_ok, variable, n_skip))
+    list(variable = variable, saved = n_ok, existing = n_existing, failed = failed)
+  }
 
-  }, error = function(e) {
+  result <- tryCatch(save_layers(), error = function(e) {
     log_fn(sprintf("  wapor_save_raster_blobs error: %s", e$message))
+    list(variable = variable, saved = 0L, existing = NA_integer_,
+         failed = paste0("error: ", conditionMessage(e)))
   })
+
+  log_fn(sprintf("  Saved %d new layer(s) for %s; %d already saved; %d failed.",
+                 result$saved, variable, result$existing, length(result$failed)))
+  if (length(result$failed) > 0L) {
+    shown <- paste(utils::head(result$failed, 5), collapse = ", ")
+    if (length(result$failed) > 5L) shown <- paste0(shown, ", ...")
+    warning(sprintf("%d layer(s) of %s were not saved: %s",
+                    length(result$failed), variable, shown), call. = FALSE)
+  }
+  invisible(result)
 }
 
 # Optimized helper for Global Raster Blobs
@@ -951,7 +981,7 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   
   # Query all dekadal rasters in range
   query <- "
-    SELECT date_key, raster_blob
+    SELECT date_key, raster_blob, raster_path
     FROM monitoring_rasters
     WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
@@ -967,35 +997,51 @@ wapor_generate_seasonal_raster <- function(con, farm_id, farm_geom, variable, st
   if (nrow(df) == 0) {
     # Fallback to legacy
     df <- DBI::dbGetQuery(con, 
-      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ? ORDER BY date_key",
+      "SELECT date_key, raster_blob, NULL as raster_path FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ? ORDER BY date_key",
       params = list(farm_id, variable, as.character(start_date), as.character(end_date)))
     
     if (nrow(df) == 0) return(NULL)
   }
   
   # Collect rasters
-  # DYNAMIC CLIP: Each global raster must be clipped to the farm geom
+  # DYNAMIC CLIP: Each raster is clipped to the farm geom (preferring windowed read from COG path)
   f_bb <- sf::st_bbox(farm_geom)
   f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
                      as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
 
   r_list <- lapply(seq_len(nrow(df)), function(i) {
+    p <- df$raster_path[[i]]
+    if (!is.null(p) && !is.na(p) && nzchar(p) && file.exists(p)) {
+      r_crop <- tryCatch(terra::rast(p, win = f_ext), error = function(e) NULL)
+      if (!is.null(r_crop)) return(r_crop)
+    }
     r_global <- wapor_raster_from_blob(df$raster_blob[[i]])
     if (is.null(r_global)) return(NULL)
     terra::crop(r_global, f_ext)
   })
-  r_list <- r_list[!sapply(r_list, is.null)]
-  if (length(r_list) == 0) return(NULL)
-  
-  # Stack rasters
-  s <- terra::rast(r_list)
+  valid_idx <- which(!vapply(r_list, is.null, logical(1)))
+  if (length(valid_idx) == 0) return(NULL)
+  r_list <- r_list[valid_idx]
   
   # Determine aggregation method
   is_flux <- grepl("AETI|PCP|NPP|^-T-|^E-", variable, ignore.case = TRUE)
   
   if (is_flux) {
+    u <- tryCatch(as.character(terra::units(r_list[[1]])[1]), error = function(e) "")
+    # If layers have daily rate units (/day or /d), multiply each layer by dekad day count
+    if (grepl("/(day|d)$", u, ignore.case = TRUE)) {
+      dates <- as.Date(df$date_key[valid_idx])
+      for (i in seq_along(r_list)) {
+        d <- dates[i]
+        day <- as.integer(format(d, "%d"))
+        n_days <- if (day <= 10) 10 else if (day <= 20) 10 else lubridate::days_in_month(d) - 20
+        r_list[[i]] <- r_list[[i]] * n_days
+      }
+    }
+    s <- terra::rast(r_list)
     res <- terra::app(s, fun = "sum", na.rm = TRUE)
   } else {
+    s <- terra::rast(r_list)
     res <- terra::app(s, fun = "mean", na.rm = TRUE)
   }
   
@@ -1026,7 +1072,7 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
 
   # 1. Generate the Seasonal Sum Raster for the mask_variable
   query_mask <- "
-    SELECT date_key, raster_blob
+    SELECT date_key, raster_blob, raster_path
     FROM monitoring_rasters
     WHERE variable = ?
       AND date_key >= ? AND date_key <= ?
@@ -1038,7 +1084,7 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
   if (nrow(mask_df) == 0) {
     # Fallback to legacy
     mask_df <- DBI::dbGetQuery(con, 
-      "SELECT date_key, raster_blob FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
+      "SELECT date_key, raster_blob, NULL as raster_path FROM farm_rasters WHERE farm_id = ? AND variable = ? AND date_key >= ? AND date_key <= ?",
       params = list(farm_id, mask_variable, as.character(start_date), as.character(end_date)))
     
     if (nrow(mask_df) == 0) {
@@ -1048,15 +1094,23 @@ wapor_apply_seasonal_mask_recalc <- function(con, farm_id, polygon,
     }
   }
 
-  # Accumulate the seasonal sum
-  r_list <- lapply(mask_df$raster_blob, wapor_raster_from_blob)
-  
-  # DYNAMIC CLIP for the seasonal sum base
+  # DYNAMIC CLIP for the seasonal sum base (preferring windowed reads from file paths)
   f_bb <- sf::st_bbox(polygon)
   f_ext <- terra::ext(as.numeric(f_bb$xmin), as.numeric(f_bb$xmax), 
                      as.numeric(f_bb$ymin), as.numeric(f_bb$ymax))
-  
-  r_list_clipped <- lapply(r_list, function(r) terra::crop(r, f_ext))
+
+  r_list_clipped <- lapply(seq_len(nrow(mask_df)), function(i) {
+    p <- mask_df$raster_path[[i]]
+    if (!is.null(p) && !is.na(p) && nzchar(p) && file.exists(p)) {
+      r_crop <- tryCatch(terra::rast(p, win = f_ext), error = function(e) NULL)
+      if (!is.null(r_crop)) return(r_crop)
+    }
+    r <- wapor_raster_from_blob(mask_df$raster_blob[[i]])
+    if (is.null(r)) return(NULL)
+    terra::crop(r, f_ext)
+  })
+  r_list_clipped <- r_list_clipped[!vapply(r_list_clipped, is.null, logical(1))]
+  if (length(r_list_clipped) == 0) return(NULL)
   seasonal_sum <- terra::app(terra::rast(r_list_clipped), "sum", na.rm = TRUE)
   
   # 2. Create the Binary Mask

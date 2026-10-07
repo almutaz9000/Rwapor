@@ -1,0 +1,2 @@
+RESULT source=api settings=old cells=167281 seconds=295.2 AETI=NA ETc=NA adequacy=0.980
+api/old: GET 947, MB 556.4, 404: 288

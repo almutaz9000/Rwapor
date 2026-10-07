@@ -18,8 +18,8 @@ wapor_validate_analysis_config <- function(config, crop_mask = NULL,
   errors <- character()
   
   # Check required fields
-  if (!is.null(config$ref_year) && (is.na(config$ref_year) || config$ref_year < 2000 || config$ref_year > 2030)) {
-    errors <- c(errors, "Reference year must be between 2000 and 2030")
+  if (!is.null(config$ref_year) && (is.na(config$ref_year) || (config$ref_year != 1970 && (config$ref_year < 1950 || config$ref_year > 2050)))) {
+    errors <- c(errors, "Reference year must be 1970 or between 1950 and 2050")
   }
   
   if (is.null(config$period) || length(config$period) != 2 ||
@@ -392,8 +392,8 @@ wapor_preflight_check <- function(config, data_source = "api", folder = NULL,
   }
   
   # Extract unique values
-  unique_vals <- unique(terra::values(cm, mat = FALSE))
-  unique_vals <- unique_vals[!is.na(unique_vals)]
+  u <- terra::unique(cm, na.rm = TRUE)
+  unique_vals <- if (is.null(u) || !length(u)) numeric(0) else as.numeric(u[[1]])
   
   if (length(unique_vals) == 0) {
     issues <- c(issues, "Crop mask has no non-NA values")

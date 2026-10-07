@@ -109,7 +109,7 @@ config <- list(
                                    # corrects for latitude-dependent pixel-area distortion
                                    # on geographic (EPSG:4326) grids
   indicators    = c(
-    "agg_aeti", "agg_t", "etc", "adequacy_etc", "peff", "cwp_bwp", "beneficial_fraction"
+    "agg_aeti", "agg_t", "etc", "adequacy_etc", "peff_green_blue", "cwp_bwp", "beneficial_fraction"
     # other available indicator codes (see wapor_list_indicator_steps() for the
     # full, always-current list):
     #   "agg_ret", "agg_pcp", "agg_npp"                 -- raw seasonal aggregates
@@ -118,7 +118,7 @@ config <- list(
     #   "green_water", "blue_water"                     -- water-source partitioning
     #   "yield_npp", "agg_biomass_kg", "agg_biomass_t"  -- yield/biomass from NPP
     #   "variability", "cv_aeti", "theil_aeti"          -- spatial uniformity/inequality,
-    #                                                       used by wapor_compare_seasons()
+    #                                                       spatial uniformity indicators
   )
 )
 
@@ -213,8 +213,7 @@ wheat_all_seasons <- wapor_run_seasonal_analysis(
 ```
 
 `wheat_all_seasons` is a named list of per-season results (same structure as
-Step 3's single-season output), ready for year-over-year comparison with
-`wapor_compare_seasons()` — see `vignette("advanced-analysis")` for spatial
+Step 3's single-season output), ready for year-over-year comparison (for example with `wapor_plot_polygon_seasons()`); see `vignette("advanced-analysis")` for spatial
 uniformity ($CV$, Theil Index) and anomaly-detection functions that work
 directly on this multi-season output.
 
@@ -268,8 +267,8 @@ even when the global config default is `FALSE`.
 
 ```r
 # Seasonal CWP/BWP zonal summary for a single season
-wheat_season$summary_table
+wheat_season$cwp_summary
 
 # CWP trend across all wheat seasons
-sapply(wheat_all_seasons, function(s) s$summary_table$cwp_bwp_mean)
+sapply(wheat_all_seasons, function(s) s$cwp_summary$cwp_kg_m3)
 ```

@@ -3,7 +3,245 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-09-22 — GitHub repo cleanup, README overhaul, pkgdown site, wheat vignette
+## Current Session — 2026-10-06 (afternoon) — P2 batch B2 taken over from Hermes and completed (Claude)
+
+**What happened**: `ti-06` and the two zonal fixes were committed and pushed (`cafe3c5`). The
+maintainer asked for a review and takeover of Hermes's work (`p2-b2`, `ti-10`, `ti-12`, `ti-16`).
+Review against master plan section 4 and 7: tests passed but the batch was below its gate
+(polygons with the same id not dissolved; analysis-result input, median, million-m3 volumes, id
+columns, `classes`, specified wide/sf formats missing; fixture tests a skipped stub; thin docs;
+mask helper gaps). Completed on branch `feat/p2-b2-completion`; ISS-20261006-001 logged.
+
+**Verification**: `zonal` 212, `mask-helpers` 27, `classify` 39; full suite 0 failures, 6 skips
+(live tests only); R CMD check without tests 0 errors, 0 warnings; zonal benchmark within limits
+(default call 32.6 s; 140 s before perf-b). Gate record in the master plan, section 4.
+
+**Next**: `p2-b3` (irrigation performance indicators), brief
+`docs/superpowers/plans/p2-batches/B3-indicators.md`. It builds on the zonal engine as it is now.
+
+## Previous Session — 2026-10-06 — ti-06 taken over: wapor_download() and config$cache_dir (Claude)
+
+**What happened**: `version-1.0.6` pushed (perf-a, perf-b, plan; `c4172eb`). The maintainer
+assigned `ti-06`. Implemented on branch `feat/wapor-download-1.0.6` (uncommitted): exported
+`wapor_download()` (one scaled Float32 file per date under `<folder>/<variable>/`, skips saved
+files, writes under a temporary name, works offline from saved files with a warning, refuses
+another area in the same folder) and opt-in `config$cache_dir` in the seasonal engine (saves what
+the run needs, then runs as a local run). Not available with `l3_mode = "mosaic_all"`.
+
+**Verification**: `test-download-cache.R` 36 expectations; focused `analysis-engine` 78,
+`processing` 250, `internal-helpers` 29; full suite 0 failures (one test was edited while the
+run was in progress and passes on rerun); live release checks 6/6; R CMD check without tests
+0 errors, 0 warnings, 3 notes (time, `training.zip`, unqualified `approx`/`median`/`setNames`
+in the B2 files). Live: cache equals stream within 6e-06 mm; second run 1.9 s vs 7.0 s; offline OK.
+
+**Later**: on the maintainer's instruction, fixed ISS-20261005-004 (zone areas in an equal-area
+projection, no lwgeom, no s2 switch) and ISS-20261005-005 (`wapor_classify()` accepts NA/NaN as
+missing) on the same branch, with regression tests; qualified `stats::approx`, `stats::setNames`,
+`stats::median` in the B2 files. Training notebook: `download_wapor()` now calls
+`wapor_download()` when the installed Rwapor has it and keeps its own code for older versions;
+checked on the saved citrus data online and through a dead proxy (72 files returned, none
+rewritten). Full render against this branch (temporary library, separate output file): exit 0
+in 23 minutes, 47 PASS lines and the one intended CHECK (F001) as in the existing HTML, no
+warnings. Final gates on the branch: full suite 0 failures (7 skips), R CMD check without tests
+0 errors, 0 warnings, 2 notes (clock, `training.zip`).
+
+**Next**: maintainer reviews and commits the branch. Still open: Hermes rebase of `p2-b2`
+(`R/zonal_stats.R`, `R/classify.R`, `R/mask_helpers.R` changed), decision D-B1.
+
+## Previous Session — 2026-10-05 — Review of external suggestions, benchmarks, performance plan (Claude)
+
+**What happened**: Reviewed 14 improvement suggestions from another AI model against the code.
+Most are already implemented; gdalcubes/stars, `scoff()` retention and new plotting packages are
+not worth it (reasons in the plan, section 1). Live benchmarks found two large problems of our own:
+the 10 MB GDAL chunk default (Level 2 extraction 415 s / 1,091 MB against 21.5 s / 17 MB) and the
+R bookkeeping in `wapor_zonal_stats()` (56 s against 6 s, identical output). Wrote
+`docs/superpowers/plans/2026-10-05-perf-io-zonal.md` (WP-A, WP-B, WP-C) with an evidence folder.
+Logged ISS-20261005-001/-002/-003 and board tasks `perf-a`, `perf-b`, `perf-c` (pending).
+No package code changed; `R/zonal_stats.R` (Hermes, `p2-b2`) not touched.
+
+**Verification**: benchmarks only; extracted values identical across all GDAL settings; prototype
+zonal loop identical to the current function in 7 cases.
+
+**Later the same day (approved: perf-a first, then the proposed order)**: implemented `perf-a` on
+branch `perf/remote-io-1.0.6` (uncommitted): no GDAL chunk default, scoped `.tif` filter
+(`.wapor_with_remote_io()`), chunk plan removed, PROJ fix independent of auto-config, volume note,
+`inst/bench/remote_io_benchmark.R`, NEWS. Verified: real `wapor_ts()` Level 2 342.7 s / 1,091 MB
+to 20.7 s / 17.4 MB, Level 3 66.3 s / 232 MB to 26.9 s / 14.3 MB, values identical; full suite
+0 failures; live checks 6/6; live API tests 124 pass; known-answer pass. `perf-c` measured: citrus
+seasonal analysis 196 s local, 220 s streamed (295 s with old settings); opening 36 L3 layers 4.9 s.
+`ti-07` closed; `ti-06` only needed for offline work. `perf-b` not started: `p2-b2` still active.
+
+**Evening**: perf-a and the plan committed to `version-1.0.6` (`a9e14b7`, `66bd825`, not pushed).
+`perf-b` implemented on branch `perf/zonal-engine-1.0.6` (uncommitted) on the maintainer's
+instruction: `wapor_zonal_stats()` restructured, table and warnings identical to the frozen
+reference (`tests/testthat/helper-zonal-reference.R`), 56 s to 6.5 s (400 zones, 12 layers),
+237 s to 27 s (2025 zones), layers read in groups (memory in use flat at 113 MB over 72 layers),
+`format = "sf"` fixed. Full suite 0 failures. Logged ISS-20261005-004 and -005 (B2 code, not fixed).
+
+**2026-10-06**: perf-b committed to `version-1.0.6` (`8b109fb`, `595497f`); the branch is 4 commits ahead of origin, not pushed.
+
+**Next**: maintainer pushes `version-1.0.6`;
+Hermes rebases open `p2-b2` work and takes ISS-20261005-004/-005; decide D-B1 and `ti-06`.
+Open observation: `exact_extract()` inside `wapor_ts()` at Level 3 varies 4 to 34 s (plan section 8).
+
+## Previous Session — 2026-09-30 — P2 B1 claimed, implementer dispatched (Hermes grok-4.6)
+
+**What happened**: Reviewed board vs source. P2 B1 is the only next implementation slice.
+Claimed `p2-b1` and `ti-10` (WP1 only). Dispatched an implementer plus a WaPOR oracle.
+Implementer landed `wapor_classify()`; oracle confirmed type-7 expected values (5.95/95.05, 5/90/5).
+Parent filled missing polygon-reference tests, documented the defaults table, and fixed raster
+`reference = NULL` using ncell not nlyr. classify tests PASS 35. Known-answer memory PASS 1419;
+stream/tiled skipped (disk). B2 not started. Committed 4254ab9 on version-1.0.6.
+
+**Next**: B1 committed as 4254ab9 on version-1.0.6; push for G9 CI. B2 waits for green.
+
+## Previous Session — 2026-09-29/30 — ETc fix, v1.0.5 tag, P0 gates, P1 logged (Claude)
+
+**What happened**: Verified 1.0.5 on Windows against the training notebook and found
+ISS-20260929-017 (kernel ETc from a shifted Kc curve since `94b1533`: wheat ETc 0,
+citrus 9% low); fixed (`aaa0739`), tagged v1.0.5. Implemented P0 (plan
+`docs/superpowers/plans/2026-09-29-prod-p0.md`, Codex + Claude verification): real-data
+known-answer tests (236 golden values, 3 modes), monitoring hardening
+(ISS-20260929-018), `options(Rwapor.verbose)`, live ETc check. Default branch at
+`e19ed3e`. Training notebook fixes: offline detection, Float32-tolerant checks.
+
+**Verification**: CI 9/9 green on `324a513`; live checks 6/6 (ETc 316.53 vs formula
+316.54 mm); reverting only the old Kc line fails exactly the 22 ETc/adequacy golden
+rows. Local full suite hit disk-full errors (C: had 1.8 GB free); failing files pass
+individually.
+
+**Next**: MAINTAINER does P1 tasks `p1-release`, `p1-branch-main`, `p1-protect`,
+`p1-runiverse` (commands: `docs/superpowers/plans/2026-09-29-prod-p1-maintainer-steps.md`),
+then an agent does `p1-readme-runiverse`. Free disk space on C:.
+
+**P2 (approved 2026-09-30, ready to implement)**: start with batch B1, board task `p2-b1`, brief
+`docs/superpowers/plans/p2-batches/B1-classification.md`. One batch at a time (B1 → B2 → B3 → B4 → B5 →
+release 1.0.6); each batch is verified at gate G1-G10 (master plan
+`docs/superpowers/plans/2026-09-30-p2-generalized-zonal-features.md`, section 1A) before the next starts.
+Defaults follow the domain expert review (`docs/superpowers/reviews/2026-09-30-p2-domain-expert-review.md`);
+the training notebook is an example only, never a standard.
+
+## Previous Session — 2026-09-29 — 1.0.5 released to the default branch
+
+**What happened**: Added a live-API CI gate (Windows + Linux; `devtools::test()` /
+`devtools::check()` with live tests, `remote_smoke_test.R`, new
+`inst/bench/live_release_checks.R`). First run found ISS-20260929-015
+(`wapor_ts()` polygon stats for single-layer batches), fixed. Second run
+(36523459838) all green. Merged into `version-1.0.4` via PR; tag/release see
+the PR and plan section 5.
+
+**Not possible from the cloud session**: the JVA citrus 1,035.86 mm comparison
+(needs the local `data/citrus/*.geojson`); the maintainer's own Windows machine.
+
+## Previous Session — 2026-09-28 (part 3) — 1.0.5 implemented on the branch
+
+**What happened**: Applied the verified plan on `claude/ecstatic-allen-xdfb2g`, one
+commit per work package (WP3 CI + install smoke test, WP1 disk footprint, WP2
+`wapor_unstack_map()`, WP4 GDAL settings, WP6 COG warnings), bumped to 1.0.5 and
+rewrote NEWS (1.0.4 section restored to what was published). ISS-20260925-009
+resolved.
+
+**Verification**: see the commit message of the release commit and plan
+section 4; CI dispatched on the branch (R-CMD-check incl. install-smoke).
+
+**Next**: maintainer merges into `version-1.0.4` (or a new `version-1.0.5`
+default branch), runs Windows + live checks, tags v1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 (part 2) — Production-readiness plan, verified prototypes
+
+**What happened**: Wrote `docs/superpowers/plans/2026-09-28-production-readiness-plan.md`
+(WP0 to WP6 + 1.0.5 release plan) and prototyped every package in a local
+worktree (`proto/improvement-plan`, not pushed); reference patch next to the
+plan. Found and fixed on the branch: ISS-20260928-013 (`wapor_map()` status-list
+return broke the vignette and every dashboard download confirmation) and
+ISS-20260928-014 (Windows CI fixture race; `version-1.0.4` CI was red).
+
+**Verification**: CI matrix green on `312e1ed` (run 36417147780); disk benchmark
+1 M cells: -44 % disk, -22 % time, identical results; install smoke step
+local HTTP 200 and catches a broken module; actionlint 0 findings; full suites
+and R CMD check results are in the plan, section 4.
+
+**Next**: user decision to merge the branch, then apply WP3, WP1, WP2, WP4,
+WP5, WP6 from the patch (one commit each) and release 1.0.5 (plan section 5).
+
+## Previous Session — 2026-09-28 — Critical install/run review (Claude, cloud Linux)
+
+**What happened**: Installed Rwapor 1.0.4 from source on Ubuntu 24.04 / R 4.3.3
+(CRAN and WaPOR API blocked; dashboard packages built from GitHub CRAN
+mirrors), ran `R CMD check`, the full suite on terra 1.7.65 and 1.9.50, the
+dashboard in headless Chromium (all 6 tabs, no server errors), and an
+end-to-end `wapor_map()` with stubbed URLs on scale-0.1 Int16 COGs. Found and
+fixed ISS-20260928-010 (double scaling, 10x too low, from `94b1533`),
+ISS-20260928-011 (COG float truncation), ISS-20260925-008 (`_seasonal` local
+reads), ISS-20260928-012 (raster dependency, startup stall, annual defaults,
+README vignette deps, network test). Branch `claude/ecstatic-allen-xdfb2g`.
+
+**Verification**: R CMD check (before fixes): 0 R-code problems, only the
+network test failed; after fixes 240 tests / 0 failures on both terra
+versions; e2e map values 25/30/22 mm/dekad and 2.5/3/2 mm/day on both.
+
+**Open / proposals (not implemented)**: ISS-20260925-009 defaults
+(`keep_intermediates`, Float32 derived rasters); `wapor_local_rasters()` ignores
+multi-band stacks from `wapor_map(separate_files = FALSE)`; pkgdown workflow
+does not trigger on `version-1.0.4`; branch lists hardcoded in workflows;
+`.onLoad` overwrites user GDAL env vars (incl. `GDAL_HTTP_VERSION=2`, risky
+behind proxies); offline tests spend ~30 s in API retry backoff.
+
+## Previous Session — 2026-09-23 to 25 — WaPOR training notebook, participant package, lessons for Rwapor
+
+**What happened**: Built and tested `training/water-productivity-training.qmd`
+with real data (citrus JVA polygons + 177 sampled farms + de-identified survey;
+Jendouba cereal mask), rewritten as a manual (concepts, SVG sketches, checkpoints,
+no em dashes, L3 20 m only, Esri basemaps, terra maps at full resolution). Made it
+offline-ready (per-date WaPOR downloads in `training/wapor_data/`, local = API).
+Added participant package: `check_setup.R`, `WaPOR_Training.Rproj`,
+`Note_to_Participants.docx`, self-contained HTML and PDF. Fixed seasonal green/blue
+water in the package (monthly split, 1.0.2, test added, uncommitted). Found and
+logged package problems ISS-20260923-003/-004, ISS-20260924-006,
+ISS-20260925-007/-008/-009. Created the user-level skill `wapor-training-builder`.
+
+**Verification**: final full render exit 0, 42 checkpoints (41 PASS, 1 intended
+CHECK on survey yield F001); offline run with a dead proxy works; dependency scan
+confirms the note's install commands cover every package used.
+
+**Open / next**: review the improvement plan and tasks ti-01 to ti-16 (REVIEW
+FIRST) in `docs/superpowers/specs/2026-09-24-training-driven-improvements-plan.md`
+(lessons register L1 to L21 at the end). Nothing committed: 1.0.2 must be pushed
+before the participant note is sent (GitHub still has 1.0.1). Keep 15 to 20 GB
+free for full L3 renders.
+
+## Previous Session — 2026-09-23 — Large-raster performance review and 1.0.1 size-aware processing
+
+**What happened**: User asked for a bottleneck review of large rasters and long
+20/100/300 m time series, then a grilled improvement plan (19 decisions plus
+accuracy decisions A–D), then implementation in one change on branch
+`perf/large-raster-1.0.1`. Built a planner (`wapor_plan_processing()`) and a
+single window kernel used by memory, stream and tiled modes; seasonal and
+monthly totals are now summed at native resolution and resampled once;
+nearest-neighbour is the default (raw server values kept); pixels with missing
+dekads are NA unless `min_coverage` allows. Found and fixed, with live
+verification: tiled engine all-NA bug (ISS-20260923-001), remote engine unable
+to match `YYYY-MM-D1` file names so `data_source = "api"` never worked in 1.0.0
+(ISS-20260923-003), and a GDAL capability probe that always reported curl
+missing (ISS-20260923-004). DuckDB raster blobs in monitoring logged as
+ISS-20260923-002 (not fixed, by decision).
+
+**Verification**: full test suite 1332 expectations, 0 failures (6 live-API
+skips); `devtools::check()` 0 errors, 0 warnings, 2 pre-existing notes
+(time check, `_smoke_check.R`); `inst/bench/remote_smoke_test.R` 5/5 live
+checks pass (tiled equals memory, max diff 0). Benchmark (1500 x 1500 cells,
+18 dekads, 512 MB budget) before the final memory fixes: 1.0.0 peak 5.8 GB
+above baseline vs 1.0.1 tiled 1.6 GB, small job 5% faster. After the fixes,
+per-stage profiling of the same job in auto/tiled mode stayed about 100 MB
+above baseline. A final full benchmark rerun is blocked: the C: drive is full
+(about 2 GB free), which made later runs fail with bad_alloc / unwritable
+temp files. Rerun `inst/bench/large_raster_benchmark.R` once space is freed.
+
+**Next**: user review of the branch (not pushed); decide whether to push, and
+whether to tag 1.0.1. Codex's `seasonal-dashboard-semantics` task shares
+`R/wapor_map.R`/`R/wapor_ts.R`/`R/utils.R` — Codex must rebase on this branch.
+
+## Previous Session — 2026-09-22 — GitHub repo cleanup, README overhaul, pkgdown site, wheat vignette
 
 **What happened**: User asked for a professional repo/README audit and
 cleanup, then several follow-ups. (1) Classified all 233 remote branches;
@@ -39,7 +277,21 @@ defaulting into the already-tracked `docs/` folder; `build_site_github_pages()`'
 own `dest_dir` arg overriding `_pkgdown.yml`; a tidyselect misparse on the
 `global-tiled` vignette slug in a custom `articles:` nav — dropped the
 custom nav rather than chase the root cause). Site is live and verified:
-https://almutaz9000.github.io/Rwapor/.
+https://almutaz9000.github.io/Rwapor/. (6) Built a new, independent Quarto
+training notebook (`training/water-productivity-training.qmd`, kept out of
+`vignettes/`/pkgdown/R CMD check via `.Rbuildignore`) with two live
+step-by-step worked examples (Citrus: polygon used as both mask+AOI, no
+built-in FAO Kc profile so built from scratch via FAO-56 Table 6.2 +
+`fao_growth_stages.csv`; Wheat: separate cereal mask raster + AOI, reuses
+the built-in "Winter Wheat" profile), each running the full indicator
+chain with a plot/summary and equation explanation per step, plus
+`leaflet` input/output exploration. While ground-truthing indicator codes
+and result-list field names against `R/analysis_engine.R`/`NAMESPACE`,
+found and logged (not fixed) `ISS-20260922-001`: the existing
+`wheat-water-productivity.Rmd` vignette uses the inert code `"peff"`
+instead of the real `"agg_peff"`, references a non-existent
+`results$summary_table` field, and cites a non-existent
+`wapor_compare_seasons()` function.
 
 **Concurrent-session note**: Codex was active throughout on a separate task
 (`seasonal-dashboard-semantics`) and switched the shared working directory's
@@ -65,7 +317,13 @@ the local-only `version-0.9-UNFAO-CG35038B0.8` branch (never pushed) was
 untouched; the README CI badge vs. actual default-branch (`version-0.9.9`)
 mismatch is unresolved — maintainer decision needed on whether to switch
 GitHub's default branch to `main` or update the badge/workflow triggers to
-match `version-0.9.9`.
+match `version-0.9.9`. Separately: `training/water-productivity-training.qmd`
+was not rendered end-to-end this session (the user's real Citrus/Wheat
+input files don't exist in this environment — the notebook uses clearly
+marked placeholder paths for them); every R chunk was manually traced
+against package source and cross-checked with `NAMESPACE`, but it still
+needs a real render against real data before being handed to trainees.
+`ISS-20260922-001` (vignette bugs found while building it) is unresolved.
 
 ## Prior Session — 2026-09-21 — WaPOR map progress bottleneck
 

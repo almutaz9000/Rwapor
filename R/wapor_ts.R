@@ -34,8 +34,10 @@
 #' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
 #'   If `FALSE`, loads all layers at once.
 #' @param batch_size Integer. Number of remote raster layers loaded and processed
-#'   per batch. Lower values reduce peak memory usage for long time series.
-#'   Default is `12L` (~4 months of dekadal data).
+#'   per batch. Default `NULL` lets [wapor_plan_processing()] choose it from the
+#'   area size and available memory. Set a number to override.
+#' @param processing One of `"auto"` (default), `"memory"`, `"stream"` or
+#'   `"tiled"`; see [wapor_plan_processing()].
 #' @param l3_region Character. Optional L3 region code to use when `variable`
 #'   is an L3 product and `region` is a spatial AOI. This keeps polygon/bbox
 #'   extraction against the supplied AOI while constraining source rasters to
@@ -108,8 +110,9 @@
 #' attr(df, "units")
 #' attr(df, "long_name")
 #' }
-wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = 12L, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE, on_batch_done = NULL, fun = NULL) {
+wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversion = NULL, seasonal = FALSE, download_locally = FALSE, parallel = FALSE, batching = TRUE, batch_size = NULL, l3_region = NULL, l3_mode = c("select", "mosaic_all"), partial = FALSE, on_batch_done = NULL, fun = NULL, processing = c("auto", "memory", "stream", "tiled")) {
   l3_mode <- match.arg(l3_mode)
+  processing <- match.arg(processing)
   # Input validation
   if (!is.character(variable) || length(variable) != 1) {
     stop("'variable' must be a single character string", call. = FALSE)
@@ -131,10 +134,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   if (!is.logical(batching) || length(batching) != 1) {
     stop("'batching' must be a single logical value", call. = FALSE)
   }
-  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
-    stop("'batch_size' must be a positive integer", call. = FALSE)
+  if (!is.null(batch_size)) {
+    batch_size <- .wapor_resolve_batch_size(batch_size, NULL)
   }
-  batch_size <- as.integer(batch_size)
   seasonal_summary <- if (isTRUE(seasonal)) {
     resolve_seasonal_summary_function(variable, fun)
   } else {
@@ -150,12 +152,12 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   resolved_unit_conversion <- resolve_output_unit_conversion(variable, unit_conversion)
   if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
       identical(resolved_unit_conversion, "dekad")) {
-    message("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
+    .wapor_inform("Variable is Dekadal (stored as mm/day). Applying temporal conversion to mm/dekad.")
   }
   
   # Inform user about automatic temperature conversion
   if (grepl("^AGERA5-(TMIN|TMAX)-", variable, ignore.case = FALSE)) {
-    message("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
+    .wapor_inform("Temperature variable detected. Automatically converting from Kelvin to Celsius.")
   }
 
   # Parse region
@@ -183,7 +185,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   # --- Seasonal mode ---
   if (seasonal) {
     if (!is.null(unit_conversion) && unit_conversion != "none") {
-      message("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
+      .wapor_inform("Note: 'unit_conversion' is ignored when seasonal = TRUE. The output is in base physical units (e.g., mm).")
     }
     
     # Handle list of periods for seasonal extraction
@@ -211,7 +213,8 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           batch_size = batch_size,
           l3_region = l3_region,
           l3_mode = l3_mode,
-          partial = partial
+          partial = partial,
+          processing = processing
         )
         if (!is.null(window_res)) {
           window_res$season_name <- s_name
@@ -260,7 +263,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     temp_download_folder <- file.path(tempdir(), "wapor_seasonal_ts")
     if (!dir.exists(temp_download_folder)) dir.create(temp_download_folder)
     
-    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder, partial = partial)
+    seasonal_data <- download_seasonal_rasters(variable, period, l3_code, reg_info, temp_download_folder,
+                                               partial = partial, batch_size = batch_size,
+                                               processing = processing)
     
     groups <- seasonal_data$groups
     plan <- seasonal_data$plan
@@ -295,25 +300,36 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       if (!is.null(vect_data)) {
         # exact_extract returns a data.frame with one column per layer.
         # Set explicit column names immediately so downstream code is stable.
+        # One pass returns the per-layer mean and, for weighted means, the
+        # valid (non-NA) coverage "count" used as the denominator.
+        names(r_group) <- paste0("L", seq_len(n_lyr_group))
+        want_count <- isTRUE(seasonal_summary$weighted) && !is.null(total_weights)
+        stats_wanted <- if (want_count) c("mean", "count") else "mean"
         ex <- .wapor_retry_remote_operation(
           function() suppressWarnings(exactextractr::exact_extract(
-            r_group, vect_data, "mean", progress = FALSE
+            r_group, vect_data, stats_wanted, progress = FALSE
           )),
           label = sprintf("%s zonal extraction", variable)
         )
-        # exact_extract column naming: for n layers it returns "mean.1"..."mean.n"
-        # or, when n==1, just "mean". Normalise to "mean.L1"..."mean.Ln".
-        ncol_ex <- ncol(ex)
-        if (ncol_ex == 0) {
+        if (ncol(ex) == 0) {
           stop(sprintf("exact_extract returned no columns for %s (n_lyr=%d).",
                        variable, n_lyr_group), call. = FALSE)
         }
-        if (ncol_ex == 1 && "mean" %in% names(ex)) {
-          names(ex)[names(ex) == "mean"] <- "mean.L1"
-        } else {
-          names(ex) <- paste0("mean.L", seq_len(ncol_ex))
+        pick_stat <- function(stat) {
+          cols <- if (n_lyr_group == 1L && stat %in% names(ex)) {
+            stat
+          } else {
+            paste0(stat, ".L", seq_len(n_lyr_group))
+          }
+          missing <- setdiff(cols, names(ex))
+          if (length(missing)) {
+            stop(sprintf("exact_extract output lacks %s. Available: %s",
+                         paste(missing, collapse = ", "), paste(names(ex), collapse = ", ")),
+                 call. = FALSE)
+          }
+          as.matrix(ex[, cols, drop = FALSE])
         }
-        group_means_mat <- as.matrix(ex)
+        group_means_mat <- pick_stat("mean")
         if (!isTRUE(seasonal_summary$weighted)) {
           equal_step_values[[length(equal_step_values) + 1L]] <- group_means_mat
           next
@@ -322,23 +338,10 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
         sum_values <- sum_values + as.vector(group_means_mat %*% multipliers)
 
-        if (!is.null(total_weights)) {
-          # Per-layer validity via exact_extract("sum") on a 0/1 raster.
-          # This gives the number of valid pixels per layer; multiplying by the
-          # per-layer multiplier gives the denominator for the weighted mean.
-          not_na_stack <- !is.na(r_group)
-          coverage_df <- .wapor_retry_remote_operation(
-            function() suppressWarnings(exactextractr::exact_extract(
-              not_na_stack, vect_data, "sum", progress = FALSE
-            )),
-            label = sprintf("%s coverage extraction", variable)
-          )
-          if (ncol(coverage_df) == 1 && "sum" %in% names(coverage_df)) {
-            names(coverage_df)[names(coverage_df) == "sum"] <- "sum.L1"
-          } else {
-            names(coverage_df) <- paste0("sum.L", seq_len(ncol(coverage_df)))
-          }
-          coverage_mat <- as.matrix(coverage_df)
+        if (want_count) {
+          # Valid-pixel coverage per layer times the layer multiplier gives the
+          # weighted-mean denominator.
+          coverage_mat <- pick_stat("count")
           coverage_mat[is.na(coverage_mat)] <- 0
           total_weights <- total_weights + as.vector(coverage_mat %*% multipliers)
         }
@@ -426,9 +429,9 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
 
   # Use GDAL virtual file system for efficient streaming
   urls <- .wapor_resolve_remote_sources(urls)
-  message(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
+  .wapor_inform(sprintf("Streaming data using GDAL virtual file system (/vsicurl/) for %s...", variable))
 
-  message(sprintf("Found %d files for %s. Processing...", length(urls), variable))
+  .wapor_inform(sprintf("Found %d files for %s. Processing...", length(urls), variable))
   t0_ts <- proc.time()
 
   # Extract temporal resolution from variable name
@@ -454,24 +457,32 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     }
   }
 
-  # Split URLs into batches for memory-efficient processing
+  # Split URLs into planner-sized batches for memory-efficient processing
   n_urls <- length(urls)
+  io_plan <- .wapor_io_plan(urls, reg_info, processing = processing, n_targets = 3L)
+  batch_size <- .wapor_resolve_batch_size(batch_size, io_plan)
+  .wapor_inform(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, batch_size))
+  volume_note <- .wapor_volume_note(io_plan, variable)
+  if (!is.null(volume_note)) .wapor_inform(volume_note)
+  max_cells <- max(1e6, floor(io_plan$budget_bytes / (8 * 3 * batch_size)))
   url_idx_chunks <- get_url_chunks(seq_len(n_urls), batching = batching, batch_size = batch_size)
   n_chunks <- length(url_idx_chunks)
+  n_workers <- .wapor_n_workers()
 
   if (n_chunks > 1) {
-    message(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
+    .wapor_inform(sprintf("  Splitting %d files into %d batch(es) of ~%d for memory efficiency.",
                     n_urls, n_chunks, batch_size))
   }
 
   # Helper function to process a single batch
   process_batch <- function(ci) {
+    if (parallel) .wapor_worker_init(n_workers)
     idx <- url_idx_chunks[[ci]]
     chunk_urls <- urls[idx]
     chunk_meta <- meta_df[idx, , drop = FALSE]
 
     if (n_chunks > 1 && !parallel) {
-      message(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
+      .wapor_inform(sprintf("  Batch %d/%d (%d layers)...", ci, n_chunks, length(idx)))
     }
     # Fire progress callback if provided (used by Shiny progressr integration)
     if (is.function(on_batch_done)) {
@@ -488,7 +499,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       }, error = function(e) {
         if (attempt < max_retries) {
           if (!parallel) {
-            message(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
+            .wapor_inform(sprintf("Attempt %d to load raster failed. Retrying in %d seconds... (%s)",
                           attempt, attempt * 2, e$message))
           }
           Sys.sleep(attempt * 2)
@@ -519,11 +530,17 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       ))
     }
 
-    # Crop can force remote pixel I/O, so keep it inside the retry boundary.
-    r <- .wapor_retry_remote_operation(
-      function() wapor_crop_to_region(r, reg_info, do_mask = FALSE),
-      label = sprintf("%s batch %d crop", variable, ci)
-    )
+    # exact_extract reads only each polygon's window, so cropping first would
+    # just copy the whole bounding box. Crop for bbox/L3 regions, and for
+    # temperature, whose conversion must not run over an uncropped source.
+    is_temperature <- grepl("^AGERA5-(TMIN|TMAX)-", variable)
+    if (is.null(vect) || is_temperature) {
+      # Crop can force remote pixel I/O, so keep it inside the retry boundary.
+      r <- .wapor_retry_remote_operation(
+        function() wapor_crop_to_region(r, reg_info, do_mask = FALSE),
+        label = sprintf("%s batch %d crop", variable, ci)
+      )
+    }
 
     # Temperature Conversion (Kelvin to Celsius for AgERA5 temperature variables)
     r <- wapor_convert_temperature(r, variable)
@@ -538,11 +555,18 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
           r,
           vect,
           c("mean", "min", "max"),
-          progress = FALSE
+          progress = FALSE,
+          max_cells_in_memory = max_cells
         )),
         label = sprintf("%s batch %d zonal extraction", variable, ci)
       )
 
+      # exact_extract drops the layer suffix for a single-layer raster
+      # ("mean" instead of "mean.L1"); normalise so both cases match below.
+      if (n_lyr == 1L) {
+        single <- intersect(c("mean", "min", "max"), names(ex))
+        names(ex)[match(single, names(ex))] <- paste0(single, ".L1")
+      }
       ex$ID <- seq_len(nrow(ex))
 
       # Reshape extracted stats into long format.
@@ -604,14 +628,19 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   }
 
   # Process all batches: load, crop, extract stats, release memory
-  if (parallel && n_chunks > 1) {
-    message(sprintf("  Processing %d batches in parallel...", n_chunks))
-    all_batch_results <- future.apply::future_lapply(seq_len(n_chunks), process_batch, future.seed = TRUE)
-  } else {
-    all_batch_results <- lapply(seq_len(n_chunks), process_batch)
-  }
+  all_batch_results <- .wapor_with_remote_io({
+    if (parallel && n_chunks > 1) {
+      .wapor_inform(sprintf("  Processing %d batches in parallel...", n_chunks))
+      # Entered again per batch: each parallel worker is its own process.
+      future.apply::future_lapply(seq_len(n_chunks), function(ci) {
+        .wapor_with_remote_io(process_batch(ci))
+      }, future.seed = TRUE)
+    } else {
+      lapply(seq_len(n_chunks), process_batch)
+    }
+  })
 
-  message(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
+  .wapor_inform(sprintf("Raster processing completed in %.1f seconds", (proc.time() - t0_ts)[["elapsed"]]))
 
   # Separate ok and failed batches
   ok_batches <- all_batch_results[vapply(all_batch_results, function(r) identical(r$status, "ok"), logical(1))]
@@ -666,7 +695,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
                     length(failed_urls), variable, failed_csv))
   }
 
-  message(sprintf("Time series extraction completed in %.1f seconds",
+  .wapor_inform(sprintf("Time series extraction completed in %.1f seconds",
                   (proc.time() - t0_ts)[["elapsed"]]))
   return(final_df)
 }

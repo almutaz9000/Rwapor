@@ -1,6 +1,6 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
-Version: 1.0.0
+Version: 1.0.6
 Authors@R: c(
     person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
     person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
@@ -19,6 +19,7 @@ License: MIT + file LICENSE
 URL: https://github.com/almutaz9000/Rwapor
 BugReports: https://github.com/almutaz9000/Rwapor/issues
 Depends: R (>= 4.1.0)
+SystemRequirements: GDAL (>= 3.0.0), GEOS (>= 3.8.0), PROJ (>= 6.0.0)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -43,7 +44,7 @@ Suggests:
     ggplot2,
     withr,
     shiny,
-    leaflet,
+    leaflet (>= 2.1.2),
     leaflet.extras,
     leaflet.extras2,
     shinyFiles,
@@ -54,7 +55,6 @@ Suggests:
     DT,
     shinycssloaders,
     arrow,
-    raster,
     promises,
     viridisLite,
     RColorBrewer,
@@ -63,7 +63,7 @@ Suggests:
     tidyterra,
     patchwork,
     ggspatial,
-    pkgdown
+    ps
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Config/roxygen2/version: 7.3.3

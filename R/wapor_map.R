@@ -1,3 +1,52 @@
+#' Detach the source scale/offset from freshly opened rasters
+#'
+#' WaPOR COGs store Int16 values with a GDAL scale (usually 0.1). Whether terra
+#' keeps that scale "pending" through crop, arithmetic and metadata assignment
+#' differs between terra versions, which made map outputs either raw integers
+#' or scaled twice. Clearing it here makes terra return raw values, and
+#' [.wapor_apply_source_scale()] applies it exactly once after cropping.
+#'
+#' @param r SpatRaster opened from the source files.
+#' @return A list with `raster` (scale/offset cleared) and the per-layer
+#'   `scale` and `offset` that were stored in the files.
+#' @keywords internal
+#' @noRd
+.wapor_detach_source_scale <- function(r) {
+  so <- tryCatch(terra::scoff(r), error = function(e) NULL)
+  n <- terra::nlyr(r)
+  if (is.null(so) || nrow(so) != n) {
+    return(list(raster = r, scale = rep(1, n), offset = rep(0, n)))
+  }
+  scale <- as.numeric(so[, "scale"])
+  offset <- as.numeric(so[, "offset"])
+  scale[!is.finite(scale)] <- 1
+  offset[!is.finite(offset)] <- 0
+  if (any(scale != 1) || any(offset != 0)) {
+    terra::scoff(r) <- cbind(rep(1, n), rep(0, n))
+  }
+  list(raster = r, scale = scale, offset = offset)
+}
+
+#' Apply the source scale/offset detached by .wapor_detach_source_scale()
+#' @keywords internal
+#' @noRd
+.wapor_apply_source_scale <- function(r, scale, offset) {
+  if (all(scale == 1) && all(offset == 0)) return(r)
+  r * scale + offset
+}
+
+#' Assign output metadata to a map raster
+#'
+#' Values must already be physical: [.wapor_apply_source_scale()] applied the
+#' source file scale. The catalogue scale is deliberately not applied here,
+#' because it would scale values a second time (and would rescale local
+#' Float32 copies that are already in physical units).
+#' @keywords internal
+#' @noRd
+.wapor_prepare_map_output <- function(r, variable, unit_conversion) {
+  assign_raster_metadata(r, variable, unit_conversion)
+}
+
 #' Download and Save a Raster Map
 #'
 #' Downloads WaPOR or AgERA5 raster data for a specified region and time period,
@@ -41,8 +90,13 @@
 #'   Ignored for bounding box and L3 code regions.
 #' @param batching Logical. If `TRUE` (default), processes data in chunks of `batch_size`.
 #'   If `FALSE`, loads all layers at once.
-#' @param batch_size Integer. Number of remote files loaded per chunk in non-seasonal mode.
-#'   Lower values reduce memory pressure for long periods. Default is `12L`.
+#' @param batch_size Integer. Number of remote files loaded per chunk.
+#'   Default `NULL` lets [wapor_plan_processing()] choose it from the area size
+#'   and available memory (all layers at once for small areas). Set a number to
+#'   override.
+#' @param processing One of `"auto"` (default), `"memory"`, `"stream"` or
+#'   `"tiled"`. Controls how many layers are held at once; see
+#'   [wapor_plan_processing()].
 #' @param l3_region Optional L3 code to use for an L3 variable and spatial AOI.
 #' @param l3_mode L3 coverage policy: `"select"` requires one selected L3 code
 #'   when several regions intersect; `"mosaic_all"` writes source assets and a
@@ -53,9 +107,12 @@
 #' @param on_batch_done Optional function called after each processed batch with
 #'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
-#' @return Character path to the output GeoTIFF file, or in seasonal mode with
-#'   `separate_files = TRUE`, a list with `seasonal_aggregate` and
-#'   `seasonal_components`.
+#' @return Character vector of output GeoTIFF paths (one multi-band file, or
+#'   one file per time step with `separate_files = TRUE`); with several
+#'   variables, a named list of such vectors. Per-variable run details
+#'   (`status`, `failed_layers`, chunk counts) are in
+#'   `attr(x, "wapor_status")`. In seasonal mode with `separate_files = TRUE`,
+#'   a list with `seasonal_aggregate` and `seasonal_components`.
 #'
 #' @details
 #' The function performs the following steps:
@@ -114,15 +171,17 @@ wapor_map <- function(
   mask = FALSE,
   parallel = FALSE,
   batching = TRUE,
-  batch_size = 12L,
+  batch_size = NULL,
   l3_region = NULL,
   l3_mode = c("select", "mosaic_all"),
   partial = FALSE,
   cog = FALSE,
   on_batch_done = NULL,
-  fun = NULL
+  fun = NULL,
+  processing = c("auto", "memory", "stream", "tiled")
 ) {
   l3_mode <- match.arg(l3_mode)
+  processing <- match.arg(processing)
   # Input validation
   if (!is.character(variable) || length(variable) == 0) {
     stop("'variable' must be a character vector", call. = FALSE)
@@ -136,10 +195,9 @@ wapor_map <- function(
   if (!is.logical(batching) || length(batching) != 1) {
     stop("'batching' must be a single logical value", call. = FALSE)
   }
-  if (!is.numeric(batch_size) || length(batch_size) != 1 || is.na(batch_size) || batch_size < 1) {
-    stop("'batch_size' must be a positive integer", call. = FALSE)
+  if (!is.null(batch_size)) {
+    batch_size <- .wapor_resolve_batch_size(batch_size, NULL)
   }
-  batch_size <- as.integer(batch_size)
 
   seasonal_summary <- NULL
   if (isTRUE(seasonal)) {
@@ -222,7 +280,7 @@ wapor_map <- function(
       seasonal_data <- tryCatch({
         download_seasonal_rasters(var, current_period, current_l3_code, reg_info, folder,
                                   do_mask = mask, start_raster = p_start_raster, end_raster = p_end_raster,
-                                  partial = partial)
+                                  partial = partial, batch_size = batch_size, processing = processing)
       }, error = function(e) {
         warning(sprintf("Failed to download seasonal data for %s: %s", var, e$message), call. = FALSE)
         return(NULL)
@@ -282,32 +340,32 @@ wapor_map <- function(
             comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
             reducer <- if (identical(seasonal_summary$fun, "std")) "sd" else seasonal_summary$fun
             r_comp <- terra::app(r_group, fun = reducer, na.rm = TRUE)
-            r_comp <- terra::classify(r_comp, cbind(NA, -9999))
             r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
-            suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+            suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999,
+                                                gdal = .wapor_gtiff_options()))
             component_paths <- c(component_paths, comp_fname)
           }
           next
         }
 
-        # Handle weighted sum/mean using terra::sum for performance and tree depth stability
-        weighted_stack <- r_group * multipliers
-
-        group_sum <- sum(weighted_stack, na.rm = TRUE)
+        # Weighted sum, weight and valid count in one pass over the layers,
+        # without building whole-stack temporaries.
+        acc <- .wapor_accumulate_weighted_group(r_group, multipliers)
+        group_sum <- acc$sum
 
         if (isTRUE(separate_files)) {
           comp_dir <- file.path(var_folder, "components")
           if (!dir.exists(comp_dir)) dir.create(comp_dir, recursive = TRUE, showWarnings = FALSE)
           comp_fname <- file.path(comp_dir, paste0("seasonal_component_", g_name, ".tif"))
-          r_comp <- terra::classify(group_sum, cbind(NA, -9999))
-          r_comp <- assign_raster_metadata(r_comp, var, units_override = seasonal_output_units)
-          suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999))
+          r_comp <- assign_raster_metadata(group_sum, var, units_override = seasonal_output_units)
+          suppressWarnings(terra::writeRaster(r_comp, comp_fname, overwrite = TRUE, NAflag = -9999,
+                                              gdal = .wapor_gtiff_options()))
           component_paths <- c(component_paths, comp_fname)
         }
         
         if (identical(aggregation_rule, "weighted_mean")) {
           # Sum of weights where data is not NA
-          group_weight <- sum(terra::ifel(is.na(r_group), 0, multipliers), na.rm = TRUE)
+          group_weight <- acc$weight
           
           if (is.null(running_value)) {
             running_value <- group_sum
@@ -319,7 +377,7 @@ wapor_map <- function(
           }
         } else {
           # Number of valid observations (used for masking the final sum)
-          group_valid <- sum(!is.na(r_group), na.rm = TRUE)
+          group_valid <- acc$valid
           
           if (is.null(running_value)) {
             running_value <- group_sum
@@ -353,11 +411,11 @@ wapor_map <- function(
       )
       
       out_path <- file.path(var_folder, current_filename)
-      # Finalize raster with metadata and proper NA flag
-      r_out <- terra::classify(seasonal_result, cbind(NA, -9999))
-      r_out <- assign_raster_metadata(r_out, var, units_override = seasonal_output_units)
-      
-      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+      # Finalize raster with metadata; NAflag writes NA as -9999
+      r_out <- assign_raster_metadata(seasonal_result, var, units_override = seasonal_output_units)
+
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
+                                          gdal = .wapor_gtiff_options()))
 
       log_msg(sprintf("Seasonal %s for %s saved to: %s",
                       if (isTRUE(seasonal_summary$explicit)) seasonal_summary$fun else if (identical(aggregation_rule, "weighted_mean")) "mean" else "aggregate",
@@ -470,14 +528,21 @@ wapor_map <- function(
     
     tres_code <- strsplit(var, "-")[[1]][3]
     
-    # Split URLs into chunks based on batch_size
+    # Split URLs into chunks sized by the planner (or the explicit batch_size)
     n_urls <- length(urls)
-    url_chunks <- get_url_chunks(urls, batching = batching, batch_size = batch_size)
+    io_plan <- .wapor_io_plan(urls, reg_info, processing = processing, n_targets = 2L)
+    var_batch <- .wapor_resolve_batch_size(batch_size, io_plan)
+    log_msg(sprintf("  Processing mode %s: %d layer(s) per batch.", io_plan$mode, var_batch))
+    volume_note <- .wapor_volume_note(io_plan, var)
+    if (!is.null(volume_note)) log_msg(volume_note)
+    url_chunks <- get_url_chunks(urls, batching = batching, batch_size = var_batch)
+    n_workers <- .wapor_n_workers()
     
     log_msg(sprintf("  Splitting %d files into %d chunk(s) for memory efficiency.", n_urls, length(url_chunks)))
     
     # Define a helper function to process a single chunk of URLs
     process_chunk <- function(chunk_urls, chunk_idx) {
+      if (parallel) .wapor_worker_init(n_workers)
       chunk_label <- sprintf("Chunk %d/%d", chunk_idx, length(url_chunks))
       if (!parallel) {
         log_msg(sprintf("  %s: opening %d remote layer(s)...", chunk_label, length(chunk_urls)))
@@ -522,12 +587,18 @@ wapor_map <- function(
         ))
       }
 
+      # Read raw stored values and apply the file scale once, after the crop,
+      # so the result does not depend on how terra propagates scale/offset.
+      src <- .wapor_detach_source_scale(r)
+      r <- src$raster
+
       # Crop to region; optionally mask to polygon boundary. Crop can force
       # remote pixel I/O, so keep it inside the retry boundary.
       r <- .wapor_retry_remote_operation(
         function() wapor_crop_to_region(r, reg_info, do_mask = mask),
         label = sprintf("%s crop", var)
       )
+      r <- .wapor_apply_source_scale(r, src$scale, src$offset)
 
       # Unit Conversion
       if (current_unit_conv != "none") {
@@ -552,10 +623,10 @@ wapor_map <- function(
             ))
           }
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
-          r_out <- terra::classify(r[[i]], cbind(NA, -9999))
-          r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
+          r_out <- .wapor_prepare_map_output(r[[i]], var, current_unit_conv)
           .wapor_retry_remote_operation(
-            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999),
+            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
+                                          gdal = .wapor_gtiff_options()),
             label = sprintf("%s output", var)
           )
           out_path
@@ -564,9 +635,9 @@ wapor_map <- function(
                     paths = chunk_paths, layer_names = layer_names))
       } else {
         tmp_path <- tempfile(fileext = ".tif")
-        r_out <- terra::classify(r, cbind(NA, -9999))
         .wapor_retry_remote_operation(
-          function() terra::writeRaster(r_out, tmp_path, overwrite = TRUE, NAflag = -9999),
+          function() terra::writeRaster(r, tmp_path, overwrite = TRUE, NAflag = -9999,
+                                        gdal = .wapor_gtiff_options()),
           label = sprintf("%s temporary output", var)
         )
         return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
@@ -575,20 +646,23 @@ wapor_map <- function(
     }
 
     # Process all chunks, using future_lapply if parallel is TRUE
-    if (parallel) {
-      log_msg("  Processing chunks in parallel...")
-      chunk_results <- future.apply::future_lapply(seq_along(url_chunks), function(i) {
-        process_chunk(url_chunks[[i]], i)
-      }, future.seed = TRUE)
-    } else {
-      chunk_results <- lapply(seq_along(url_chunks), function(i) {
-        result <- process_chunk(url_chunks[[i]], i)
-        if (is.function(on_batch_done)) {
-          tryCatch(on_batch_done(i, length(url_chunks)), error = function(e) NULL)
-        }
-        result
-      })
-    }
+    chunk_results <- .wapor_with_remote_io({
+      if (parallel) {
+        log_msg("  Processing chunks in parallel...")
+        # Entered again per chunk: each parallel worker is its own process.
+        future.apply::future_lapply(seq_along(url_chunks), function(i) {
+          .wapor_with_remote_io(process_chunk(url_chunks[[i]], i))
+        }, future.seed = TRUE)
+      } else {
+        lapply(seq_along(url_chunks), function(i) {
+          result <- process_chunk(url_chunks[[i]], i)
+          if (is.function(on_batch_done)) {
+            tryCatch(on_batch_done(i, length(url_chunks)), error = function(e) NULL)
+          }
+          result
+        })
+      }
+    })
 
     # Classify results: ok chunks and failed chunks
     ok_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "ok"), logical(1))]
@@ -598,14 +672,13 @@ wapor_map <- function(
       failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
       warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
                       var, length(failed_urls)), call. = FALSE)
-      return(list(
+      return(.wapor_map_paths(character(0), list(
         status = "failed",
         variable = var,
-        output_paths = character(0),
         failed_layers = failed_urls,
         n_ok_chunks = 0L,
         n_failed_chunks = length(chunk_results)
-      ))
+      )))
     }
 
     failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
@@ -640,10 +713,11 @@ wapor_map <- function(
       }
 
       out_path <- file.path(var_folder, current_filename)
-      r_out <- terra::classify(r_all, cbind(NA, -9999))
-      r_out <- assign_raster_metadata(r_out, var, current_unit_conv)
+      r_out <- .wapor_prepare_map_output(r_all, var, current_unit_conv)
 
-      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999))
+      # One streamed write from the lazily stacked chunk files; NAflag writes NA as -9999.
+      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
+                                          gdal = .wapor_gtiff_options()))
       output_paths <- out_path
     }
 
@@ -663,26 +737,124 @@ wapor_map <- function(
 
     log_msg(sprintf("  Variable %s completed in %.1f seconds",
                     var, (proc.time() - t0_var)[["elapsed"]]))
-    return(list(
+    return(.wapor_map_paths(output_paths, list(
       status = "ok",
       variable = var,
-      output_paths = output_paths,
       failed_layers = failed_urls,
       n_ok_chunks = length(ok_chunks),
       n_failed_chunks = length(failed_chunks)
-    ))
+    )))
   }
 
   # Process all variables
   results <- lapply(variable, process_single_var)
   names(results) <- variable
   
-  # Return just the path if it's a single variable (backward compatibility/simplicity)
-  # But structured list is better if >1 variable.
-  # User requested "processing list of variables", so list return is safer.
+  # One variable: its character vector of paths; several: a named list of them.
   if (length(variable) == 1) {
     return(results[[1]])
   } else {
     return(results)
   }
+}
+
+#' Character output paths of one wapor_map() variable, with run details
+#'
+#' Keeps the documented return type (file paths, usable in `terra::rast()`)
+#' and attaches the chunk status as attribute `"wapor_status"`: `status`,
+#' `variable`, `failed_layers`, `n_ok_chunks`, `n_failed_chunks`.
+#' @keywords internal
+#' @noRd
+.wapor_map_paths <- function(paths, status) {
+  structure(as.character(paths), wapor_status = status)
+}
+
+#' GeoTIFF creation options for package outputs
+#'
+#' Internally tiled and compressed, with BigTIFF when the file may exceed 4 GB
+#' (long multi-band 20 m stacks).
+#' @keywords internal
+#' @noRd
+.wapor_gtiff_options <- function() {
+  c("TILED=YES", "COMPRESS=LZW", "BIGTIFF=IF_SAFER")
+}
+
+# Floating-point predictor makes LZW effective on continuous rasters.
+.wapor_float_gtiff_options <- function() {
+  c(.wapor_gtiff_options(), "PREDICTOR=3")
+}
+
+#' Weighted sum, weight and valid count of a layer group in one pass
+#'
+#' Same results as `sum(r * m, na.rm = TRUE)`, `sum(ifel(is.na(r), 0, m))` and
+#' `sum(!is.na(r))`, but only one layer's temporaries are alive at a time.
+#' @keywords internal
+#' @noRd
+.wapor_accumulate_weighted_group <- function(r_group, multipliers) {
+  total <- NULL
+  weight <- NULL
+  valid <- NULL
+  for (i in seq_len(terra::nlyr(r_group))) {
+    lyr <- r_group[[i]]
+    ok <- !is.na(lyr)
+    contrib <- lyr * multipliers[i]
+    total <- if (is.null(total)) contrib else sum(total, contrib, na.rm = TRUE)
+    w <- ok * multipliers[i]
+    weight <- if (is.null(weight)) w else weight + w
+    valid <- if (is.null(valid)) ok else valid + ok
+  }
+  list(sum = total, weight = weight, valid = valid)
+}
+
+#' Split a multi-band wapor_map() stack into one file per date
+#'
+#' `wapor_map(separate_files = FALSE)` (the default) writes one multi-band
+#' GeoTIFF named `<product>.<first date>_<last date>.tif`, with one band per
+#' time step named by its start date. Local analysis
+#' (`data_source = "local"`) needs one file per time step. This writes
+#' `<product>.<date>.tif` next to the stack (or into `folder`), the same layout
+#' as `wapor_map(separate_files = TRUE)`, and skips files that already exist.
+#'
+#' @param path Character. Path to the multi-band GeoTIFF.
+#' @param folder Character. Output folder. Defaults to the stack's folder.
+#' @param overwrite Logical. Overwrite existing per-date files. Default `FALSE`.
+#' @param remove_stack Logical. Delete the stack after a successful split, so
+#'   local readers do not see both. Default `FALSE`.
+#' @return Character vector of per-date file paths, invisibly.
+#' @export
+#' @examples
+#' \dontrun{
+#' stack <- wapor_map(c(35, 33, 36, 34), "L1-AETI-D",
+#'                    c("2023-01-01", "2023-03-31"), folder = "wapor_data")
+#' wapor_unstack_map(stack)
+#' }
+wapor_unstack_map <- function(path, folder = dirname(path), overwrite = FALSE,
+                              remove_stack = FALSE) {
+  if (!is.character(path) || length(path) != 1L || !file.exists(path)) {
+    stop("'path' must be an existing GeoTIFF file", call. = FALSE)
+  }
+  m <- regmatches(basename(path),
+                  regexec("^(.*)\\.(\\d{4}-\\d{2}-\\d{2})(_\\d{4}-\\d{2}-\\d{2})?\\.tif$", basename(path)))[[1]]
+  if (length(m) < 2) {
+    stop("File name does not follow '<product>.<date>[_<date>].tif': ", basename(path), call. = FALSE)
+  }
+  product <- m[2]
+  r <- terra::rast(path)
+  dates <- names(r)
+  ok <- grepl("^\\d{4}-\\d{2}-\\d{2}$", dates) & !is.na(suppressWarnings(as.Date(dates, "%Y-%m-%d")))
+  if (!all(ok)) {
+    stop("Band names must be start dates (YYYY-MM-DD) as written by wapor_map(); found: ",
+         paste(utils::head(dates[!ok], 3), collapse = ", "), call. = FALSE)
+  }
+  dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+  out <- file.path(folder, sprintf("%s.%s.tif", product, dates))
+  for (i in seq_along(out)) {
+    if (file.exists(out[i]) && !isTRUE(overwrite)) next
+    lyr <- r[[i]]
+    terra::units(lyr) <- terra::units(r)[i]
+    terra::writeRaster(lyr, out[i], overwrite = TRUE, NAflag = -9999,
+                       gdal = .wapor_gtiff_options())
+  }
+  if (isTRUE(remove_stack) && all(file.exists(out))) unlink(path)
+  invisible(out)
 }

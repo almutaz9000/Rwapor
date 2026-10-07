@@ -1,0 +1,57 @@
+free RAM GB: 10.4 
+
+== 1500x1500 cells, 12 layers, 400 zones 
+  max |current - built-in| farm mean d01: 4.79e-07  (n matched 400)
+                                       run seconds peak_R_MB  rows
+ current, id = scheme+farm, aoi (defaults)   140.4      1124 38448
+      current, farms only, no dissolve/aoi    53.0       788 19200
+        built-in ops prototype, farms only     4.3       448   400
+
+== 1500x1500 cells, 36 layers, 400 zones 
+  max |current - built-in| farm mean d01: 4.79e-07  (n matched 400)
+                                       run seconds peak_R_MB   rows
+ current, id = scheme+farm, aoi (defaults)   457.5      2452 115344
+      current, farms only, no dissolve/aoi   185.1      1384  57600
+        built-in ops prototype, farms only     4.7       740    400
+
+== 1500x1500 cells, 12 layers, 2025 zones 
+  max |current - built-in| farm mean d01: 3.82e-07  (n matched 2025)
+                                       run seconds peak_R_MB   rows
+ current, id = scheme+farm, aoi (defaults)   572.9      1485 194448
+      current, farms only, no dissolve/aoi   257.2       843  97200
+        built-in ops prototype, farms only     4.8       557   2025
+
+== profile, total time by function (top 14), sampling total 164.7 s
+                          total.time total.pct
+"wapor_zonal_stats"           164.70    100.00
+"suppressWarnings"            164.70    100.00
+"withCallingHandlers"         164.70    100.00
+"add"                         110.00     66.79
+"data.frame"                  109.10     66.24
+"as.data.frame"                80.50     48.88
+"as.data.frame.character"      52.26     31.73
+"deparse1"                     47.30     28.72
+"paste"                        46.42     28.18
+"deparse"                      41.74     25.34
+"%in%"                         32.12     19.50
+"<Anonymous>"                  23.66     14.37
+"mode"                         23.06     14.00
+".deparseOpts"                 18.42     11.18
+
+== selected functions
+                total.time total.pct
+"add"               110.00     66.79
+"data.frame"        109.10     66.24
+".wapor_wgini"        3.72      2.26
+".wapor_wtheil"       4.62      2.81
+".wapor_du_lq"        4.98      3.02
+".wapor_cu"           2.08      1.26
+".wapor_wsd"          1.44      0.87
+".wapor_wmean"        4.24      2.57
+"do.call"            17.84     10.83
+"rbind"              17.80     10.81
+
+== format='sf': rows 9  geometry matches its zone: TRUE 
+
+
+[exited with code 0]

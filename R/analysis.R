@@ -184,9 +184,8 @@ wapor_harmonize_raster <- function(x, template, method = "near") {
 wapor_harmonize_crop_mask <- function(crop_mask, target_raster) {
   result <- wapor_harmonize_raster(crop_mask, target_raster, method = "near")
 
-  # Validate non-empty overlap
-  vals <- terra::values(result, na.rm = TRUE)
-  if (length(vals) == 0) {
+  # Validate non-empty overlap (block-wise count, no full read into R)
+  if (terra::global(result, "notNA")[[1]] == 0) {
     stop("Harmonized crop mask has no valid pixels. Check spatial overlap with AETI.",
          call. = FALSE)
   }
@@ -640,25 +639,46 @@ wapor_build_kc_by_class <- function(crop_assignment, total_days) {
     cls <- as.character(row$class_value)
 
     td <- if (length(total_days) == 1) total_days else total_days[cls]
-    l_dev <- td - (row$l_ini_days + row$l_mid_days + row$l_late_days)
+    sum_fixed <- row$l_ini_days + row$l_mid_days + row$l_late_days
 
-    if (is.na(l_dev) || l_dev < 0) {
-      warning(sprintf("Class %s: l_dev=%s (total=%s, ini+mid+late=%s). Skipping.",
-                       cls, l_dev, td,
-                       row$l_ini_days + row$l_mid_days + row$l_late_days),
+    if (is.na(td) || td <= 0) {
+      warning(sprintf('Class %s: invalid season duration total_days=%s. Skipping.', cls, td),
               call. = FALSE)
       result[[cls]] <- numeric(0)
       next
+    }
+
+    if (td < sum_fixed) {
+      warning(sprintf('Class %s: season length (%d days) is shorter than sum of standard stages (%d days). Proportionally scaling stage lengths.',
+                      cls, as.integer(td), as.integer(sum_fixed)),
+              call. = FALSE)
+      scale_factor <- td / (sum_fixed + 10)
+      l_ini <- max(1L, as.integer(round(row$l_ini_days * scale_factor)))
+      l_mid <- max(1L, as.integer(round(row$l_mid_days * scale_factor)))
+      l_late <- max(1L, as.integer(round(row$l_late_days * scale_factor)))
+      if (l_ini + l_mid + l_late > td) {
+        l_ini <- max(1L, as.integer(floor(td * (row$l_ini_days / sum_fixed))))
+        l_mid <- max(1L, as.integer(floor(td * (row$l_mid_days / sum_fixed))))
+        l_late <- max(0L, as.integer(td - l_ini - l_mid))
+        l_dev <- 0L
+      } else {
+        l_dev <- as.integer(td - (l_ini + l_mid + l_late))
+      }
+    } else {
+      l_ini <- as.integer(row$l_ini_days)
+      l_mid <- as.integer(row$l_mid_days)
+      l_late <- as.integer(row$l_late_days)
+      l_dev <- as.integer(td - sum_fixed)
     }
 
     result[[cls]] <- wapor_build_kc(
       kc_ini  = row$kc_ini,
       kc_mid  = row$kc_mid,
       kc_end  = row$kc_end,
-      l_ini   = row$l_ini_days,
+      l_ini   = l_ini,
       l_dev   = l_dev,
-      l_mid   = row$l_mid_days,
-      l_late  = row$l_late_days
+      l_mid   = l_mid,
+      l_late  = l_late
     )
   }
   result
@@ -867,11 +887,30 @@ wapor_local_rasters <- function(folder, variable, start_date, end_date) {
   if (is.character(start_date)) start_date <- as.Date(start_date)
   if (is.character(end_date)) end_date <- as.Date(end_date)
 
-  # List all tif files in all existing variable folders
-  tif_files <- list.files(var_folders, pattern = "\\.tif$", full.names = TRUE)
+  # Prefer the per-time-step folder. `<VAR>_seasonal` holds aggregates written
+  # by wapor_map(seasonal = TRUE); mixing them with dekadal files would count
+  # the season twice, so that folder is only read when it is the sole source.
+  tif_files <- list.files(var_folders[1], pattern = "\\.tif$", full.names = TRUE)
+  if (length(tif_files) == 0 && length(var_folders) > 1) {
+    tif_files <- list.files(var_folders[2], pattern = "\\.tif$", full.names = TRUE)
+  }
 
   if (length(tif_files) == 0) {
     return(character(0))
+  }
+
+  # Multi-band stacks from wapor_map(separate_files = FALSE) are named
+  # <product>.<date>_<date>.tif (no ".seasonal."). They cannot be read as
+  # one-file-per-time-step, so say so instead of skipping them silently.
+  is_stack <- grepl("\\.\\d{4}-\\d{2}-\\d{2}_\\d{4}-\\d{2}-\\d{2}\\.tif$", tif_files) &
+    !grepl("\\.seasonal\\.", tif_files)
+  if (any(is_stack)) {
+    warning(sprintf(
+      "Ignoring %d multi-band stack(s) for %s (e.g. '%s'). Split them with wapor_unstack_map(), or download with wapor_map(separate_files = TRUE).",
+      sum(is_stack), variable, basename(tif_files[is_stack][1])
+    ), call. = FALSE)
+    tif_files <- tif_files[!is_stack]
+    if (length(tif_files) == 0) return(character(0))
   }
 
   # Determine temporal resolution from variable name
@@ -1188,9 +1227,9 @@ wapor_vector_to_season_rasters <- function(vector_path, csv_path, template_r,
         v_subset$crop_class_num <- as.numeric(as.factor(v_subset[[crop_col]]))
         # Print mapping to console for user reference
         mapping <- unique(sf::st_drop_geometry(sf::st_as_sf(v_subset))[, c(crop_col, "crop_class_num")])
-        message(sprintf("Season '%s' crop mapping:", s_name))
+        .wapor_inform(sprintf("Season '%s' crop mapping:", s_name))
         for (i in seq_len(nrow(mapping))) {
-          message(sprintf("  %s -> %d", mapping[i, 1], mapping[i, 2]))
+          .wapor_inform(sprintf("  %s -> %d", mapping[i, 1], mapping[i, 2]))
         }
         r_mask <- terra::rasterize(v_subset, template_r, field = "crop_class_num", fun = "max")
       } else {

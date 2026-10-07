@@ -75,3 +75,10 @@
 ^\.\.?Rcheck$
 ^\.Rproj\.user$
 ^\.pytest_cache$
+^training$
+^AGENTS\.override\.md$
+^_smoke_check\.R$
+^training\.zip$
+^.*\.zip$
+^.*\.tar\.gz$
+^Rwapor_Systematic_Review_Report\.html$

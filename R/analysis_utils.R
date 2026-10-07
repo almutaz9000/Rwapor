@@ -110,10 +110,10 @@ wapor_filter_class_stats <- function(res) {
 
 #' Per-pixel area in hectares
 #'
-#' For geographic (lon/lat) grids, area varies with latitude. Uses `terra::area()`
-#' when available (correct spherical-area computation) and falls back to the
-#' lon/lat approximation `111320 m/deg * cos(lat)` only when `terra::area()` is
-#' unavailable. For projected grids a constant cell area is used.
+#' For geographic (lon/lat) grids, area varies with latitude and is computed
+#' exactly on the ellipsoid with [terra::cellSize()]. For projected grids a
+#' constant cell area (resolution x resolution) is used. Both are computed
+#' block-wise, so large grids are not loaded into memory.
 #'
 #' @param x SpatRaster. Template whose geometry defines the area raster.
 #' @return A SpatRaster of per-pixel area in hectares.
@@ -122,28 +122,10 @@ wapor_pixel_area_ha <- function(x) {
   if (!inherits(x, "SpatRaster")) {
     stop("'x' must be a SpatRaster", call. = FALSE)
   }
-  res_xy <- terra::res(x)
-  out <- x[[1]]
-
-  if (isTRUE(terra::is.lonlat(x))) {
-    area_m2 <- tryCatch(
-      terra::area(x),
-      error = function(e) NULL
-    )
-    if (!is.null(area_m2) && inherits(area_m2, "SpatRaster")) {
-      terra::values(out) <- as.numeric(area_m2) / 10000
-    } else {
-      # Fallback: approximate 111320 m/deg * cos(lat), only on y-axis.
-      ext_r <- terra::ext(x)
-      height <- terra::nrow(x)
-      width <- terra::ncol(x)
-      lat <- as.numeric(ext_r$ymax) - (seq_len(height) - 0.5) * res_xy[2]
-      area_row <- (res_xy[1] * 111320 * cos(lat * pi / 180)) *
-                   (res_xy[2] * 111320) / 10000
-      terra::values(out) <- rep(area_row, each = width)
-    }
+  out <- if (isTRUE(terra::is.lonlat(x))) {
+    terra::cellSize(x[[1]], mask = FALSE, unit = "ha")
   } else {
-    terra::values(out) <- (res_xy[1] * res_xy[2]) / 10000
+    terra::cellSize(x[[1]], mask = FALSE, unit = "ha", transform = FALSE)
   }
   names(out) <- "area_ha"
   out
@@ -581,7 +563,7 @@ wapor_generate_shiny_script <- function(config, crop_params) {
     sprintf("  l3_code = %s,", format_scalar(l3_code)),
     "  indicators = indicators,",
     "  folder = project_folder,",
-    sprintf("  incremental = %s,", format_logical(config$incremental)),
+    sprintf("  processing = %s,", format_r_string(config$processing %||% "auto")),
     sprintf("  use_crop_mask = %s,", format_logical(config$use_crop_mask)),
     sprintf("  use_season_rasters = %s", format_logical(config$use_season_rasters)),
     ")",
@@ -655,13 +637,15 @@ wapor_filter_canonical_export_names <- function(names) {
 #' @param folder Path to the base output folder.
 #' @param indicators Character vector of indicators that were requested.
 #' @param season_label Optional season label for single-season exports.
-#' @param include_dekadal Logical. Write aligned dekadal stacks.
+#' @param include_dekadal Logical. Write aligned dekadal stacks (only present
+#'   when the analysis ran with `keep_intermediates = TRUE`). Default `FALSE`:
+#'   they are large and the inputs are usually already on disk.
 #' @param include_monthly Logical. Write monthly PCP/Peff summary CSV files.
 #' @param include_seasonal_tables Logical. Write seasonal summary tables as CSV.
 #' @param cog Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.
 #' @export
 wapor_export_analysis_outputs <- function(results, folder, indicators = character(0), season_label = NULL,
-                                          include_dekadal = TRUE,
+                                          include_dekadal = FALSE,
                                           include_monthly = TRUE,
                                           include_seasonal_tables = TRUE,
                                           cog = FALSE) {
@@ -685,7 +669,8 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     if (isTRUE(cog) && exists("wapor_write_cog", mode = "function")) {
       wapor_write_cog(r, path, overwrite = TRUE)
     } else {
-      terra::writeRaster(r, path, overwrite = TRUE)
+      terra::writeRaster(r, path, overwrite = TRUE, datatype = "FLT4S",
+                         gdal = .wapor_float_gtiff_options())
     }
   }
 
@@ -841,7 +826,14 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
   }
 
   # Handle list of results (multi-period)
-  if (is.list(results) && !is.null(results[[1]]) && !is.null(results[[1]]$h_mask)) {
+  # A single-season result is itself a list whose first element is commonly a
+  # SpatRaster (for example `h_mask`).  `$` on a SpatRaster means "select a
+  # layer by name" and therefore errors for ordinary mask layer names.  Only
+  # inspect `$h_mask` after establishing that the first element is a nested
+  # season-result list.
+  if (is.list(results) && length(results) > 0L &&
+      is.list(results[[1]]) && !inherits(results[[1]], "SpatRaster") &&
+      !is.null(results[[1]]$h_mask)) {
     for (s_name in names(results)) {
       export_single(results[[s_name]], folder, s_name)
     }

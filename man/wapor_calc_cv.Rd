@@ -15,6 +15,13 @@ wapor_calc_cv(r, crop_mask = NULL)
 List with \code{overall} CV and optional \code{by_class} table.
 }
 \description{
-Spatial coefficient of variation
+CV = sd / mean over finite cells (optionally masked). By-class values use
+\code{terra::zonal()} means and sds. This is the existing package helper; the
+zonal engine in \code{\link[=wapor_zonal_stats]{wapor_zonal_stats()}} is the area-weighted definition used
+by irrigation uniformity.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+wapor_calc_cv(aeti, crop_mask)
+}
+}

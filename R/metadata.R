@@ -277,6 +277,11 @@ L3_REGIONS <- list(
 #' from the FAO GISMGR API. This ensures that newly added irrigation
 #' schemes or study areas are available without updating the package.
 #'
+#' @param timeout Numeric. Request timeout in seconds. Default `60`.
+#' @param retry Logical. If `TRUE` (default), transient failures are retried
+#'   with exponential backoff (up to about 30 seconds in total). Set `FALSE`
+#'   to fall back to the static list after a single failed request.
+#'
 #' @return A data.frame with columns:
 #' \describe{
 #'   \item{code}{3-letter region code (e.g., "AWA")}
@@ -287,16 +292,29 @@ L3_REGIONS <- list(
 #'
 #' @details
 #' Queries the \code{L3-GRID/tiles} endpoint. If the API request fails,
-#' it falls back to the static \code{L3_REGIONS} list. Results are memoized.
+#' it falls back to the static \code{L3_REGIONS} list. Successful responses are
+#' cached on disk for the time set by \code{options(Rwapor.cache_ttl)}
+#' (default 24 hours).
 #'
 #' @export
 #' @importFrom httr2 request req_perform resp_body_json req_timeout
-wapor_fetch_l3_regions <- function() {
+wapor_fetch_l3_regions <- function(timeout = 60, retry = TRUE) {
   url <- "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/grids/L3-GRID/tiles"
-  
+  if (!is.numeric(timeout) || length(timeout) != 1L || is.na(timeout) || timeout <= 0) {
+    stop("'timeout' must be a single positive number of seconds", call. = FALSE)
+  }
+
+  # Without retries a single short request is made, so callers such as the
+  # dashboard start quickly when the API is slow or unreachable.
+  request_fn <- function(next_url) {
+    req <- httr2::request(next_url) |> httr2::req_timeout(timeout)
+    if (isTRUE(retry)) req <- .wapor_req_retry(req)
+    req |> httr2::req_perform() |> httr2::resp_body_json()
+  }
+
   tryCatch({
     # Use the internal collector to handle pagination if many regions are added
-    items <- collect_responses(url, info = NULL)
+    items <- collect_responses(url, info = NULL, request_fn = request_fn)
     
     if (length(items) == 0) return(wapor_l3_regions_to_df(L3_REGIONS))
     
