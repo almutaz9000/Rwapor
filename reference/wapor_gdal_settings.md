@@ -27,7 +27,7 @@ to apply or change settings.
 ``` r
 wapor_gdal_settings()
 #>     CPL_VSIL_CURL_CHUNK_SIZE                    VSI_CACHE 
-#>                   "33554432"                       "TRUE" 
+#>                    "1048576"                       "TRUE" 
 #>               VSI_CACHE_SIZE                GDAL_CACHEMAX 
 #>                  "100000000"                        "512" 
 #> GDAL_DISABLE_READDIR_ON_OPEN          GDAL_HTTP_MAX_RETRY 

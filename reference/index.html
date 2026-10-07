@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -129,6 +129,13 @@
 
         <dt>
 
+          <code><a href="wapor_apply_climate_norm.html">wapor_apply_climate_norm()</a></code>
+
+        </dt>
+        <dd>Apply a climate normalisation factor</dd>
+
+        <dt>
+
           <code><a href="wapor_apply_seasonal_mask_recalc.html">wapor_apply_seasonal_mask_recalc()</a></code>
 
         </dt>
@@ -213,10 +220,31 @@
 
         <dt>
 
+          <code><a href="wapor_calc_climate_norm.html">wapor_calc_climate_norm()</a></code>
+
+        </dt>
+        <dd>Climate normalisation factor f_norm = mean(RET) / RET</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_cv.html">wapor_calc_cv()</a></code>
+
+        </dt>
+        <dd>Spatial coefficient of variation</dd>
+
+        <dt>
+
           <code><a href="wapor_calc_cwp.html">wapor_calc_cwp()</a></code>
 
         </dt>
         <dd>Compute Crop Water Productivity</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_equity.html">wapor_calc_equity()</a></code>
+
+        </dt>
+        <dd>Equity of ET between units</dd>
 
         <dt>
 
@@ -241,10 +269,45 @@
 
         <dt>
 
+          <code><a href="wapor_calc_nir.html">wapor_calc_nir()</a></code>
+
+        </dt>
+        <dd>Net irrigation requirement</dd>
+
+        <dt>
+
           <code><a href="wapor_calc_p95_aeti.html">wapor_calc_p95_aeti()</a></code>
 
         </dt>
         <dd>Compute P95 of AETI Within Crop Class</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_peff.html">wapor_calc_peff()</a></code>
+
+        </dt>
+        <dd>USDA-SCS effective precipitation from monthly rasters</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_productivity_gap.html">wapor_calc_productivity_gap()</a></code>
+
+        </dt>
+        <dd>Productivity target and gap</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_reliability.html">wapor_calc_reliability()</a></code>
+
+        </dt>
+        <dd>Temporal reliability of relative ET</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_rwd.html">wapor_calc_rwd()</a></code>
+
+        </dt>
+        <dd>Relative water deficit</dd>
 
         <dt>
 
@@ -283,6 +346,20 @@
 
         <dt>
 
+          <code><a href="wapor_calc_theil.html">wapor_calc_theil()</a></code>
+
+        </dt>
+        <dd>Spatial Theil T inequality index</dd>
+
+        <dt>
+
+          <code><a href="wapor_calc_uniformity.html">wapor_calc_uniformity()</a></code>
+
+        </dt>
+        <dd>Irrigation uniformity within units</dd>
+
+        <dt>
+
           <code><a href="wapor_calc_yield_npp.html">wapor_calc_yield_npp()</a></code>
 
         </dt>
@@ -301,6 +378,41 @@
 
         </dt>
         <dd>Check for Local Raster Files</dd>
+
+        <dt>
+
+          <code><a href="wapor_class_defaults.html">wapor_class_defaults()</a></code>
+
+        </dt>
+        <dd>Classification schemes and defaults</dd>
+
+        <dt>
+
+          <code><a href="wapor_class_info.html">wapor_class_info()</a></code>
+
+        </dt>
+        <dd>Retrieve classification metadata</dd>
+
+        <dt>
+
+          <code><a href="wapor_classify.html">wapor_classify()</a></code>
+
+        </dt>
+        <dd>Classify numeric values or a raster using fixed or quantile thresholds</dd>
+
+        <dt>
+
+          <code><a href="wapor_classify_adequacy.html">wapor_classify_adequacy()</a></code>
+
+        </dt>
+        <dd>Classify irrigation adequacy (AETI / ETc)</dd>
+
+        <dt>
+
+          <code><a href="wapor_classify_spots.html">wapor_classify_spots()</a></code>
+
+        </dt>
+        <dd>Bright and dark productivity spots</dd>
 
         <dt>
 
@@ -409,6 +521,13 @@
 
         <dt>
 
+          <code><a href="wapor_download.html">wapor_download()</a></code>
+
+        </dt>
+        <dd>Download WaPOR Rasters Once for Local or Offline Analysis</dd>
+
+        <dt>
+
           <code><a href="wapor_enhanced_zonal_stats.html">wapor_enhanced_zonal_stats()</a></code>
 
         </dt>
@@ -497,6 +616,13 @@
 
         </dt>
         <dd>Guess L3 Region from Spatial Intersection</dd>
+
+        <dt>
+
+          <code><a href="wapor_harmonize_mask.html">wapor_harmonize_mask()</a></code>
+
+        </dt>
+        <dd>Bring a Classified Map onto a Template Grid as a Mask and a Fraction</dd>
 
         <dt>
 
@@ -661,10 +787,24 @@
 
         <dt>
 
+          <code><a href="wapor_rasterize_mask.html">wapor_rasterize_mask()</a></code>
+
+        </dt>
+        <dd>Rasterize Polygons to a Mask on a Template Grid</dd>
+
+        <dt>
+
           <code><a href="wapor_register_indicator_step.html">wapor_register_indicator_step()</a></code>
 
         </dt>
         <dd>Register an Indicator Step</dd>
+
+        <dt>
+
+          <code><a href="wapor_relative_et_stack.html">wapor_relative_et_stack()</a></code>
+
+        </dt>
+        <dd>Build a stack of monthly relative ET (AETI / ETc)</dd>
 
         <dt>
 
@@ -791,6 +931,20 @@
 
         </dt>
         <dd>Write an L3 mosaic and coverage manifest</dd>
+
+        <dt>
+
+          <code><a href="wapor_zonal_stats.html">wapor_zonal_stats()</a></code>
+
+        </dt>
+        <dd>Zonal Statistics for Any Polygons on Any WaPOR Raster</dd>
+
+        <dt>
+
+          <code><a href="wapor_zonal_wide.html">wapor_zonal_wide()</a></code>
+
+        </dt>
+        <dd>One Row per Zone and Variable from a Long Zonal Table</dd>
 
         <dt>
 

@@ -105,7 +105,7 @@ config <- list(
                                    # corrects for latitude-dependent pixel-area distortion
                                    # on geographic (EPSG:4326) grids
   indicators    = c(
-    "agg_aeti", "agg_t", "etc", "adequacy_etc", "peff", "cwp_bwp", "beneficial_fraction"
+    "agg_aeti", "agg_t", "etc", "adequacy_etc", "peff_green_blue", "cwp_bwp", "beneficial_fraction"
     # other available indicator codes (see wapor_list_indicator_steps() for the
     # full, always-current list):
     #   "agg_ret", "agg_pcp", "agg_npp"                 -- raw seasonal aggregates
@@ -275,8 +275,8 @@ even when the global config default is `FALSE`.
 ``` r
 
 # Seasonal CWP/BWP zonal summary for a single season
-wheat_season$summary_table
+wheat_season$cwp_summary
 
 # CWP trend across all wheat seasons
-sapply(wheat_all_seasons, function(s) s$summary_table$cwp_bwp_mean)
+sapply(wheat_all_seasons, function(s) s$cwp_summary$cwp_kg_m3)
 ```

@@ -633,6 +633,8 @@ of the United Nations.
   : Aggregate Daily Kc to Dekadal Mean Kc
 - [`wapor_aggregate_precip()`](https://almutaz9000.github.io/Rwapor/reference/wapor_aggregate_precip.md)
   : Aggregate Precipitation to Monthly Totals
+- [`wapor_apply_climate_norm()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_climate_norm.md)
+  : Apply a climate normalisation factor
 - [`wapor_apply_seasonal_mask_recalc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_seasonal_mask_recalc.md)
   : Apply Seasonal Adaptive Mask and Recalculate Stats
 - [`wapor_available_variables()`](https://almutaz9000.github.io/Rwapor/reference/wapor_available_variables.md)
@@ -657,16 +659,32 @@ of the United Nations.
   : Compute Blue Water Consumption
 - [`wapor_calc_bwp()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_bwp.md)
   : Compute Biomass Water Productivity
+- [`wapor_calc_climate_norm()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_climate_norm.md)
+  : Climate normalisation factor f_norm = mean(RET) / RET
+- [`wapor_calc_cv()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_cv.md)
+  : Spatial coefficient of variation
 - [`wapor_calc_cwp()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_cwp.md)
   : Compute Crop Water Productivity
+- [`wapor_calc_equity()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_equity.md)
+  : Equity of ET between units
 - [`wapor_calc_green_water()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_green_water.md)
   : Compute Green Water Consumption
 - [`wapor_calc_monthly_weighted_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_rasters.md)
   : Compute Monthly Weighted Raster Series
 - [`wapor_calc_monthly_weighted_std_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_std_rasters.md)
   : Compute Monthly Weighted Standard Deviation Raster Series
+- [`wapor_calc_nir()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nir.md)
+  : Net irrigation requirement
 - [`wapor_calc_p95_aeti()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_p95_aeti.md)
   : Compute P95 of AETI Within Crop Class
+- [`wapor_calc_peff()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_peff.md)
+  : USDA-SCS effective precipitation from monthly rasters
+- [`wapor_calc_productivity_gap()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_productivity_gap.md)
+  : Productivity target and gap
+- [`wapor_calc_reliability()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_reliability.md)
+  : Temporal reliability of relative ET
+- [`wapor_calc_rwd()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_rwd.md)
+  : Relative water deficit
 - [`wapor_calc_seasonal_aeti()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_seasonal_aeti.md)
   : Compute Seasonal AETI with Season Mask
 - [`wapor_calc_seasonal_etc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_seasonal_etc.md)
@@ -677,12 +695,27 @@ of the United Nations.
   : Compute Seasonal Standard Deviation (Variability)
 - [`wapor_calc_spatial_hotspots()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_spatial_hotspots.md)
   : Classify Spatial Hotspots from Z-Score Anomaly
+- [`wapor_calc_theil()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_theil.md)
+  : Spatial Theil T inequality index
+- [`wapor_calc_uniformity()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_uniformity.md)
+  : Irrigation uniformity within units
 - [`wapor_calc_yield_npp()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_yield_npp.md)
   : Calculate Crop Yield from NPP
 - [`wapor_calc_zscore()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_zscore.md)
   : Calculate Temporal Z-Score Anomaly Stack
 - [`wapor_check_local()`](https://almutaz9000.github.io/Rwapor/reference/wapor_check_local.md)
   : Check for Local Raster Files
+- [`wapor_class_defaults()`](https://almutaz9000.github.io/Rwapor/reference/wapor_class_defaults.md)
+  : Classification schemes and defaults
+- [`wapor_class_info()`](https://almutaz9000.github.io/Rwapor/reference/wapor_class_info.md)
+  : Retrieve classification metadata
+- [`wapor_classify()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify.md)
+  : Classify numeric values or a raster using fixed or quantile
+  thresholds
+- [`wapor_classify_adequacy()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify_adequacy.md)
+  : Classify irrigation adequacy (AETI / ETc)
+- [`wapor_classify_spots()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify_spots.md)
+  : Bright and dark productivity spots
 - [`wapor_clear_url_cache()`](https://almutaz9000.github.io/Rwapor/reference/wapor_clear_url_cache.md)
   : Clear WaPOR Disk URL Cache
 - [`wapor_combine_crop_params()`](https://almutaz9000.github.io/Rwapor/reference/wapor_combine_crop_params.md)
@@ -713,6 +746,8 @@ of the United Nations.
   : Extract Date Information from URL
 - [`wapor_diagnose_agent_setup()`](https://almutaz9000.github.io/Rwapor/reference/wapor_diagnose_agent_setup.md)
   : Diagnose Agent and System Setup
+- [`wapor_download()`](https://almutaz9000.github.io/Rwapor/reference/wapor_download.md)
+  : Download WaPOR Rasters Once for Local or Offline Analysis
 - [`wapor_enhanced_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_enhanced_zonal_stats.md)
   : Calculate Enhanced Zonal Statistics
 - [`wapor_export_analysis_outputs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.md)
@@ -739,6 +774,8 @@ of the United Nations.
   : Group a vector of variable codes by shared native grid
 - [`wapor_guess_region()`](https://almutaz9000.github.io/Rwapor/reference/wapor_guess_region.md)
   : Guess L3 Region from Spatial Intersection
+- [`wapor_harmonize_mask()`](https://almutaz9000.github.io/Rwapor/reference/wapor_harmonize_mask.md)
+  : Bring a Classified Map onto a Template Grid as a Mask and a Fraction
 - [`wapor_harmonize_raster()`](https://almutaz9000.github.io/Rwapor/reference/wapor_harmonize_raster.md)
   : Harmonize a Raster to a Template Grid
 - [`wapor_init_monitoring_db()`](https://almutaz9000.github.io/Rwapor/reference/wapor_init_monitoring_db.md)
@@ -785,8 +822,12 @@ of the United Nations.
   : Plot one time series per unit with a dashed reference line
 - [`wapor_preflight_check()`](https://almutaz9000.github.io/Rwapor/reference/wapor_preflight_check.md)
   : Pre-Flight Analysis Validation
+- [`wapor_rasterize_mask()`](https://almutaz9000.github.io/Rwapor/reference/wapor_rasterize_mask.md)
+  : Rasterize Polygons to a Mask on a Template Grid
 - [`wapor_register_indicator_step()`](https://almutaz9000.github.io/Rwapor/reference/wapor_register_indicator_step.md)
   : Register an Indicator Step
+- [`wapor_relative_et_stack()`](https://almutaz9000.github.io/Rwapor/reference/wapor_relative_et_stack.md)
+  : Build a stack of monthly relative ET (AETI / ETc)
 - [`wapor_remote_capabilities()`](https://almutaz9000.github.io/Rwapor/reference/wapor_remote_capabilities.md)
   : Report GDAL capabilities required for remote WaPOR rasters
 - [`wapor_remove_favorite()`](https://almutaz9000.github.io/Rwapor/reference/wapor_remove_favorite.md)
@@ -823,6 +864,10 @@ of the United Nations.
   : Write a Cloud-Optimized GeoTIFF
 - [`wapor_write_l3_mosaic()`](https://almutaz9000.github.io/Rwapor/reference/wapor_write_l3_mosaic.md)
   : Write an L3 mosaic and coverage manifest
+- [`wapor_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_stats.md)
+  : Zonal Statistics for Any Polygons on Any WaPOR Raster
+- [`wapor_zonal_wide()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_wide.md)
+  : One Row per Zone and Variable from a Long Zonal Table
 - [`write_raster_cog()`](https://almutaz9000.github.io/Rwapor/reference/write_raster_cog.md)
   : Write a Cloud-Optimized GeoTIFF
 

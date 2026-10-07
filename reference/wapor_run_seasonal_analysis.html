@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Run Seasonal Analysis Engine</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/analysis_engine.R" class="external-link"><code>R/analysis_engine.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/analysis_engine.R" class="external-link"><code>R/analysis_engine.R</code></a></small>
       <div class="d-none name"><code>wapor_run_seasonal_analysis.Rd</code></div>
     </div>
 
@@ -75,6 +75,11 @@ and warns when the output or temporary folder has less free space
 (<code>options(Rwapor.disk_check = FALSE)</code> turns the check off).</p></li>
 <li><p><code>output_dir</code>: folder for stream and tiled outputs (default: a folder
 under <code><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir()</a></code>).</p></li>
+<li><p><code>cache_dir</code>: with <code>data_source = "api"</code>, a folder in which the source
+rasters this run needs are saved first with <code><a href="wapor_download.html">wapor_download()</a></code> (only the
+missing ones) and then read locally. Later runs for the same area read
+the saved files and work without internet. One folder per area; not
+available with <code>l3_mode = "mosaic_all"</code>.</p></li>
 <li><p><code>reference_layer</code>, <code>resampling_method</code>: target grid and per-layer
 resampling (see Details).</p></li>
 </ul></dd>

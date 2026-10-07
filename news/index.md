@@ -1,6 +1,190 @@
 # Changelog
 
-## Rwapor 1.0.6 (development)
+## Rwapor 1.0.6
+
+### Production readiness & scientific review fixes
+
+- **Literature Citations & Derivations**: Added formal mathematical
+  equations, parameter derivations (e.g. carbon fraction
+  $`10 / 0.45 = 22.222`$ for TBP), and authoritative peer-reviewed
+  literature citations across 11 core indicators in
+  `R/analysis_indicators.R` and `R/performance_indicators.R`.
+- **Short-Season Crop Phenology**: In
+  [`wapor_build_kc_by_class()`](https://almutaz9000.github.io/Rwapor/reference/wapor_build_kc_by_class.md),
+  when season duration is shorter than the sum of standard growth stages
+  ($`TD < L_{ini} + L_{mid} + L_{late}`$), stage lengths are now
+  proportionally scaled to fit the observed satellite phenology rather
+  than aborting with `numeric(0)`.
+- **Generalized Temperature Conversion**: `is_temperature_variable()`
+  and
+  [`wapor_convert_temperature()`](https://almutaz9000.github.io/Rwapor/reference/wapor_convert_temperature.md)
+  now recognize all AgERA5 temperature products (`TMIN`, `TMAX`, `TAVG`,
+  `TDEW`, and `TEMP`), automatically converting Kelvin to Celsius during
+  download and caching.
+- **Farm Monitoring Aggregation**:
+  [`wapor_generate_seasonal_raster()`](https://almutaz9000.github.io/Rwapor/reference/wapor_generate_seasonal_raster.md)
+  and
+  [`wapor_apply_seasonal_mask_recalc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_seasonal_mask_recalc.md)
+  apply dekadal day length multipliers ($`N \in [8, 11]`$ days) before
+  seasonal summation of flux variables, eliminating the ~10x seasonal
+  accumulation underestimation.
+- **DuckDB Windowed Streaming**: Monitoring raster retrieval prioritizes
+  COG file paths with windowed reads (`terra::rast(path, win = f_ext)`)
+  over full raster BLOB deserialization, dramatically reducing memory
+  overhead.
+- **Vignette Harmonization**: Updated
+  `vignettes/wheat-water-productivity.Rmd` to use canonical indicator
+  `peff_green_blue` and `cwp_summary` output structures.
+- **Cross-Platform & Packaging**: Added
+  `SystemRequirements: GDAL (>= 3.0.0), GEOS (>= 3.8.0), PROJ (>= 6.0.0)`
+  in `DESCRIPTION`. Added `macos-latest` to live API CI/CD matrix.
+  Excluded large unversioned archives from package builds via
+  `.Rbuildignore`.
+
+### Irrigation performance indicators
+
+- New
+  [`wapor_classify_adequacy()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify_adequacy.md),
+  [`wapor_calc_rwd()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_rwd.md),
+  [`wapor_calc_uniformity()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_uniformity.md),
+  [`wapor_calc_equity()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_equity.md),
+  [`wapor_calc_reliability()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_reliability.md),
+  [`wapor_relative_et_stack()`](https://almutaz9000.github.io/Rwapor/reference/wapor_relative_et_stack.md),
+  [`wapor_calc_climate_norm()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_climate_norm.md),
+  [`wapor_apply_climate_norm()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_climate_norm.md),
+  [`wapor_calc_productivity_gap()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_productivity_gap.md),
+  [`wapor_classify_spots()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify_spots.md)
+  and
+  [`wapor_calc_nir()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nir.md).
+  Adequacy classes, relative water deficit, uniformity (1 - CV, CU,
+  DU_lq) per irrigation method, equity, temporal reliability, climate
+  normalisation, productivity gaps and bright/dark spots, and net
+  irrigation requirement. Thresholds come from
+  [`wapor_class_defaults()`](https://almutaz9000.github.io/Rwapor/reference/wapor_class_defaults.md).
+  Uniformity standards are for applied water; 1 - CV of ET can overstate
+  them. The climate-norm application rule (depths multiplied,
+  productivity divided) is documented as unverified as a published
+  convention.
+- [`wapor_calc_cv()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_cv.md),
+  [`wapor_calc_peff()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_peff.md)
+  and
+  [`wapor_calc_theil()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_theil.md)
+  are exported.
+
+### Download once, work offline
+
+- New
+  [`wapor_download()`](https://almutaz9000.github.io/Rwapor/reference/wapor_download.md)
+  saves one GeoTIFF per time step for an area, in the layout the
+  seasonal analysis reads with `data_source = "local"`. Files already
+  saved are skipped, so the call can be repeated to complete or extend a
+  period; without a connection it returns the saved files and warns that
+  it could not check the period. Values keep the source unit with the
+  WaPOR scale factor applied once. Files are written under a temporary
+  name and renamed when complete, and a folder is tied to the area of
+  its first download.
+- [`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md)
+  accepts `config$cache_dir`: with `data_source = "api"` the sources a
+  run needs are saved there first (only the missing files) and then read
+  locally, so later runs for the same area work without internet.
+  Results equal a local run on the same files. Not available with
+  `l3_mode = "mosaic_all"`.
+- Streaming is now about as fast as local files (see “Faster remote
+  reads”), so these are for offline work and repeated analyses, not a
+  requirement for speed.
+
+### Faster remote reads
+
+- The package no longer sets the GDAL HTTP chunk size
+  (`CPL_VSIL_CURL_CHUNK_SIZE`) to 10 MB on load. GDAL reads remote files
+  in whole chunks, so every remote file open downloaded far more than
+  the window it needed. Measured with
+  [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
+  on 150 polygons and 36 dekads: Level 2 took 343 s and requested 1,091
+  MB before, 21 s and 17 MB now; Level 3 took 66 s and 232 MB before, 27
+  s and 14 MB now. Results are identical. GDAL fixes this value at the
+  first remote read of a session, so the per-job chunk size in
+  [`wapor_plan_processing()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plan_processing.md)
+  never applied and has been removed (`gdal_chunk_bytes` is no longer
+  part of the plan). `wapor_configure_gdal(chunk_size = )` now defaults
+  to `NULL` (leave GDAL’s default) and accepts 1024 to 10485760; to use
+  your own value, set it before the first remote read.
+- While Rwapor reads remote rasters it limits `/vsicurl/` to `.tif`
+  files, which stops two failing side-file requests per raster. The
+  limit is removed after each read; switch it off with
+  `options(Rwapor.remote_extension_filter = FALSE)`.
+- The PROJ fix on package load no longer depends on
+  `RWAPOR_AUTO_CONFIG`; it has its own switch,
+  `options(Rwapor.fix_proj = FALSE)`. Without the fix, a foreign PROJ
+  database on the path (for example PostGIS) costs about 0.35 s per
+  raster open.
+- [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
+  and
+  [`wapor_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_map.md)
+  print one note when a request reads more than about 2 GB of cells,
+  naming the coarser level as an option.
+- New `inst/bench/remote_io_benchmark.R` counts HTTP requests and
+  requested megabytes for a standard polygon time series and fails when
+  its limits are exceeded.
+
+### Zonal statistics and masks
+
+- New
+  [`wapor_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_stats.md):
+  area-weighted statistics for any polygons at one or several nested
+  levels (for example scheme and farm), on a raster or directly on the
+  result of
+  [`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md).
+  It reports crop share (`mask_fraction`) and data coverage separately,
+  weighted mean, median and quantiles (equal to `quantile(type = 7)` for
+  equal weights), population or sample standard deviation, CV,
+  Christiansen uniformity, low-quarter distribution uniformity, Gini,
+  Theil, volumes in m3 and million m3 (from depths, or from rates with
+  `days`), and class shares with every class listed. Output is a long
+  table with the id columns; `format = "wide"` or `"sf"` and
+  [`wapor_zonal_wide()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_wide.md)
+  give one row per zone and layer.
+- New
+  [`wapor_rasterize_mask()`](https://almutaz9000.github.io/Rwapor/reference/wapor_rasterize_mask.md)
+  (polygons to a mask or a covered fraction on any grid, with an area
+  check) and
+  [`wapor_harmonize_mask()`](https://almutaz9000.github.io/Rwapor/reference/wapor_harmonize_mask.md)
+  (a classified map at any resolution to a mask and a class fraction).
+  The fractions are the `weights` input of
+  [`wapor_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_stats.md).
+- Fixed before release, found while completing this batch: polygons
+  sharing an id were not merged, so a parent level with several polygons
+  was reported once per polygon; on lon/lat rasters cell areas came from
+  a sphere (0.3% too large at 32 degrees north) and now use the WGS84
+  ellipsoid; fractions of adjacent polygons in one cell now add up;
+  cells without data in a classified map count as “not the class”.
+- [`wapor_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_stats.md)
+  returns the same table about eight to ten times faster (400 zones and
+  12 layers: 56 s before, 6.5 s now; 2,025 zones: 237 s before, 27 s
+  now). Only the requested statistics are computed, and layers are read
+  in groups sized to the memory budget
+  (`options(Rwapor.memory_budget_mb = )`), so memory no longer grows
+  with the number of layers. `inst/bench/zonal_benchmark.R` times the
+  standard cases.
+- `wapor_zonal_stats(format = "sf")` now gives every row the geometry of
+  its own zone. With more than one statistic, rows carried the geometry
+  of another zone or an empty geometry.
+- [`wapor_zonal_stats()`](https://almutaz9000.github.io/Rwapor/reference/wapor_zonal_stats.md)
+  works on lon/lat rasters (Level 1 and Level 2) without the lwgeom
+  package. Zone areas are measured in an equal-area projection centred
+  on the zones; the session’s s2 setting is no longer changed.
+- [`wapor_classify()`](https://almutaz9000.github.io/Rwapor/reference/wapor_classify.md)
+  treats `NA` and `NaN` as missing (class `NA`) instead of stopping, as
+  its error message already said; only infinite values are refused. This
+  also makes `wapor_zonal_stats(stats = "class_share", breaks = ...)`
+  work for zones with NoData cells.
+
+### Classification
+
+- Added configurable fixed and type-7 quantile classification with
+  literature-backed adequacy, equity, irrigation-method uniformity, and
+  productivity-spot schemes. Results retain thresholds and source
+  metadata, including through GeoTIFF metadata.
 
 ### Reliability
 

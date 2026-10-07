@@ -21,7 +21,7 @@ future::plan().
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -52,7 +52,7 @@ future::plan().
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Plan How a Raster Job Should Be Processed</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/processing_plan.R" class="external-link"><code>R/processing_plan.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/processing_plan.R" class="external-link"><code>R/processing_plan.R</code></a></small>
       <div class="d-none name"><code>wapor_plan_processing.Rd</code></div>
     </div>
 
@@ -132,7 +132,7 @@ each month). Default <code>1 + ceiling(n_layers / 3)</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An object of class <code>wapor_plan</code> with the chosen <code>mode</code>, the
 estimate (<code>working_set_bytes</code>, <code>budget_bytes</code>), <code>batch_size</code>, <code>tile_size</code>,
-<code>gdal_chunk_bytes</code>, and the <code>reasons</code> for the choice.</p>
+and the <code>reasons</code> for the choice.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -151,11 +151,10 @@ Override it with <code>options(Rwapor.memory_budget_mb = ...)</code>. Mode thres
 <span class="r-out co"><span class="r-pr">#&gt;</span>   mode        : memory</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   grid        : 277 x 234 cells</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   working set : 113.5 MB (budget 6.9 GB, 1 worker(s))</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   working set : 113.5 MB (budget 7.0 GB, 1 worker(s))</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   batch size  : 36 dekad(s)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   GDAL chunk  : 256.0 KB</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   reasons     :</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     - Estimated working set in memory: 113.5 MB (budget 6.9 GB per worker, 1 worker(s)).</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     - Estimated working set in memory: 113.5 MB (budget 7.0 GB per worker, 1 worker(s)).</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     - Working set is below 25% of the budget: in memory.</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># A 150 km x 150 km scheme at 20 m: tiled</span></span></span>
@@ -165,12 +164,11 @@ Override it with <code>options(Rwapor.memory_budget_mb = ...)</code>. Mode thres
 <span class="r-out co"><span class="r-pr">#&gt;</span>   mode        : tiled</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   grid        : 8,294 x 6,942 cells</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   working set : 312.7 GB (budget 6.9 GB, 1 worker(s))</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   working set : 312.7 GB (budget 7.0 GB, 1 worker(s))</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   batch size  : 1 dekad(s)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   tile size   : 1896 px</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   GDAL chunk  : 10.0 MB</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   tile size   : 1911 px</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   reasons     :</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     - Estimated working set in memory: 312.7 GB (budget 6.9 GB per worker, 1 worker(s)).</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     - Estimated working set in memory: 312.7 GB (budget 7.0 GB per worker, 1 worker(s)).</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     - Even one layer batch over the whole area exceeds the budget: tiling.</span>
 </code></pre></div>
     </div>

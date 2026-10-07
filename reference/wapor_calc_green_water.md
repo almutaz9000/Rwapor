@@ -1,7 +1,8 @@
 # Compute Green Water Consumption
 
 Green water = min(AETI, Peff) — the portion of actual evapotranspiration
-sourced from effective precipitation (rainfall stored in the soil).
+sourced from effective precipitation (rainfall stored in the root-zone
+soil).
 
 ## Usage
 
@@ -22,6 +23,16 @@ wapor_calc_green_water(aeti_seasonal, peff_seasonal)
 ## Value
 
 SpatRaster or numeric. Green water consumption (mm).
+
+## References
+
+Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and
+nature: The new approach in ecohydrology. Earthscan, London.
+
+Chukalla, A. D., Krol, M. S., & Hoekstra, A. Y. (2015). Green and blue
+water footprint reduction in irrigated agriculture: effect of irrigation
+techniques, irrigation strategies and mulching. Hydrology and Earth
+System Sciences, 19(12), 4877-4891.
 
 ## Examples
 

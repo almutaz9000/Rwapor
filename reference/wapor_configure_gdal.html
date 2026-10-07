@@ -13,7 +13,7 @@ or to inspect what the package applied."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,7 +44,7 @@ or to inspect what the package applied."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Configure GDAL for Efficient HTTP Streaming</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/gdal_config.R" class="external-link"><code>R/gdal_config.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/gdal_config.R" class="external-link"><code>R/gdal_config.R</code></a></small>
       <div class="d-none name"><code>wapor_configure_gdal.Rd</code></div>
     </div>
 
@@ -58,7 +58,7 @@ or to inspect what the package applied.</p>
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">wapor_configure_gdal</span><span class="op">(</span></span>
-<span>  chunk_size <span class="op">=</span> <span class="fl">10485760L</span>,</span>
+<span>  chunk_size <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  vsi_cache <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  vsi_cache_size <span class="op">=</span> <span class="fl">100000000L</span>,</span>
 <span>  gdal_cachemax <span class="op">=</span> <span class="fl">512L</span>,</span>
@@ -73,11 +73,13 @@ or to inspect what the package applied.</p>
 
 
 <dl><dt id="arg-chunk-size">chunk_size<a class="anchor" aria-label="anchor" href="#arg-chunk-size"></a></dt>
-<dd><p>Integer. HTTP read chunk size in bytes.
-The GDAL built-in default (16 KB) forces hundreds of HTTP round-trips per
-raster file. Increasing this to 10 MB (default here) reduces those to a
-handful of large requests. Set higher (e.g., <code>32 * 1024^2</code> = 32 MB) on
-fast connections.</p></dd>
+<dd><p><code>NULL</code> (default) or an integer between 1024 and 10485760:
+the HTTP read chunk size in bytes (<code>CPL_VSIL_CURL_CHUNK_SIZE</code>). <code>NULL</code>
+leaves the variable alone, so GDAL uses its own default (16 KB, grown
+automatically for sequential reads). GDAL reads this value once, at the
+first remote read of the R session: set it before any remote read, or it
+has no effect. Large values make every remote file open download a whole
+chunk, which is slow for the small windows Rwapor reads.</p></dd>
 
 
 <dt id="arg-vsi-cache">vsi_cache<a class="anchor" aria-label="anchor" href="#arg-vsi-cache"></a></dt>
@@ -124,17 +126,22 @@ values applied (only the variables that were set).</p>
 
 
 <p>WaPOR/AgERA5 rasters are hosted as Cloud-Optimized GeoTIFFs (COGs).
-GDAL accesses them via HTTP range requests through <code>/vsicurl/</code>. Three
-settings have by far the largest impact:</p><ol><li><p><strong><code>CPL_VSIL_CURL_CHUNK_SIZE</code></strong> — Each GDAL block read becomes one HTTP
-range request. At the 16 KB default, a single dekadal raster crop
-may issue 200–1000 requests. At 10 MB, the same operation needs 3–5.</p></li>
-<li><p><strong><code>GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR"</code></strong> — GDAL normally issues
+GDAL accesses them via HTTP range requests through <code>/vsicurl/</code>.</p><ol><li><p><strong><code>GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR"</code></strong> — GDAL normally issues
 a directory listing request before opening a remote file. Disabling it
-saves one HTTP round-trip per file.</p></li>
+saves HTTP round-trips for every file.</p></li>
 <li><p><strong><code>VSI_CACHE = TRUE</code></strong> — Caches recently read bytes in RAM so that
 repeated access to the same raster area (e.g., during <code><a href="https://rspatial.github.io/terra/reference/crop.html" class="external-link">crop()</a></code> + <code><a href="https://rspatial.github.io/terra/reference/mask.html" class="external-link">mask()</a></code>)
 does not re-fetch from the server.</p></li>
-</ol></div>
+<li><p><strong><code>CPL_VSIL_CURL_CHUNK_SIZE</code> is left at GDAL's default.</strong> Up to version
+1.0.5 the package set it to 10 MB. Measured with <code><a href="wapor_ts.html">wapor_ts()</a></code> on WaPOR v3
+(150 polygons, 36 dekads): Level 2 took 343 s and requested 1,091 MB with
+the 10 MB chunk, against 21 s and 17 MB without it; Level 3 took 66 s and
+232 MB against 27 s and 14 MB. Extracted values were identical.</p></li>
+</ol><p>While the package itself reads remote rasters it also limits <code>/vsicurl/</code> to
+<code>.tif</code> files (<code>CPL_VSIL_CURL_ALLOWED_EXTENSIONS</code>), which stops two failing
+side-file requests per raster. The limit is removed again after each read;
+switch it off with <code>options(Rwapor.remote_extension_filter = FALSE)</code>.</p>
+</div>
 
     </div>
     <div class="section level2">
@@ -147,13 +154,13 @@ does not re-fetch from the server.</p></li>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Apply package defaults (also called automatically on attach)</span></span></span>
 <span class="r-in"><span><span class="fu">wapor_configure_gdal</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Larger chunks for high-bandwidth connections</span></span></span>
-<span class="r-in"><span><span class="fu">wapor_configure_gdal</span><span class="op">(</span>chunk_size <span class="op">=</span> <span class="fl">32L</span> <span class="op">*</span> <span class="fl">1024L</span> <span class="op">*</span> <span class="fl">1024L</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># A specific HTTP chunk size; only effective before the first remote read</span></span></span>
+<span class="r-in"><span><span class="fu">wapor_configure_gdal</span><span class="op">(</span>chunk_size <span class="op">=</span> <span class="fl">1024L</span> <span class="op">*</span> <span class="fl">1024L</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Confirm what was applied</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="wapor_gdal_settings.html">wapor_gdal_settings</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     CPL_VSIL_CURL_CHUNK_SIZE                    VSI_CACHE </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                   "33554432"                       "TRUE" </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                    "1048576"                       "TRUE" </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>               VSI_CACHE_SIZE                GDAL_CACHEMAX </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                  "100000000"                        "512" </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> GDAL_DISABLE_READDIR_ON_OPEN          GDAL_HTTP_MAX_RETRY </span>

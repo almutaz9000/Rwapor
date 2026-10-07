@@ -37,6 +37,17 @@ integration and seasonal indicator computation.
 
   Configure GDAL on package load when needed (default `TRUE`).
 
+- `Rwapor.fix_proj`:
+
+  Point PROJ to the database shipped with sf or terra on package load
+  when a foreign one (for example PostGIS) is on the path (default
+  `TRUE`).
+
+- `Rwapor.remote_extension_filter`:
+
+  While Rwapor reads remote rasters, limit `/vsicurl/` to `.tif` files
+  to avoid failing side-file requests (default `TRUE`).
+
 - `Rwapor.max_season_profiles`:
 
   Maximum number of per-pixel season profiles (default `64`).

@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -64,7 +64,7 @@
       <h1>Worked Example: Wheat Seasonal &amp; Multi-Season Water Productivity</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/vignettes/wheat-water-productivity.Rmd" class="external-link"><code>vignettes/wheat-water-productivity.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/vignettes/wheat-water-productivity.Rmd" class="external-link"><code>vignettes/wheat-water-productivity.Rmd</code></a></small>
       <div class="d-none name"><code>wheat-water-productivity.Rmd</code></div>
     </div>
 
@@ -165,7 +165,7 @@ wheat mask built in Step 1:</p>
 <span>                                   <span class="co"># corrects for latitude-dependent pixel-area distortion</span></span>
 <span>                                   <span class="co"># on geographic (EPSG:4326) grids</span></span>
 <span>  indicators    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
-<span>    <span class="st">"agg_aeti"</span>, <span class="st">"agg_t"</span>, <span class="st">"etc"</span>, <span class="st">"adequacy_etc"</span>, <span class="st">"peff"</span>, <span class="st">"cwp_bwp"</span>, <span class="st">"beneficial_fraction"</span></span>
+<span>    <span class="st">"agg_aeti"</span>, <span class="st">"agg_t"</span>, <span class="st">"etc"</span>, <span class="st">"adequacy_etc"</span>, <span class="st">"peff_green_blue"</span>, <span class="st">"cwp_bwp"</span>, <span class="st">"beneficial_fraction"</span></span>
 <span>    <span class="co"># other available indicator codes (see wapor_list_indicator_steps() for the</span></span>
 <span>    <span class="co"># full, always-current list):</span></span>
 <span>    <span class="co">#   "agg_ret", "agg_pcp", "agg_npp"                 -- raw seasonal aggregates</span></span>
@@ -334,10 +334,10 @@ default is <code>FALSE</code>.</p>
 </h2>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Seasonal CWP/BWP zonal summary for a single season</span></span>
-<span><span class="va">wheat_season</span><span class="op">$</span><span class="va">summary_table</span></span>
+<span><span class="va">wheat_season</span><span class="op">$</span><span class="va">cwp_summary</span></span>
 <span></span>
 <span><span class="co"># CWP trend across all wheat seasons</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">wheat_all_seasons</span>, <span class="kw">function</span><span class="op">(</span><span class="va">s</span><span class="op">)</span> <span class="va">s</span><span class="op">$</span><span class="va">summary_table</span><span class="op">$</span><span class="va">cwp_bwp_mean</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="va">wheat_all_seasons</span>, <span class="kw">function</span><span class="op">(</span><span class="va">s</span><span class="op">)</span> <span class="va">s</span><span class="op">$</span><span class="va">cwp_summary</span><span class="op">$</span><span class="va">cwp_kg_m3</span><span class="op">)</span></span></code></pre></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

@@ -78,8 +78,8 @@ wapor_plan_processing(
 ## Value
 
 An object of class `wapor_plan` with the chosen `mode`, the estimate
-(`working_set_bytes`, `budget_bytes`), `batch_size`, `tile_size`,
-`gdal_chunk_bytes`, and the `reasons` for the choice.
+(`working_set_bytes`, `budget_bytes`), `batch_size`, `tile_size`, and
+the `reasons` for the choice.
 
 ## Details
 
@@ -100,11 +100,10 @@ wapor_plan_processing(aoi = c(35, 33, 35.05, 33.05), resolution = 20, n_layers =
 #>   mode        : memory
 #>   grid        : 277 x 234 cells
 #>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)
-#>   working set : 113.5 MB (budget 6.9 GB, 1 worker(s))
+#>   working set : 113.5 MB (budget 7.0 GB, 1 worker(s))
 #>   batch size  : 36 dekad(s)
-#>   GDAL chunk  : 256.0 KB
 #>   reasons     :
-#>     - Estimated working set in memory: 113.5 MB (budget 6.9 GB per worker, 1 worker(s)).
+#>     - Estimated working set in memory: 113.5 MB (budget 7.0 GB per worker, 1 worker(s)).
 #>     - Working set is below 25% of the budget: in memory.
 
 # A 150 km x 150 km scheme at 20 m: tiled
@@ -114,11 +113,10 @@ wapor_plan_processing(aoi = c(35, 33, 36.5, 34.5), resolution = 20,
 #>   mode        : tiled
 #>   grid        : 8,294 x 6,942 cells
 #>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)
-#>   working set : 312.7 GB (budget 6.9 GB, 1 worker(s))
+#>   working set : 312.7 GB (budget 7.0 GB, 1 worker(s))
 #>   batch size  : 1 dekad(s)
-#>   tile size   : 1896 px
-#>   GDAL chunk  : 10.0 MB
+#>   tile size   : 1911 px
 #>   reasons     :
-#>     - Estimated working set in memory: 312.7 GB (budget 6.9 GB per worker, 1 worker(s)).
+#>     - Estimated working set in memory: 312.7 GB (budget 7.0 GB per worker, 1 worker(s)).
 #>     - Even one layer batch over the whole area exceeds the budget: tiling.
 ```

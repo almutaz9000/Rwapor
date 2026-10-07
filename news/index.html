@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,11 +38,68 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="1.0.6" id="rwapor-106-development">Rwapor 1.0.6 (development)<a class="anchor" aria-label="anchor" href="#rwapor-106-development"></a></h2>
+<h2 class="pkg-version" data-toc-text="1.0.6" id="rwapor-106">Rwapor 1.0.6<a class="anchor" aria-label="anchor" href="#rwapor-106"></a></h2>
+<div class="section level3">
+<h3 id="production-readiness--scientific-review-fixes-1-0-6">Production readiness &amp; scientific review fixes<a class="anchor" aria-label="anchor" href="#production-readiness--scientific-review-fixes-1-0-6"></a></h3>
+<ul><li>
+<strong>Literature Citations &amp; Derivations</strong>: Added formal mathematical equations, parameter derivations (e.g. carbon fraction <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>10</mn><mi>/</mi><mn>0.45</mn><mo>=</mo><mn>22.222</mn></mrow><annotation encoding="application/x-tex">10 / 0.45 = 22.222</annotation></semantics></math> for TBP), and authoritative peer-reviewed literature citations across 11 core indicators in <code>R/analysis_indicators.R</code> and <code>R/performance_indicators.R</code>.</li>
+<li>
+<strong>Short-Season Crop Phenology</strong>: In <code><a href="../reference/wapor_build_kc_by_class.html">wapor_build_kc_by_class()</a></code>, when season duration is shorter than the sum of standard growth stages (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mi>D</mi><mo>&lt;</mo><msub><mi>L</mi><mrow><mi>i</mi><mi>n</mi><mi>i</mi></mrow></msub><mo>+</mo><msub><mi>L</mi><mrow><mi>m</mi><mi>i</mi><mi>d</mi></mrow></msub><mo>+</mo><msub><mi>L</mi><mrow><mi>l</mi><mi>a</mi><mi>t</mi><mi>e</mi></mrow></msub></mrow><annotation encoding="application/x-tex">TD &lt; L_{ini} + L_{mid} + L_{late}</annotation></semantics></math>), stage lengths are now proportionally scaled to fit the observed satellite phenology rather than aborting with <code>numeric(0)</code>.</li>
+<li>
+<strong>Generalized Temperature Conversion</strong>: <code>is_temperature_variable()</code> and <code><a href="../reference/wapor_convert_temperature.html">wapor_convert_temperature()</a></code> now recognize all AgERA5 temperature products (<code>TMIN</code>, <code>TMAX</code>, <code>TAVG</code>, <code>TDEW</code>, and <code>TEMP</code>), automatically converting Kelvin to Celsius during download and caching.</li>
+<li>
+<strong>Farm Monitoring Aggregation</strong>: <code><a href="../reference/wapor_generate_seasonal_raster.html">wapor_generate_seasonal_raster()</a></code> and <code><a href="../reference/wapor_apply_seasonal_mask_recalc.html">wapor_apply_seasonal_mask_recalc()</a></code> apply dekadal day length multipliers (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo>∈</mo><mo stretchy="false" form="prefix">[</mo><mn>8</mn><mo>,</mo><mn>11</mn><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">N \in [8, 11]</annotation></semantics></math> days) before seasonal summation of flux variables, eliminating the ~10x seasonal accumulation underestimation.</li>
+<li>
+<strong>DuckDB Windowed Streaming</strong>: Monitoring raster retrieval prioritizes COG file paths with windowed reads (<code>terra::rast(path, win = f_ext)</code>) over full raster BLOB deserialization, dramatically reducing memory overhead.</li>
+<li>
+<strong>Vignette Harmonization</strong>: Updated <code>vignettes/wheat-water-productivity.Rmd</code> to use canonical indicator <code>peff_green_blue</code> and <code>cwp_summary</code> output structures.</li>
+<li>
+<strong>Cross-Platform &amp; Packaging</strong>: Added <code>SystemRequirements: GDAL (&gt;= 3.0.0), GEOS (&gt;= 3.8.0), PROJ (&gt;= 6.0.0)</code> in <code>DESCRIPTION</code>. Added <code>macos-latest</code> to live API CI/CD matrix. Excluded large unversioned archives from package builds via <code>.Rbuildignore</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="irrigation-performance-indicators-1-0-6">Irrigation performance indicators<a class="anchor" aria-label="anchor" href="#irrigation-performance-indicators-1-0-6"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_classify_adequacy.html">wapor_classify_adequacy()</a></code>, <code><a href="../reference/wapor_calc_rwd.html">wapor_calc_rwd()</a></code>, <code><a href="../reference/wapor_calc_uniformity.html">wapor_calc_uniformity()</a></code>, <code><a href="../reference/wapor_calc_equity.html">wapor_calc_equity()</a></code>, <code><a href="../reference/wapor_calc_reliability.html">wapor_calc_reliability()</a></code>, <code><a href="../reference/wapor_relative_et_stack.html">wapor_relative_et_stack()</a></code>, <code><a href="../reference/wapor_calc_climate_norm.html">wapor_calc_climate_norm()</a></code>, <code><a href="../reference/wapor_apply_climate_norm.html">wapor_apply_climate_norm()</a></code>, <code><a href="../reference/wapor_calc_productivity_gap.html">wapor_calc_productivity_gap()</a></code>, <code><a href="../reference/wapor_classify_spots.html">wapor_classify_spots()</a></code> and <code><a href="../reference/wapor_calc_nir.html">wapor_calc_nir()</a></code>. Adequacy classes, relative water deficit, uniformity (1 - CV, CU, DU_lq) per irrigation method, equity, temporal reliability, climate normalisation, productivity gaps and bright/dark spots, and net irrigation requirement. Thresholds come from <code><a href="../reference/wapor_class_defaults.html">wapor_class_defaults()</a></code>. Uniformity standards are for applied water; 1 - CV of ET can overstate them. The climate-norm application rule (depths multiplied, productivity divided) is documented as unverified as a published convention.</li>
+<li>
+<code><a href="../reference/wapor_calc_cv.html">wapor_calc_cv()</a></code>, <code><a href="../reference/wapor_calc_peff.html">wapor_calc_peff()</a></code> and <code><a href="../reference/wapor_calc_theil.html">wapor_calc_theil()</a></code> are exported.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="download-once-work-offline-1-0-6">Download once, work offline<a class="anchor" aria-label="anchor" href="#download-once-work-offline-1-0-6"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_download.html">wapor_download()</a></code> saves one GeoTIFF per time step for an area, in the layout the seasonal analysis reads with <code>data_source = "local"</code>. Files already saved are skipped, so the call can be repeated to complete or extend a period; without a connection it returns the saved files and warns that it could not check the period. Values keep the source unit with the WaPOR scale factor applied once. Files are written under a temporary name and renamed when complete, and a folder is tied to the area of its first download.</li>
+<li>
+<code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> accepts <code>config$cache_dir</code>: with <code>data_source = "api"</code> the sources a run needs are saved there first (only the missing files) and then read locally, so later runs for the same area work without internet. Results equal a local run on the same files. Not available with <code>l3_mode = "mosaic_all"</code>.</li>
+<li>Streaming is now about as fast as local files (see “Faster remote reads”), so these are for offline work and repeated analyses, not a requirement for speed.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="faster-remote-reads-1-0-6">Faster remote reads<a class="anchor" aria-label="anchor" href="#faster-remote-reads-1-0-6"></a></h3>
+<ul><li>The package no longer sets the GDAL HTTP chunk size (<code>CPL_VSIL_CURL_CHUNK_SIZE</code>) to 10 MB on load. GDAL reads remote files in whole chunks, so every remote file open downloaded far more than the window it needed. Measured with <code><a href="../reference/wapor_ts.html">wapor_ts()</a></code> on 150 polygons and 36 dekads: Level 2 took 343 s and requested 1,091 MB before, 21 s and 17 MB now; Level 3 took 66 s and 232 MB before, 27 s and 14 MB now. Results are identical. GDAL fixes this value at the first remote read of a session, so the per-job chunk size in <code><a href="../reference/wapor_plan_processing.html">wapor_plan_processing()</a></code> never applied and has been removed (<code>gdal_chunk_bytes</code> is no longer part of the plan). <code>wapor_configure_gdal(chunk_size = )</code> now defaults to <code>NULL</code> (leave GDAL’s default) and accepts 1024 to 10485760; to use your own value, set it before the first remote read.</li>
+<li>While Rwapor reads remote rasters it limits <code>/vsicurl/</code> to <code>.tif</code> files, which stops two failing side-file requests per raster. The limit is removed after each read; switch it off with <code>options(Rwapor.remote_extension_filter = FALSE)</code>.</li>
+<li>The PROJ fix on package load no longer depends on <code>RWAPOR_AUTO_CONFIG</code>; it has its own switch, <code>options(Rwapor.fix_proj = FALSE)</code>. Without the fix, a foreign PROJ database on the path (for example PostGIS) costs about 0.35 s per raster open.</li>
+<li>
+<code><a href="../reference/wapor_ts.html">wapor_ts()</a></code> and <code><a href="../reference/wapor_map.html">wapor_map()</a></code> print one note when a request reads more than about 2 GB of cells, naming the coarser level as an option.</li>
+<li>New <code>inst/bench/remote_io_benchmark.R</code> counts HTTP requests and requested megabytes for a standard polygon time series and fails when its limits are exceeded.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="zonal-statistics-and-masks-1-0-6">Zonal statistics and masks<a class="anchor" aria-label="anchor" href="#zonal-statistics-and-masks-1-0-6"></a></h3>
+<ul><li>New <code><a href="../reference/wapor_zonal_stats.html">wapor_zonal_stats()</a></code>: area-weighted statistics for any polygons at one or several nested levels (for example scheme and farm), on a raster or directly on the result of <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code>. It reports crop share (<code>mask_fraction</code>) and data coverage separately, weighted mean, median and quantiles (equal to <code>quantile(type = 7)</code> for equal weights), population or sample standard deviation, CV, Christiansen uniformity, low-quarter distribution uniformity, Gini, Theil, volumes in m3 and million m3 (from depths, or from rates with <code>days</code>), and class shares with every class listed. Output is a long table with the id columns; <code>format = "wide"</code> or <code>"sf"</code> and <code><a href="../reference/wapor_zonal_wide.html">wapor_zonal_wide()</a></code> give one row per zone and layer.</li>
+<li>New <code><a href="../reference/wapor_rasterize_mask.html">wapor_rasterize_mask()</a></code> (polygons to a mask or a covered fraction on any grid, with an area check) and <code><a href="../reference/wapor_harmonize_mask.html">wapor_harmonize_mask()</a></code> (a classified map at any resolution to a mask and a class fraction). The fractions are the <code>weights</code> input of <code><a href="../reference/wapor_zonal_stats.html">wapor_zonal_stats()</a></code>.</li>
+<li>Fixed before release, found while completing this batch: polygons sharing an id were not merged, so a parent level with several polygons was reported once per polygon; on lon/lat rasters cell areas came from a sphere (0.3% too large at 32 degrees north) and now use the WGS84 ellipsoid; fractions of adjacent polygons in one cell now add up; cells without data in a classified map count as “not the class”.</li>
+<li>
+<code><a href="../reference/wapor_zonal_stats.html">wapor_zonal_stats()</a></code> returns the same table about eight to ten times faster (400 zones and 12 layers: 56 s before, 6.5 s now; 2,025 zones: 237 s before, 27 s now). Only the requested statistics are computed, and layers are read in groups sized to the memory budget (<code>options(Rwapor.memory_budget_mb = )</code>), so memory no longer grows with the number of layers. <code>inst/bench/zonal_benchmark.R</code> times the standard cases.</li>
+<li>
+<code>wapor_zonal_stats(format = "sf")</code> now gives every row the geometry of its own zone. With more than one statistic, rows carried the geometry of another zone or an empty geometry.</li>
+<li>
+<code><a href="../reference/wapor_zonal_stats.html">wapor_zonal_stats()</a></code> works on lon/lat rasters (Level 1 and Level 2) without the lwgeom package. Zone areas are measured in an equal-area projection centred on the zones; the session’s s2 setting is no longer changed.</li>
+<li>
+<code><a href="../reference/wapor_classify.html">wapor_classify()</a></code> treats <code>NA</code> and <code>NaN</code> as missing (class <code>NA</code>) instead of stopping, as its error message already said; only infinite values are refused. This also makes <code>wapor_zonal_stats(stats = "class_share", breaks = ...)</code> work for zones with NoData cells.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="classification-1-0-6">Classification<a class="anchor" aria-label="anchor" href="#classification-1-0-6"></a></h3>
+<ul><li>Added configurable fixed and type-7 quantile classification with literature-backed adequacy, equity, irrigation-method uniformity, and productivity-spot schemes. Results retain thresholds and source metadata, including through GeoTIFF metadata.</li>
+</ul></div>
 <div class="section level3">
 <h3 id="reliability-1-0-6">Reliability<a class="anchor" aria-label="anchor" href="#reliability-1-0-6"></a></h3>
 <ul><li>Known-answer tests pin every output of <code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code> (236 values, memory, stream and tiled modes) to real WaPOR data from the 2026 training case studies (citrus year from 1 March, wheat season from 1 November), independently checked against plain formulas. A change in any number now fails the test suite.</li>

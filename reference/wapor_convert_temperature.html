@@ -11,7 +11,7 @@ TMIN and TMAX variables during download."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">Rwapor</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.5.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.6</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,7 +42,7 @@ TMIN and TMAX variables during download."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Convert Temperature Raster from Kelvin to Celsius</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.4/R/unit_convertor.R" class="external-link"><code>R/unit_convertor.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/unit_convertor.R" class="external-link"><code>R/unit_convertor.R</code></a></small>
       <div class="d-none name"><code>wapor_convert_temperature.Rd</code></div>
     </div>
 
@@ -79,6 +79,8 @@ or the original raster unchanged if not a temperature variable.</p>
     <p>The conversion formula is: °C = K - 273.15</p>
 <p>This conversion is automatically applied during download for:</p><ul><li><p>AGERA5-TMIN-E (Minimum Air Temperature)</p></li>
 <li><p>AGERA5-TMAX-E (Maximum Air Temperature)</p></li>
+<li><p>AGERA5-TAVG-E (Mean Air Temperature)</p></li>
+<li><p>AGERA5-TDEW-E (Dew Point Temperature)</p></li>
 </ul></div>
 
     <div class="section level2">

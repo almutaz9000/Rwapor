@@ -35,6 +35,10 @@ This conversion is automatically applied during download for:
 
 - AGERA5-TMAX-E (Maximum Air Temperature)
 
+- AGERA5-TAVG-E (Mean Air Temperature)
+
+- AGERA5-TDEW-E (Dew Point Temperature)
+
 ## Examples
 
 ``` r

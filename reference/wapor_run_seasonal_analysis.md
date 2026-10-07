@@ -39,6 +39,13 @@ wapor_run_seasonal_analysis(
   - `output_dir`: folder for stream and tiled outputs (default: a folder
     under [`tempdir()`](https://rdrr.io/r/base/tempfile.html)).
 
+  - `cache_dir`: with `data_source = "api"`, a folder in which the
+    source rasters this run needs are saved first with
+    [`wapor_download()`](https://almutaz9000.github.io/Rwapor/reference/wapor_download.md)
+    (only the missing ones) and then read locally. Later runs for the
+    same area read the saved files and work without internet. One folder
+    per area; not available with `l3_mode = "mosaic_all"`.
+
   - `reference_layer`, `resampling_method`: target grid and per-layer
     resampling (see Details).
 

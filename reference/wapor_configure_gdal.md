@@ -9,7 +9,7 @@ defaults or to inspect what the package applied.
 
 ``` r
 wapor_configure_gdal(
-  chunk_size = 10485760L,
+  chunk_size = NULL,
   vsi_cache = TRUE,
   vsi_cache_size = 100000000L,
   gdal_cachemax = 512L,
@@ -23,11 +23,13 @@ wapor_configure_gdal(
 
 - chunk_size:
 
-  Integer. HTTP read chunk size in bytes. The GDAL built-in default (16
-  KB) forces hundreds of HTTP round-trips per raster file. Increasing
-  this to 10 MB (default here) reduces those to a handful of large
-  requests. Set higher (e.g., `32 * 1024^2` = 32 MB) on fast
-  connections.
+  `NULL` (default) or an integer between 1024 and 10485760: the HTTP
+  read chunk size in bytes (`CPL_VSIL_CURL_CHUNK_SIZE`). `NULL` leaves
+  the variable alone, so GDAL uses its own default (16 KB, grown
+  automatically for sequential reads). GDAL reads this value once, at
+  the first remote read of the R session: set it before any remote read,
+  or it has no effect. Large values make every remote file open download
+  a whole chunk, which is slow for the small windows Rwapor reads.
 
 - vsi_cache:
 
@@ -69,23 +71,31 @@ applied (only the variables that were set).
 ### Why these settings matter
 
 WaPOR/AgERA5 rasters are hosted as Cloud-Optimized GeoTIFFs (COGs). GDAL
-accesses them via HTTP range requests through `/vsicurl/`. Three
-settings have by far the largest impact:
+accesses them via HTTP range requests through `/vsicurl/`.
 
-1.  **`CPL_VSIL_CURL_CHUNK_SIZE`** — Each GDAL block read becomes one
-    HTTP range request. At the 16 KB default, a single dekadal raster
-    crop may issue 200–1000 requests. At 10 MB, the same operation needs
-    3–5.
-
-2.  **`GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR"`** — GDAL normally
+1.  **`GDAL_DISABLE_READDIR_ON_OPEN = "EMPTY_DIR"`** — GDAL normally
     issues a directory listing request before opening a remote file.
-    Disabling it saves one HTTP round-trip per file.
+    Disabling it saves HTTP round-trips for every file.
 
-3.  **`VSI_CACHE = TRUE`** — Caches recently read bytes in RAM so that
+2.  **`VSI_CACHE = TRUE`** — Caches recently read bytes in RAM so that
     repeated access to the same raster area (e.g., during
     [`crop()`](https://rspatial.github.io/terra/reference/crop.html) +
     [`mask()`](https://rspatial.github.io/terra/reference/mask.html))
     does not re-fetch from the server.
+
+3.  **`CPL_VSIL_CURL_CHUNK_SIZE` is left at GDAL's default.** Up to
+    version 1.0.5 the package set it to 10 MB. Measured with
+    [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
+    on WaPOR v3 (150 polygons, 36 dekads): Level 2 took 343 s and
+    requested 1,091 MB with the 10 MB chunk, against 21 s and 17 MB
+    without it; Level 3 took 66 s and 232 MB against 27 s and 14 MB.
+    Extracted values were identical.
+
+While the package itself reads remote rasters it also limits `/vsicurl/`
+to `.tif` files (`CPL_VSIL_CURL_ALLOWED_EXTENSIONS`), which stops two
+failing side-file requests per raster. The limit is removed again after
+each read; switch it off with
+`options(Rwapor.remote_extension_filter = FALSE)`.
 
 ## See also
 
@@ -98,13 +108,13 @@ to view current values.
 # Apply package defaults (also called automatically on attach)
 wapor_configure_gdal()
 
-# Larger chunks for high-bandwidth connections
-wapor_configure_gdal(chunk_size = 32L * 1024L * 1024L)
+# A specific HTTP chunk size; only effective before the first remote read
+wapor_configure_gdal(chunk_size = 1024L * 1024L)
 
 # Confirm what was applied
 wapor_gdal_settings()
 #>     CPL_VSIL_CURL_CHUNK_SIZE                    VSI_CACHE 
-#>                   "33554432"                       "TRUE" 
+#>                    "1048576"                       "TRUE" 
 #>               VSI_CACHE_SIZE                GDAL_CACHEMAX 
 #>                  "100000000"                        "512" 
 #> GDAL_DISABLE_READDIR_ON_OPEN          GDAL_HTTP_MAX_RETRY 
