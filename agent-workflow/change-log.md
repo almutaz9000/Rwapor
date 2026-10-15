@@ -4,6 +4,21 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-10-15 - Verification and Remote Sync of Package Improvements (Antigravity)
+
+- Full test suite verified on R 4.4.1 Windows: 6,277 assertions passed, 0 failures.
+- Modernized ggplot2 evaluations in `R/viz.R` (`.data$x`, `.data$y`, `.data$value`, `.data$day`, `.data$kc`) to eliminate deprecation warnings while keeping 14/14 visualization assertions passing.
+- Synced `docs/BRANCH_HISTORY_AND_RETIREMENT.md` from `main` to align operational documentation.
+- Staged, committed, and pushed recent improvements (provenance validation `prov-v1` M1-M4, publication maps `3.3`, memory benchmark parity `2.3`, viz warnings cleanup) to `origin/version-1.0.6`.
+
+## 2026-10-09 - Publication map improvements (Codex)
+
+- Indicator-aware palettes, shared comparison limits, bounded SpatRaster previews, explicit categorical aggregation, optional georeferenced scale/north annotations. `test-viz.R` 14 assertions pass. Memory test runs 32x32/64x64 full-vs-tiled parity and verifies stable window cells (21 assertions); this is a payload estimate, not RSS. Full suite not rerun. See `IMPROVEMENT_PLAN.md` Phases 2.3/3.3 and `task-status.md`.
+
+## 2026-10-08 — Provenance validation implementation M1-M4 (Hermes)
+
+- M1: temporal schema primitives. M2: public `wapor_validate_compatibility()`. M3: engine source/output/mask lineage and season identity. M4: calculation guards in every major indicator function; season weights use date-based layer names; export writes SHA-256 sidecar; sidecar provenance auto-reads with checksum verification. Indicators 63, engine 79, export/Shiny 96, tiled 44 pass. No calculation-path guards remain unimplemented for the in-package core; remaining milestones are ts/monitoring integration and release docs.
+
 ## 2026-09-29 — v1.0.5 released, correctness gates, P1 steps logged (Claude + Codex)
 
 - ETc regression fixed (ISS-20260929-017, `aaa0739`): kernel Kc used the unshifted dekad

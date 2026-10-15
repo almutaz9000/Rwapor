@@ -48,6 +48,21 @@ wapor_math_blue_water <- function(aeti_seasonal, peff_seasonal) {
   pmax(as.numeric(aeti_seasonal) - as.numeric(peff_seasonal), 0)
 }
 
+#' ET from rainfall = min(AETI, P)
+#' @keywords internal
+#' @export
+wapor_math_et_rain <- function(aeti, precip) {
+  pmin(as.numeric(aeti), as.numeric(precip))
+}
+
+#' Rainfall surplus = P - min(AETI, P)
+#' @keywords internal
+#' @export
+wapor_math_rainfall_surplus <- function(aeti, precip) {
+  precip <- as.numeric(precip)
+  precip - pmin(as.numeric(aeti), precip)
+}
+
 #' NPP (gC/m2) to biomass (kg DM/ha)
 #' @keywords internal
 #' @export

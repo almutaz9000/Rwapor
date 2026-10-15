@@ -4,7 +4,13 @@
 \alias{wapor_calc_bwp}
 \title{Compute Biomass Water Productivity}
 \usage{
-wapor_calc_bwp(biomass_value, aeti_mm, biomass_unit = "kg/ha")
+wapor_calc_bwp(
+  biomass_value,
+  aeti_mm,
+  biomass_unit = "kg/ha",
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 }
 \arguments{
 \item{biomass_value}{Numeric. Biomass (scalar or raster).}
@@ -12,6 +18,12 @@ wapor_calc_bwp(biomass_value, aeti_mm, biomass_unit = "kg/ha")
 \item{aeti_mm}{Numeric. Seasonal AETI in mm (scalar or raster).}
 
 \item{biomass_unit}{Character. Unit: "kg/ha" (default) or "t/ha".}
+
+\item{provenance}{Optional named provenance records for \code{biomass} and \code{aeti}.
+When omitted, raster metadata is checked where available.}
+
+\item{compatibility_mode}{Missing-metadata policy: \code{"warn"} or \code{"strict"}.
+Known incompatibilities always stop the calculation.}
 }
 \value{
 Numeric or SpatRaster. BWP in kg/m3.

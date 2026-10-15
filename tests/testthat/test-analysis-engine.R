@@ -135,6 +135,29 @@ test_that("seasonal analysis engine computes the exposed indicator set from loca
 
   expect_equal(cwp_only$cwp, expected_cwp_bwp)
   expect_equal(cwp_only$bwp, expected_cwp_bwp)
+  expect_equal(results$provenance$outputs$seasonal_aeti$period,
+               list(start = "2023-01-01", end = "2023-01-31"))
+  expect_true(all(c("crop_mask", "season_start", "season_end") %in%
+                  names(results$provenance$outputs$seasonal_aeti$season_definition$masks)))
+  expect_equal(results$provenance$outputs$seasonal_aeti$season_definition$masks$season_end,
+               Rwapor:::.wapor_raster_content_signature(results$h_end))
+  expect_equal(results$provenance$outputs[["monthly_aeti_2023-01"]]$period,
+               list(start = "2023-01-01", end = "2023-01-31"))
+  expect_equal(results$provenance$outputs[["monthly_aeti_2023-01"]]$parents[[1]],
+               results$provenance$sources$aeti$dataset_id)
+  expect_equal(nrow(results$provenance$sources$aeti$intervals), 3L)
+  expect_equal(results$provenance$sources$aeti$intervals$start_date,
+               c("2023-01-01", "2023-01-11", "2023-01-21"))
+  expect_equal(results$provenance$outputs$seasonal_biomass_t$parents[[1]],
+               results$provenance$sources$npp$dataset_id)
+  encoded_provenance <- as.character(jsonlite::toJSON(results$provenance, auto_unbox = TRUE,
+                                                       null = "null", dataframe = "rows"))
+  expect_false(grepl(normalizePath(analysis_dir, winslash = "/"), encoded_provenance, fixed = TRUE))
+  expect_equal(wapor_validate_compatibility(
+    list(aeti = results$provenance$outputs$seasonal_aeti,
+         biomass = results$provenance$outputs$seasonal_biomass_t),
+    operation = "water_productivity"
+  )$status, "passed")
 })
 
 test_that("seasonal analysis engine masks indicator rasters outside crop mask", {

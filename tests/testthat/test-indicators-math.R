@@ -34,6 +34,32 @@ test_that("math green and blue water partition AETI against Peff", {
   expect_equal(wapor_calc_blue_water(350, 200), wapor_math_blue_water(350, 200))
 })
 
+test_that("math ET rain and rainfall surplus partition gross P against AETI", {
+  # Worked values: surplus = P - min(AETI, P) = max(P - AETI, 0) for non-negative inputs.
+  expect_equal(wapor_math_et_rain(350, 400), 350)
+  expect_equal(wapor_math_rainfall_surplus(350, 400), 50)
+  expect_equal(wapor_math_et_rain(900, 150), 150)
+  expect_equal(wapor_math_rainfall_surplus(900, 150), 0)
+  expect_equal(wapor_math_et_rain(300, 300), 300)
+  expect_equal(wapor_math_rainfall_surplus(300, 300), 0)
+  expect_equal(
+    wapor_math_et_rain(c(350, 900, 70), c(400, 150, 80)),
+    c(350, 150, 70)
+  )
+  expect_equal(
+    wapor_math_rainfall_surplus(c(350, 900, 70), c(400, 150, 80)),
+    c(50, 0, 10)
+  )
+  expect_equal(
+    wapor_math_et_rain(c(350, 900), c(400, 150)) +
+      wapor_math_rainfall_surplus(c(350, 900), c(400, 150)),
+    c(400, 150)
+  )
+  expect_true(is.na(wapor_math_rainfall_surplus(100, NA_real_)))
+  expect_equal(wapor_calc_et_rain(350, 400), wapor_math_et_rain(350, 400))
+  expect_equal(wapor_calc_rainfall_surplus(350, 400), wapor_math_rainfall_surplus(350, 400))
+})
+
 test_that("math NPP biomass and yield match the FAO conversion", {
   npp <- 10
   expect_equal(wapor_math_npp_to_biomass(npp), npp * 22.222)

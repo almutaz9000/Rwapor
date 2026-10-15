@@ -53,6 +53,7 @@ wapor_get_indicator_step <- function(name) {
     "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
     "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
     "peff_green_blue", "green_water", "blue_water",
+    "rainfall_surplus",
     "cwp_bwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
     "variability", "cv_aeti", "theil_aeti"
   )
@@ -281,7 +282,7 @@ step_agg_ret <- function(ctx) {
 
 # ── 4. Seasonal Precipitation Step ──────────────────────────────────────────
 step_agg_pcp <- function(ctx) {
-  if (!"agg_pcp" %in% ctx$indicators && !any(c("peff", "green_water", "blue_water") %in% ctx$indicators)) {
+  if (!"agg_pcp" %in% ctx$indicators && !any(c("peff", "green_water", "blue_water", "rainfall_surplus") %in% ctx$indicators)) {
     return(invisible(NULL))
   }
   if (is.null(ctx$stacks$precip)) return(invisible(NULL))
@@ -305,7 +306,7 @@ step_agg_pcp <- function(ctx) {
     )
   }
 
-  if (any(c("agg_pcp", "peff", "green_water", "blue_water") %in% ctx$indicators)) {
+  if (any(c("agg_pcp", "peff", "green_water", "blue_water", "rainfall_surplus") %in% ctx$indicators)) {
     ctx$results$monthly_pcp <- Rwapor::wapor_calc_monthly_weighted_rasters(
       x                  = ctx$stacks$precip,
       season_weights     = ctx$season_weights,
@@ -524,7 +525,7 @@ step_beneficial_fraction <- function(ctx) {
 
 # ── 10. Peff, Green Water & Blue Water Step ─────────────────────────────────
 step_peff_green_blue <- function(ctx) {
-  if (!any(c("peff", "green_water", "blue_water") %in% ctx$indicators)) return(invisible(NULL))
+  if (!any(c("peff", "green_water", "blue_water", "rainfall_surplus") %in% ctx$indicators)) return(invisible(NULL))
   if (is.null(ctx$results$monthly_pcp)) return(invisible(NULL))
 
   peff_res <- wapor_calc_peff(ctx$results$monthly_pcp$rasters)
@@ -547,6 +548,23 @@ step_peff_green_blue <- function(ctx) {
   }
   if ("blue_water" %in% ctx$indicators) {
     ctx$results$blue_water <- split_sum(Rwapor::wapor_calc_blue_water)
+  }
+
+  # Rainfall surplus from gross P (not Peff): P - min(AETI, P) per month.
+  # ctx$results$monthly_pcp$rasters comes from step_agg_pcp which processes
+  # ctx$stacks$precip — already harmonised to the analysis (AETI) grid.
+  if ("rainfall_surplus" %in% ctx$indicators) {
+    month_pcp_h <- ctx$results$monthly_pcp$rasters
+    month_aeti_r <- monthly_aeti
+    month_keys_full <- intersect(names(month_aeti_r), names(month_pcp_h))
+    if (length(month_keys_full)) {
+      ctx$results$et_rain <- Reduce(`+`, lapply(month_keys_full, function(k)
+        Rwapor::wapor_calc_et_rain(month_aeti_r[[k]], month_pcp_h[[k]])
+      ))
+      ctx$results$rainfall_surplus <- Reduce(`+`, lapply(month_keys_full, function(k)
+        Rwapor::wapor_calc_rainfall_surplus(month_aeti_r[[k]], month_pcp_h[[k]])
+      ))
+    }
   }
   invisible(NULL)
 }
@@ -628,5 +646,6 @@ wapor_register_indicator_step("adequacy_etc", step_adequacy_etc, depends = c("ag
 wapor_register_indicator_step("adequacy_p95", step_adequacy_p95, depends = "agg_aeti", description = "P95-based Water Adequacy")
 wapor_register_indicator_step("beneficial_fraction", step_beneficial_fraction, depends = c("agg_aeti", "agg_t"), description = "Beneficial Transpiration Fraction (T/AETI)")
 wapor_register_indicator_step("peff_green_blue", step_peff_green_blue, depends = c("agg_pcp", "agg_aeti"), description = "Effective Precipitation, Green & Blue Water")
+wapor_register_indicator_step("rainfall_surplus", step_peff_green_blue, depends = c("agg_pcp", "agg_aeti"), description = "Rainfall Surplus (P - ET_rain)")
 wapor_register_indicator_step("cwp_bwp", step_cwp_bwp, depends = c("agg_aeti", "agg_npp"), description = "Crop and Biomass Water Productivity")
 wapor_register_indicator_step("variability", step_variability, depends = "agg_aeti", description = "Spatial Uniformity & Variability (CV / Theil)")

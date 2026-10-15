@@ -147,6 +147,7 @@
   known <- c(seasonal_aeti = "mm", seasonal_t = "mm", seasonal_ret = "mm", seasonal_pcp = "mm",
              seasonal_peff = "mm", etc = "mm", adequacy_etc = NA, adequacy_p95 = NA,
              beneficial_fraction = NA, green_water = "mm", blue_water = "mm",
+             et_rain = "mm", rainfall_surplus = "mm",
              seasonal_biomass_t = "t/ha", yield_raster = "t/ha")
   get_layer <- function(nm) {
     if (identical(nm, "etc")) {

@@ -37,3 +37,9 @@ they are large and the inputs are usually already on disk.}
 \description{
 Export Analysis Outputs to Structured Folders
 }
+\details{
+When results contain provenance records, the export writes a
+\code{provenance.json} sidecar with versioned metadata and relative raster paths.
+Each raster entry includes a SHA-256 checksum so stale sidecars are ignored
+on reload.
+}

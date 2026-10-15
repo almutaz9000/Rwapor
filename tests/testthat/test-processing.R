@@ -277,6 +277,17 @@ v100_seasonal_sum <- function(fx, var, method, mult) {
   wapor_masked_sum(stack, sw$weights, mult)
 }
 
+test_that("season weights use their dekad dates as layer names", {
+  fx <- processing_fixture()
+  on.exit(unlink(fx$root, recursive = TRUE, force = TRUE), add = TRUE)
+  sw <- wapor_build_season_weights(
+    fx$config$period[1], fx$config$period[2],
+    fx$rasters$season_start, fx$rasters$season_end, fx$config$ref_year
+  )
+  expect_identical(names(sw$weights), as.character(sw$dekad_table$dekad_key))
+  expect_identical(names(sw$days), as.character(sw$dekad_table$dekad_key))
+})
+
 test_that("gap-free results match the v1.0.0 per-dekad method (near and bilinear)", {
   fx <- processing_fixture()
   on.exit(unlink(fx$root, recursive = TRUE, force = TRUE), add = TRUE)

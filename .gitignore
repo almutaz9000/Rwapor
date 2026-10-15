@@ -74,6 +74,8 @@ skills/
 graphify-out/
 .vscode/
 memories/
+.obsidian/
+.worktrees/
 
 # Development artifacts
 archived_reports/

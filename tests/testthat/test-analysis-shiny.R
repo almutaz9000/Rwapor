@@ -692,6 +692,29 @@ test_that("wapor_export_analysis_outputs writes structured seasonal, dekadal, an
   expect_true(file.exists(file.path(season_dir, "monthly_rasters", "monthly_blue_water", "Winter2024_monthly_blue_water_2024_01.tif")))
   expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_summary_metrics.csv")))
   expect_true(file.exists(file.path(season_dir, "seasonal_tables", "Winter2024_seasonal_aeti_by_class.csv")))
+  expect_true(file.exists(file.path(season_dir, "provenance.json")))
+  provenance_path <- file.path(season_dir, "provenance.json")
+  provenance_json <- jsonlite::fromJSON(provenance_path, simplifyVector = FALSE)
+  expect_false(grepl(normalizePath(analysis_dir, winslash = "/"),
+                     paste(readLines(provenance_path, warn = FALSE), collapse = "\n"), fixed = TRUE))
+  expect_true("seasonal_aeti" %in% unlist(provenance_json$files, use.names = FALSE))
+  aeti_export <- terra::rast(file.path(season_dir, "seasonal_rasters", "Winter2024_seasonal_aeti.tif"))
+  yield_export <- terra::rast(file.path(season_dir, "seasonal_rasters", "Winter2024_yield_raster_t_ha.tif"))
+  aeti_meta <- Rwapor:::.wapor_input_provenance(aeti_export)
+  yield_meta <- Rwapor:::.wapor_input_provenance(yield_export)
+  expect_equal(aeti_meta$period, list(start = "2024-01-01", end = "2024-01-31"))
+  expect_equal(wapor_validate_compatibility(
+    list(aeti = aeti_meta, yield = yield_meta), operation = "water_productivity"
+  )$status, "passed")
+  terra::writeRaster(
+    terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4,
+                crs = "EPSG:4326", vals = 999),
+    file.path(season_dir, "seasonal_rasters", "Winter2024_seasonal_aeti.tif"),
+    overwrite = TRUE
+  )
+  expect_warning(Rwapor:::.wapor_input_provenance(terra::rast(
+    file.path(season_dir, "seasonal_rasters", "Winter2024_seasonal_aeti.tif")
+  )), "checksum does not match")
 
   direct_dir <- tempfile("wapor_export_single_")
   on.exit(unlink(direct_dir, recursive = TRUE, force = TRUE), add = TRUE)

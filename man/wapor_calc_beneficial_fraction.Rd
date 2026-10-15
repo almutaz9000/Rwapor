@@ -4,12 +4,22 @@
 \alias{wapor_calc_beneficial_fraction}
 \title{Compute Beneficial Fraction}
 \usage{
-wapor_calc_beneficial_fraction(t_seasonal, aeti_seasonal)
+wapor_calc_beneficial_fraction(
+  t_seasonal,
+  aeti_seasonal,
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 }
 \arguments{
 \item{t_seasonal}{SpatRaster or numeric. Seasonal Transpiration (mm).}
 
 \item{aeti_seasonal}{SpatRaster or numeric. Seasonal AETI (mm).}
+
+\item{provenance}{Optional named provenance records for \code{transpiration} and \code{aeti}.}
+
+\item{compatibility_mode}{Missing-metadata policy: \code{"warn"} or \code{"strict"}.
+Known incompatibilities always stop the calculation.}
 }
 \value{
 SpatRaster or numeric of beneficial fraction (0-1).
