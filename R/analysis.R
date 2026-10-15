@@ -498,8 +498,8 @@ wapor_build_season_weights <- function(start_date, end_date,
   weights <- terra::rast(lapply(layers, `[[`, "fraction"))
   days    <- terra::rast(lapply(layers, `[[`, "days"))
   
-  names(weights) <- paste0("dekad_", seq_len(nrow(dekad_tbl)))
-  names(days)    <- paste0("dekad_", seq_len(nrow(dekad_tbl)))
+  names(weights) <- as.character(dekad_tbl$dekad_key)
+  names(days)    <- as.character(dekad_tbl$dekad_key)
 
   list(weights = weights, days = days, dekad_table = dekad_tbl)
 }

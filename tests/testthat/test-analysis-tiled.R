@@ -218,6 +218,8 @@ test_that("kernel tiles reproduce a full weighted sum exactly", {
   layers <- lapply(1:3, function(i) terra::setValues(template, i * seq_len(16)))
   stack <- terra::rast(layers)
   weights <- terra::rast(lapply(1:3, function(i) terra::setValues(template, 1)))
+  dates <- c("2023-01-01", "2023-01-11", "2023-01-21")
+  names(stack) <- names(weights) <- dates
   paths <- vapply(seq_len(3), function(i) {
     p <- tempfile(fileext = ".tif")
     terra::writeRaster(stack[[i]], p, overwrite = TRUE, datatype = "FLT8S")

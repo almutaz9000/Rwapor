@@ -4,18 +4,43 @@
 \alias{wapor_plot_map}
 \title{Plot a raster indicator}
 \usage{
-wapor_plot_map(x, indicator = "value", title = NULL, save = NULL, dpi = 300)
+wapor_plot_map(
+  x,
+  indicator = "value",
+  title = NULL,
+  save = NULL,
+  dpi = 300,
+  max_cells = 1e+06,
+  aggregate_fun = NULL,
+  limits = NULL,
+  show_scale = FALSE,
+  show_north_arrow = FALSE
+)
 }
 \arguments{
 \item{x}{SpatRaster or numeric matrix.}
 
-\item{indicator}{Character indicator name.}
+\item{indicator}{Character indicator name. Adequacy is centered at 1,
+anomalies at 0, and CWP/BWP use a viridis scale.}
 
 \item{title}{Optional title.}
 
 \item{save}{Optional output path. PNG is written at \code{dpi}.}
 
 \item{dpi}{Resolution for saved raster output.}
+
+\item{max_cells}{Maximum cells in a SpatRaster plot preview. Oversized
+continuous rasters are block-aggregated using the mean. Categorical
+rasters require an explicit \code{aggregate_fun}. Set to \code{NULL} to disable the
+limit.}
+
+\item{aggregate_fun}{Optional aggregation function or terra-supported name
+(for example, \code{"modal"}) used when reducing an oversized raster.}
+
+\item{limits}{Optional two-value fill scale limits, useful for comparing maps.}
+
+\item{show_scale, show_north_arrow}{Add a scale bar or north arrow to a
+georeferenced SpatRaster plot. Requires \code{ggspatial}.}
 }
 \value{
 A ggplot object, invisibly if \code{save} is supplied.

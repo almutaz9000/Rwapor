@@ -4,7 +4,13 @@
 \alias{wapor_calc_cwp}
 \title{Compute Crop Water Productivity}
 \usage{
-wapor_calc_cwp(yield_value, aeti_mm, yield_unit = "kg/ha")
+wapor_calc_cwp(
+  yield_value,
+  aeti_mm,
+  yield_unit = "kg/ha",
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 }
 \arguments{
 \item{yield_value}{Numeric. Yield (scalar or raster).}
@@ -12,6 +18,12 @@ wapor_calc_cwp(yield_value, aeti_mm, yield_unit = "kg/ha")
 \item{aeti_mm}{Numeric. Seasonal AETI in mm (scalar or raster).}
 
 \item{yield_unit}{Character. Unit of yield: "kg/ha" (default) or "t/ha".}
+
+\item{provenance}{Optional named provenance records for \code{yield} and \code{aeti}.
+When omitted, raster metadata is checked where available.}
+
+\item{compatibility_mode}{Missing-metadata policy: \code{"warn"} or \code{"strict"}.
+Known incompatibilities always stop the calculation.}
 }
 \value{
 Numeric or SpatRaster. CWP in kg/m3.

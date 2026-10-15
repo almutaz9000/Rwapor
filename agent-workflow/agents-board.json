@@ -1,7 +1,7 @@
 ﻿{
     "$schema_note":  "Machine-readable companion to task-status.md / issues-log.md / session-brief.md. Those .md files stay the human-readable record per START-HERE.md; this file is what the dashboard and other models parse. Update BOTH when state changes -- see START-HERE.md \u0027Cross-model coordination\u0027.",
     "schema_version":  1,
-    "updated_utc":  "2026-10-06T12:46:30Z",
+    "updated_utc":  "2026-10-09T15:51:48Z",
     "known_models":  [
                          "claude",
                          "codex",
@@ -39,6 +39,25 @@
                       "updated_utc":  "2026-09-15"
                   },
                   {
+                      "id":  "prov-v1",
+                      "title":  "Package provenance and compatibility validation",
+                      "status":  "active",
+                      "priority":  "high",
+                      "model":  "hermes",
+                      "attribution":  "recorded",
+                      "files":  [
+                                    "R/provenance.R",
+                                    "R/analysis_engine.R",
+                                    "R/analysis_indicators.R",
+                                    "R/analysis_utils.R",
+                                    "tests/testthat/test-provenance.R"
+                                ],
+                      "notes":  "M1-M4 complete. Indicators 63/engine 79/Shiny-export 96/tiled 44 pass. Validator/provenance 31 each. Calculation guards, season-weight date names, and SHA-256 sidecar export all done. Next M5: sidecar round-trip regression; M6: ts/monitoring; M7: docs.",
+                      "issue_ref":  null,
+                      "claimed_utc":  "2026-10-08T14:11:06Z",
+                      "updated_utc":  "2026-10-08"
+                  },
+                  {
                       "id":  "1.6",
                       "title":  "Explicit alignment reference (mask vs AETI vs custom)",
                       "status":  "done",
@@ -73,17 +92,17 @@
                   {
                       "id":  "2.3",
                       "title":  "Memory benchmark suite",
-                      "status":  "pending",
+                      "status":  "active",
                       "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
+                      "model":  "codex",
+                      "attribution":  "recorded",
                       "files":  [
                                     "tests/testthat/test-memory-scaling.R"
                                 ],
-                      "notes":  "Parameterized 1k-\u003e10k peak-memory gate; tiled engine flat-memory verification.",
+                      "notes":  "Added synthetic 32x32/64x64 tiled-vs-full pixel parity check and fixed measurement so full-memory reference work is excluded from the tile-window cell count. Focused test-memory-scaling.R: 21 assertions pass with NOT_CRAN=true. Window-payload estimate only; actual process RSS gate remains open.",
                       "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-15"
+                      "claimed_utc":  "2026-10-09T15:42:53Z",
+                      "updated_utc":  "2026-10-09"
                   },
                   {
                       "id":  "3.1",
@@ -103,17 +122,17 @@
                   {
                       "id":  "3.3",
                       "title":  "Publication map helpers",
-                      "status":  "pending",
+                      "status":  "done",
                       "priority":  "medium",
-                      "model":  null,
-                      "attribution":  null,
+                      "model":  "codex",
+                      "attribution":  "recorded",
                       "files":  [
                                     "R/viz.R"
                                 ],
-                      "notes":  "Verified 2026-09-18: R/viz.R exists and exports wapor_plot_map, wapor_plot_comparison, wapor_plot_timeseries, wapor_plot_kc_curve, wapor_plot_anomaly (all in NAMESPACE). Still open per spec: indicator-specific colorblind palettes (RdYlGn for adequacy, viridis for CWP, etc.), scale bar, north arrow. Current implementation uses a single blue-to-red gradient for all indicators.",
+                      "notes":  "Indicator-aware scales (adequacy centered at 1, anomalies at 0, CWP/BWP viridis); common comparison limits; 1e6-cell mean aggregation with explicit categorical reducer; optional scale/north annotations. test-viz.R: 14 assertions pass; Rd parse and git diff --check pass. Full suite not rerun.",
                       "issue_ref":  null,
-                      "claimed_utc":  null,
-                      "updated_utc":  "2026-09-18"
+                      "claimed_utc":  "2026-10-09T15:23:05Z",
+                      "updated_utc":  "2026-10-09"
                   },
                   {
                       "id":  "3.4",

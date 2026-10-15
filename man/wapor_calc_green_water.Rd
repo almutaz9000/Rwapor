@@ -4,12 +4,22 @@
 \alias{wapor_calc_green_water}
 \title{Compute Green Water Consumption}
 \usage{
-wapor_calc_green_water(aeti_seasonal, peff_seasonal)
+wapor_calc_green_water(
+  aeti_seasonal,
+  peff_seasonal,
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 }
 \arguments{
 \item{aeti_seasonal}{SpatRaster or numeric. Seasonal AETI (mm).}
 
 \item{peff_seasonal}{SpatRaster or numeric. Seasonal effective precipitation (mm).}
+
+\item{provenance}{Optional named provenance records for \code{aeti} and \code{peff}.}
+
+\item{compatibility_mode}{Missing-metadata policy: \code{"warn"} or \code{"strict"}.
+Known incompatibilities always stop the calculation.}
 }
 \value{
 SpatRaster or numeric. Green water consumption (mm).

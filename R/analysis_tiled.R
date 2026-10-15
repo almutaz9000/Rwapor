@@ -372,6 +372,14 @@ wapor_suggest_tile_size <- function(n_layers,
   dir.create(analysis_dir, recursive = TRUE)
   dir.create(out_dir, recursive = TRUE)
   on.exit(unlink(c(analysis_dir, out_dir), recursive = TRUE, force = TRUE), add = TRUE)
+  old_max_cells <- getOption("Rwapor.tiled_max_cells")
+  on.exit({
+    if (is.null(old_max_cells)) {
+      options(Rwapor.tiled_max_cells = NULL)
+    } else {
+      options(Rwapor.tiled_max_cells = old_max_cells)
+    }
+  }, add = TRUE)
 
   template <- terra::rast(
     nrows = nrow, ncols = ncol, xmin = 0, xmax = ncol, ymin = 0, ymax = nrow,
@@ -404,6 +412,13 @@ wapor_suggest_tile_size <- function(n_layers,
   )
   crop_params <- data.frame(class_value = 1L, crop_label = "Wheat", stringsAsFactors = FALSE)
   options(Rwapor.tiled_max_cells = 0)
+  full <- wapor_run_seasonal_analysis(
+    config = config,
+    crop_params = crop_params,
+    rasters = list(crop_mask = crop_mask, season_start = season_start, season_end = season_end)
+  )
+  # Exclude the full-engine reference run from the tiled-window measurement.
+  options(Rwapor.tiled_max_cells = 0)
   tiled <- wapor_run_seasonal_analysis_tiled(
     config = config,
     crop_params = crop_params,
@@ -412,10 +427,23 @@ wapor_suggest_tile_size <- function(n_layers,
     tile_size = tile_size
   )
   max_cells <- getOption("Rwapor.tiled_max_cells", 0)
+  full_values <- terra::values(full$seasonal_aeti$raster, mat = FALSE)
+  tiled_values <- terra::values(tiled$results$seasonal_aeti$raster, mat = FALSE)
+  comparable <- length(full_values) == length(tiled_values) &&
+    identical(is.na(full_values), is.na(tiled_values))
+  max_abs_diff <- if (comparable) {
+    valid <- !is.na(full_values)
+    if (any(valid)) max(abs(full_values[valid] - tiled_values[valid])) else 0
+  } else {
+    Inf
+  }
   list(
     n_tiles = tiled$n_tiles,
     peak_bytes = as.numeric(max_cells) * 8,
-    full_aoi_bytes = as.numeric(nrow) * as.numeric(ncol) * as.numeric(n_layers) * 8
+    max_window_cells = as.numeric(max_cells),
+    full_aoi_bytes = as.numeric(nrow) * as.numeric(ncol) * as.numeric(n_layers) * 8,
+    pixel_parity = is.finite(max_abs_diff) && max_abs_diff <= 1e-6,
+    max_abs_diff = max_abs_diff
   )
 }
 

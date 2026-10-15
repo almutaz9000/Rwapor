@@ -3,7 +3,32 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session — 2026-10-06 (afternoon) — P2 batch B2 taken over from Hermes and completed (Claude)
+## Current Session - 2026-10-15 - Verification, Remote Sync, and Shiny Architecture Review (Antigravity)
+
+**Verification & Remote Sync**: Executed full test suite across all recent improvements: 6,277 assertions passed, 0 failures. Modernized ggplot2 tidy evaluation in `R/viz.R` (eliminating `aes_string` deprecation warnings, verified 14/14 tests pass cleanly). Synced `docs/BRANCH_HISTORY_AND_RETIREMENT.md`. Verified full test suite (0 failures, 6 skips). Staged, committed, and pushed all verified improvements to remote `origin/version-1.0.6`.
+
+## Previous Session - 2026-10-09 - backlog improvements (Codex)
+
+**Completed 3.3 publication maps:** `R/viz.R` now dispatches adequacy/anomaly palettes around 1/0, uses viridis for CWP/BWP, bounds large raster previews by default (continuous mean aggregation, explicit categorical aggregation), gives comparisons shared limits, and offers optional scale/north-arrow annotations for georeferenced rasters. `test-viz.R` passed 14 assertions; R and Rd parse and `git diff --check` passed. The full suite was not rerun. The board marks 3.3 done.
+
+**Completed 2.3 memory checks:** `test-memory-scaling.R` passes 21 assertions with `NOT_CRAN=true`; tiled output matched full-memory outputs for fixed tile size at 32x32 and 64x64. The benchmark tracks maximum raster-window cells and estimates an 8-byte-per-cell payload. It does not measure OS process RSS, so board task 2.3 remains active.
+
+**Next:** Implement monitoring area weighting only after the active `seasonal-dashboard-semantics` task releases `R/wapor_ts.R`; area semantics are already approved as cell-area × overlap within farms, polygon-area across farms, with coverage retained separately. Provenance (`prov-v1`) and P2 B3 remain owned by active board claims and are untouched here.
+
+## Active Work - 2026-10-08 - provenance validation design approved (Codex)
+
+**Current work (Milestone 3-4 combined, complete):** Engine and indicator integration with the compatibility validator is now comprehensive. All major calculation entry points check provenance:
+
+- `wapor_masked_sum` and `wapor_calc_seasonal_etc` enforce grid and date alignment between stacks.
+- Season weights now use YYYY-MM-DD layer names, enabling date-based alignment checks.
+- CWP, BWP, adequacy, beneficial fraction, green/blue water, ET_rain, and rainfall_surplus all accept an optional `provenance` argument that stops the calculation on known period conflicts.
+- The engine constructs per-month validation metadata and passes it to all derived indicator calculations, so within-engine calls are always compatible.
+- `wapor_export_analysis_outputs` writes `provenance.json` with checksummed relative raster paths for sidecar-based provenance on reload.
+- Sidecar provenance is read automatically in `wapor_validate_compatibility` when given a file-backed SpatRaster; grid mismatch and checksum failures are rejected with a warning.
+
+**Verification**: Indicators 63 pass; engine 79 pass; Shiny/export 96 pass; tiled 44 pass/2 CRAN skips; provenance-validation 31 pass; provenance 31 pass. All parse clean; `git diff --check` passes.
+
+## Previous Session — 2026-10-06 (afternoon) — P2 batch B2 taken over from Hermes and completed (Claude)
 
 **What happened**: `ti-06` and the two zonal fixes were committed and pushed (`cafe3c5`). The
 maintainer asked for a review and takeover of Hermes's work (`p2-b2`, `ti-10`, `ti-12`, `ti-16`).

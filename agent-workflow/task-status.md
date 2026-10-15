@@ -4,6 +4,10 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **2.3 - Memory benchmark suite** - ACTIVE (Codex, 2026-10-09). Added fixed-tile 32x32/64x64 tiled-versus-full pixel parity and stable tile-window cell-count checks; `test-memory-scaling.R` passes 21 assertions with `NOT_CRAN=true`. Process-RSS benchmarking remains open; `peak_bytes` is only an 8-byte-per-cell payload estimate.
+
+- **prov-v1: package provenance and compatibility validation** — ACTIVE (Hermes, 2026-10-08). M1-M4 complete. Provenance is now end-to-end: temporal/schema (M1), public validator API (M2), engine source/output/mask lineage (M3), indicator calculation guards and sidecar persistence (M4). Provenance validator 31, indicators 63, engine 79, Shiny/export 96, tiled 44 pass. Remaining: Milestones 5-7 (sidecar round-trip and regression suite, ts/monitoring/Shiny workflow integration, release docs).
+
 - **P2: zonal statistics, configurable classes, irrigation performance, perennial crops,
   effective rainfall (target 1.0.6)** — APPROVED. B1 claimed 2026-09-30 by hermes (grok-4.6
   orchestrator) on `feat/production-gates`; WP1 implementer dispatched. B2-B5 wait for gate G1-G10.
@@ -219,6 +223,9 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 - None.
 
 ## Recently Completed
+
+- **3.3 publication map quality (Codex, 2026-10-09)** - Indicator-aware scales (adequacy centered at 1, anomalies at 0, CWP/BWP viridis), common comparison limits, bounded previews with explicit categorical aggregation, and optional map scale/north-arrow annotations. `test-viz.R`: 14 assertions passed; R/Rd parse and `git diff --check` passed. Full suite not rerun.
+
 
 - **WaPOR training notebook and participant package (2026-09-23 to 25, Claude)** —
   `training/water-productivity-training.qmd`: manual-style notebook with two L3

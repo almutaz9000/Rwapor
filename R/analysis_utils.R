@@ -643,6 +643,10 @@ wapor_filter_canonical_export_names <- function(names) {
 #' @param include_monthly Logical. Write monthly PCP/Peff summary CSV files.
 #' @param include_seasonal_tables Logical. Write seasonal summary tables as CSV.
 #' @param cog Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.
+#' @details When results contain provenance records, the export writes a
+#'   `provenance.json` sidecar with versioned metadata and relative raster paths.
+#'   Each raster entry includes a SHA-256 checksum so stale sidecars are ignored
+#'   on reload.
 #' @export
 wapor_export_analysis_outputs <- function(results, folder, indicators = character(0), season_label = NULL,
                                           include_dekadal = FALSE,
@@ -761,6 +765,8 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     write_raster(results$beneficial_fraction, seasonal_raster_dir, prefix, "beneficial_fraction")
     write_raster(results$green_water, seasonal_raster_dir, prefix, "green_water")
     write_raster(results$blue_water, seasonal_raster_dir, prefix, "blue_water")
+    write_raster(results$et_rain, seasonal_raster_dir, prefix, "et_rain")
+    write_raster(results$rainfall_surplus, seasonal_raster_dir, prefix, "rainfall_surplus")
     write_raster(results$yield_raster, seasonal_raster_dir, prefix, "yield_raster_t_ha")
 
     if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
@@ -822,6 +828,46 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
       write_table(results$monthly_etc$summary, monthly_dir, prefix, "monthly_etc")
       write_table(results$monthly_green_water$summary, monthly_dir, prefix, "monthly_green_water")
       write_table(results$monthly_blue_water$summary, monthly_dir, prefix, "monthly_blue_water")
+    }
+
+    if (is.list(results$provenance) && length(results$provenance$outputs)) {
+      metadata_key <- function(suffix) {
+        aliases <- c(
+          seasonal_transpiration = "seasonal_t",
+          seasonal_biomass_kg_ha = "seasonal_biomass_kg",
+          seasonal_biomass_t_ha = "seasonal_biomass_t",
+          yield_raster_t_ha = "yield_raster"
+        )
+        if (suffix %in% names(aliases)) return(unname(aliases[[suffix]]))
+        if (suffix %in% names(results$provenance$outputs)) return(suffix)
+        month_match <- regexec("^(monthly_[A-Za-z0-9]+)_([0-9]{4})_([0-9]{2})$", suffix)
+        parts <- regmatches(suffix, month_match)[[1]]
+        if (length(parts) == 4L) return(paste0(parts[[2]], "_", parts[[3]], "-", parts[[4]]))
+        NULL
+      }
+      raster_files <- list.files(season_dir, pattern = "\\.tif$", recursive = TRUE, full.names = TRUE)
+      file_map <- list()
+      root <- normalizePath(season_dir, winslash = "/", mustWork = TRUE)
+      for (raster_path in raster_files) {
+        suffix <- sub(paste0("^", prefix, "_"), "", sub("\\.tif$", "", basename(raster_path)))
+        key <- metadata_key(suffix)
+        if (is.null(key) || is.null(results$provenance$outputs[[key]])) next
+        abs_path <- normalizePath(raster_path, winslash = "/", mustWork = TRUE)
+        relative <- substring(abs_path, nchar(root) + 2L)
+        file_map[[relative]] <- list(
+          output = key,
+          sha256 = digest::digest(file = abs_path, algo = "sha256")
+        )
+      }
+      payload <- list(
+        schema_version = 1L,
+        files = file_map,
+        outputs = lapply(results$provenance$outputs, unclass),
+        sources = lapply(results$provenance$sources %||% list(), unclass)
+      )
+      jsonlite::write_json(.wapor_json_safe(payload), file.path(season_dir, "provenance.json"),
+                           pretty = TRUE, auto_unbox = TRUE, null = "null", na = "null",
+                           dataframe = "rows", digits = NA)
     }
   }
 

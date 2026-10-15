@@ -2,9 +2,41 @@
 # Analysis Indicator Functions: ETc, Adequacy, Peff, CWP/BWP
 # =============================================================================
 
+#' Validate that two raster stacks can be paired layer by layer
+#' @keywords internal
+#' @noRd
+.wapor_validate_raster_layer_alignment <- function(x, y, x_label = "x", y_label = "y") {
+  n_x <- terra::nlyr(x)
+  n_y <- terra::nlyr(y)
+  if (n_x != n_y) {
+    stop(sprintf("Layer count mismatch: %s has %d layers, %s has %d layers.",
+                 x_label, n_x, y_label, n_y), call. = FALSE)
+  }
+  if (!terra::compareGeom(x, y, stopOnError = FALSE, res = TRUE, rowcol = TRUE)) {
+    stop(sprintf("Raster grid mismatch between %s and %s.", x_label, y_label), call. = FALSE)
+  }
+  if (n_x > 1L) {
+    dates_x <- .wapor_raster_layer_dates(x)
+    dates_y <- .wapor_raster_layer_dates(y)
+    if (!is.null(dates_x) && !is.null(dates_y)) {
+      mismatch <- which(dates_x != dates_y)
+      if (length(mismatch)) {
+        i <- mismatch[[1]]
+        stop(sprintf("Raster date mismatch at layer %d: %s date '%s' does not match %s date '%s'.",
+          i, x_label, dates_x[[i]], y_label, dates_y[[i]]), call. = FALSE)
+      }
+    } else {
+      warning(sprintf("Cannot verify that %s and %s layer dates match; pairing layers by position.",
+                      x_label, y_label), call. = FALSE)
+    }
+  }
+  invisible(NULL)
+}
+
 #' Apply Season-Masked Sum
 #'
 #' Computes weighted sum of a raster time series using per-dekad season weights.
+#'
 #'
 #' @param x SpatRaster. Multi-layer raster (e.g., dekadal AETI or RET).
 #' @param weights SpatRaster. Season weights (0-1), same number of layers as x.
@@ -16,10 +48,7 @@
 #' @return A single-layer SpatRaster of weighted sums.
 #' @keywords internal
 wapor_masked_sum <- function(x, weights, layer_multipliers = NULL, incremental = FALSE) {
-  if (terra::nlyr(x) != terra::nlyr(weights)) {
-    stop(sprintf("Layer count mismatch: x has %d layers, weights has %d layers",
-                 terra::nlyr(x), terra::nlyr(weights)), call. = FALSE)
-  }
+  .wapor_validate_raster_layer_alignment(x, weights, "x", "weights")
 
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, terra::nlyr(x))
@@ -208,10 +237,7 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
     stop(sprintf("kc_dekad length (%d) must match ret_dekad layers (%d)",
                  length(kc_dekad), n_layers), call. = FALSE)
   }
-  if (terra::nlyr(season_weights) != n_layers) {
-    stop(sprintf("season_weights layers (%d) must match ret_dekad layers (%d)",
-                 terra::nlyr(season_weights), n_layers), call. = FALSE)
-  }
+  .wapor_validate_raster_layer_alignment(ret_dekad, season_weights, "ret_dekad", "season_weights")
   if (is.null(layer_multipliers)) {
     layer_multipliers <- rep(1, n_layers)
   }
@@ -249,6 +275,9 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI.
 #' @param etc_seasonal SpatRaster or numeric. Seasonal ETc.
+#' @param provenance Optional named provenance records for `aeti` and `etc`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return SpatRaster or numeric of adequacy ratio.
 #' @references
 #' Molden, D. J., & Gates, T. K. (1990). Performance metrics for evaluation of
@@ -258,7 +287,11 @@ wapor_calc_seasonal_etc <- function(ret_dekad, season_weights, kc_dekad,
 #'   a water accounting procedure for complex river basins based on satellite measurements.
 #'   Hydrology and Earth System Sciences, 17(7), 2459-2472.
 #' @export
-wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
+wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal,
+                                    provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  .wapor_check_raster_pair(aeti_seasonal, etc_seasonal, "ratio", provenance,
+                           compatibility_mode, c("aeti", "etc"))
   if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(etc_seasonal, "SpatRaster")) {
     return(wapor_math_adequacy_etc(aeti_seasonal, etc_seasonal))
   }
@@ -275,6 +308,9 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #'
 #' @param t_seasonal SpatRaster or numeric. Seasonal Transpiration (mm).
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
+#' @param provenance Optional named provenance records for `transpiration` and `aeti`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return SpatRaster or numeric of beneficial fraction (0-1).
 #' @references
 #' Perry, C. (2007). Efficient irrigation; inefficient communication; flawed
@@ -284,7 +320,11 @@ wapor_calc_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
 #'   Improving agricultural water productivity: Between optimism and realism.
 #'   Agricultural Water Management, 97(4), 528-535.
 #' @export
-wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
+wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal,
+                                           provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  .wapor_check_raster_pair(t_seasonal, aeti_seasonal, "ratio", provenance,
+                           compatibility_mode, c("transpiration", "aeti"))
   if (!inherits(t_seasonal, "SpatRaster") && !inherits(aeti_seasonal, "SpatRaster")) {
     return(wapor_math_beneficial_fraction(t_seasonal, aeti_seasonal))
   }
@@ -595,6 +635,10 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
 #' @param yield_value Numeric. Yield (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param yield_unit Character. Unit of yield: "kg/ha" (default) or "t/ha".
+#' @param provenance Optional named provenance records for `yield` and `aeti`.
+#'   When omitted, raster metadata is checked where available.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return Numeric or SpatRaster. CWP in kg/m3.
 #' @references
 #' Molden, D. (1997). Accounting for water use and productivity. SWIM Paper 1.
@@ -605,7 +649,14 @@ wapor_calc_seasonal_peff_raster <- function(precip_stack, season_weights, dekad_
 #' @export
 #' @examples
 #' wapor_calc_cwp(5000, 400)  # 5000 kg/ha, 400 mm -> kg/m3
-wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
+wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha",
+                           provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  inputs <- provenance
+  if (is.null(inputs) && (inherits(yield_value, "SpatRaster") || inherits(aeti_mm, "SpatRaster"))) {
+    inputs <- list(yield = yield_value, aeti = aeti_mm)
+  }
+  if (!is.null(inputs)) .wapor_require_compatible(inputs, "water_productivity", compatibility_mode)
   if (!inherits(yield_value, "SpatRaster") && !inherits(aeti_mm, "SpatRaster")) {
     return(wapor_math_cwp(yield_value, aeti_mm, yield_unit = yield_unit))
   }
@@ -627,6 +678,10 @@ wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' @param biomass_value Numeric. Biomass (scalar or raster).
 #' @param aeti_mm Numeric. Seasonal AETI in mm (scalar or raster).
 #' @param biomass_unit Character. Unit: "kg/ha" (default) or "t/ha".
+#' @param provenance Optional named provenance records for `biomass` and `aeti`.
+#'   When omitted, raster metadata is checked where available.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return Numeric or SpatRaster. BWP in kg/m3.
 #' @references
 #' Bastiaanssen, W. G. M., & Steduto, P. (2012). The water productivity score (WPS)
@@ -634,7 +689,14 @@ wapor_calc_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' @export
 #' @examples
 #' wapor_calc_bwp(12000, 400)  # 12000 kg/ha biomass, 400 mm -> kg/m3
-wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
+wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha",
+                           provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  inputs <- provenance
+  if (is.null(inputs) && (inherits(biomass_value, "SpatRaster") || inherits(aeti_mm, "SpatRaster"))) {
+    inputs <- list(biomass = biomass_value, aeti = aeti_mm)
+  }
+  if (!is.null(inputs)) .wapor_require_compatible(inputs, "water_productivity", compatibility_mode)
   if (!inherits(biomass_value, "SpatRaster") && !inherits(aeti_mm, "SpatRaster")) {
     return(wapor_math_bwp(biomass_value, aeti_mm, biomass_unit = biomass_unit))
   }
@@ -657,6 +719,9 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
+#' @param provenance Optional named provenance records for `aeti` and `peff`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return SpatRaster or numeric. Green water consumption (mm).
 #' @references
 #' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
@@ -668,7 +733,11 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
 #' @export
 #' @examples
 #' wapor_calc_green_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 200 mm green water
-wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
+wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal,
+                                   provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  .wapor_check_raster_pair(aeti_seasonal, peff_seasonal, "add", provenance,
+                           compatibility_mode, c("aeti", "peff"))
   if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(peff_seasonal, "SpatRaster")) {
     return(wapor_math_green_water(aeti_seasonal, peff_seasonal))
   }
@@ -682,6 +751,9 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #'
 #' @param aeti_seasonal SpatRaster or numeric. Seasonal AETI (mm).
 #' @param peff_seasonal SpatRaster or numeric. Seasonal effective precipitation (mm).
+#' @param provenance Optional named provenance records for `aeti` and `peff`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
 #' @return SpatRaster or numeric. Blue water consumption (mm).
 #' @references
 #' Falkenmark, M., & Rockström, J. (2004). Balancing water for humans and nature:
@@ -692,12 +764,177 @@ wapor_calc_green_water <- function(aeti_seasonal, peff_seasonal) {
 #' @export
 #' @examples
 #' wapor_calc_blue_water(350, 200)  # 350 mm AETI, 200 mm Peff -> 150 mm blue water
-wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal) {
+wapor_calc_blue_water <- function(aeti_seasonal, peff_seasonal,
+                                  provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  .wapor_check_raster_pair(aeti_seasonal, peff_seasonal, "add", provenance,
+                           compatibility_mode, c("aeti", "peff"))
   if (!inherits(aeti_seasonal, "SpatRaster") && !inherits(peff_seasonal, "SpatRaster")) {
     return(wapor_math_blue_water(aeti_seasonal, peff_seasonal))
   }
   diff_val <- aeti_seasonal - peff_seasonal
   terra::ifel(diff_val > 0, diff_val, 0)
+}
+
+#' Resolve date metadata for a raster time series (internal)
+#'
+#' Prefer explicit terra time metadata, then parse YYYY-MM or YYYY-MM-DD from
+#' layer names. Return NULL when a complete date sequence cannot be established.
+#' @keywords internal
+#' @noRd
+.wapor_raster_layer_dates <- function(x) {
+  n <- terra::nlyr(x)
+  time_values <- tryCatch(terra::time(x), error = function(e) NULL)
+  if (length(time_values) == n && !is.null(time_values) &&
+      all(!is.na(time_values)) && (inherits(time_values, "Date") || inherits(time_values, "POSIXt"))) {
+    return(as.character(as.Date(time_values)))
+  }
+
+  layer_names <- names(x)
+  if (length(layer_names) != n || anyNA(layer_names)) return(NULL)
+  dates <- vapply(layer_names, function(layer_name) {
+    match <- regmatches(
+      layer_name,
+      regexpr("(?<![0-9])[0-9]{4}-[0-9]{2}(-[0-9]{2})?(?![0-9])", layer_name, perl = TRUE)
+    )
+    if (!length(match) || !nzchar(match)) NA_character_ else match
+  }, character(1), USE.NAMES = FALSE)
+  if (anyNA(dates)) NULL else dates
+}
+
+#' Validate matching raster series before pairwise arithmetic (internal)
+#'
+#' @keywords internal
+#' @noRd
+.wapor_validate_matching_raster_series <- function(aeti, precip) {
+  n_aeti <- terra::nlyr(aeti)
+  n_precip <- terra::nlyr(precip)
+  if (n_aeti != n_precip) {
+    stop(sprintf(
+      "Raster layer count mismatch: AETI has %d layers, precipitation has %d layers.",
+      n_aeti, n_precip
+    ), call. = FALSE)
+  }
+
+  aeti_dates <- .wapor_raster_layer_dates(aeti)
+  precip_dates <- .wapor_raster_layer_dates(precip)
+  if (is.null(aeti_dates) || is.null(precip_dates)) {
+    if (n_aeti > 1L) {
+      warning(
+        paste0(
+          "Cannot verify that AETI and precipitation layer dates match because complete date metadata ",
+          "could not be established for both stacks. Pairing layers by position."
+        ),
+        call. = FALSE
+      )
+    }
+    return(invisible(NULL))
+  }
+
+  mismatch <- which(aeti_dates != precip_dates)
+  if (length(mismatch)) {
+    i <- mismatch[[1]]
+    stop(sprintf(
+      paste0(
+        "Raster layer date mismatch at layer %d: AETI date '%s' does not match " ,
+        "precipitation date '%s'. Align both stacks by date before calculating."
+      ),
+      i, aeti_dates[[i]], precip_dates[[i]]
+    ), call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+#' ET from rainfall
+#'
+#' `ET_rain = min(AETI, P)`: the portion of actual evapotranspiration that
+#' cannot exceed gross precipitation in the same period. This is the green-water
+#' split with precipitation instead of USDA-SCS Peff.
+#'
+#' When `precip` is a SpatRaster at a different resolution or CRS than `aeti`
+#' (e.g. L1 PCP at ~5 km vs L3 AETI at 20 m), `precip` is resampled onto the
+#' `aeti` grid using bilinear interpolation before the comparison. The stacks
+#' must have the same layer count. When dates can be read from `terra::time()`
+#' or layer names, they must match in order; a mismatch stops with an error.
+#' If dates cannot be established for both stacks, a warning is issued and
+#' layers are paired by position. Pass `resample_method = "near"` to override.
+#'
+#' @param aeti SpatRaster or numeric. Actual evapotranspiration (mm).
+#' @param precip SpatRaster or numeric. Gross precipitation (mm).
+#' @param resample_method Character. Method for resampling `precip` onto the
+#'   `aeti` grid when geometries differ. Default `"bilinear"` (appropriate for
+#'   the continuous PCP flux). Use `"near"` only for pre-classified rasters.
+#' @param provenance Optional named provenance records for `aeti` and `precip`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
+#' @return SpatRaster or numeric. ET from rainfall (mm), on the `aeti` grid.
+#' @export
+#' @examples
+#' wapor_calc_et_rain(350, 400)  # 350 mm AETI, 400 mm P -> 350 mm
+wapor_calc_et_rain <- function(aeti, precip, resample_method = "bilinear",
+                               provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  if (inherits(aeti, "SpatRaster") && inherits(precip, "SpatRaster")) {
+    .wapor_validate_matching_raster_series(aeti, precip)
+  }
+  .wapor_check_raster_pair(aeti, precip, "harmonized_pair", provenance,
+                           compatibility_mode, c("aeti", "precip"))
+  if (!inherits(aeti, "SpatRaster") && !inherits(precip, "SpatRaster")) {
+    return(wapor_math_et_rain(aeti, precip))
+  }
+  if (inherits(precip, "SpatRaster") && inherits(aeti, "SpatRaster")) {
+    if (!terra::compareGeom(precip, aeti, stopOnError = FALSE, res = TRUE, rowcol = TRUE)) {
+      precip <- wapor_harmonize_raster(precip, aeti, method = resample_method)
+    }
+  }
+  terra::ifel(aeti <= precip, aeti, precip)
+}
+
+#' Rainfall surplus
+#'
+#' `rainfall_surplus = P - min(AETI, P)`, equivalently `max(P - AETI, 0)` when
+#' both inputs are non-negative. This is leftover rain after actual ET in the
+#' same period (potential runoff or recharge), not FAO AQUASTAT IRWR.
+#'
+#' Apply on monthly (or dekadal) layers and sum. A seasonal min lets a wet
+#' month offset a later dry month.
+#'
+#' When `precip` is a SpatRaster at a different resolution or CRS than `aeti`
+#' (e.g. L1 PCP at ~5 km vs L3 AETI at 20 m), `precip` is resampled onto the
+#' `aeti` grid using bilinear interpolation before the arithmetic. The stacks
+#' must have the same layer count. When dates can be read from `terra::time()`
+#' or layer names, they must match in order; a mismatch stops with an error.
+#' If dates cannot be established for both stacks, a warning is issued and
+#' layers are paired by position. Pass `resample_method = "near"` to override.
+#'
+#' @param aeti SpatRaster or numeric. Actual evapotranspiration (mm).
+#' @param precip SpatRaster or numeric. Gross precipitation (mm).
+#' @param resample_method Character. Method for resampling `precip` onto the
+#'   `aeti` grid when geometries differ. Default `"bilinear"`.
+#' @param provenance Optional named provenance records for `aeti` and `precip`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
+#' @return SpatRaster or numeric. Rainfall surplus (mm), on the `aeti` grid.
+#' @export
+#' @examples
+#' wapor_calc_rainfall_surplus(350, 400)  # 50 mm leftover rain
+wapor_calc_rainfall_surplus <- function(aeti, precip, resample_method = "bilinear",
+                                        provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  if (inherits(aeti, "SpatRaster") && inherits(precip, "SpatRaster")) {
+    .wapor_validate_matching_raster_series(aeti, precip)
+  }
+  .wapor_check_raster_pair(aeti, precip, "harmonized_pair", provenance,
+                           compatibility_mode, c("aeti", "precip"))
+  if (!inherits(aeti, "SpatRaster") && !inherits(precip, "SpatRaster")) {
+    return(wapor_math_rainfall_surplus(aeti, precip))
+  }
+  if (inherits(precip, "SpatRaster") && inherits(aeti, "SpatRaster")) {
+    if (!terra::compareGeom(precip, aeti, stopOnError = FALSE, res = TRUE, rowcol = TRUE)) {
+      precip <- wapor_harmonize_raster(precip, aeti, method = resample_method)
+    }
+  }
+  terra::ifel(precip > aeti, precip - aeti, 0)
 }
 
 

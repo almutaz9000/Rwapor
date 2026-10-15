@@ -150,7 +150,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   resampling_method <- utils::modifyList(
     list(
       aeti = "near", crop_mask = "near", ret = "near",
-      pcp = "near", npp = "near", t = "near",
+      pcp = "bilinear", npp = "near", t = "near",
       season_start = "near", season_end = "near"
     ),
     as.list(config$resampling_method %||% list())
@@ -461,6 +461,39 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       results$seasonal_biomass_by_class$mean_seasonal_biomass_kg
   }
 
+  # Canonical season identity shared by engine outputs and compatibility
+  # guards. Hash masks in fixed row windows so the signature is stable without
+  # materializing a full raster in memory.
+  season_definition <- list(
+    start = as.character(as.Date(period[1])),
+    end = as.character(as.Date(period[2])),
+    reference_year = as.integer(ref_year),
+    boundary_source = if (isTRUE(config$use_season_rasters)) "season_rasters" else "configured_period",
+    masks = lapply(list(crop_mask = h_mask, season_start = h_start, season_end = h_end),
+                   .wapor_raster_content_signature)
+  )
+  season_interval <- data.frame(layer = 1L, start_date = season_definition$start,
+    end_date = season_definition$end, temporal_code = "S", metadata_source = "engine_season",
+    stringsAsFactors = FALSE)
+  make_season_validation_meta <- function(raster, units) .wapor_new_provenance(
+    intervals = season_interval,
+    period = list(start = season_definition$start, end = season_definition$end),
+    units = units, grid = .wapor_provenance_grid_signature(raster),
+    season_definition = season_definition
+  )
+  make_month_validation_meta <- function(raster, month_key, units) {
+    month_start <- as.Date(paste0(month_key, "-01"))
+    month_end <- seq(month_start, by = "month", length.out = 2L)[2] - 1
+    .wapor_new_provenance(
+      intervals = data.frame(layer = 1L, start_date = as.character(month_start),
+        end_date = as.character(month_end), temporal_code = "M", metadata_source = "engine_monthly",
+        stringsAsFactors = FALSE),
+      period = list(start = as.character(month_start), end = as.character(month_end)),
+      units = units, grid = .wapor_provenance_grid_signature(raster),
+      season_definition = season_definition
+    )
+  }
+
   # Derived Indicators
   progress_callback(0.70, "Computing derived indicators...")
 
@@ -476,7 +509,13 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # Adequacy ETc
   if ("adequacy_etc" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(combined_etc)) {
-    results$adequacy_etc <- Rwapor::wapor_calc_adequacy_etc(results$seasonal_aeti$raster, combined_etc)
+    results$adequacy_etc <- Rwapor::wapor_calc_adequacy_etc(
+      results$seasonal_aeti$raster, combined_etc,
+      provenance = list(
+        aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm"),
+        etc = make_season_validation_meta(combined_etc, "mm")
+      )
+    )
   }
 
   # Adequacy P95
@@ -488,7 +527,13 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # Beneficial Fraction (T/AETI)
   if ("beneficial_fraction" %in% indicators && !is.null(results$seasonal_aeti) && !is.null(results$seasonal_t)) {
-    results$beneficial_fraction <- Rwapor::wapor_calc_beneficial_fraction(results$seasonal_t$raster, results$seasonal_aeti$raster)
+    results$beneficial_fraction <- Rwapor::wapor_calc_beneficial_fraction(
+      results$seasonal_t$raster, results$seasonal_aeti$raster,
+      provenance = list(
+        transpiration = make_season_validation_meta(results$seasonal_t$raster, "mm"),
+        aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm")
+      )
+    )
   }
 
   if (any(c("green_water", "blue_water") %in% indicators) && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
@@ -499,11 +544,19 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     for (month_key in month_keys) {
       monthly_green[[month_key]] <- Rwapor::wapor_calc_green_water(
         results$monthly_aeti$rasters[[month_key]],
-        results$monthly_precip_peff$monthly_peff[[month_key]]
+        results$monthly_precip_peff$monthly_peff[[month_key]],
+        provenance = list(
+          aeti = make_month_validation_meta(results$monthly_aeti$rasters[[month_key]], month_key, "mm"),
+          peff = make_month_validation_meta(results$monthly_precip_peff$monthly_peff[[month_key]], month_key, "mm")
+        )
       )
       monthly_blue[[month_key]] <- Rwapor::wapor_calc_blue_water(
         results$monthly_aeti$rasters[[month_key]],
-        results$monthly_precip_peff$monthly_peff[[month_key]]
+        results$monthly_precip_peff$monthly_peff[[month_key]],
+        provenance = list(
+          aeti = make_month_validation_meta(results$monthly_aeti$rasters[[month_key]], month_key, "mm"),
+          peff = make_month_validation_meta(results$monthly_precip_peff$monthly_peff[[month_key]], month_key, "mm")
+        )
       )
     }
 
@@ -535,6 +588,35 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if ("green_water" %in% indicators) results$green_water <- sum_monthly(results$monthly_green_water)
   if ("blue_water" %in% indicators)  results$blue_water <- sum_monthly(results$monthly_blue_water)
 
+  # Rainfall surplus from gross P (not Peff). Split each month, then sum.
+  if ("rainfall_surplus" %in% indicators && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
+    month_keys <- intersect(names(results$monthly_aeti$rasters), names(results$monthly_precip_peff$monthly_pcp))
+    monthly_et_rain <- list()
+    monthly_surplus <- list()
+    for (month_key in month_keys) {
+      monthly_et_rain[[month_key]] <- Rwapor::wapor_calc_et_rain(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_pcp[[month_key]],
+        provenance = list(
+          aeti = make_month_validation_meta(results$monthly_aeti$rasters[[month_key]], month_key, "mm"),
+          precip = make_month_validation_meta(results$monthly_precip_peff$monthly_pcp[[month_key]], month_key, "mm")
+        )
+      )
+      monthly_surplus[[month_key]] <- Rwapor::wapor_calc_rainfall_surplus(
+        results$monthly_aeti$rasters[[month_key]],
+        results$monthly_precip_peff$monthly_pcp[[month_key]],
+        provenance = list(
+          aeti = make_month_validation_meta(results$monthly_aeti$rasters[[month_key]], month_key, "mm"),
+          precip = make_month_validation_meta(results$monthly_precip_peff$monthly_pcp[[month_key]], month_key, "mm")
+        )
+      )
+    }
+    results$monthly_et_rain <- list(rasters = monthly_et_rain, summary = series_summary(monthly_et_rain, "et_rain_mean_mm"))
+    results$monthly_rainfall_surplus <- list(rasters = monthly_surplus, summary = series_summary(monthly_surplus, "surplus_mean_mm"))
+    results$et_rain <- sum_monthly(results$monthly_et_rain)
+    results$rainfall_surplus <- sum_monthly(results$monthly_rainfall_surplus)
+  }
+
   # Yield and CWP/BWP
   if (any(c("yield_npp", "cwp_bwp") %in% indicators) && !is.null(results$seasonal_biomass)) {
     yield_layers <- list()
@@ -563,11 +645,23 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
     if (!is.null(results$yield_raster)) {
-      cwp_raster <- Rwapor::wapor_calc_cwp(results$yield_raster, results$seasonal_aeti$raster, yield_unit = "t/ha")
+      cwp_raster <- Rwapor::wapor_calc_cwp(
+        results$yield_raster, results$seasonal_aeti$raster, yield_unit = "t/ha",
+        provenance = list(
+          yield = make_season_validation_meta(results$yield_raster, "t/ha"),
+          aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm")
+        )
+      )
       results$cwp <- wapor_masked_global_mean(cwp_raster, valid_crop_mask, area = pixel_area_r)
     }
     if (!is.null(results$seasonal_biomass_t)) {
-      bwp_raster <- Rwapor::wapor_calc_bwp(results$seasonal_biomass_t, results$seasonal_aeti$raster, biomass_unit = "t/ha")
+      bwp_raster <- Rwapor::wapor_calc_bwp(
+        results$seasonal_biomass_t, results$seasonal_aeti$raster, biomass_unit = "t/ha",
+        provenance = list(
+          biomass = make_season_validation_meta(results$seasonal_biomass_t, "t/ha"),
+          aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm")
+        )
+      )
       results$bwp <- wapor_masked_global_mean(bwp_raster, valid_crop_mask, area = pixel_area_r)
     }
   }
@@ -586,6 +680,82 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     n_tiles_written = run$n_tiles_written,
     aggregation_paths = vapply(job$specs, `[[`, character(1), "path")
   )
+
+  source_provenance <- list()
+  for (key in intersect(names(kernel_vars), names(var_codes))) {
+    source <- kernel_vars[[key]]
+    intervals <- lapply(seq_along(source$paths), function(i) {
+      parsed <- .wapor_interval_from_layer_name(basename(source$paths[[i]]), source$variable)
+      data.frame(
+        layer = as.integer(i), layer_name = basename(source$paths[[i]]),
+        start_date = if (is.null(parsed)) NA_character_ else parsed$start_date,
+        end_date = if (is.null(parsed)) NA_character_ else parsed$end_date,
+        temporal_code = if (is.null(parsed)) NA_character_ else parsed$temporal_code,
+        metadata_source = if (is.null(parsed)) "unknown" else "resolved_source_path",
+        stringsAsFactors = FALSE
+      )
+    })
+    intervals <- if (length(intervals)) do.call(rbind, intervals) else NULL
+    source_provenance[[key]] <- .wapor_new_provenance(
+      variable = source$variable,
+      intervals = intervals,
+      period = list(start = as.character(as.Date(period[1])), end = as.character(as.Date(period[2]))),
+      units = if (key %in% c("aeti", "ret", "pcp", "t")) "mm" else if (key == "npp") "gC/m2" else NULL,
+      value_semantics = "source_interval_total_or_rate_normalized_by_engine",
+      grid = .wapor_provenance_grid_signature(template_r),
+      coverage = list(minimum_required = min_coverage),
+      operation = list(type = "source", resampling = source$method),
+      season_definition = season_definition,
+      source = if (length(source$paths)) source$paths[[1]] else NULL
+    )
+  }
+  results$provenance <- list(sources = source_provenance, outputs = list())
+  add_output_provenance <- function(name, raster, parents, units, operation) {
+    if (!inherits(raster, "SpatRaster")) return(invisible(NULL))
+    parent_ids <- lapply(parents, function(parent) source_provenance[[parent]]$dataset_id)
+    parent_ids <- Filter(Negate(is.null), parent_ids)
+    results$provenance$outputs[[name]] <<- .wapor_new_provenance(
+      variable = NULL,
+      intervals = data.frame(layer = 1L, start_date = season_definition$start,
+        end_date = season_definition$end, temporal_code = "S", metadata_source = "engine_season",
+        stringsAsFactors = FALSE),
+      period = list(start = season_definition$start, end = season_definition$end),
+      units = units, value_semantics = "seasonal_aggregate",
+      grid = .wapor_provenance_grid_signature(raster),
+      coverage = list(minimum_required = min_coverage),
+      operation = operation, parents = parent_ids,
+      season_definition = season_definition
+    )
+    invisible(NULL)
+  }
+  if (!is.null(results$seasonal_aeti)) add_output_provenance("seasonal_aeti", results$seasonal_aeti$raster, "aeti", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_ret)) add_output_provenance("seasonal_ret", results$seasonal_ret$raster, "ret", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_biomass_kg)) add_output_provenance("seasonal_biomass_kg", results$seasonal_biomass_kg, "npp", "kg/ha", list(type = "seasonal_sum", conversion = "gC/m2_to_kg/ha"))
+  if (!is.null(results$seasonal_biomass_t)) add_output_provenance("seasonal_biomass_t", results$seasonal_biomass_t, "npp", "t/ha", list(type = "seasonal_sum", conversion = "kg/ha_to_t/ha"))
+  if (!is.null(results$yield_raster)) add_output_provenance("yield_raster", results$yield_raster, "npp", "t/ha", list(type = "yield_from_biomass_and_crop_parameters"))
+  if (!is.null(results$seasonal_t)) add_output_provenance("seasonal_t", results$seasonal_t$raster, "t", "mm", list(type = "seasonal_sum"))
+  add_monthly_provenance <- function(series_name, series, parent, units) {
+    if (is.null(series$rasters)) return(invisible(NULL))
+    for (month_key in names(series$rasters)) {
+      month_start <- as.Date(paste0(month_key, "-01"))
+      month_end <- seq(month_start, by = "month", length.out = 2L)[2] - 1
+      results$provenance$outputs[[paste0(series_name, "_", month_key)]] <<- .wapor_new_provenance(
+        intervals = data.frame(layer = 1L, start_date = as.character(month_start),
+          end_date = as.character(month_end), temporal_code = "M", metadata_source = "engine_monthly",
+          stringsAsFactors = FALSE),
+        period = list(start = as.character(month_start), end = as.character(month_end)),
+        units = units, value_semantics = "monthly_aggregate",
+        grid = .wapor_provenance_grid_signature(series$rasters[[month_key]]),
+        coverage = list(minimum_required = min_coverage),
+        operation = list(type = "monthly_aggregate"),
+        parents = list(source_provenance[[parent]]$dataset_id),
+        season_definition = season_definition
+      )
+    }
+    invisible(NULL)
+  }
+  add_monthly_provenance("monthly_aeti", results$monthly_aeti, "aeti", "mm")
+  add_monthly_provenance("monthly_t", results$monthly_t, "t", "mm")
 
   extra_steps <- setdiff(indicators, .wapor_builtin_indicator_steps())
   extra_steps <- intersect(extra_steps, wapor_list_indicator_steps())
@@ -630,9 +800,9 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 #' @noRd
 .wapor_needed_inputs <- function(indicators) {
   list(
-    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction") %in% indicators),
+    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction", "rainfall_surplus") %in% indicators),
     ret = any(c("agg_ret", "etc", "adequacy_etc") %in% indicators),
-    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% indicators),
+    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "rainfall_surplus") %in% indicators),
     npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators),
     t = any(c("agg_t", "beneficial_fraction") %in% indicators),
     etc = any(c("etc", "adequacy_etc") %in% indicators)
