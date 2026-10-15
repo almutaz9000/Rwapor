@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Plot a raster indicator</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/viz.R" class="external-link"><code>R/viz.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.6/R/viz.R" class="external-link"><code>R/viz.R</code></a></small>
       <div class="d-none name"><code>wapor_plot_map.Rd</code></div>
     </div>
 
@@ -48,7 +48,18 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">wapor_plot_map</span><span class="op">(</span><span class="va">x</span>, indicator <span class="op">=</span> <span class="st">"value"</span>, title <span class="op">=</span> <span class="cn">NULL</span>, save <span class="op">=</span> <span class="cn">NULL</span>, dpi <span class="op">=</span> <span class="fl">300</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">wapor_plot_map</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  indicator <span class="op">=</span> <span class="st">"value"</span>,</span>
+<span>  title <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  save <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  dpi <span class="op">=</span> <span class="fl">300</span>,</span>
+<span>  max_cells <span class="op">=</span> <span class="fl">1e+06</span>,</span>
+<span>  aggregate_fun <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  limits <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  show_scale <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  show_north_arrow <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -60,7 +71,8 @@
 
 
 <dt id="arg-indicator">indicator<a class="anchor" aria-label="anchor" href="#arg-indicator"></a></dt>
-<dd><p>Character indicator name.</p></dd>
+<dd><p>Character indicator name. Adequacy is centered at 1,
+anomalies at 0, and CWP/BWP use a viridis scale.</p></dd>
 
 
 <dt id="arg-title">title<a class="anchor" aria-label="anchor" href="#arg-title"></a></dt>
@@ -73,6 +85,27 @@
 
 <dt id="arg-dpi">dpi<a class="anchor" aria-label="anchor" href="#arg-dpi"></a></dt>
 <dd><p>Resolution for saved raster output.</p></dd>
+
+
+<dt id="arg-max-cells">max_cells<a class="anchor" aria-label="anchor" href="#arg-max-cells"></a></dt>
+<dd><p>Maximum cells in a SpatRaster plot preview. Oversized
+continuous rasters are block-aggregated using the mean. Categorical
+rasters require an explicit <code>aggregate_fun</code>. Set to <code>NULL</code> to disable the
+limit.</p></dd>
+
+
+<dt id="arg-aggregate-fun">aggregate_fun<a class="anchor" aria-label="anchor" href="#arg-aggregate-fun"></a></dt>
+<dd><p>Optional aggregation function or terra-supported name
+(for example, <code>"modal"</code>) used when reducing an oversized raster.</p></dd>
+
+
+<dt id="arg-limits">limits<a class="anchor" aria-label="anchor" href="#arg-limits"></a></dt>
+<dd><p>Optional two-value fill scale limits, useful for comparing maps.</p></dd>
+
+
+<dt id="arg-show-scale-show-north-arrow">show_scale, show_north_arrow<a class="anchor" aria-label="anchor" href="#arg-show-scale-show-north-arrow"></a></dt>
+<dd><p>Add a scale bar or north arrow to a
+georeferenced SpatRaster plot. Requires <code>ggspatial</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

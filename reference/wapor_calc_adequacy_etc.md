@@ -9,7 +9,12 @@ crop demand.
 ## Usage
 
 ``` r
-wapor_calc_adequacy_etc(aeti_seasonal, etc_seasonal)
+wapor_calc_adequacy_etc(
+  aeti_seasonal,
+  etc_seasonal,
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 ```
 
 ## Arguments
@@ -21,6 +26,15 @@ wapor_calc_adequacy_etc(aeti_seasonal, etc_seasonal)
 - etc_seasonal:
 
   SpatRaster or numeric. Seasonal ETc.
+
+- provenance:
+
+  Optional named provenance records for `aeti` and `etc`.
+
+- compatibility_mode:
+
+  Missing-metadata policy: `"warn"` or `"strict"`. Known
+  incompatibilities always stop the calculation.
 
 ## Value
 

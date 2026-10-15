@@ -289,11 +289,17 @@ function
 
 **Priority**: MEDIUM  
 **Effort**: 2 days  
-**Files**: `tests/testthat/test-memory-scaling.R` (new)
+**Files**: `tests/testthat/test-memory-scaling.R`
 
-**Tasks**: - \[ \] Parameterized test: grid 1k→10k, measure peak memory
-(`profvis` or `bench`) - \[ \] Gate: fail if memory grows \> 2x for 4x
-grid (current engine) - \[ \] Tiled engine: verify flat memory
+**Progress (2026-10-09)**: - \[x\] Window geometry test covers 1,000 to
+10,000 pixel grids and asserts tile cells cover the AOI exactly without
+allocating a full-grid window. - \[x\] Fixed-tile 32x32 and 64x64
+synthetic seasonal runs compare tiled outputs pixel-by-pixel to the
+full-memory engine and assert the observed maximum source-window cell
+count stays constant as AOI size grows. - \[ \] Add a separate
+process-RSS benchmark across the planned 1k to 10k cases. The current
+`peak_bytes` is a deterministic 8-byte-per-cell window-payload estimate,
+not measured process RSS; do not use it as an absolute RAM gate.
 
 ------------------------------------------------------------------------
 
@@ -337,14 +343,22 @@ implemented, exported - \[x\]
 `wapor_plot_timeseries(df, value, group, save)` — implemented,
 exported - \[x\] `wapor_plot_kc_curve(kc_daily, save)` — implemented,
 exported - \[x\] `wapor_plot_anomaly(zscore_array, save)` — implemented,
-exported - \[ \] Colorblind palettes per indicator (RdYlGn for adequacy,
-viridis for CWP, etc.) — **still open**: current implementation uses
-single blue-to-red gradient for all indicators - \[ \] Scale bar (km),
-north arrow — **still open**: `ggspatial` in Suggests but not called -
-\[ \] 300 dpi output — implemented via `dpi` parameter
+exported - \[x\] Colorblind palettes per indicator: adequacy centered at
+1, anomalies at 0, CWP/BWP use viridis; other continuous indicators use
+viridis. - \[x\] Optional scale bar and north arrow for georeferenced
+SpatRaster plots via `ggspatial`. - \[x\] Large-raster preview bounded
+at 1,000,000 cells by default: continuous rasters aggregate with the
+mean; categorical rasters require explicit `aggregate_fun`. Comparison
+panels share common limits by default. - \[x\] 300 dpi output via `dpi`
+parameter.
 
-Core functions delivered; scientific plotting quality (palettes, scale,
-north arrow) still pending.
+**Verification (2026-10-09)**: `tests/testthat/test-viz.R` 14 assertions
+pass; R and Rd parse; `git diff --check` passes. Full package suite not
+rerun.
+
+Core plotting functions and publication-scale improvements are
+implemented. Matrix inputs are still user-sized and are rejected above
+the preview limit rather than silently reshaped.
 
 ------------------------------------------------------------------------
 

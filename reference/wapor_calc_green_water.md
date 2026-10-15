@@ -7,7 +7,12 @@ soil).
 ## Usage
 
 ``` r
-wapor_calc_green_water(aeti_seasonal, peff_seasonal)
+wapor_calc_green_water(
+  aeti_seasonal,
+  peff_seasonal,
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 ```
 
 ## Arguments
@@ -19,6 +24,15 @@ wapor_calc_green_water(aeti_seasonal, peff_seasonal)
 - peff_seasonal:
 
   SpatRaster or numeric. Seasonal effective precipitation (mm).
+
+- provenance:
+
+  Optional named provenance records for `aeti` and `peff`.
+
+- compatibility_mode:
+
+  Missing-metadata policy: `"warn"` or `"strict"`. Known
+  incompatibilities always stop the calculation.
 
 ## Value
 

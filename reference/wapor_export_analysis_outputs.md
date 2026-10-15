@@ -53,3 +53,10 @@ wapor_export_analysis_outputs(
 - cog:
 
   Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.
+
+## Details
+
+When results contain provenance records, the export writes a
+`provenance.json` sidecar with versioned metadata and relative raster
+paths. Each raster entry includes a SHA-256 checksum so stale sidecars
+are ignored on reload.

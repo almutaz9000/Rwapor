@@ -8,7 +8,13 @@ evapotranspired water.
 ## Usage
 
 ``` r
-wapor_calc_cwp(yield_value, aeti_mm, yield_unit = "kg/ha")
+wapor_calc_cwp(
+  yield_value,
+  aeti_mm,
+  yield_unit = "kg/ha",
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 ```
 
 ## Arguments
@@ -24,6 +30,16 @@ wapor_calc_cwp(yield_value, aeti_mm, yield_unit = "kg/ha")
 - yield_unit:
 
   Character. Unit of yield: "kg/ha" (default) or "t/ha".
+
+- provenance:
+
+  Optional named provenance records for `yield` and `aeti`. When
+  omitted, raster metadata is checked where available.
+
+- compatibility_mode:
+
+  Missing-metadata policy: `"warn"` or `"strict"`. Known
+  incompatibilities always stop the calculation.
 
 ## Value
 

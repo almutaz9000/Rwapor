@@ -11,7 +11,10 @@ wapor_plot_comparison(
   indicator = "value",
   suptitle = NULL,
   save = NULL,
-  dpi = 300
+  dpi = 300,
+  limits = NULL,
+  max_cells = 1e+06,
+  aggregate_fun = NULL
 )
 ```
 
@@ -40,6 +43,21 @@ wapor_plot_comparison(
 - dpi:
 
   Resolution for saved output.
+
+- limits:
+
+  Optional common fill limits. Defaults to the global range across all
+  input maps so panels are directly comparable.
+
+- max_cells:
+
+  Maximum cells per SpatRaster preview. See
+  [`wapor_plot_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.md).
+
+- aggregate_fun:
+
+  Optional reduction function for oversized rasters. See
+  [`wapor_plot_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.md).
 
 ## Value
 

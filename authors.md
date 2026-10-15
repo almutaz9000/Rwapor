@@ -11,7 +11,7 @@
 ## Citation
 
 Source:
-[`inst/CITATION`](https://github.com/almutaz9000/Rwapor/blob/v1.0.6/inst/CITATION)
+[`inst/CITATION`](https://github.com/almutaz9000/Rwapor/blob/version-1.0.6/inst/CITATION)
 
 Mohammed, A., WaPOR-DL Contributors, & FAO (2026). Rwapor: Download and
 Process WaPOR and AgERA5 Data. R package version 1.0.6.

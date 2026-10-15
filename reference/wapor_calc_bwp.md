@@ -8,7 +8,13 @@ transpired.
 ## Usage
 
 ``` r
-wapor_calc_bwp(biomass_value, aeti_mm, biomass_unit = "kg/ha")
+wapor_calc_bwp(
+  biomass_value,
+  aeti_mm,
+  biomass_unit = "kg/ha",
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 ```
 
 ## Arguments
@@ -24,6 +30,16 @@ wapor_calc_bwp(biomass_value, aeti_mm, biomass_unit = "kg/ha")
 - biomass_unit:
 
   Character. Unit: "kg/ha" (default) or "t/ha".
+
+- provenance:
+
+  Optional named provenance records for `biomass` and `aeti`. When
+  omitted, raster metadata is checked where available.
+
+- compatibility_mode:
+
+  Missing-metadata policy: `"warn"` or `"strict"`. Known
+  incompatibilities always stop the calculation.
 
 ## Value
 

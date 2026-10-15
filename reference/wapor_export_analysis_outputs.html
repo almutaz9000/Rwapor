@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Export Analysis Outputs to Structured Folders</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/analysis_utils.R" class="external-link"><code>R/analysis_utils.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.6/R/analysis_utils.R" class="external-link"><code>R/analysis_utils.R</code></a></small>
       <div class="d-none name"><code>wapor_export_analysis_outputs.Rd</code></div>
     </div>
 
@@ -98,6 +98,13 @@ they are large and the inputs are usually already on disk.</p></dd>
 <dd><p>Logical. Write rasters as Cloud-Optimized GeoTIFF when possible.</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>When results contain provenance records, the export writes a
+<code>provenance.json</code> sidecar with versioned metadata and relative raster paths.
+Each raster entry includes a SHA-256 checksum so stale sidecars are ignored
+on reload.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>

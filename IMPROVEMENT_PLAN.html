@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Rwapor Improvement Plan</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/IMPROVEMENT_PLAN.md" class="external-link"><code>IMPROVEMENT_PLAN.md</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.6/IMPROVEMENT_PLAN.md" class="external-link"><code>IMPROVEMENT_PLAN.md</code></a></small>
     </div>
 
 <div id="rwapor-improvement-plan" class="section level1">
@@ -133,8 +133,8 @@
 <hr></div>
 <div class="section level3">
 <h3 id="id_23-memory-benchmark-suite">2.3 Memory Benchmark Suite<a class="anchor" aria-label="anchor" href="#id_23-memory-benchmark-suite"></a></h3>
-<p><strong>Priority</strong>: MEDIUM<br><strong>Effort</strong>: 2 days<br><strong>Files</strong>: <code>tests/testthat/test-memory-scaling.R</code> (new)</p>
-<p><strong>Tasks</strong>: - [ ] Parameterized test: grid 1k→10k, measure peak memory (<code>profvis</code> or <code>bench</code>) - [ ] Gate: fail if memory grows &gt; 2x for 4x grid (current engine) - [ ] Tiled engine: verify flat memory</p>
+<p><strong>Priority</strong>: MEDIUM<br><strong>Effort</strong>: 2 days<br><strong>Files</strong>: <code>tests/testthat/test-memory-scaling.R</code></p>
+<p><strong>Progress (2026-10-09)</strong>: - [x] Window geometry test covers 1,000 to 10,000 pixel grids and asserts tile cells cover the AOI exactly without allocating a full-grid window. - [x] Fixed-tile 32x32 and 64x64 synthetic seasonal runs compare tiled outputs pixel-by-pixel to the full-memory engine and assert the observed maximum source-window cell count stays constant as AOI size grows. - [ ] Add a separate process-RSS benchmark across the planned 1k to 10k cases. The current <code>peak_bytes</code> is a deterministic 8-byte-per-cell window-payload estimate, not measured process RSS; do not use it as an absolute RAM gate.</p>
 <hr></div>
 </div>
 <div class="section level2">
@@ -152,8 +152,9 @@
 <div class="section level3">
 <h3 id="id_33-publication-map-helpers-port-from-waporbox-viz-partially-done-verified-2026-09-18">3.3 Publication Map Helpers (Port from waporbox viz) (PARTIALLY DONE, verified 2026-09-18)<a class="anchor" aria-label="anchor" href="#id_33-publication-map-helpers-port-from-waporbox-viz-partially-done-verified-2026-09-18"></a></h3>
 <p><strong>Priority</strong>: MEDIUM<br><strong>Effort</strong>: 3 days<br><strong>Files</strong>: <code>R/viz.R</code> (exists)</p>
-<p><strong>Tasks</strong>: - [x] <code>wapor_plot_map(array, indicator, title, save, dpi = 300)</code> — implemented, exported, in NAMESPACE - [x] <code>wapor_plot_comparison(arrays, titles, indicator, suptitle, save)</code> — implemented, exported - [x] <code>wapor_plot_timeseries(df, value, group, save)</code> — implemented, exported - [x] <code>wapor_plot_kc_curve(kc_daily, save)</code> — implemented, exported - [x] <code>wapor_plot_anomaly(zscore_array, save)</code> — implemented, exported - [ ] Colorblind palettes per indicator (RdYlGn for adequacy, viridis for CWP, etc.) — <strong>still open</strong>: current implementation uses single blue-to-red gradient for all indicators - [ ] Scale bar (km), north arrow — <strong>still open</strong>: <code>ggspatial</code> in Suggests but not called - [ ] 300 dpi output — implemented via <code>dpi</code> parameter</p>
-<p>Core functions delivered; scientific plotting quality (palettes, scale, north arrow) still pending.</p>
+<p><strong>Tasks</strong>: - [x] <code>wapor_plot_map(array, indicator, title, save, dpi = 300)</code> — implemented, exported, in NAMESPACE - [x] <code>wapor_plot_comparison(arrays, titles, indicator, suptitle, save)</code> — implemented, exported - [x] <code>wapor_plot_timeseries(df, value, group, save)</code> — implemented, exported - [x] <code>wapor_plot_kc_curve(kc_daily, save)</code> — implemented, exported - [x] <code>wapor_plot_anomaly(zscore_array, save)</code> — implemented, exported - [x] Colorblind palettes per indicator: adequacy centered at 1, anomalies at 0, CWP/BWP use viridis; other continuous indicators use viridis. - [x] Optional scale bar and north arrow for georeferenced SpatRaster plots via <code>ggspatial</code>. - [x] Large-raster preview bounded at 1,000,000 cells by default: continuous rasters aggregate with the mean; categorical rasters require explicit <code>aggregate_fun</code>. Comparison panels share common limits by default. - [x] 300 dpi output via <code>dpi</code> parameter.</p>
+<p><strong>Verification (2026-10-09)</strong>: <code>tests/testthat/test-viz.R</code> 14 assertions pass; R and Rd parse; <code>git diff --check</code> passes. Full package suite not rerun.</p>
+<p>Core plotting functions and publication-scale improvements are implemented. Matrix inputs are still user-sized and are rejected above the preview limit rather than silently reshaped.</p>
 <hr></div>
 <div class="section level3">
 <h3 id="id_34-anomaly--trend-module-port-from-waporbox-mostly-done-verified-2026-09-17">3.4 Anomaly &amp; Trend Module (Port from waporbox) (MOSTLY DONE, verified 2026-09-17)<a class="anchor" aria-label="anchor" href="#id_34-anomaly--trend-module-port-from-waporbox-mostly-done-verified-2026-09-17"></a></h3>

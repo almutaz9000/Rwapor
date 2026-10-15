@@ -8,7 +8,12 @@ non-beneficial soil evaporation and canopy interception losses.
 ## Usage
 
 ``` r
-wapor_calc_beneficial_fraction(t_seasonal, aeti_seasonal)
+wapor_calc_beneficial_fraction(
+  t_seasonal,
+  aeti_seasonal,
+  provenance = NULL,
+  compatibility_mode = c("warn", "strict")
+)
 ```
 
 ## Arguments
@@ -20,6 +25,15 @@ wapor_calc_beneficial_fraction(t_seasonal, aeti_seasonal)
 - aeti_seasonal:
 
   SpatRaster or numeric. Seasonal AETI (mm).
+
+- provenance:
+
+  Optional named provenance records for `transpiration` and `aeti`.
+
+- compatibility_mode:
+
+  Missing-metadata policy: `"warn"` or `"strict"`. Known
+  incompatibilities always stop the calculation.
 
 ## Value
 

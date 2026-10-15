@@ -38,7 +38,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Plot several raster indicators side by side</h1>
-      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/v1.0.6/R/viz.R" class="external-link"><code>R/viz.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/almutaz9000/Rwapor/blob/version-1.0.6/R/viz.R" class="external-link"><code>R/viz.R</code></a></small>
       <div class="d-none name"><code>wapor_plot_comparison.Rd</code></div>
     </div>
 
@@ -54,7 +54,10 @@
 <span>  indicator <span class="op">=</span> <span class="st">"value"</span>,</span>
 <span>  suptitle <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  save <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  dpi <span class="op">=</span> <span class="fl">300</span></span>
+<span>  dpi <span class="op">=</span> <span class="fl">300</span>,</span>
+<span>  limits <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_cells <span class="op">=</span> <span class="fl">1e+06</span>,</span>
+<span>  aggregate_fun <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -84,6 +87,21 @@
 
 <dt id="arg-dpi">dpi<a class="anchor" aria-label="anchor" href="#arg-dpi"></a></dt>
 <dd><p>Resolution for saved output.</p></dd>
+
+
+<dt id="arg-limits">limits<a class="anchor" aria-label="anchor" href="#arg-limits"></a></dt>
+<dd><p>Optional common fill limits. Defaults to the global range across
+all input maps so panels are directly comparable.</p></dd>
+
+
+<dt id="arg-max-cells">max_cells<a class="anchor" aria-label="anchor" href="#arg-max-cells"></a></dt>
+<dd><p>Maximum cells per SpatRaster preview. See
+<code><a href="wapor_plot_map.html">wapor_plot_map()</a></code>.</p></dd>
+
+
+<dt id="arg-aggregate-fun">aggregate_fun<a class="anchor" aria-label="anchor" href="#arg-aggregate-fun"></a></dt>
+<dd><p>Optional reduction function for oversized rasters. See
+<code><a href="wapor_plot_map.html">wapor_plot_map()</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

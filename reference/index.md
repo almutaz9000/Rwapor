@@ -58,6 +58,8 @@
   : Compute Crop Water Productivity
 - [`wapor_calc_equity()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_equity.md)
   : Equity of ET between units
+- [`wapor_calc_et_rain()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_et_rain.md)
+  : ET from rainfall
 - [`wapor_calc_green_water()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_green_water.md)
   : Compute Green Water Consumption
 - [`wapor_calc_monthly_weighted_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_rasters.md)
@@ -72,6 +74,8 @@
   : USDA-SCS effective precipitation from monthly rasters
 - [`wapor_calc_productivity_gap()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_productivity_gap.md)
   : Productivity target and gap
+- [`wapor_calc_rainfall_surplus()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_rainfall_surplus.md)
+  : Rainfall surplus
 - [`wapor_calc_reliability()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_reliability.md)
   : Temporal reliability of relative ET
 - [`wapor_calc_rwd()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_rwd.md)
@@ -245,6 +249,8 @@
   : Split a multi-band wapor_map() stack into one file per date
 - [`wapor_validate_analysis_config()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_analysis_config.md)
   : Validate Analysis Configuration
+- [`wapor_validate_compatibility()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_compatibility.md)
+  : Validate metadata compatibility for a multi-input calculation
 - [`wapor_validate_crop_params()`](https://almutaz9000.github.io/Rwapor/reference/wapor_validate_crop_params.md)
   : Validate Crop Parameters
 - [`wapor_variable_metadata()`](https://almutaz9000.github.io/Rwapor/reference/wapor_variable_metadata.md)
