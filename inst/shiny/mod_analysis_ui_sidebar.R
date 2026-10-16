@@ -68,14 +68,23 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           # 2. Season Definition
           shiny::tags$span("Season Definition", class = "ctrl-group-label"),
           shiny::textInput(ns("an_season_label"), "Season Label", value = "Winter 2023"),
-          shiny::checkboxInput(ns("an_batch_mode"), "Batch Mode", FALSE),
+          shiny::div(
+            class = "d-flex align-items-center justify-content-between mb-1",
+            shiny::checkboxInput(ns("an_batch_mode"), "Batch Mode", FALSE),
+            shiny::actionLink(ns("an_batch_help"), "Batch Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+          ),
           shiny::conditionalPanel(
             condition = sprintf("!input['%s']", ns("an_batch_mode")),
             shiny::dateRangeInput(ns("an_period"), "Analysis Period", start = "2023-01-01", end = "2023-12-31")
           ),
           shiny::conditionalPanel(
             condition = sprintf("input['%s']", ns("an_batch_mode")),
-            shiny::textAreaInput(ns("an_batch_list"), NULL, placeholder = "Label, Start, End", rows = 4),
+            shiny::textAreaInput(
+              ns("an_batch_list"), NULL,
+              placeholder = "Winter_2021, 2021-11-01, 2022-04-30\nSummer_2022, 2022-05-15, 2022-09-30",
+              rows = 3
+            ),
+            shiny::helpText("Format: Label, Start (YYYY-MM-DD), End (YYYY-MM-DD)."),
             shiny::div(
               class = "d-flex gap-1",
               shiny::actionButton(ns("an_copy_from_download"), "Copy DL", icon = shiny::icon("copy"), class = "btn-sm btn-outline-info flex-1"),
@@ -89,16 +98,18 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           value = "2", title = step_title(2, "Masking & Timing"), icon = shiny::icon("map-location-dot"),
           
           shiny::tags$span("Custom Timing (Optional)", class = "ctrl-group-label"),
-          shiny::fileInput(ns("an_mask_vector"), "Boundaries (.geojson/.shp)", accept = c(".geojson", ".shp", ".zip"), width = "100%"),
-          shiny::fileInput(ns("an_mask_csv"), "Plot Dates (.csv)", accept = ".csv", width = "100%"),
-          
-          shiny::div(
-            class = "inline-row",
-            shiny::div(class = "flex-1", shiny::selectInput(ns("an_mask_season_col"), "Season Col", choices = NULL)),
-            shiny::div(class = "flex-1", shiny::selectInput(ns("an_mask_crop_col"), "Crop Col", choices = NULL))
+          shiny::checkboxInput(ns("an_use_custom_timing"), "Generate from Vector & CSV", value = FALSE),
+          shiny::conditionalPanel(
+            condition = sprintf("input['%s']", ns("an_use_custom_timing")),
+            shiny::fileInput(ns("an_mask_vector"), "Boundaries (.geojson/.shp)", accept = c(".geojson", ".shp", ".zip"), width = "100%"),
+            shiny::fileInput(ns("an_mask_csv"), "Plot Dates (.csv)", accept = ".csv", width = "100%"),
+            shiny::div(
+              class = "inline-row",
+              shiny::div(class = "flex-1", shiny::selectInput(ns("an_mask_season_col"), "Season Col", choices = NULL)),
+              shiny::div(class = "flex-1", shiny::selectInput(ns("an_mask_crop_col"), "Crop Col", choices = NULL))
+            ),
+            shiny::actionButton(ns("an_generate_masks"), "Update Masks", icon = shiny::icon("gears"), class = "btn-sm btn-outline-info w-100 mb-2")
           ),
-          
-          shiny::actionButton(ns("an_generate_masks"), "Update Masks", icon = shiny::icon("gears"), class = "btn-sm btn-outline-info w-100"),
           
           shiny::tags$hr(class = "ctrl-divider"),
           shiny::tags$span("Optional Inputs", class = "ctrl-group-label"),
@@ -121,7 +132,7 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
         # ── STEP 3: Crop Specs ────────────────────────────────────
         bslib::accordion_panel(
           value = "3", title = step_title(3, "Crop Specs"), icon = shiny::icon("seedling"),
-          shiny::helpText("Assign Kc profiles per class. Requires a crop mask."),
+          shiny::helpText("Configure FAO-56 crop parameters (Kc, Lengths, HI) per class or for the entire area (single-crop)."),
           shiny::uiOutput(ns("an_crop_class_ui"))
         ),
 
@@ -155,15 +166,9 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
             shiny::div(class = "flex-1", style = "visibility: hidden;")
           ),
           
-          shiny::tags$span("L3 Coverage Policy", class = "ctrl-group-label"),
-          shiny::selectInput(ns("an_l3_region"), "L3 region", choices = l3_region_choices,
-                             selected = NULL),
-          shiny::selectInput(ns("an_l3_mode"), "When AOI intersects multiple L3 regions",
-                             choices = c("Select one" = "select", "Mosaic all intersecting regions" = "mosaic_all"),
-                             selected = "select"),
-          shiny::helpText("For L3 products, choose a source explicitly or use the mosaic policy."),
+          shiny::uiOutput(ns("an_l3_policy_ui")),
           shiny::tags$hr(class = "ctrl-divider"),
-          shiny::tags$span("Seasonal Aggregation", class = "ctrl-group-label"),
+          shiny::tags$span("Seasonal Indicators", class = "ctrl-group-label"),
           shiny::uiOutput(ns("an_indicator_registry_ui"))
         ),
 

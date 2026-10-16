@@ -427,6 +427,16 @@ step_etc <- function(ctx) {
   }
   ctx$results$etc_by_class <- etc_by_class
 
+  all_etc <- lapply(etc_by_class, function(x) x$etc_seasonal)
+  all_etc <- all_etc[!vapply(all_etc, is.null, logical(1))]
+  if (length(all_etc) > 0) {
+    comb_etc <- all_etc[[1]]
+    if (length(all_etc) > 1) {
+      for (k in seq_along(all_etc)[-1]) comb_etc <- terra::cover(comb_etc, all_etc[[k]])
+    }
+    ctx$results$seasonal_etc <- comb_etc
+  }
+
   layer_dates <- if ("dekad_start" %in% names(ctx$dekad_table)) {
     as.Date(ctx$dekad_table$dekad_start)
   } else {
