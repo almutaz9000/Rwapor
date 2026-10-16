@@ -778,6 +778,7 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
 
     write_raster(results$adequacy_etc, seasonal_raster_dir, prefix, "adequacy_etc")
     write_raster(results$adequacy_p95, seasonal_raster_dir, prefix, "adequacy_p95")
+    write_raster(results$seasonal_etc, seasonal_raster_dir, prefix, "seasonal_etc")
 
     if (!is.null(results$etc_by_class)) {
       for (cls in names(results$etc_by_class)) {

@@ -17,21 +17,209 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
 mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons = shiny::reactive(list())) {
   shiny::moduleServer(id, function(input, output, session) {
-    # Generate indicator controls from the registry so new steps become
-    # selectable without editing dashboard UI code.
+    # Helper to collect all active indicators across structured groups
+    get_active_indicators <- function() {
+      unique(c(
+        input$an_ind_et,
+        input$an_ind_adq,
+        input$an_ind_src,
+        input$an_ind_prod,
+        input$an_ind_other,
+        input$an_agg_vars,
+        input$an_derived_vars
+      ))
+    }
+
+    # Generate structured indicator controls grouped into logical categories
     output$an_indicator_registry_ui <- shiny::renderUI({
-      ids <- Rwapor::wapor_list_indicator_steps()
-      ids <- ids[nzchar(ids)]
-      labels <- vapply(ids, function(step) {
-        fn <- Rwapor::wapor_get_indicator_step(step)
-        desc <- attr(fn, "description") %||% ""
-        if (nzchar(desc)) desc else gsub("_", " ", tools::toTitleCase(step))
-      }, character(1))
-      defaults <- intersect(c("agg_pcp", "agg_ret", "agg_aeti", "agg_npp", "etc", "adequacy_etc", "yield_npp"), ids)
-      shiny::checkboxGroupInput(session$ns("an_agg_vars"), NULL,
-        choiceNames = unname(labels), choiceValues = ids,
-        selected = defaults, inline = TRUE
+      all_ids <- Rwapor::wapor_list_indicator_steps()
+      all_ids <- all_ids[nzchar(all_ids)]
+
+      # Thematic definitions
+      et_choices <- c(
+        "AETI (Actual ET, mm)" = "agg_aeti",
+        "RET (Reference ET, mm)" = "agg_ret",
+        "ETc (Crop Water Req., mm)" = "etc"
       )
+      et_choices <- et_choices[et_choices %in% all_ids]
+
+      adq_choices <- c(
+        "Adequacy to ETc (AETI / ETc)" = "adequacy_etc",
+        "Adequacy to P95 (AETI / P95)" = "adequacy_p95",
+        "Transpiration (T, mm)" = "agg_t",
+        "Beneficial Frac. (T / AETI)" = "beneficial_fraction"
+      )
+      adq_choices <- adq_choices[adq_choices %in% all_ids]
+
+      src_choices <- c(
+        "Precipitation (PCP, mm)" = "agg_pcp",
+        "Peff, Green & Blue Water" = "peff_green_blue",
+        "Rainfall Surplus (P - ETRain)" = "rainfall_surplus"
+      )
+      src_choices <- src_choices[src_choices %in% all_ids]
+
+      prod_choices <- c(
+        "Biomass / NPP (TBP)" = "agg_npp",
+        "Water Productivity (CWP / BWP)" = "cwp_bwp",
+        "Uniformity (CV / Theil)" = "variability"
+      )
+      prod_choices <- prod_choices[prod_choices %in% all_ids]
+
+      known <- c(unname(et_choices), unname(adq_choices), unname(src_choices), unname(prod_choices))
+      other_ids <- setdiff(all_ids, known)
+      other_choices <- if (length(other_ids) > 0) stats::setNames(other_ids, other_ids) else character(0)
+
+      # Defaults
+      def_et <- intersect(c("agg_aeti", "agg_ret", "etc"), unname(et_choices))
+      def_adq <- intersect(c("adequacy_etc"), unname(adq_choices))
+      def_src <- intersect(c("agg_pcp", "peff_green_blue"), unname(src_choices))
+      def_prod <- intersect(c("agg_npp", "cwp_bwp"), unname(prod_choices))
+
+      shiny::tagList(
+        shiny::div(
+          class = "d-flex justify-content-between align-items-center mb-2",
+          shiny::span(class = "small text-muted", "Quick Select:"),
+          shiny::div(
+            class = "btn-group btn-group-sm",
+            shiny::actionButton(session$ns("an_sel_core"), "Core", class = "btn-outline-primary btn-xs py-0 px-2"),
+            shiny::actionButton(session$ns("an_sel_all"), "All", class = "btn-outline-secondary btn-xs py-0 px-2"),
+            shiny::actionButton(session$ns("an_sel_none"), "Clear", class = "btn-outline-secondary btn-xs py-0 px-2")
+          )
+        ),
+        shiny::tags$div(
+          class = "border rounded p-2 mb-2 bg-white shadow-sm",
+          shiny::tags$div(
+            class = "small fw-bold text-primary mb-1",
+            shiny::icon("droplet"), " Evapotranspiration & Consumption"
+          ),
+          shiny::checkboxGroupInput(
+            session$ns("an_ind_et"), NULL,
+            choices = et_choices, selected = def_et
+          )
+        ),
+        shiny::tags$div(
+          class = "border rounded p-2 mb-2 bg-white shadow-sm",
+          shiny::tags$div(
+            class = "small fw-bold text-success mb-1",
+            shiny::icon("scale-balanced"), " Water Adequacy & Transpiration"
+          ),
+          shiny::checkboxGroupInput(
+            session$ns("an_ind_adq"), NULL,
+            choices = adq_choices, selected = def_adq
+          )
+        ),
+        shiny::tags$div(
+          class = "border rounded p-2 mb-2 bg-white shadow-sm",
+          shiny::tags$div(
+            class = "small fw-bold text-info mb-1",
+            shiny::icon("cloud-rain"), " Water Accounting & Sources"
+          ),
+          shiny::checkboxGroupInput(
+            session$ns("an_ind_src"), NULL,
+            choices = src_choices, selected = def_src
+          )
+        ),
+        shiny::tags$div(
+          class = "border rounded p-2 mb-2 bg-white shadow-sm",
+          shiny::tags$div(
+            class = "small fw-bold text-warning mb-1",
+            shiny::icon("wheat-awn"), " Productivity & Uniformity"
+          ),
+          shiny::checkboxGroupInput(
+            session$ns("an_ind_prod"), NULL,
+            choices = prod_choices, selected = def_prod
+          )
+        ),
+        if (length(other_choices) > 0) {
+          shiny::tags$div(
+            class = "border rounded p-2 mb-2 bg-white shadow-sm",
+            shiny::tags$div(class = "small fw-bold text-secondary mb-1", "Other Indicators"),
+            shiny::checkboxGroupInput(session$ns("an_ind_other"), NULL, choices = other_choices)
+          )
+        }
+      )
+    })
+
+    # Indicator quick selection observers
+    shiny::observeEvent(input$an_sel_core, {
+      shiny::updateCheckboxGroupInput(session, "an_ind_et", selected = c("agg_aeti", "agg_ret", "etc"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_adq", selected = c("adequacy_etc"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_src", selected = c("agg_pcp", "peff_green_blue"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_prod", selected = c("agg_npp", "cwp_bwp"))
+    })
+
+    shiny::observeEvent(input$an_sel_all, {
+      shiny::updateCheckboxGroupInput(session, "an_ind_et", selected = c("agg_aeti", "agg_ret", "etc"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_adq", selected = c("adequacy_etc", "adequacy_p95", "agg_t", "beneficial_fraction"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_src", selected = c("agg_pcp", "peff_green_blue", "rainfall_surplus"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_prod", selected = c("agg_npp", "cwp_bwp", "variability"))
+    })
+
+    shiny::observeEvent(input$an_sel_none, {
+      shiny::updateCheckboxGroupInput(session, "an_ind_et", selected = character(0))
+      shiny::updateCheckboxGroupInput(session, "an_ind_adq", selected = character(0))
+      shiny::updateCheckboxGroupInput(session, "an_ind_src", selected = character(0))
+      shiny::updateCheckboxGroupInput(session, "an_ind_prod", selected = character(0))
+    })
+
+    # Dynamic L3 Policy UI - only visible when an L3 variable is selected
+    output$an_l3_policy_ui <- shiny::renderUI({
+      selected_vars <- c(
+        input$an_aeti_var, input$an_ret_var, input$an_precip_var,
+        input$an_npp_var, input$an_t_var
+      )
+      is_l3 <- any(grepl("L3-", selected_vars %||% character(0)))
+      if (!is_l3) return(NULL)
+
+      l3_df <- tryCatch(Rwapor::wapor_l3_regions_to_df(Rwapor::L3_REGIONS), error = function(e) data.frame())
+      l3_choices <- if (nrow(l3_df) > 0) {
+        c("Auto-detect / All" = "", stats::setNames(l3_df$code, sprintf("%s - %s (%s)", l3_df$country, l3_df$name, l3_df$code)))
+      } else {
+        c("Auto-detect / All" = "")
+      }
+
+      shiny::tagList(
+        shiny::tags$span("L3 Coverage Policy", class = "ctrl-group-label text-primary"),
+        shiny::selectInput(session$ns("an_l3_region"), "L3 Region", choices = l3_choices, selected = input$an_l3_region %||% ""),
+        shiny::selectInput(session$ns("an_l3_mode"), "When AOI intersects multiple L3 regions",
+                           choices = c("Select one" = "select", "Mosaic all intersecting regions" = "mosaic_all"),
+                           selected = input$an_l3_mode %||% "select"),
+        shiny::helpText("For L3 products, choose a source explicitly or use the mosaic policy.")
+      )
+    })
+
+    # Batch Mode Guide Modal
+    shiny::observeEvent(input$an_batch_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("layer-group", class = "text-primary"), " Batch Mode & Season Rasters Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Defining Batch Seasons"),
+          shiny::p("Enter one season per line in the text area using the format:"),
+          shiny::tags$pre(class = "bg-light p-2 border rounded small",
+            "Season_Label, Start_Date, End_Date\n\n# Example:\nWinter_2021, 2021-11-01, 2022-04-30\nSummer_2022, 2022-05-15, 2022-09-30\nWinter_2022, 2022-11-01, 2023-04-30"
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Automatic Season Rasters Linking (Smart-Linking)"),
+          shiny::p("Rwapor automatically links season-specific rasters if they exist in either the project folder or the ",
+                   shiny::tags$code("seasonal_masks/"), " subfolder."),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Crop Mask: "), shiny::tags$code("<Season>_mask.tif"), " or ", shiny::tags$code("mask_<Season>.tif"), " (e.g. ", shiny::tags$code("Winter_2021_mask.tif"), ")"),
+            shiny::tags$li(shiny::tags$strong("Season Start (SOS): "), shiny::tags$code("<Season>_start.tif"), " or ", shiny::tags$code("start_<Season>.tif"), " (Julian day / DOY of planting)"),
+            shiny::tags$li(shiny::tags$strong("Season End (EOS): "), shiny::tags$code("<Season>_end.tif"), " or ", shiny::tags$code("end_<Season>.tif"), " (Julian day / DOY of harvest)")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Generating Rasters from Field Boundaries & Planting Dates"),
+          shiny::p("If you have field boundary polygons (.geojson / .shp) and a CSV of plot planting/harvest dates, check ",
+                   shiny::tags$strong("Generate timing from Vector & CSV"), " in Step 2. Rwapor's ",
+                   shiny::tags$code("wapor_vector_to_season_rasters()"), " will automatically generate all ",
+                   shiny::tags$code("<Season>_start.tif"), ", ", shiny::tags$code("<Season>_end.tif"), ", and ",
+                   shiny::tags$code("<Season>_mask.tif"), " into the ", shiny::tags$code("seasonal_masks/"), " folder ready for batch execution!"),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "4. Auto-Detection from Download Tab"),
+          shiny::p("If you downloaded seasonal data in the Download tab, click ", shiny::tags$strong("Detect"),
+                   " to automatically scan the project folder and populate all seasons.")
+        )
+      ))
     })
 
     # Phase 2: Missing data state
@@ -562,21 +750,29 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     output$vbox_etc <- shiny::renderText({
       res <- an_results()
-      if (is.null(res) || is.null(res$etc_by_class)) return("--")
+      if (is.null(res)) return("--")
 
-      etc_tbl <- data.frame(
-        class_value = as.integer(names(res$etc_by_class)),
-        mean_seasonal_etc = vapply(names(res$etc_by_class), function(cls) {
-          Rwapor:::wapor_masked_global_mean(res$etc_by_class[[cls]]$etc_seasonal)
-        }, numeric(1)),
-        stringsAsFactors = FALSE
-      )
-      val <- Rwapor:::wapor_weighted_class_mean(etc_tbl, Rwapor:::wapor_filter_class_stats(res), "mean_seasonal_etc")
-      if (is.na(val)) {
-        val <- mean(etc_tbl$mean_seasonal_etc, na.rm = TRUE)
+      if (!is.null(res$etc_by_class) && length(res$etc_by_class) > 0) {
+        etc_tbl <- data.frame(
+          class_value = as.integer(names(res$etc_by_class)),
+          mean_seasonal_etc = vapply(names(res$etc_by_class), function(cls) {
+            Rwapor:::wapor_masked_global_mean(res$etc_by_class[[cls]]$etc_seasonal)
+          }, numeric(1)),
+          stringsAsFactors = FALSE
+        )
+        val <- Rwapor:::wapor_weighted_class_mean(etc_tbl, Rwapor:::wapor_filter_class_stats(res), "mean_seasonal_etc")
+        if (is.na(val) || !is.finite(val)) {
+          val <- mean(etc_tbl$mean_seasonal_etc, na.rm = TRUE)
+        }
+        if (!is.na(val) && is.finite(val)) return(sprintf("%.1f mm", val))
       }
 
-      sprintf("%.1f mm", val)
+      if (!is.null(res$seasonal_etc)) {
+        val <- Rwapor:::wapor_masked_global_mean(res$seasonal_etc, res$h_mask)
+        if (!is.na(val) && is.finite(val)) return(sprintf("%.1f mm", val))
+      }
+
+      "--"
     })
 
     output$vbox_adequacy <- shiny::renderText({
@@ -592,7 +788,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       res <- an_results()
       if (is.null(res) || (is.null(res$seasonal_biomass_by_class) && is.null(res$seasonal_biomass) && is.null(res$biomass))) return("--")
 
-      selected_agg <- input$an_agg_vars %||% character(0)
+      selected_agg <- get_active_indicators()
       unit <- if ("agg_biomass_kg" %in% selected_agg && !"agg_biomass_t" %in% selected_agg) {
         "kg/ha"
       } else if ("agg_biomass_t" %in% selected_agg) {
@@ -625,7 +821,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     current_region <- shiny::reactive(aoi_region())
 
     build_analysis_state <- function(require_crop_params = TRUE) {
-      indicators <- unique(c(input$an_agg_vars, input$an_derived_vars))
+      indicators <- get_active_indicators()
       indicators <- indicators[!is.na(indicators) & nzchar(indicators)]
       if (length(indicators) == 0) {
         stop("Select at least one indicator.", call. = FALSE)
@@ -736,8 +932,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           l3_mode = l3_mode,
           folder = folder,
           output_folder = output_folder,
-          indicators = indicators,
-        agg_vars = input$an_agg_vars,
+        indicators = indicators,
+        agg_vars = get_active_indicators(),
         derived_vars = input$an_derived_vars,
         processing = input$an_processing %||% "auto",
         use_crop_mask = isTRUE(input$an_use_crop_mask),
@@ -2096,10 +2292,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         aeti_tbl <- res$seasonal_aeti$by_class
         ret_tbl <- if (!is.null(res$seasonal_ret)) res$seasonal_ret$by_class else NULL
 
-        etc_means <- if (!is.null(res$etc_by_class)) {
+        etc_means <- if (!is.null(res$etc_by_class) && length(res$etc_by_class) > 0) {
           vapply(names(res$etc_by_class), function(cls) {
             etc_r <- res$etc_by_class[[cls]]$etc_seasonal
             if (!is.null(etc_r)) Rwapor:::wapor_masked_global_mean(etc_r) else NA_real_
+          }, numeric(1))
+        } else if (!is.null(res$seasonal_etc)) {
+          vapply(aeti_tbl$class_value, function(cv) {
+            cls_m <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cv, 1L, NA) else NULL
+            Rwapor:::wapor_masked_global_mean(res$seasonal_etc, cls_m)
           }, numeric(1))
         } else {
           numeric()
@@ -2127,7 +2328,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             if (!is.na(ret_idx)) round(ret_tbl$mean_seasonal_ret[ret_idx], 1) else NA_real_
           } else NA_real_
 
-          etc_val <- if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 1) else NA_real_
+          etc_val <- if (cls_str %in% names(etc_means)) {
+            round(etc_means[cls_str], 1)
+          } else if (i <= length(etc_means) && !is.na(etc_means[i])) {
+            round(etc_means[i], 1)
+          } else NA_real_
 
           adq_val <- if (!is.null(res$adequacy_etc)) {
             m <- Rwapor:::wapor_masked_global_mean(res$adequacy_etc, cls_mask)
@@ -2179,7 +2384,14 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
       if (length(rows) > 0) {
         tbl <- do.call(rbind, rows)
-        keep_cols <- vapply(tbl, function(col) !all(is.na(col) | col == ""), logical(1))
+        req_indicators <- get_active_indicators()
+        always_keep <- c("Class", "Area (ha)", "AETI (mm)")
+        if ("etc" %in% req_indicators) always_keep <- c(always_keep, "ETc (mm)")
+        if ("agg_ret" %in% req_indicators) always_keep <- c(always_keep, "RET (mm)")
+        if (any(c("adequacy_etc", "adequacy_p95") %in% req_indicators)) always_keep <- c(always_keep, "Adequacy")
+        keep_cols <- vapply(names(tbl), function(col_name) {
+          col_name %in% always_keep || !all(is.na(tbl[[col_name]]) | tbl[[col_name]] == "")
+        }, logical(1))
         tbl[, keep_cols, drop = FALSE]
       } else {
         data.frame(Message = "Run seasonal analysis to view indicators.", stringsAsFactors = FALSE)
@@ -2464,10 +2676,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
         if (!is.null(res) && !is.null(res$seasonal_aeti$by_class)) {
           aeti_tbl <- res$seasonal_aeti$by_class
           ret_tbl <- if (!is.null(res$seasonal_ret)) res$seasonal_ret$by_class else NULL
-          etc_means <- if (!is.null(res$etc_by_class)) {
+          etc_means <- if (!is.null(res$etc_by_class) && length(res$etc_by_class) > 0) {
             vapply(names(res$etc_by_class), function(cls) {
               etc_r <- res$etc_by_class[[cls]]$etc_seasonal
               if (!is.null(etc_r)) Rwapor:::wapor_masked_global_mean(etc_r) else NA_real_
+            }, numeric(1))
+          } else if (!is.null(res$seasonal_etc)) {
+            vapply(aeti_tbl$class_value, function(cv) {
+              cls_m <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cv, 1L, NA) else NULL
+              Rwapor:::wapor_masked_global_mean(res$seasonal_etc, cls_m)
             }, numeric(1))
           } else numeric()
 
@@ -2497,7 +2714,11 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
                 ret_idx <- match(cls_val, ret_tbl$class_value)
                 if (!is.na(ret_idx)) round(ret_tbl$mean_seasonal_ret[ret_idx], 2) else NA_real_
               } else NA_real_,
-              mean_seasonal_etc_mm = if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 2) else NA_real_,
+              mean_seasonal_etc_mm = if (cls_str %in% names(etc_means)) {
+                round(etc_means[cls_str], 2)
+              } else if (i <= length(etc_means) && !is.na(etc_means[i])) {
+                round(etc_means[i], 2)
+              } else NA_real_,
               adequacy = if (!is.null(res$adequacy_etc)) {
                 round(Rwapor:::wapor_masked_global_mean(res$adequacy_etc, cls_mask), 3)
               } else if (!is.null(res$adequacy_p95)) {

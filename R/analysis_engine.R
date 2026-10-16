@@ -72,23 +72,40 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       if (!is.null(config$folder)) {
         # Check both the folder itself and the 'seasonal_masks' subfolder
         mask_dirs <- c(config$folder, file.path(config$folder, "seasonal_masks"))
-        for (m_dir in mask_dirs) {
-          s_start_path <- file.path(m_dir, paste0(p_name, "_start.tif"))
-          s_end_path   <- file.path(m_dir, paste0(p_name, "_end.tif"))
-          s_mask_path  <- file.path(m_dir, paste0(p_name, "_mask.tif"))
+        p_safe <- gsub("[^a-zA-Z0-9_-]", "_", p_name)
+        candidate_labels <- unique(c(p_name, p_safe))
 
-          if (file.exists(s_start_path)) {
-            p_rasters$season_start <- terra::rast(s_start_path)
-            p_config$use_season_rasters <- TRUE
+        find_candidate_file <- function(prefixes, suffixes) {
+          for (m_dir in mask_dirs) {
+            for (lbl in candidate_labels) {
+              for (sfx in suffixes) {
+                f <- file.path(m_dir, paste0(lbl, sfx))
+                if (file.exists(f)) return(f)
+              }
+              for (pfx in prefixes) {
+                f <- file.path(m_dir, paste0(pfx, lbl, ".tif"))
+                if (file.exists(f)) return(f)
+              }
+            }
           }
-          if (file.exists(s_end_path)) {
-            p_rasters$season_end <- terra::rast(s_end_path)
-            p_config$use_season_rasters <- TRUE
-          }
-          if (file.exists(s_mask_path)) {
-            p_rasters$crop_mask <- terra::rast(s_mask_path)
-            p_config$use_crop_mask <- TRUE
-          }
+          NULL
+        }
+
+        s_start_path <- find_candidate_file(c("start_", "sos_"), c("_start.tif", "_sos.tif"))
+        s_end_path   <- find_candidate_file(c("end_", "eos_"), c("_end.tif", "_eos.tif"))
+        s_mask_path  <- find_candidate_file(c("mask_", "crop_mask_"), c("_mask.tif", "_crop_mask.tif"))
+
+        if (!is.null(s_start_path)) {
+          p_rasters$season_start <- terra::rast(s_start_path)
+          p_config$use_season_rasters <- TRUE
+        }
+        if (!is.null(s_end_path)) {
+          p_rasters$season_end <- terra::rast(s_end_path)
+          p_config$use_season_rasters <- TRUE
+        }
+        if (!is.null(s_mask_path)) {
+          p_rasters$crop_mask <- terra::rast(s_mask_path)
+          p_config$use_crop_mask <- TRUE
         }
       }
 
@@ -500,6 +517,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   # ETc: the kernel already applied each pixel's own Kc profile.
   combined_etc <- get_season("etc")
   if (!is.null(combined_etc)) {
+    results$seasonal_etc <- combined_etc
     classes <- intersect(as.integer(crop_params$class_value), job$profiles$class_value)
     results$etc_by_class <- stats::setNames(lapply(classes, function(cls) {
       list(etc_seasonal = terra::ifel(h_mask == cls, combined_etc, NA))
@@ -730,6 +748,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if (!is.null(results$seasonal_aeti)) add_output_provenance("seasonal_aeti", results$seasonal_aeti$raster, "aeti", "mm", list(type = "seasonal_sum"))
   if (!is.null(results$seasonal_ret)) add_output_provenance("seasonal_ret", results$seasonal_ret$raster, "ret", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_etc)) add_output_provenance("seasonal_etc", results$seasonal_etc, "etc", "mm", list(type = "seasonal_sum"))
   if (!is.null(results$seasonal_biomass_kg)) add_output_provenance("seasonal_biomass_kg", results$seasonal_biomass_kg, "npp", "kg/ha", list(type = "seasonal_sum", conversion = "gC/m2_to_kg/ha"))
   if (!is.null(results$seasonal_biomass_t)) add_output_provenance("seasonal_biomass_t", results$seasonal_biomass_t, "npp", "t/ha", list(type = "seasonal_sum", conversion = "kg/ha_to_t/ha"))
   if (!is.null(results$yield_raster)) add_output_provenance("yield_raster", results$yield_raster, "npp", "t/ha", list(type = "yield_from_biomass_and_crop_parameters"))
