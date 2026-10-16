@@ -196,6 +196,13 @@ mod_visualisation_ui <- function(id) {
       title = "Side-by-Side (Synced)",
       icon  = shiny::icon("columns"),
       mod_dual_map_ui(ns("dual"))
+    ),
+
+    # ── Tab 3: Time Series & Analytics ──
+    bslib::nav_panel(
+      title = "Time Series & Analytics",
+      icon  = shiny::icon("chart-line"),
+      mod_timeseries_ui(ns("ts"))
     )
   )
 }
@@ -214,6 +221,11 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
                         global_folder = global_folder,
                         aoi_region    = aoi_region,
                         an_folder     = an_folder)
+
+    # Initialize child timeseries module
+    mod_timeseries_server("ts",
+                          global_folder = global_folder,
+                          aoi_region    = aoi_region)
     
     loaded_raster <- shiny::reactiveVal(NULL)
     loaded_raster2 <- shiny::reactiveVal(NULL)
