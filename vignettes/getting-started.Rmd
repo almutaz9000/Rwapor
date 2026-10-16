@@ -171,3 +171,4 @@ ggplot(ts_df, aes(x = start_date, y = mean, group = plot_id, color = plot_id)) +
 
 - Explore the **[Interactive Shiny Dashboard Guide](shiny-dashboard.html)** for point-and-click workflows.
 - See the **[Advanced Analysis Vignette](advanced-analysis.html)** for seasonal water productivity modeling ($ET_c, CWP, BWP$), custom crop parameter creation, and out-of-core tiled raster processing.
+- See the **[Batch Seasonal Analysis & Multi-Crop Modeling Guide](batch-seasonal-analysis.html)** for step-by-step multi-year batch runs, smart-linking of seasonal rasters, and field boundary-to-raster generation.
