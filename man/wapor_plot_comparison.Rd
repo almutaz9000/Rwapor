@@ -2,7 +2,7 @@
 % Please edit documentation in R/viz.R
 \name{wapor_plot_comparison}
 \alias{wapor_plot_comparison}
-\title{Plot several raster indicators side by side}
+\title{Comparison Plot for Multiple Spatial Rasters or Matrices}
 \usage{
 wapor_plot_comparison(
   arrays,
@@ -32,15 +32,13 @@ wapor_plot_comparison(
 \item{limits}{Optional common fill limits. Defaults to the global range across
 all input maps so panels are directly comparable.}
 
-\item{max_cells}{Maximum cells per SpatRaster preview. See
-\code{wapor_plot_map()}.}
+\item{max_cells}{Maximum cells per SpatRaster preview. See \code{\link[=wapor_plot_map]{wapor_plot_map()}}.}
 
-\item{aggregate_fun}{Optional reduction function for oversized rasters. See
-\code{wapor_plot_map()}.}
+\item{aggregate_fun}{Optional reduction function for oversized rasters. See \code{\link[=wapor_plot_map]{wapor_plot_map()}}.}
 }
 \value{
 A combined ggplot or patchwork object.
 }
 \description{
-Plot several raster indicators side by side
+Plots multiple spatial raster layers or numeric matrices side-by-side with a shared color scale.
 }

@@ -2,6 +2,13 @@
 
 ## Production readiness & scientific review fixes
 
+* **Net Biomass Water Productivity (NBWP)**: New `wapor_calc_nbwp()` and `wapor_math_nbwp()` calculate Net Biomass Water Productivity ($NBWP = \text{Biomass} / (\text{Transpiration} \times 10)$ in $\text{kg/m}^3$), isolating beneficial water consumption through transpiration from non-beneficial soil evaporation and canopy interception. Fully integrated into `wapor_run_seasonal_analysis()`, `analysis_registry`, `wapor_export_analysis_outputs()`, and Shiny analysis tab.
+* **ETLook Energy Balance Mass Balance Auditor**: New `wapor_audit_etlook_mass_balance()` audits mass conservation ($AETI = E + T + I$) across rasters or numeric totals with customizable tolerance.
+* **Beneficial Fraction Clamping**: `wapor_calc_beneficial_fraction()` and `wapor_math_beneficial_fraction()` now clamp ratios strictly to $[0, 1]$ across both raster and numeric execution paths.
+* **Crop Parameter Validation**: Added strict validation in `wapor_calc_yield_npp()` to ensure moisture content $MC \in [0, 1)$, harvest index $HI \in (0, 1]$, and positive correction factors ($f_c, AOT$).
+* **Phenology Proportional Scaling in Processing Kernel**: Harmonized `.wapor_profile_kc` and `step_etc` with `wapor_build_kc_by_class()` so that short seasons ($TD < L_{ini} + L_{mid} + L_{late}$) proportionally scale stage lengths across chunked, tiled, and in-memory execution paths.
+* **Net Irrigation Requirement (NIR) in Seasonal Analysis**: Integrated `"nir"` into `wapor_run_seasonal_analysis()`, calculating monthly $NIR = \max(0, ET_c - P_{\text{eff}})$ and seasonal totals, exporting monthly and seasonal rasters, summaries, and provenance sidecars.
+* **Transpiration Summary Column Fix**: Fixed column naming in `seasonal_t$by_class` in `analysis_engine.R` from `mean_seasonal_aeti` to `mean_seasonal_t`.
 * **Literature Citations & Derivations**: Added formal mathematical equations, parameter derivations (e.g. carbon fraction $10 / 0.45 = 22.222$ for TBP), and authoritative peer-reviewed literature citations across 11 core indicators in `R/analysis_indicators.R` and `R/performance_indicators.R`.
 * **Short-Season Crop Phenology**: In `wapor_build_kc_by_class()`, when season duration is shorter than the sum of standard growth stages ($TD < L_{ini} + L_{mid} + L_{late}$), stage lengths are now proportionally scaled to fit the observed satellite phenology rather than aborting with `numeric(0)`.
 * **Generalized Temperature Conversion**: `is_temperature_variable()` and `wapor_convert_temperature()` now recognize all AgERA5 temperature products (`TMIN`, `TMAX`, `TAVG`, `TDEW`, and `TEMP`), automatically converting Kelvin to Celsius during download and caching.

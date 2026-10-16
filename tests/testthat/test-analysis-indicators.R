@@ -330,3 +330,95 @@ test_that("wapor_calc_cv and wapor_calc_theil return overall and by-class stats"
   expect_equal(theil$overall, expected)
   expect_equal(nrow(theil$by_class), 2)
 })
+
+test_that("wapor_calc_beneficial_fraction clamps values to [0, 1]", {
+  skip_if_not_installed("terra")
+  # Numeric clamping
+  expect_equal(wapor_calc_beneficial_fraction(500, 400), 1.0)
+  expect_equal(wapor_calc_beneficial_fraction(-10, 400), 0.0)
+  expect_equal(wapor_calc_beneficial_fraction(200, 400), 0.5)
+
+  # Raster clamping
+  grid <- list(nrow = 2L, ncol = 2L, res = c(1, 1),
+               extent = list(xmin = 0, xmax = 2, ymin = 0, ymax = 2), crs = "")
+  make_meta <- function(start, end, units = "mm") Rwapor:::.wapor_new_provenance(
+    intervals = data.frame(layer = 1L, start_date = start, end_date = end,
+                           temporal_code = "M", metadata_source = "test"),
+    period = list(start = start, end = end), units = units, grid = grid,
+    season_definition = list(id = paste(start, end))
+  )
+  prov <- list(
+    transpiration = make_meta("2023-01-01", "2023-12-31", "mm"),
+    aeti = make_meta("2023-01-01", "2023-12-31", "mm")
+  )
+  t_r <- terra::rast(nrows = 2, ncols = 2, vals = c(500, 200, -50, 100), crs = "EPSG:4326")
+  aeti_r <- terra::rast(nrows = 2, ncols = 2, vals = c(400, 400, 400, 400), crs = "EPSG:4326")
+  bf_r <- wapor_calc_beneficial_fraction(t_r, aeti_r, provenance = prov)
+  expect_equal(as.numeric(terra::values(bf_r)), c(1.0, 0.5, 0.0, 0.25))
+})
+
+test_that("wapor_calc_nbwp and wapor_math_nbwp compute net biomass water productivity correctly", {
+  skip_if_not_installed("terra")
+  # 12,000 kg/ha biomass with 300 mm Transpiration -> 12,000 / (300 * 10) = 4.0 kg/m3
+  expect_equal(wapor_calc_nbwp(12000, 300, biomass_unit = "kg/ha"), 4.0)
+  expect_equal(wapor_calc_nbwp(12, 300, biomass_unit = "t/ha"), 4.0)
+  expect_equal(wapor_math_nbwp(12000, 300, biomass_unit = "kg/ha"), 4.0)
+
+  # SpatRaster
+  grid <- list(nrow = 2L, ncol = 2L, res = c(1, 1),
+               extent = list(xmin = 0, xmax = 2, ymin = 0, ymax = 2), crs = "")
+  make_meta <- function(start, end, units = "mm") Rwapor:::.wapor_new_provenance(
+    intervals = data.frame(layer = 1L, start_date = start, end_date = end,
+                           temporal_code = "M", metadata_source = "test"),
+    period = list(start = start, end = end), units = units, grid = grid,
+    season_definition = list(id = paste(start, end))
+  )
+  prov <- list(
+    biomass = make_meta("2023-01-01", "2023-12-31", "kg/ha"),
+    transpiration = make_meta("2023-01-01", "2023-12-31", "mm")
+  )
+  bio_r <- terra::rast(nrows = 2, ncols = 2, vals = c(12000, 9000, 6000, 3000), crs = "EPSG:4326")
+  t_r <- terra::rast(nrows = 2, ncols = 2, vals = c(300, 300, 200, 100), crs = "EPSG:4326")
+  nbwp_r <- wapor_calc_nbwp(bio_r, t_r, biomass_unit = "kg/ha", provenance = prov)
+  expect_equal(as.numeric(terra::values(nbwp_r)), c(4.0, 3.0, 3.0, 3.0))
+})
+
+test_that("wapor_audit_etlook_mass_balance checks conservation correctly", {
+  skip_if_not_installed("terra")
+  # Perfect mass balance (numeric)
+  audit_ok <- wapor_audit_etlook_mass_balance(aeti = 100, e = 30, t = 65, i = 5)
+  expect_true(audit_ok$is_conserved)
+  expect_equal(audit_ok$max_absolute_error, 0.0)
+
+  # Discrepant mass balance (numeric)
+  audit_fail <- wapor_audit_etlook_mass_balance(aeti = 100, e = 30, t = 65, i = 10) # sum = 105 != 100
+  expect_false(audit_fail$is_conserved)
+  expect_equal(audit_fail$max_absolute_error, 5.0)
+
+  # SpatRaster mass balance
+  aeti_r <- terra::rast(nrows = 2, ncols = 2, vals = c(100, 200, 150, 80), crs = "EPSG:4326")
+  e_r    <- terra::rast(nrows = 2, ncols = 2, vals = c(30, 60, 40, 20), crs = "EPSG:4326")
+  t_r    <- terra::rast(nrows = 2, ncols = 2, vals = c(65, 130, 100, 55), crs = "EPSG:4326")
+  i_r    <- terra::rast(nrows = 2, ncols = 2, vals = c(5, 10, 10, 5), crs = "EPSG:4326")
+  audit_rast <- wapor_audit_etlook_mass_balance(aeti_r, e_r, t_r, i_r)
+  expect_true(audit_rast$is_conserved)
+  expect_equal(audit_rast$max_absolute_error, 0.0)
+})
+
+test_that("wapor_calc_yield_npp validates crop parameters strictly", {
+  npp <- 400
+  # Valid
+  expect_silent(wapor_calc_yield_npp(npp, mc = 0.12, fc = 1.0, aot = 0.8, hi = 0.45))
+
+  # Invalid MC (fraction >= 1 or < 0)
+  expect_error(wapor_calc_yield_npp(npp, mc = 14, fc = 1.0, aot = 0.8, hi = 0.45), "moisture content 'mc'.*fraction in \\[0, 1\\)")
+  expect_error(wapor_calc_yield_npp(npp, mc = -0.1, fc = 1.0, aot = 0.8, hi = 0.45), "moisture content 'mc'.*fraction in \\[0, 1\\)")
+
+  # Invalid HI (not in (0, 1])
+  expect_error(wapor_calc_yield_npp(npp, mc = 0.12, fc = 1.0, aot = 0.8, hi = 0), "Harvest index 'hi'.*fraction in \\(0, 1\\]")
+  expect_error(wapor_calc_yield_npp(npp, mc = 0.12, fc = 1.0, aot = 0.8, hi = 1.5), "Harvest index 'hi'.*fraction in \\(0, 1\\]")
+
+  # Invalid fc / aot
+  expect_error(wapor_calc_yield_npp(npp, mc = 0.12, fc = -1, aot = 0.8, hi = 0.45), "Light Use Efficiency.*positive")
+  expect_error(wapor_calc_yield_npp(npp, mc = 0.12, fc = 1.0, aot = -0.5, hi = 0.45), "Above-ground over total.*positive")
+})

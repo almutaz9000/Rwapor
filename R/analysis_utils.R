@@ -724,7 +724,8 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
   build_summary_metrics <- function(results) {
     metrics <- list(
       cwp = results$cwp %||% NA_real_,
-      bwp = results$bwp %||% NA_real_
+      bwp = results$bwp %||% NA_real_,
+      nbwp = results$nbwp %||% NA_real_
     )
     data.frame(
       metric = names(metrics),
@@ -768,6 +769,8 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     write_raster(results$et_rain, seasonal_raster_dir, prefix, "et_rain")
     write_raster(results$rainfall_surplus, seasonal_raster_dir, prefix, "rainfall_surplus")
     write_raster(results$yield_raster, seasonal_raster_dir, prefix, "yield_raster_t_ha")
+    write_raster(results$seasonal_nir, seasonal_raster_dir, prefix, "seasonal_nir")
+    write_raster(results$nbwp_raster, seasonal_raster_dir, prefix, "nbwp")
 
     if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
       write_raster(results$seasonal_biomass_kg, seasonal_raster_dir, prefix, "seasonal_biomass_kg_ha")
@@ -816,6 +819,7 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
       write_monthly_series(results$monthly_etc, monthly_raster_dir, prefix, "monthly_etc")
       write_monthly_series(results$monthly_green_water, monthly_raster_dir, prefix, "monthly_green_water")
       write_monthly_series(results$monthly_blue_water, monthly_raster_dir, prefix, "monthly_blue_water")
+      write_monthly_series(results$monthly_nir, monthly_raster_dir, prefix, "monthly_nir")
 
       if (!is.null(results$monthly_precip_peff)) {
         write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_pcp), monthly_raster_dir, prefix, "monthly_pcp")
@@ -829,6 +833,7 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
       write_table(results$monthly_etc$summary, monthly_dir, prefix, "monthly_etc")
       write_table(results$monthly_green_water$summary, monthly_dir, prefix, "monthly_green_water")
       write_table(results$monthly_blue_water$summary, monthly_dir, prefix, "monthly_blue_water")
+      write_table(results$monthly_nir$summary, monthly_dir, prefix, "monthly_nir")
     }
 
     if (is.list(results$provenance) && length(results$provenance$outputs)) {
