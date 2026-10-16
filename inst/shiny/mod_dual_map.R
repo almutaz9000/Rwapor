@@ -44,9 +44,79 @@ mod_dual_map_ui <- function(id) {
       shiny::div(
         class = "sidebar-scroll-area",
 
-        shiny::tags$span("Sync", class = "ctrl-group-label"),
+        shiny::div(
+          class = "d-flex align-items-center justify-content-between mb-1",
+          shiny::tags$span("Sync", class = "ctrl-group-label mb-0"),
+          shiny::actionLink(ns("sync_guide_btn"), "Sync Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+        ),
         shiny::checkboxInput(ns("sync_maps"), "Lock pan & zoom between maps", TRUE),
         shiny::helpText("Both maps share one viewport when locked; unlock to compare independently."),
+
+        shiny::tags$script(shiny::HTML(sprintf('
+          (function() {
+            function getMap(id) {
+              var el = document.getElementById(id);
+              if (!el) return null;
+              var w = typeof HTMLWidgets !== "undefined" ? HTMLWidgets.find("#" + id) : null;
+              return (w && w.getMap) ? w.getMap() : null;
+            }
+
+            function applyDualSync() {
+              var leftId = "%s";
+              var rightId = "%s";
+              var syncId = "%s";
+              var ml = getMap(leftId);
+              var mr = getMap(rightId);
+              if (!ml || !mr) return;
+
+              try {
+                ml.invalidateSize();
+                mr.invalidateSize();
+              } catch(e) {}
+
+              var isLocked = $("#" + syncId).is(":checked");
+              if (isLocked) {
+                try {
+                  if (mr.setView && ml.getCenter) {
+                    mr.setView(ml.getCenter(), ml.getZoom(), { animate: false });
+                  }
+                  if (ml.sync && !ml.isSynced(mr)) ml.sync(mr);
+                  if (mr.sync && !mr.isSynced(ml)) mr.sync(ml);
+                } catch(err) {
+                  console.warn("Dual map sync warning:", err);
+                }
+              } else {
+                try {
+                  if (ml.unsync && ml.isSynced(mr)) ml.unsync(mr);
+                  if (mr.unsync && mr.isSynced(ml)) mr.unsync(ml);
+                } catch(err) {
+                  console.warn("Dual map unsync warning:", err);
+                }
+              }
+            }
+
+            $(document).on("change", "#%s", function() {
+              applyDualSync();
+            });
+
+            $(document).on("shown.bs.tab", function() {
+              setTimeout(applyDualSync, 200);
+            });
+
+            var attempts = 0;
+            var timer = setInterval(function() {
+              attempts++;
+              var ml = getMap("%s");
+              var mr = getMap("%s");
+              if (ml && mr) {
+                applyDualSync();
+                clearInterval(timer);
+              } else if (attempts > 30) {
+                clearInterval(timer);
+              }
+            }, 300);
+          })();
+        ', ns("map_left"), ns("map_right"), ns("sync_maps"), ns("sync_maps"), ns("map_left"), ns("map_right")))),
 
         shiny::tags$hr(class = "ctrl-divider"),
 
@@ -221,28 +291,71 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
     output$map_left <- leaflet::renderLeaflet({
       leaflet::leaflet(options = leaflet::leafletOptions(zoomControl = TRUE)) |>
         leaflet::addProviderTiles(input$basemap %||% "Esri.WorldImagery") |>
+        leaflet.extras2::addLeafletsyncDependency() |>
         leaflet::setView(lng = 0, lat = 20, zoom = 2)
     })
 
     output$map_right <- leaflet::renderLeaflet({
       leaflet::leaflet(options = leaflet::leafletOptions(zoomControl = TRUE)) |>
         leaflet::addProviderTiles(input$basemap %||% "Esri.WorldImagery") |>
+        leaflet.extras2::addLeafletsyncDependency() |>
         leaflet::setView(lng = 0, lat = 20, zoom = 2)
     })
 
-    # ── Sync: apply once both maps have rendered and whenever the toggle
-    # changes. addLeafletsync must run after both maps are initialized, so
-    # this is deferred to session flush (after all outputs render) via
-    # shiny::onFlushed(once = FALSE) is avoided in favor of a simple
-    # invalidateLater-free observer keyed on sync_maps/basemap.
-    shiny::observe({
+    # ── Safe Sync / Unsync Observer ──────────────────────────────────────────
+    shiny::observeEvent(input$sync_maps, {
       if (isTRUE(input$sync_maps)) {
-        leaflet::leafletProxy("map_left", session)  |> leaflet.extras2::addLeafletsync(ids = c(ns("map_left"), ns("map_right")))
-        leaflet::leafletProxy("map_right", session) |> leaflet.extras2::addLeafletsync(ids = c(ns("map_left"), ns("map_right")))
+        tryCatch({
+          leaflet::leafletProxy("map_left", session) |>
+            leaflet.extras2::addLeafletsync(ids = c(ns("map_left"), ns("map_right")))
+        }, error = function(e) {
+          # Silently handled if client JS managed sync
+          NULL
+        })
       } else {
-        leaflet::leafletProxy("map_left", session)  |> leaflet.extras2::unsync()
-        leaflet::leafletProxy("map_right", session) |> leaflet.extras2::unsync()
+        tryCatch({
+          leaflet::leafletProxy("map_left", session) |>
+            leaflet.extras2::unsync(id = ns("map_left"), unsyncids = ns("map_right"))
+          leaflet::leafletProxy("map_right", session) |>
+            leaflet.extras2::unsync(id = ns("map_right"), unsyncids = ns("map_left"))
+        }, error = function(e) {
+          NULL
+        })
       }
+    }, ignoreInit = FALSE)
+
+    # ── Sync Guide Modal ─────────────────────────────────────────────────────
+    shiny::observeEvent(input$sync_guide_btn, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("columns"), " Dual Map View & Synchronization Guide"),
+        size  = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::tagList(
+          shiny::tags$p(
+            "The ", shiny::tags$strong("Side-by-Side (Synced)"), " comparison viewer allows you to inspect ",
+            "two independent spatial rasters with linked camera movement."
+          ),
+          shiny::tags$h6(shiny::icon("lock"), " Lock Pan & Zoom"),
+          shiny::tags$ul(
+            shiny::tags$li(
+              shiny::tags$strong("Locked (Default):"), " Panning or zooming on either the left or right map automatically adjusts the other map to the exact same geographic extent and zoom level in real-time."
+            ),
+            shiny::tags$li(
+              shiny::tags$strong("Unlocked:"), " Uncheck the box to navigate each map independently — useful when comparing different irrigation schemes or zooming in on specific field parcels on one side while keeping a scheme-wide view on the other."
+            ),
+            shiny::tags$li(
+              shiny::tags$strong("Re-Locking:"), " When you re-check the box, the right map immediately snaps to align with the left map's current center and zoom level, and camera movements re-lock."
+            )
+          ),
+          shiny::tags$h6(shiny::icon("arrows-left-right-to-line"), " Common Comparative Use Cases"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Year-over-Year Change:"), " Compare seasonal AETI in 2021 (Left) against 2022 (Right) to pinpoint drought effects."),
+            shiny::tags$li(shiny::tags$strong("Actual vs. Potential ET:"), " Load seasonal AETI on the left and seasonal ETc on the right to visually identify areas of crop water stress."),
+            shiny::tags$li(shiny::tags$strong("Phenology vs. Mask:"), " Display crop classification masks alongside planting date (SOS) rasters.")
+          )
+        )
+      ))
     })
 
     .render_side <- function(map_id, r, band_input_id, pal_input_id) {

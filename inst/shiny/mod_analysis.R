@@ -222,6 +222,104 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       ))
     })
 
+    # Masking & Timing Guide Modal
+    shiny::observeEvent(input$an_timing_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("map-location-dot", class = "text-primary"), " Spatial Masking & Phenology Timing Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Start and End of Season (SOS / EOS) Rasters"),
+          shiny::p("Phenology rasters allow pixel-wise crop growth tracking rather than assuming uniform planting across the entire scheme:"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Units:"), " Values represent Day of Year (DOY 1 to 365/366), or continuous Julian days."),
+            shiny::tags$li(shiny::tags$strong("Cross-Year Seasons:"), " In winter crop seasons (e.g. wheat planted in Oct/Nov DOY 305 and harvested in May DOY 120), EOS is less than SOS. Rwapor automatically detects this and shifts the continuous Julian day reference by 365/366 days — no manual date manipulation is required.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Categorical Crop Masks"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Single-Crop:"), " If no mask is uploaded, the entire AOI is treated as single-crop (Class 1)."),
+            shiny::tags$li(shiny::tags$strong("Multi-Crop:"), " Mask pixels contain positive integer codes (e.g. 1 = Wheat, 2 = Sugarbeet, 3 = Maize). Non-crop or background pixels should be 0 or NA. In Step 3, you can parameterize each crop class independently.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Generating Rasters from Vectors (.geojson/.shp) & CSVs"),
+          shiny::p("If you have farm parcel boundaries and a planting records spreadsheet, check ",
+                   shiny::tags$strong("Generate from Vector & CSV"), " to burn field polygons and survey dates into aligned GeoTIFFs via ",
+                   shiny::tags$code("wapor_vector_to_season_rasters()"), "."),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "4. Latitude-Aware Area Weighting"),
+          shiny::p("Rwapor applies exact ellipsoidal pixel surface weighting (", shiny::tags$code("cos(lat)"), ") so that volumetric water calculations (m\u00b3) and yield estimates account for spatial projection distortion.")
+        )
+      ))
+    })
+
+    # FAO-56 Crop Parameters Guide Modal
+    shiny::observeEvent(input$an_crop_params_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("seedling", class = "text-primary"), " FAO-56 Crop Parameters & Dual Kc Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Crop Coefficient (Kc) Curve"),
+          shiny::p("Potential Crop Evapotranspiration is modeled using the FAO-56 standard: ",
+                   shiny::tags$code("ETc = Kc * RET"), ". The Kc curve transitions across 4 distinct phenological growth stages:"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Initial Stage (L_ini, Kc_ini):"), " From planting/sowing to ~10% ground cover. Soil evaporation dominates (Kc ~ 0.3 - 0.5)."),
+            shiny::tags$li(shiny::tags$strong("Crop Development (L_dev):"), " From 10% cover to effective full canopy cover (~70-80%). Kc increases linearly from Kc_ini to Kc_mid."),
+            shiny::tags$li(shiny::tags$strong("Mid-Season Stage (L_mid, Kc_mid):"), " Flowering and yield formation. Transpiration reaches maximum peak (Kc ~ 1.05 - 1.25)."),
+            shiny::tags$li(shiny::tags$strong("Late Season Stage (L_late, Kc_end):"), " Maturation, senescence, and harvest (Kc decreases to ~0.25 - 0.6).")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Yield & Biomass Conversion Parameters"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Harvest Index (HI):"), " Ratio of harvestable economic crop yield to total Above-Ground Biomass (AGBM): ", shiny::tags$code("HI = Yield / AGBM"), ". Typical values: Wheat ~ 0.45, Maize ~ 0.50, Sugarbeet ~ 0.80."),
+            shiny::tags$li(shiny::tags$strong("Moisture Content (MC):"), " Fresh harvest water content fraction (e.g. 0.12 for dry grain, 0.75 for root/tuber crops)."),
+            shiny::tags$li(shiny::tags$strong("Yield Calculation:"), " Fresh yield (kg/ha) is derived from Net Primary Production (NPP) as: ",
+                           shiny::tags$code("Yield = (NPP * 0.001 * HI) / (1 - MC)"))
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. FAO-56 Presets"),
+          shiny::p("Rwapor includes calibrated presets for 12 major crops: Winter Wheat, Sorghum, Sugarbeet, Maize, Rice, Cotton, Potato, Soybean, Sunflower, Barley, Alfalfa, and Sugarcane. All values can be customized per project.")
+        )
+      ))
+    })
+
+    # Seasonal Indicators Guide Modal
+    shiny::observeEvent(input$an_indicators_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("chart-pie", class = "text-primary"), " Seasonal Indicators & Water Accounting Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Evapotranspiration & Consumptive Water Use"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Seasonal AETI (mm):"), " Actual Evapotranspiration & Interception \u2014 the total volume of water consumed into the atmosphere."),
+            shiny::tags$li(shiny::tags$strong("Reference RET (mm):"), " Reference Evapotranspiration for a hypothetical grass reference surface."),
+            shiny::tags$li(shiny::tags$strong("Transpiration T (mm):"), " Productive crop water consumption through leaf stomata."),
+            shiny::tags$li(shiny::tags$strong("Crop ETc (mm):"), " Crop-specific potential water demand: ", shiny::tags$code("ETc = Kc * RET"), ".")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Agricultural Water Adequacy"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Adequacy vs. ETc (AETI / ETc):"), " The primary indicator of irrigation sufficiency: ",
+                           shiny::tags$code("0.80 - 1.00"), " = optimal water supply; ",
+                           shiny::tags$code("< 0.80"), " = crop moisture stress; ",
+                           shiny::tags$code("> 1.00"), " = over-irrigation / waterlogging."),
+            shiny::tags$li(shiny::tags$strong("Relative Water Deficit:"), " Computed as ", shiny::tags$code("1 - (AETI / ETc)"), ". Directly measures the percentage reduction below full water demand.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Water Accounting & Precipitation"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Effective Precipitation (Peff, mm):"), " The portion of rainfall infiltrating and retained in the root zone (via USDA SCS or FAO empirical methods)."),
+            shiny::tags$li(shiny::tags$strong("Net Irrigation Requirement (NIR, mm):"), " Net water required from irrigation: ", shiny::tags$code("NIR = max(0, ETc - Peff)"), ".")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "4. Biomass Water Productivity & Uniformity"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Crop Water Productivity (CWP, kg/m\u00b3):"), " Ratio of fresh crop yield to seasonal AETI: ", shiny::tags$code("CWP = Yield / (10 * AETI)"), "."),
+            shiny::tags$li(shiny::tags$strong("Biomass Water Productivity (BWP, kg/m\u00b3):"), " Above-ground dry matter produced per cubic meter of water consumed: ", shiny::tags$code("BWP = AGBM / (10 * AETI)"), "."),
+            shiny::tags$li(shiny::tags$strong("Beneficial Fraction (T / AETI):"), " Proportion of water consumed as productive transpiration versus non-beneficial soil evaporation."),
+            shiny::tags$li(shiny::tags$strong("Uniformity (CV & Theil Index):"), " Spatial coefficient of variation (", shiny::tags$code("CV = sd / mean"), "). Lower values (< 10-15%) indicate uniform water application and canopy growth across the scheme.")
+          )
+        )
+      ))
+    })
+
     # Phase 2: Missing data state
     temp_missing_info <- shiny::reactiveVal(NULL)
     

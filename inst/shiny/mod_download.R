@@ -72,7 +72,11 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
           bslib::accordion_panel(
             value = "2", title = step_title(2, "Variables"), icon = shiny::icon("list-check"),
 
-            shiny::tags$span("Variables", class = "ctrl-group-label req-label"),
+            shiny::div(
+              class = "d-flex align-items-center justify-content-between mb-1",
+              shiny::tags$span("Variables", class = "ctrl-group-label req-label mb-0"),
+              shiny::actionLink(ns("dn_vars_help"), "Variables Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+            ),
             shiny::selectizeInput(
               ns("dn_variables"), NULL,
               choices  = wapor_grouped_var_choices(all_vars),
@@ -140,8 +144,13 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
             shiny::conditionalPanel(
               condition = "input.dn_variables && input.dn_variables.some(v => v.startsWith('L3-'))",
               ns = ns,
+              shiny::div(
+                class = "d-flex align-items-center justify-content-between mb-1",
+                shiny::tags$span("L3 Region", class = "ctrl-group-label req-label mb-0"),
+                shiny::actionLink(ns("dn_l3_help"), "L3 Schemes Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+              ),
               shiny::selectInput(
-                ns("l3_region"), "L3 Region",
+                ns("l3_region"), NULL,
                 choices = l3_region_choices
               ),
               shiny::uiOutput(ns("l3_region_message")),
@@ -273,6 +282,68 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
     roots <- get_shinyfiles_roots()
+
+    # ── Guide Modals ──────────────────────────────────────────────────────────
+    shiny::observeEvent(input$dn_vars_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("list-check", class = "text-primary"), " WaPOR v3 & AgERA5 Data Hierarchy Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Spatial Hierarchy & Resolution"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Level 1 (~300m / 250m): "), "Continental coverage across Africa and the Near East. Best for national water accounts and macro basin assessments."),
+            shiny::tags$li(shiny::tags$strong("Level 2 (~100m): "), "National and major river basin coverage across 25+ countries in Africa and the Near East."),
+            shiny::tags$li(shiny::tags$strong("Level 3 (~20m): "), "Ultra high-resolution data over designated agricultural irrigation schemes and river valleys."),
+            shiny::tags$li(shiny::tags$strong("AgERA5 (~10km / 0.1\u00b0): "), "ECMWF agricultural meteorological reanalysis (daily precipitation, solar radiation, temperature, and reference ET0).")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Temporal Cadence"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Dekadal (-D): "), "10-day timesteps (Dekad 1: days 1\u201310; Dekad 2: days 11\u201320; Dekad 3: day 21 to end of month). 36 dekads per calendar year."),
+            shiny::tags$li(shiny::tags$strong("Monthly (-M): "), "Calendar month aggregations."),
+            shiny::tags$li(shiny::tags$strong("Annual (-A): "), "Full calendar year totals or averages.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Key Variable Acronyms"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("AETI: "), "Actual Evapotranspiration & Interception (mm). Total water consumed."),
+            shiny::tags$li(shiny::tags$strong("RET / ET0: "), "Reference Evapotranspiration for grass reference surface (mm). Atmospheric evaporative demand."),
+            shiny::tags$li(shiny::tags$strong("PCP / PF: "), "Precipitation / Rainfall flux (mm)."),
+            shiny::tags$li(shiny::tags$strong("NPP / TBP: "), "Net Primary Production / Total Biomass Production (dry matter, gC/m\u00b2 or kg/ha)."),
+            shiny::tags$li(shiny::tags$strong("T: "), "Transpiration (mm) \u2014 productive water consumption through crop stomata."),
+            shiny::tags$li(shiny::tags$strong("E: "), "Soil evaporation (mm) \u2014 non-productive water loss.")
+          )
+        )
+      ))
+    })
+
+    shiny::observeEvent(input$dn_l3_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("map-location-dot", class = "text-primary"), " WaPOR Level 3 Irrigation Schemes Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. What are Level 3 Regions?"),
+          shiny::p("WaPOR Level 3 provides 20-meter pixel resolution tailored for field and irrigation scheme scale water management. Because it requires specialized processing, it is produced specifically for designated irrigation perimeters and river valleys rather than entire continents."),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Automatic Scheme Detection"),
+          shiny::p("When you draw or upload an Area of Interest (AOI), Rwapor automatically intersects your boundary with all official Level 3 scheme footprints and selects the corresponding scheme code in the dropdown."),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Selected Scheme Coverage Examples"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Egypt: "), "Nile Delta (", shiny::tags$code("EGY"), "), Nile Valley (", shiny::tags$code("EGY-VAL"), ")"),
+            shiny::tags$li(shiny::tags$strong("Ethiopia: "), "Awash River Basin (", shiny::tags$code("AWA"), "), Koga Scheme (", shiny::tags$code("KOG"), ")"),
+            shiny::tags$li(shiny::tags$strong("Lebanon: "), "Bekaa Valley (", shiny::tags$code("BKA"), ")"),
+            shiny::tags$li(shiny::tags$strong("Sudan: "), "Gezira Scheme (", shiny::tags$code("GEZ"), "), Rahad (", shiny::tags$code("RAH"), ")"),
+            shiny::tags$li(shiny::tags$strong("Tunisia: "), "Jendouba (", shiny::tags$code("JEN"), "), Medjerda (", shiny::tags$code("MED"), ")"),
+            shiny::tags$li(shiny::tags$strong("Mali: "), "Office du Niger (", shiny::tags$code("MLI"), ")"),
+            shiny::tags$li(shiny::tags$strong("Jordan: "), "Jordan Valley (", shiny::tags$code("JOR"), ")"),
+            shiny::tags$li(shiny::tags$strong("Morocco: "), "Tadla (", shiny::tags$code("TAD"), "), Souss-Massa (", shiny::tags$code("SOU"), ")")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "4. Multi-Scheme Mosaicking"),
+          shiny::p("If your study area straddles across multiple adjacent Level 3 schemes, Rwapor seamlessly mosaics them together into a continuous GeoTIFF during download and analysis.")
+        )
+      ))
+    })
 
     # --- Multi-season logic (textarea-based) ---
     # Parse "Label, YYYY-MM-DD, YYYY-MM-DD" lines into a list of named vectors.
