@@ -98,9 +98,9 @@ runtime_state$restore <- function() {
 .wapor_source_app_module("mod_aoi.R")
 .wapor_source_app_module("mod_download.R")
 .wapor_source_app_module("mod_dual_map.R")
+.wapor_source_app_module("mod_timeseries.R")
 .wapor_source_app_module("mod_visualisation.R")
 .wapor_source_app_module("mod_analysis.R")
-.wapor_source_app_module("mod_timeseries.R")
 .wapor_source_app_module("mod_monitoring.R")
 
 # --- Global / Static Configuration ---
@@ -159,9 +159,6 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Visualisation", icon = shiny::icon("chart-area"),
     mod_visualisation_ui("vis")
   ),
-  bslib::nav_panel("Timeseries", icon = shiny::icon("chart-line"),
-    mod_timeseries_ui("ts")
-  ),
   bslib::nav_panel("Monitoring", icon = shiny::icon("satellite-dish"),
     mod_monitoring_ui("mon", l3_region_choices)
   ),
@@ -205,7 +202,7 @@ server <- function(input, output, session) {
                                aoi_region       = dl_out$region,
                                download_seasons = dl_out$seasons)
   
-  # 3. Visualisation Module
+  # 3. Visualisation Module (includes Map Explorer, Dual Map, and Time Series Analytics)
   # Uses the shared folder, analysis folder and AOI, plus results from the analysis module
   mod_visualisation_server("vis", 
                           global_folder = dl_out$folder, 
@@ -215,14 +212,8 @@ server <- function(input, output, session) {
                           an_start_rast = an_out$start_rast,
                           an_end_rast = an_out$end_rast,
                           an_crop_params = an_out$crop_params)
-  
-  # 4. Timeseries Module
-  # Uses the shared folder and AOI from the download tab
-  mod_timeseries_server("ts",
-                       global_folder = dl_out$folder,
-                       aoi_region = dl_out$region)
 
-  # 5. Monitoring Module
+  # 4. Monitoring Module
   # Farm-level seasonal monitoring with DuckDB persistence
   mod_monitoring_server("mon",
                         global_folder = dl_out$folder,
