@@ -97,7 +97,11 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
         bslib::accordion_panel(
           value = "2", title = step_title(2, "Masking & Timing"), icon = shiny::icon("map-location-dot"),
           
-          shiny::tags$span("Custom Timing (Optional)", class = "ctrl-group-label"),
+          shiny::div(
+            class = "d-flex align-items-center justify-content-between mb-1",
+            shiny::tags$span("Custom Timing (Optional)", class = "ctrl-group-label mb-0"),
+            shiny::actionLink(ns("an_timing_help"), "Timing Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+          ),
           shiny::checkboxInput(ns("an_use_custom_timing"), "Generate from Vector & CSV", value = FALSE),
           shiny::conditionalPanel(
             condition = sprintf("input['%s']", ns("an_use_custom_timing")),
@@ -132,6 +136,11 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
         # ── STEP 3: Crop Specs ────────────────────────────────────
         bslib::accordion_panel(
           value = "3", title = step_title(3, "Crop Specs"), icon = shiny::icon("seedling"),
+          shiny::div(
+            class = "d-flex align-items-center justify-content-between mb-1",
+            shiny::tags$span("FAO-56 Parameters", class = "ctrl-group-label mb-0"),
+            shiny::actionLink(ns("an_crop_params_help"), "Crop Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+          ),
           shiny::helpText("Configure FAO-56 crop parameters (Kc, Lengths, HI) per class or for the entire area (single-crop)."),
           shiny::uiOutput(ns("an_crop_class_ui"))
         ),
@@ -168,7 +177,11 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           
           shiny::uiOutput(ns("an_l3_policy_ui")),
           shiny::tags$hr(class = "ctrl-divider"),
-          shiny::tags$span("Seasonal Indicators", class = "ctrl-group-label"),
+          shiny::div(
+            class = "d-flex align-items-center justify-content-between mb-1",
+            shiny::tags$span("Seasonal Indicators", class = "ctrl-group-label mb-0"),
+            shiny::actionLink(ns("an_indicators_help"), "Indicators Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+          ),
           shiny::uiOutput(ns("an_indicator_registry_ui"))
         ),
 

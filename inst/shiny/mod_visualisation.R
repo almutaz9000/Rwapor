@@ -261,9 +261,14 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       }
       
       shiny::tagList(
+        shiny::div(
+          class = "d-flex align-items-center justify-content-between mb-1",
+          shiny::tags$span("Query Expression", class = "ctrl-group-label mb-0"),
+          shiny::actionLink(ns("query_guide_btn"), "Query Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+        ),
         shiny::textAreaInput(
           ns("query_expression"),
-          "Query Expression",
+          NULL,
           value = "Raster1 >= 100 & Raster2 <= 50",
           rows = 3,
           placeholder = "Example: Raster1 >= 150 & Raster2 <= 20"
@@ -314,6 +319,37 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         shiny::tags$hr(),
         shiny::uiOutput(ns("query_stats"))
       )
+    })
+    
+    # Query Guide Modal
+    shiny::observeEvent(input$query_guide_btn, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("filter", class = "text-primary"), " Conditional Query & Raster Algebra Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. Pixel-Wise Evaluation"),
+          shiny::p("Conditional query evaluates mathematical and logical expressions across every pixel in the active raster layers, producing an on-the-fly thematic boolean mask."),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Variable Identifiers"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$code("Raster1"), ": Evaluates values from the primary layer selected in Raster 1."),
+            shiny::tags$li(shiny::tags$code("Raster2"), ": Evaluates values from the secondary layer selected in Raster 2.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Supported Operators"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Comparisons: "), shiny::tags$code(">"), ", ", shiny::tags$code("<"), ", ", shiny::tags$code(">="), ", ", shiny::tags$code("<="), ", ", shiny::tags$code("=="), ", ", shiny::tags$code("!=")),
+            shiny::tags$li(shiny::tags$strong("Logical Connectors: "), shiny::tags$code("&"), " (AND), ", shiny::tags$code("|"), " (OR), ", shiny::tags$code("!"), " (NOT)"),
+            shiny::tags$li(shiny::tags$strong("Grouping: "), "Parentheses ", shiny::tags$code("( ... )"), " can be nested to combine conditions.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "4. Practical Agricultural Examples"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Crop Water Stress Hotspots: "), shiny::tags$code("Raster1 < 200 & Raster2 > 350"), " (where Actual AETI is below 200 mm but Potential ETc exceeds 350 mm)."),
+            shiny::tags$li(shiny::tags$strong("High Productivity & Water Efficiency: "), shiny::tags$code("Raster1 >= 1.5 & Raster2 >= 0.85"), " (where CWP >= 1.5 kg/m\u00b3 and Adequacy >= 0.85)."),
+            shiny::tags$li(shiny::tags$strong("Biomass Thresholding: "), shiny::tags$code("Raster1 >= 2500"), " (highlighting fields with seasonal biomass above 2.5 t/ha).")
+          )
+        )
+      ))
     })
     
     # Render raster 2 palette controls

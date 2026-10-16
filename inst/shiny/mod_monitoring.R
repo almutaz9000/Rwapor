@@ -291,7 +291,11 @@ mod_monitoring_ui <- function(id, l3_region_choices = NULL) {
           bslib::accordion_panel(
             "Enhanced Analysis", icon = shiny::icon("chart-area"),
 
-            shiny::tags$span("Threshold percentile (removes low values)", class = "ctrl-group-label"),
+            shiny::div(
+              class = "d-flex align-items-center justify-content-between mb-1",
+              shiny::tags$span("Threshold percentile", class = "ctrl-group-label mb-0"),
+              shiny::actionLink(ns("mon_stress_help"), "Stress Metrics Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+            ),
             shiny::sliderInput(
               ns("threshold_pct"),
               NULL,
@@ -573,6 +577,33 @@ mod_monitoring_server <- function(id, global_folder = reactive(NULL),
 
     # Roots for shinyFiles
     roots <- get_shinyfiles_roots()
+
+    # Stress Metrics Guide Modal
+    shiny::observeEvent(input$mon_stress_help, {
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("triangle-exclamation", class = "text-warning"), " Farm Stress Metrics & Percentile Filtering Guide"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::div(
+          shiny::tags$h6(class = "fw-bold text-primary", "1. ETa / ETp Crop Water Stress Index"),
+          shiny::p("The ratio of Actual Evapotranspiration (AETI / ETa) to Reference Evapotranspiration (RET / ETp) measures relative crop hydration:"),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("Optimal Supply (> 0.80): "), "Crop transpires at near-potential rates with no significant soil moisture limitation."),
+            shiny::tags$li(shiny::tags$strong("Moderate Stress (0.60 - 0.80): "), "Canopy stomatal conductance is restricted; scheduling irrigation is advised to prevent yield decline."),
+            shiny::tags$li(shiny::tags$strong("Severe Stress (< 0.60): "), "Acute moisture deficit leading to wilting, biomass reduction, and permanent yield loss.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "2. Threshold Percentile Filtering"),
+          shiny::p("In satellite imagery, pixels straddling parcel boundaries often combine canopy with surrounding roads, ditches, or bare soil (mixed-pixel contamination)."),
+          shiny::tags$ul(
+            shiny::tags$li(shiny::tags$strong("How it works: "), "The slider trims the lowest X% of pixel values within each field polygon prior to zonal averaging."),
+            shiny::tags$li(shiny::tags$strong("Recommended Setting: "), "A 5% - 10% threshold effectively purges boundary artifacts and bare soil patches without biasing the true canopy average.")
+          ),
+          shiny::tags$h6(class = "fw-bold text-primary mt-3", "3. Embedded DuckDB Analytics"),
+          shiny::p("Field polygons, dekadal extractions, and computed stress indices are persisted in a local DuckDB columnar database. This enables high-speed SQL queries and multi-year trend queries across thousands of parcels without loading large raster files into RAM.")
+        )
+      ))
+    })
 
     # Directory picker for projects
     shinyFiles::shinyDirChoose(
