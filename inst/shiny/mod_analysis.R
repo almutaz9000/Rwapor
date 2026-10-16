@@ -2063,6 +2063,135 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       )
     })
 
+    # ── Unified Seasonal Summary Table & CWP/BWP KPI Strip ───────────────
+    output$an_cwp_bwp_summary_ui <- shiny::renderUI({
+      res <- an_results()
+      if (is.null(res) || (is.null(res$cwp) && is.null(res$bwp))) return(NULL)
+
+      chips <- list()
+      if (!is.null(res$cwp)) {
+        chips[[length(chips) + 1]] <- shiny::span(
+          class = "badge bg-primary me-2 p-2",
+          style = "font-size: 0.85rem; font-weight: 500;",
+          shiny::icon("droplet"), sprintf(" Crop Water Productivity (CWP): %.3f kg/m\u00b3", res$cwp)
+        )
+      }
+      if (!is.null(res$bwp)) {
+        chips[[length(chips) + 1]] <- shiny::span(
+          class = "badge bg-success me-2 p-2",
+          style = "font-size: 0.85rem; font-weight: 500;",
+          shiny::icon("leaf"), sprintf(" Biomass Water Productivity (BWP): %.3f kg/m\u00b3", res$bwp)
+        )
+      }
+
+      shiny::div(class = "mb-3 d-flex flex-wrap align-items-center gap-2", chips)
+    })
+
+    output$an_unified_summary_table <- shiny::renderTable({
+      res <- an_results()
+      shiny::req(res)
+
+      rows <- list()
+      if (!is.null(res$seasonal_aeti$by_class)) {
+        aeti_tbl <- res$seasonal_aeti$by_class
+        ret_tbl <- if (!is.null(res$seasonal_ret)) res$seasonal_ret$by_class else NULL
+
+        etc_means <- if (!is.null(res$etc_by_class)) {
+          vapply(names(res$etc_by_class), function(cls) {
+            etc_r <- res$etc_by_class[[cls]]$etc_seasonal
+            if (!is.null(etc_r)) Rwapor:::wapor_masked_global_mean(etc_r) else NA_real_
+          }, numeric(1))
+        } else {
+          numeric()
+        }
+
+        mask_rast <- res$h_mask %||% an_crop_mask_rast()
+        params <- res$crop_params
+
+        for (i in seq_len(nrow(aeti_tbl))) {
+          cls_val <- aeti_tbl$class_value[i]
+          cls_str <- as.character(cls_val)
+          cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls_val, 1L, NA) else NULL
+
+          label <- if (!is.null(params)) {
+            idx <- which(params$class_value == cls_val)
+            if (length(idx) > 0) params$crop_label[idx[1]] else cls_str
+          } else {
+            cls_str
+          }
+
+          area_val <- if ("area_ha" %in% names(aeti_tbl)) round(aeti_tbl$area_ha[i], 1) else NA_real_
+          aeti_val <- round(aeti_tbl$mean_seasonal_aeti[i], 1)
+          ret_val <- if (!is.null(ret_tbl)) {
+            ret_idx <- match(cls_val, ret_tbl$class_value)
+            if (!is.na(ret_idx)) round(ret_tbl$mean_seasonal_ret[ret_idx], 1) else NA_real_
+          } else NA_real_
+
+          etc_val <- if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 1) else NA_real_
+
+          adq_val <- if (!is.null(res$adequacy_etc)) {
+            m <- Rwapor:::wapor_masked_global_mean(res$adequacy_etc, cls_mask)
+            if (!is.nan(m)) sprintf("%.0f%%", m * 100) else NA_character_
+          } else if (!is.null(res$adequacy_p95)) {
+            m <- Rwapor:::wapor_masked_global_mean(res$adequacy_p95, cls_mask)
+            if (!is.nan(m)) sprintf("%.0f%%", m * 100) else NA_character_
+          } else {
+            NA_character_
+          }
+
+          gw_val <- if (!is.null(res$green_water)) {
+            m <- Rwapor:::wapor_masked_global_mean(res$green_water, cls_mask)
+            if (!is.nan(m)) round(m, 1) else NA_real_
+          } else NA_real_
+
+          bw_val <- if (!is.null(res$blue_water)) {
+            m <- Rwapor:::wapor_masked_global_mean(res$blue_water, cls_mask)
+            if (!is.nan(m)) round(m, 1) else NA_real_
+          } else NA_real_
+
+          yield_val <- if (!is.null(res$yield_by_class) && cls_str %in% names(res$yield_by_class)) {
+            m <- terra::global(res$yield_by_class[[cls_str]], "mean", na.rm = TRUE)$mean
+            if (!is.nan(m)) round(m, 2) else NA_real_
+          } else NA_real_
+
+          ben_val <- if (!is.null(res$beneficial_fraction)) {
+            m <- Rwapor:::wapor_masked_global_mean(res$beneficial_fraction, cls_mask)
+            if (!is.nan(m)) round(m, 3) else NA_real_
+          } else NA_real_
+
+          row_df <- data.frame(
+            Class = label,
+            `Area (ha)` = area_val,
+            `AETI (mm)` = aeti_val,
+            `RET (mm)` = ret_val,
+            `ETc (mm)` = etc_val,
+            `Adequacy` = adq_val,
+            `Green Water (mm)` = gw_val,
+            `Blue Water (mm)` = bw_val,
+            `Yield (t/ha)` = yield_val,
+            `Beneficial Frac.` = ben_val,
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+          )
+          rows[[i]] <- row_df
+        }
+      }
+
+      if (length(rows) > 0) {
+        tbl <- do.call(rbind, rows)
+        keep_cols <- vapply(tbl, function(col) !all(is.na(col) | col == ""), logical(1))
+        tbl[, keep_cols, drop = FALSE]
+      } else {
+        data.frame(Message = "Run seasonal analysis to view indicators.", stringsAsFactors = FALSE)
+      }
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    # Cross-tab navigation to Visualisation
+    shiny::observeEvent(input$an_go_to_vis, {
+      shinyjs::runjs("$('a[data-value=\"Visualisation\"], button[data-value=\"Visualisation\"]').click();")
+      shiny::showNotification("Switched to Visualisation tab. Select a raster layer to inspect.", type = "message", duration = 4)
+    })
+
     output$an_etc_aeti_table <- shiny::renderTable({
       res <- an_results()
       shiny::req(res)
@@ -2320,17 +2449,72 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       }
     )
 
+    output$an_dl_params <- output$an_dl_crop_params
+
     output$an_dl_results <- shiny::downloadHandler(
-      filename = function() paste0("seasonal_results_", Sys.Date(), ".csv"),
+      filename = function() paste0("seasonal_indicators_", Sys.Date(), ".csv"),
       content = function(file) {
         res <- an_results()
         if (!is.null(res) && !is.null(res$seasonal_aeti$by_class)) {
-          out <- res$seasonal_aeti$by_class
-          if (!is.null(res$seasonal_ret$by_class)) {
-            out <- merge(out, res$seasonal_ret$by_class, by = "class_value", all = TRUE)
+          aeti_tbl <- res$seasonal_aeti$by_class
+          ret_tbl <- if (!is.null(res$seasonal_ret)) res$seasonal_ret$by_class else NULL
+          etc_means <- if (!is.null(res$etc_by_class)) {
+            vapply(names(res$etc_by_class), function(cls) {
+              etc_r <- res$etc_by_class[[cls]]$etc_seasonal
+              if (!is.null(etc_r)) Rwapor:::wapor_masked_global_mean(etc_r) else NA_real_
+            }, numeric(1))
+          } else numeric()
+
+          mask_rast <- res$h_mask %||% an_crop_mask_rast()
+          params <- res$crop_params
+
+          out_rows <- list()
+          for (i in seq_len(nrow(aeti_tbl))) {
+            cls_val <- aeti_tbl$class_value[i]
+            cls_str <- as.character(cls_val)
+            cls_mask <- if (!is.null(mask_rast)) terra::ifel(mask_rast == cls_val, 1L, NA) else NULL
+
+            label <- if (!is.null(params)) {
+              idx <- which(params$class_value == cls_val)
+              if (length(idx) > 0) params$crop_label[idx[1]] else cls_str
+            } else cls_str
+
+            out_rows[[i]] <- data.frame(
+              season = input$an_season_label %||% "Season",
+              ref_year = as.integer(format(as.Date(input$an_period[1]), "%Y")),
+              class_value = cls_val,
+              crop_label = label,
+              pixel_count = if ("pixel_count" %in% names(aeti_tbl)) aeti_tbl$pixel_count[i] else NA_integer_,
+              area_ha = if ("area_ha" %in% names(aeti_tbl)) round(aeti_tbl$area_ha[i], 2) else NA_real_,
+              mean_seasonal_aeti_mm = round(aeti_tbl$mean_seasonal_aeti[i], 2),
+              mean_seasonal_ret_mm = if (!is.null(ret_tbl)) {
+                ret_idx <- match(cls_val, ret_tbl$class_value)
+                if (!is.na(ret_idx)) round(ret_tbl$mean_seasonal_ret[ret_idx], 2) else NA_real_
+              } else NA_real_,
+              mean_seasonal_etc_mm = if (cls_str %in% names(etc_means)) round(etc_means[cls_str], 2) else NA_real_,
+              adequacy = if (!is.null(res$adequacy_etc)) {
+                round(Rwapor:::wapor_masked_global_mean(res$adequacy_etc, cls_mask), 3)
+              } else if (!is.null(res$adequacy_p95)) {
+                round(Rwapor:::wapor_masked_global_mean(res$adequacy_p95, cls_mask), 3)
+              } else NA_real_,
+              green_water_mm = if (!is.null(res$green_water)) {
+                round(Rwapor:::wapor_masked_global_mean(res$green_water, cls_mask), 2)
+              } else NA_real_,
+              blue_water_mm = if (!is.null(res$blue_water)) {
+                round(Rwapor:::wapor_masked_global_mean(res$blue_water, cls_mask), 2)
+              } else NA_real_,
+              yield_tha = if (!is.null(res$yield_by_class) && cls_str %in% names(res$yield_by_class)) {
+                round(terra::global(res$yield_by_class[[cls_str]], "mean", na.rm = TRUE)$mean, 2)
+              } else NA_real_,
+              beneficial_fraction = if (!is.null(res$beneficial_fraction)) {
+                round(Rwapor:::wapor_masked_global_mean(res$beneficial_fraction, cls_mask), 3)
+              } else NA_real_,
+              cwp_kg_m3 = if (!is.null(res$cwp)) round(res$cwp, 3) else NA_real_,
+              bwp_kg_m3 = if (!is.null(res$bwp)) round(res$bwp, 3) else NA_real_,
+              stringsAsFactors = FALSE
+            )
           }
-          out$season <- input$an_season_label
-          out$ref_year <- as.integer(format(as.Date(input$an_period[1]), "%Y"))
+          out <- do.call(rbind, out_rows)
           utils::write.csv(out, file, row.names = FALSE)
         }
       }

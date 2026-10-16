@@ -60,17 +60,38 @@ mod_analysis_ui_body <- function(ns) {
           )
         ),
         
-        # Row 2: Spatial & Profiles (Fills remaining space)
+        # Row 2: Crop Metadata & Kc Profiles (Fills remaining space)
         bslib::layout_column_wrap(
           id = ns("an_card_spatial_group"),
           width = "400px",
           fill = TRUE,
           gap = "0.75rem",
           bslib::navset_card_tab(
-            title = "Spatial Data",
-            bslib::nav_panel("Crop Mask", bslib::card_body(fillable = TRUE, padding = 0, shiny::plotOutput(ns("an_crop_mask_plot"), height = "100%"))),
-            bslib::nav_panel("Season", bslib::card_body(fillable = TRUE, shiny::verbatimTextOutput(ns("an_season_raster_info")))),
-            bslib::nav_panel("Classes", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_crop_class_table"))))
+            title = "Crop & Season Metadata",
+            bslib::nav_panel(
+              "Crop Classes",
+              bslib::card_body(
+                fillable = TRUE,
+                shiny::tableOutput(ns("an_crop_class_table"))
+              )
+            ),
+            bslib::nav_panel(
+              "Season Timing",
+              bslib::card_body(
+                fillable = TRUE,
+                shiny::verbatimTextOutput(ns("an_season_raster_info"))
+              )
+            ),
+            footer = shiny::div(
+              class = "d-flex justify-content-between align-items-center p-2 bg-light border-top",
+              shiny::span(class = "small text-muted", shiny::icon("circle-info"), " View raster layers interactively:"),
+              shiny::actionButton(
+                ns("an_go_to_vis"),
+                "Open in Visualisation",
+                icon = shiny::icon("map-location-dot"),
+                class = "btn-sm btn-outline-primary"
+              )
+            )
           ),
           bslib::card(
             bslib::card_header(shiny::icon("chart-line"), " Kc Profiles"),
@@ -90,16 +111,26 @@ mod_analysis_ui_body <- function(ns) {
         bslib::navset_card_pill(
           id = ns("an_card_results"),
           placement = "above",
-          bslib::nav_panel("Main", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_etc_aeti_table")))),
-          bslib::nav_panel("Adequacy", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_adequacy_table")))),
-          bslib::nav_panel("Eff. Precip", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_peff_table")))),
-          bslib::nav_panel("CWP/BWP", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_cwp_bwp_table")))),
-          bslib::nav_panel("Water Sources", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_green_blue_table")))),
-          bslib::nav_panel("Beneficial", bslib::card_body(fillable = TRUE, shiny::tableOutput(ns("an_beneficial_table")))),
+          bslib::nav_panel(
+            "Seasonal Indicators",
+            bslib::card_body(
+              fillable = TRUE,
+              shiny::uiOutput(ns("an_cwp_bwp_summary_ui")),
+              shiny::tableOutput(ns("an_unified_summary_table"))
+            )
+          ),
+          bslib::nav_panel(
+            "Monthly Peff",
+            bslib::card_body(
+              fillable = TRUE,
+              shiny::tableOutput(ns("an_peff_table"))
+            )
+          ),
           
           footer = shiny::div(
             class = "d-flex gap-2 p-2 border-top bg-light",
             shiny::downloadButton(ns("an_dl_results"), "Results CSV", class = "btn-sm btn-outline-primary"),
+            shiny::downloadButton(ns("an_dl_peff"), "Monthly Peff CSV", class = "btn-sm btn-outline-secondary"),
             shiny::downloadButton(ns("an_dl_params"), "Params CSV", class = "btn-sm btn-outline-secondary")
           )
         )

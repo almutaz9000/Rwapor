@@ -131,6 +131,7 @@ l3_regions_meta <- Rwapor::L3_REGIONS # Maintain compatibility for downstream ma
 
 # --- Main UI ---
 ui <- bslib::page_navbar(
+  id = "main_navbar",
   title = shiny::tags$span(
     shiny::tags$strong("Rwapor"),
     shiny::tags$small(" Dashboard", style = "opacity: 0.7;")

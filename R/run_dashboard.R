@@ -37,6 +37,10 @@
 #'     plots, a raster viewer, and a stress dashboard with colour-coded farm
 #'     performance table.
 #' }
+#' @param dev Logical. If \code{TRUE}, forces loading the dashboard from the local
+#'   \code{inst/shiny} directory in the current working directory. If \code{NULL}
+#'   (default), auto-detects if running interactively from the package root.
+#'   If \code{FALSE}, forces loading from the installed package library.
 #'
 #' @export
 #'
@@ -44,14 +48,20 @@
 #' \dontrun{
 #' run_wapor()
 #' }
-run_wapor <- function(display.mode = "normal", launch.browser = interactive(), ...) {
-  # 1. Try finding it in the installed package
-  app_dir <- system.file("shiny", package = "Rwapor")
-  
-  # 2. Fallback for local development (if package is not yet installed)
-  if (app_dir == "") {
-    local_path <- file.path("inst", "shiny")
-    if (dir.exists(local_path)) {
+run_wapor <- function(display.mode = "normal", launch.browser = interactive(), dev = NULL, ...) {
+  # 1. Check for local development directory when explicitly requested or when
+  # running interactively from the package repository root.
+  local_path <- file.path("inst", "shiny")
+  is_local_dev <- dir.exists(local_path) && file.exists(file.path(local_path, "app.R")) && file.exists("DESCRIPTION")
+
+  if (isTRUE(dev) || (is.null(dev) && is_local_dev && interactive())) {
+    app_dir <- local_path
+  } else {
+    # 2. Try finding it in the installed package
+    app_dir <- system.file("shiny", package = "Rwapor")
+    
+    # 3. Fallback for local development (if package is not installed)
+    if (app_dir == "" && dir.exists(local_path)) {
       app_dir <- local_path
     }
   }
