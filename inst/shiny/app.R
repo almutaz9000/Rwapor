@@ -164,19 +164,27 @@ ui <- bslib::page_navbar(
   ),
 
   bslib::nav_spacer(),
-  bslib::nav_item(shiny::actionButton("exit_btn", "Exit", icon = shiny::icon("power-off"), class = "btn-danger btn-sm"))
+  bslib::nav_item(
+    shiny::actionButton(
+      "exit_btn", "Stop Dashboard", 
+      icon = shiny::icon("power-off"), 
+      class = "btn-danger btn-sm fw-bold",
+      title = "Stop the Shiny server and return to the R console"
+    )
+  )
 )
 
 # --- Main Server ---
 server <- function(input, output, session) {
-  # Exit logic
+  # Stop / Exit logic
   shiny::observeEvent(input$exit_btn, {
-    # Ensure it's logged and some feedback is given
-    log_msg("Exit requested via button.")
-    shiny::showNotification("Shutting down session...", type = "warning", duration = 2)
+    log_msg("Shutdown requested via Stop Dashboard button.")
+    shiny::showNotification("Stopping dashboard session...", type = "warning", duration = 3)
     
-    # Delay slightly to allow notification to be seen
-    shinyjs::delay(500, shiny::stopApp())
+    # Friendly shutdown overlay in browser before terminating server
+    shinyjs::runjs("document.body.innerHTML = '<div style=\"display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;font-family:sans-serif;background:#2c3e50;color:#fff;text-align:center;\"><h1 style=\"color:#e74c3c;margin-bottom:12px;\"><i class=\"fa fa-power-off\"></i> Dashboard Stopped</h1><p style=\"font-size:1.15rem;margin-bottom:8px;\">The Shiny server session has terminated safely.</p><p style=\"color:#bdc3c7;\">You can now close this browser tab and resume in your R console.</p></div>';")
+    
+    shinyjs::delay(600, shiny::stopApp())
   })
 
   # Automatically stop the app when the browser tab is closed

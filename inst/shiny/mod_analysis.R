@@ -283,6 +283,275 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       ))
     })
 
+    # ── FAO-56 Climatic Kc Adjustment Modal & Handlers ─────────────────────────
+    shiny::observeEvent(input$an_adjust_kc_modal_btn, {
+      aoi_ready <- !is.null(aoi_region())
+      cur_period <- input$an_period
+
+      shiny::showModal(shiny::modalDialog(
+        title = shiny::tagList(shiny::icon("cloud-sun", class = "text-success"), " FAO-56 Climatic Kc Adjustment"),
+        size = "l",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close"),
+        shiny::tagList(
+          shiny::div(
+            class = "alert alert-info",
+            shiny::tags$strong("FAO-56 Equations 62 & 65: "),
+            "Tabulated Kc values represent sub-humid conditions (u2 = 2.0 m/s, RHmin = 45%). ",
+            "For arid, windy, or humid conditions, Kc_mid and Kc_end can be adjusted based on local wind speed, minimum relative humidity, and crop height."
+          ),
+          bslib::navset_card_pill(
+            id = ns("kc_adjust_tabs"),
+            bslib::nav_panel(
+              "AgERA5 Reanalysis (Automated)",
+              icon = shiny::icon("satellite"),
+              shiny::p(class = "text-muted small",
+                "Queries AgERA5 daily wind speed (u2) and afternoon minimum relative humidity (RHmin) over your active AOI and season dates, computing stage-specific means for each crop class."
+              ),
+              shiny::div(
+                class = "card p-3 mb-3 bg-light",
+                shiny::fluidRow(
+                  shiny::column(6,
+                    shiny::tags$strong("AOI Status: "),
+                    if (aoi_ready) {
+                      shiny::tags$span(class = "badge bg-success", "AOI Active")
+                    } else {
+                      shiny::tags$span(class = "badge bg-warning text-dark", "No AOI defined in Download tab")
+                    }
+                  ),
+                  shiny::column(6,
+                    shiny::tags$strong("Season Period: "),
+                    shiny::tags$span(class = "badge bg-secondary",
+                      sprintf("%s to %s", as.character(cur_period[1]), as.character(cur_period[2]))
+                    )
+                  )
+                ),
+                shiny::tags$hr(style = "margin: 10px 0;"),
+                shiny::fluidRow(
+                  shiny::column(6,
+                    shiny::selectInput(
+                      ns("an_agera5_rh_method"), "RHmin Calculation Method",
+                      choices = c("Afternoon RH (12:00 & 15:00 UTC)" = "hourly_rh",
+                                  "Temperature-derived (Tetens Eq from Tmin/Tmax)" = "tmin_tmax"),
+                      selected = "hourly_rh"
+                    )
+                  ),
+                  shiny::column(6,
+                    shiny::div(
+                      style = "margin-top: 26px;",
+                      shiny::actionButton(
+                        ns("an_run_agera5_kc_adj"), "Fetch AgERA5 & Apply Adjustment",
+                        icon = shiny::icon("wand-magic-sparkles"), class = "btn-success w-100 fw-bold"
+                      )
+                    )
+                  )
+                )
+              ),
+              shiny::uiOutput(ns("an_agera5_adj_status"))
+            ),
+            bslib::nav_panel(
+              "Manual Climate Entry",
+              icon = shiny::icon("sliders"),
+              shiny::p(class = "text-muted small",
+                "Directly enter local average wind speed and minimum relative humidity to calculate and apply adjustments to all crop classes."
+              ),
+              shiny::div(
+                class = "card p-3 mb-3 bg-light",
+                shiny::fluidRow(
+                  shiny::column(6,
+                    shiny::numericInput(
+                      ns("an_manual_u2"), "Mean 2m Wind Speed u2 (m/s)",
+                      value = 2.5, min = 1.0, max = 6.0, step = 0.1
+                    ),
+                    shiny::helpText("FAO-56 standard: 2.0 m/s. Range: 1.0 - 6.0 m/s.")
+                  ),
+                  shiny::column(6,
+                    shiny::numericInput(
+                      ns("an_manual_rh_min"), "Mean Daily Minimum RHmin (%)",
+                      value = 30.0, min = 20.0, max = 80.0, step = 1.0
+                    ),
+                    shiny::helpText("FAO-56 standard: 45%. Range: 20% - 80%.")
+                  )
+                ),
+                shiny::actionButton(
+                  ns("an_run_manual_kc_adj"), "Apply Manual Climate Adjustment",
+                  icon = shiny::icon("check"), class = "btn-primary fw-bold mt-2"
+                )
+              ),
+              shiny::uiOutput(ns("an_manual_adj_status"))
+            )
+          )
+        )
+      ))
+    })
+
+    # Manual Climate Kc Adjustment Observer
+    shiny::observeEvent(input$an_run_manual_kc_adj, {
+      u2 <- input$an_manual_u2 %||% 2.0
+      rh_min <- input$an_manual_rh_min %||% 45.0
+
+      classes <- an_crop_classes()
+      adj_records <- list()
+
+      if (is.null(classes) || !isTRUE(input$an_use_crop_mask)) {
+        # Single-crop mode
+        h <- input$an_single_height %||% 1.0
+        kc_mid_cur <- input$an_single_kc_mid %||% 1.15
+        kc_end_cur <- input$an_single_kc_end %||% 0.35
+
+        adj <- Rwapor::wapor_adjust_kc_climate(
+          kc_mid = kc_mid_cur, kc_end = kc_end_cur,
+          u2 = u2, rh_min = rh_min, h = h
+        )
+
+        shiny::updateNumericInput(session, "an_single_kc_mid", value = adj$kc_mid_adj)
+        shiny::updateNumericInput(session, "an_single_kc_end", value = adj$kc_end_adj)
+
+        adj_records[[1]] <- data.frame(
+          Class = "Single Crop",
+          Height = paste0(h, " m"),
+          Kc_mid_old = kc_mid_cur,
+          Kc_mid_adj = adj$kc_mid_adj,
+          Kc_end_old = kc_end_cur,
+          Kc_end_adj = adj$kc_end_adj,
+          Delta = sprintf("%+.3f", adj$delta_kc),
+          stringsAsFactors = FALSE
+        )
+      } else {
+        # Multi-class mode
+        for (i in seq_len(nrow(classes))) {
+          cls <- classes$class_value[i]
+          prefix <- paste0("an_cls_", cls, "_")
+
+          h <- input[[paste0(prefix, "height")]] %||% 1.0
+          kc_mid_cur <- input[[paste0(prefix, "kc_mid")]] %||% 1.15
+          kc_end_cur <- input[[paste0(prefix, "kc_end")]] %||% 0.35
+
+          adj <- Rwapor::wapor_adjust_kc_climate(
+            kc_mid = kc_mid_cur, kc_end = kc_end_cur,
+            u2 = u2, rh_min = rh_min, h = h
+          )
+
+          shiny::updateNumericInput(session, paste0(prefix, "kc_mid"), value = adj$kc_mid_adj)
+          shiny::updateNumericInput(session, paste0(prefix, "kc_end"), value = adj$kc_end_adj)
+
+          adj_records[[i]] <- data.frame(
+            Class = paste("Class", cls),
+            Height = paste0(h, " m"),
+            Kc_mid_old = kc_mid_cur,
+            Kc_mid_adj = adj$kc_mid_adj,
+            Kc_end_old = kc_end_cur,
+            Kc_end_adj = adj$kc_end_adj,
+            Delta = sprintf("%+.3f", adj$delta_kc),
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+
+      summary_df <- do.call(rbind, adj_records)
+      output$an_manual_adj_status <- shiny::renderUI({
+        shiny::tagList(
+          shiny::tags$div(
+            class = "alert alert-success mt-2 mb-2",
+            shiny::icon("circle-check"),
+            sprintf(" Adjusted %d crop class(es) for u2 = %.1f m/s and RHmin = %.1f%%.", nrow(summary_df), u2, rh_min)
+          ),
+          shiny::renderTable(summary_df, striped = TRUE, hover = TRUE, bordered = TRUE, width = "100%")
+        )
+      })
+      shiny::showNotification("Crop coefficients updated with climatic adjustments!", type = "message")
+    })
+
+    # AgERA5 Climate Kc Adjustment Observer
+    shiny::observeEvent(input$an_run_agera5_kc_adj, {
+      aoi <- aoi_region()
+      if (is.null(aoi)) {
+        shiny::showNotification("No AOI found. Please define an AOI in the Download tab first.", type = "error")
+        return()
+      }
+
+      cur_period <- input$an_period
+      s_start <- as.Date(cur_period[1])
+      s_end   <- as.Date(cur_period[2])
+
+      if (is.na(s_start) || is.na(s_end) || s_end <= s_start) {
+        shiny::showNotification("Invalid season dates. Please check Start and End dates.", type = "error")
+        return()
+      }
+
+      rh_method <- input$an_agera5_rh_method %||% "hourly_rh"
+
+      shiny::withProgress(message = "Fetching AgERA5 climate data...", value = 0, {
+        tryCatch({
+          # 1. Collect current crop params
+          current_params <- collect_crop_params()
+          if (is.null(current_params) || nrow(current_params) == 0) {
+            stop("No crop parameters found to adjust.")
+          }
+
+          shiny::setProgress(0.2, detail = "Streaming AgERA5 wind speed and relative humidity...")
+
+          # 2. Extract and adjust via wapor_adjust_crop_params_agera5
+          calibrated <- Rwapor::wapor_adjust_crop_params_agera5(
+            crop_params  = current_params,
+            aoi          = aoi,
+            season_start = s_start,
+            season_end   = s_end,
+            method_rh    = rh_method
+          )
+
+          shiny::setProgress(0.8, detail = "Applying adjusted Kc values to inputs...")
+
+          # 3. Update the inputs in the UI
+          classes <- an_crop_classes()
+          if (is.null(classes) || !isTRUE(input$an_use_crop_mask)) {
+            shiny::updateNumericInput(session, "an_single_kc_mid", value = calibrated$kc_mid[1])
+            shiny::updateNumericInput(session, "an_single_kc_end", value = calibrated$kc_end[1])
+          } else {
+            for (i in seq_len(nrow(calibrated))) {
+              cls <- calibrated$class_value[i]
+              prefix <- paste0("an_cls_", cls, "_")
+              shiny::updateNumericInput(session, paste0(prefix, "kc_mid"), value = calibrated$kc_mid[i])
+              shiny::updateNumericInput(session, paste0(prefix, "kc_end"), value = calibrated$kc_end[i])
+            }
+          }
+
+          shiny::setProgress(1.0, detail = "Complete!")
+
+          # 4. Render results summary table
+          display_df <- data.frame(
+            Class = if (!is.null(calibrated$crop_label)) calibrated$crop_label else paste("Class", calibrated$class_value),
+            u2_mid = sprintf("%.2f m/s", calibrated$u2_mid),
+            RHmin_mid = sprintf("%.1f %%", calibrated$rh_min_mid),
+            Kc_mid_old = calibrated$kc_mid_tab,
+            Kc_mid_adj = calibrated$kc_mid,
+            Kc_end_old = calibrated$kc_end_tab,
+            Kc_end_adj = calibrated$kc_end,
+            stringsAsFactors = FALSE
+          )
+
+          output$an_agera5_adj_status <- shiny::renderUI({
+            shiny::tagList(
+              shiny::tags$div(
+                class = "alert alert-success mt-2 mb-2",
+                shiny::icon("circle-check"),
+                sprintf(" Successfully fetched AgERA5 climate and calibrated %d crop class(es)!", nrow(calibrated))
+              ),
+              shiny::renderTable(display_df, striped = TRUE, hover = TRUE, bordered = TRUE, width = "100%")
+            )
+          })
+
+          shiny::showNotification("Crop parameters successfully calibrated from AgERA5!", type = "message")
+
+        }, error = function(e) {
+          shiny::showNotification(paste("AgERA5 adjustment failed:", e$message), type = "error", duration = 12)
+          output$an_agera5_adj_status <- shiny::renderUI({
+            shiny::tags$div(class = "alert alert-danger mt-2", shiny::icon("triangle-exclamation"), paste(" Error:", e$message))
+          })
+        })
+      })
+    })
+
     # Seasonal Indicators Guide Modal
     shiny::observeEvent(input$an_indicators_help, {
       shiny::showModal(shiny::modalDialog(
@@ -2285,7 +2554,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             crop_params       = state$crop_params,
             rasters           = rasters,
             aoi_region        = state$region,
-            progress_callback = shiny::incProgress
+            progress_callback = function(v, d) shiny::setProgress(value = v, detail = d)
           )
 
           an_results(results)

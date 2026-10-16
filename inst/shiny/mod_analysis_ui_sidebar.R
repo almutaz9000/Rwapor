@@ -139,7 +139,10 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           shiny::div(
             class = "d-flex align-items-center justify-content-between mb-1",
             shiny::tags$span("FAO-56 Parameters", class = "ctrl-group-label mb-0"),
-            shiny::actionLink(ns("an_crop_params_help"), "Crop Guide", icon = shiny::icon("circle-question"), class = "small text-primary")
+            shiny::div(
+              shiny::actionLink(ns("an_crop_params_help"), "Crop Guide", icon = shiny::icon("circle-question"), class = "small text-primary me-2"),
+              shiny::actionLink(ns("an_adjust_kc_modal_btn"), "Adjust Kc (Climate)", icon = shiny::icon("cloud-sun"), class = "small text-success fw-bold")
+            )
           ),
           shiny::helpText("Configure FAO-56 crop parameters (Kc, Lengths, HI) per class or for the entire area (single-crop)."),
           shiny::uiOutput(ns("an_crop_class_ui"))
