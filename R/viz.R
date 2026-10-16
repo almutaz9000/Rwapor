@@ -160,6 +160,10 @@ wapor_plot_map <- function(x, indicator = "value", title = NULL, save = NULL, dp
   limits
 }
 
+#' Comparison Plot for Multiple Spatial Rasters or Matrices
+#'
+#' Plots multiple spatial raster layers or numeric matrices side-by-side with a shared color scale.
+#'
 #' @param arrays Non-empty list of SpatRaster objects or numeric matrices.
 #' @param titles Optional character vector of panel titles.
 #' @param indicator Character indicator name used for labels and palettes.

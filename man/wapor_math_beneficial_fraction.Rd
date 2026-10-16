@@ -2,11 +2,11 @@
 % Please edit documentation in R/indicators_math.R
 \name{wapor_math_beneficial_fraction}
 \alias{wapor_math_beneficial_fraction}
-\title{Beneficial fraction: T / AETI}
+\title{Beneficial fraction: T / AETI (clamped to \link{0, 1})}
 \usage{
 wapor_math_beneficial_fraction(t_seasonal, aeti_seasonal)
 }
 \description{
-Beneficial fraction: T / AETI
+Beneficial fraction: T / AETI (clamped to \link{0, 1})
 }
 \keyword{internal}

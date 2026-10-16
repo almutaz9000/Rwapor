@@ -329,7 +329,64 @@ wapor_calc_beneficial_fraction <- function(t_seasonal, aeti_seasonal,
     return(wapor_math_beneficial_fraction(t_seasonal, aeti_seasonal))
   }
   aeti_safe <- terra::ifel(aeti_seasonal == 0, NA, aeti_seasonal)
-  t_seasonal / aeti_safe
+  raw_bf <- t_seasonal / aeti_safe
+  terra::clamp(raw_bf, lower = 0.0, upper = 1.0)
+}
+
+#' Audit ETLook Mass Balance Conservation
+#'
+#' Verifies that actual evapotranspiration and interception (AETI) equals the
+#' sum of its constituent components: soil evaporation (E), crop transpiration (T),
+#' and rainfall interception (I), such that AETI = E + T + I within a given tolerance.
+#'
+#' @param aeti SpatRaster or numeric. Actual evapotranspiration and interception.
+#' @param e SpatRaster or numeric. Soil evaporation.
+#' @param t SpatRaster or numeric. Canopy transpiration.
+#' @param i SpatRaster or numeric. Canopy interception.
+#' @param tolerance Numeric. Maximum allowable absolute discrepancy (default 1e-4).
+#' @return A list containing:
+#'   \item{is_conserved}{Logical indicating whether the mass balance is satisfied within tolerance everywhere.}
+#'   \item{max_absolute_error}{Maximum absolute error observed.}
+#'   \item{mean_absolute_error}{Mean absolute error observed.}
+#'   \item{discrepancy}{Numeric or SpatRaster of residual discrepancies (AETI - (E + T + I)).}
+#' @references
+#' Bastiaanssen, W. G. M., Menenti, M., Feddes, R. A., & Holtslag, A. A. M. (1998).
+#'   A remote sensing surface energy balance algorithm for land (SEBAL).
+#'   1. Formulation. Journal of Hydrology, 212-213, 198-212.
+#' @export
+#' @examples
+#' wapor_audit_etlook_mass_balance(aeti = 100, e = 30, t = 65, i = 5)
+wapor_audit_etlook_mass_balance <- function(aeti, e, t, i, tolerance = 1e-4) {
+  sum_components <- e + t + i
+  discrepancy <- aeti - sum_components
+
+  if (inherits(aeti, "SpatRaster") || inherits(discrepancy, "SpatRaster")) {
+    abs_diff <- abs(discrepancy)
+    max_err <- as.numeric(terra::global(abs_diff, "max", na.rm = TRUE)[[1]])
+    mean_err <- as.numeric(terra::global(abs_diff, "mean", na.rm = TRUE)[[1]])
+    if (is.na(max_err)) max_err <- 0.0
+    if (is.na(mean_err)) mean_err <- 0.0
+    is_conserved <- isTRUE(max_err <= tolerance)
+  } else {
+    abs_diff <- abs(as.numeric(discrepancy))
+    abs_diff_valid <- abs_diff[!is.na(abs_diff)]
+    if (length(abs_diff_valid) == 0) {
+      max_err <- 0.0
+      mean_err <- 0.0
+      is_conserved <- TRUE
+    } else {
+      max_err <- max(abs_diff_valid)
+      mean_err <- mean(abs_diff_valid)
+      is_conserved <- isTRUE(max_err <= tolerance)
+    }
+  }
+
+  list(
+    is_conserved = is_conserved,
+    max_absolute_error = max_err,
+    mean_absolute_error = mean_err,
+    discrepancy = discrepancy
+  )
 }
 
 #' Compute P95 of AETI Within Crop Class
@@ -708,6 +765,46 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha",
   biomass_value / aeti_safe
 }
 
+#' Compute Net Biomass Water Productivity (NBWP)
+#'
+#' Net Biomass Water Productivity (NBWP) = Biomass (kg/ha) / [Transpiration (mm) * 10].
+#' Measures the biomass produced per unit of water beneficially consumed through crop
+#' transpiration alone, isolating beneficial water consumption from non-beneficial evaporation
+#' and canopy interception losses.
+#'
+#' @param biomass_value Numeric or SpatRaster. Seasonal biomass (kg/ha or t/ha).
+#' @param t_mm Numeric or SpatRaster. Seasonal Transpiration (mm).
+#' @param biomass_unit Character. Unit: "kg/ha" (default) or "t/ha".
+#' @param provenance Optional named provenance records for `biomass` and `transpiration`.
+#' @param compatibility_mode Missing-metadata policy: `"warn"` or `"strict"`.
+#'   Known incompatibilities always stop the calculation.
+#' @return Numeric or SpatRaster. NBWP in kg/m3.
+#' @references
+#' Molden, D., Oweis, T., Steduto, P., Bindraban, P., Hanjra, M. A., & Kijne, J. (2010).
+#'   Improving agricultural water productivity: Between optimism and realism.
+#'   Agricultural Water Management, 97(4), 528-535.
+#' @export
+#' @examples
+#' wapor_calc_nbwp(12000, 300) # 12000 kg/ha biomass, 300 mm T -> 4.0 kg/m3
+wapor_calc_nbwp <- function(biomass_value, t_mm, biomass_unit = "kg/ha",
+                            provenance = NULL, compatibility_mode = c("warn", "strict")) {
+  compatibility_mode <- match.arg(compatibility_mode)
+  inputs <- provenance
+  if (is.null(inputs) && (inherits(biomass_value, "SpatRaster") || inherits(t_mm, "SpatRaster"))) {
+    inputs <- list(biomass = biomass_value, transpiration = t_mm)
+  }
+  if (!is.null(inputs)) .wapor_require_compatible(inputs, "water_productivity", compatibility_mode)
+  if (!inherits(biomass_value, "SpatRaster") && !inherits(t_mm, "SpatRaster")) {
+    return(wapor_math_nbwp(biomass_value, t_mm, biomass_unit = biomass_unit))
+  }
+  if (tolower(biomass_unit) == "t/ha") {
+    biomass_value <- biomass_value * 1000
+  }
+  t_m3_ha <- t_mm * 10
+  t_safe <- terra::ifel(t_m3_ha == 0, NA, t_m3_ha)
+  biomass_value / t_safe
+}
+
 # =============================================================================
 # Green and Blue Water Consumption
 # =============================================================================
@@ -965,6 +1062,33 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
   wapor_math_npp_to_biomass(npp_gc_m2)
 }
 
+#' Validate crop parameters for yield calculation
+#' @keywords internal
+#' @noRd
+.wapor_validate_crop_params <- function(mc, fc, aot, hi) {
+  if (!is.null(mc)) {
+    if (!is.numeric(mc) || any(mc < 0 | mc >= 1, na.rm = TRUE)) {
+      stop("Crop moisture content 'mc' must be a numeric fraction in [0, 1) (e.g., 0.12 for 12%).", call. = FALSE)
+    }
+  }
+  if (!is.null(fc)) {
+    if (!is.numeric(fc) || any(fc <= 0, na.rm = TRUE)) {
+      stop("Light Use Efficiency correction factor 'fc' must be positive.", call. = FALSE)
+    }
+  }
+  if (!is.null(aot)) {
+    if (!is.numeric(aot) || any(aot <= 0, na.rm = TRUE)) {
+      stop("Above-ground over total biomass ratio 'aot' must be positive.", call. = FALSE)
+    }
+  }
+  if (!is.null(hi)) {
+    if (!is.numeric(hi) || any(hi <= 0 | hi > 1, na.rm = TRUE)) {
+      stop("Harvest index 'hi' must be a numeric fraction in (0, 1].", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
 #' Calculate Crop Yield from NPP
 #'
 #' Implementation of the FAO WaPOR yield estimation formula based on Net Primary Production (NPP):
@@ -995,6 +1119,7 @@ wapor_convert_npp_tbp <- function(npp_gc_m2) {
 #'   for irrigated crops: Concept and application. Agricultural Water Management, 108, 119-132.
 #' @export
 wapor_calc_yield_npp <- function(npp_gc_m2, mc, fc, aot, hi) {
+  .wapor_validate_crop_params(mc, fc, aot, hi)
   if (inherits(npp_gc_m2, "SpatRaster")) {
     dmp <- npp_gc_m2 * 22.222
     agbm <- (aot * fc * (dmp / (1 - mc))) / 1000

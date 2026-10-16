@@ -285,9 +285,9 @@ wapor_validate_compatibility <- function(inputs,
   if ("water_productivity_units" %in% fields) {
     dims <- vapply(p, function(x) .wapor_unit_dimension(x$units), character(1))
     num <- which(grepl("yield|biomass|numerator", nms, ignore.case = TRUE))
-    den <- which(grepl("aeti|water|denominator", nms, ignore.case = TRUE))
+    den <- which(grepl("aeti|water|transpiration|denominator", nms, ignore.case = TRUE))
     if (length(num) != 1L || length(den) != 1L || num == den) add("units.water_productivity", "failed",
-      "Water-productivity inputs need one yield/biomass numerator and one AETI/water denominator.") else if (
+      "Water-productivity inputs need one yield/biomass numerator and one AETI/transpiration/water denominator.") else if (
         is.na(dims[num]) || is.na(dims[den])) unknown("units.water_productivity", "Water-productivity input units are missing or unrecognized.") else if (
           dims[num] != "mass_per_area" || dims[den] != "water_depth") add("units.water_productivity", "failed",
             sprintf("Water-productivity dimensions must be mass_per_area / water_depth; received %s / %s.", dims[num], dims[den])) else

@@ -135,13 +135,32 @@
     cp <- crop_params[crop_params$class_value == profiles$class_value[k], , drop = FALSE]
     if (!nrow(cp) || profiles$total_days[k] <= 0L) next
     fixed_sum <- cp$l_ini_days[1] + cp$l_mid_days[1] + cp$l_late_days[1]
-    l_dev <- max(0L, as.integer(profiles$total_days[k] - fixed_sum))
-    ck <- paste(profiles$class_value[k], profiles$start_jd[k], l_dev, sep = "_")
+    td <- profiles$total_days[k]
+    if (td < fixed_sum) {
+      scale_factor <- td / (fixed_sum + 10)
+      l_ini <- max(1L, as.integer(round(cp$l_ini_days[1] * scale_factor)))
+      l_mid <- max(1L, as.integer(round(cp$l_mid_days[1] * scale_factor)))
+      l_late <- max(1L, as.integer(round(cp$l_late_days[1] * scale_factor)))
+      if (l_ini + l_mid + l_late > td) {
+        l_ini <- max(1L, as.integer(floor(td * (cp$l_ini_days[1] / fixed_sum))))
+        l_mid <- max(1L, as.integer(floor(td * (cp$l_mid_days[1] / fixed_sum))))
+        l_late <- max(0L, as.integer(td - l_ini - l_mid))
+        l_dev <- 0L
+      } else {
+        l_dev <- as.integer(td - (l_ini + l_mid + l_late))
+      }
+    } else {
+      l_ini <- as.integer(cp$l_ini_days[1])
+      l_mid <- as.integer(cp$l_mid_days[1])
+      l_late <- as.integer(cp$l_late_days[1])
+      l_dev <- as.integer(td - fixed_sum)
+    }
+    ck <- paste(profiles$class_value[k], profiles$start_jd[k], td, l_ini, l_dev, l_mid, l_late, sep = "_")
     if (is.null(cache[[ck]])) {
       kc_daily <- wapor_build_kc(
         kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
-        l_ini = cp$l_ini_days[1], l_dev = l_dev,
-        l_mid = cp$l_mid_days[1], l_late = cp$l_late_days[1]
+        l_ini = l_ini, l_dev = l_dev,
+        l_mid = l_mid, l_late = l_late
       )
       season_start_date <- as.Date(sprintf("%04d-01-01", as.integer(reference_year))) +
         profiles$start_jd[k] - 1L

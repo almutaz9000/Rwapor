@@ -53,8 +53,8 @@ wapor_get_indicator_step <- function(name) {
     "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
     "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
     "peff_green_blue", "green_water", "blue_water",
-    "rainfall_surplus",
-    "cwp_bwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
+    "rainfall_surplus", "nir",
+    "cwp_bwp", "nbwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
     "variability", "cv_aeti", "theil_aeti"
   )
 }
@@ -388,13 +388,31 @@ step_etc <- function(ctx) {
     cp <- ctx$crop_params[ctx$crop_params$class_value == profile_row$class_value, , drop = FALSE]
     if (nrow(cp) == 0) next
 
-    fixed_sum <- cp$l_ini_days + cp$l_mid_days + cp$l_late_days
-    l_dev     <- as.integer(profile_row$total_days - fixed_sum)
-    if (l_dev < 0L) l_dev <- 0L
+    fixed_sum <- cp$l_ini_days[1] + cp$l_mid_days[1] + cp$l_late_days[1]
+    td <- profile_row$total_days
+    if (td < fixed_sum) {
+      scale_factor <- td / (fixed_sum + 10)
+      l_ini <- max(1L, as.integer(round(cp$l_ini_days[1] * scale_factor)))
+      l_mid <- max(1L, as.integer(round(cp$l_mid_days[1] * scale_factor)))
+      l_late <- max(1L, as.integer(round(cp$l_late_days[1] * scale_factor)))
+      if (l_ini + l_mid + l_late > td) {
+        l_ini <- max(1L, as.integer(floor(td * (cp$l_ini_days[1] / fixed_sum))))
+        l_mid <- max(1L, as.integer(floor(td * (cp$l_mid_days[1] / fixed_sum))))
+        l_late <- max(0L, as.integer(td - l_ini - l_mid))
+        l_dev <- 0L
+      } else {
+        l_dev <- as.integer(td - (l_ini + l_mid + l_late))
+      }
+    } else {
+      l_ini <- as.integer(cp$l_ini_days[1])
+      l_mid <- as.integer(cp$l_mid_days[1])
+      l_late <- as.integer(cp$l_late_days[1])
+      l_dev <- as.integer(td - fixed_sum)
+    }
 
     kc_daily <- Rwapor::wapor_build_kc(
       kc_ini = cp$kc_ini[1], kc_mid = cp$kc_mid[1], kc_end = cp$kc_end[1],
-      l_ini = cp$l_ini_days[1], l_dev = l_dev, l_mid = cp$l_mid_days[1], l_late = cp$l_late_days[1]
+      l_ini = l_ini, l_dev = l_dev, l_mid = l_mid, l_late = l_late
     )
     season_start_date <- as.Date(sprintf("%04d-01-01", ctx$ref_year)) + profile_row$start_jd - 1L
     kc_dekad <- Rwapor::wapor_aggregate_kc(kc_daily, ctx$dekad_table, season_start_date)
@@ -645,6 +663,37 @@ step_variability <- function(ctx) {
   invisible(NULL)
 }
 
+# ── 13. Net Irrigation Requirement Step ─────────────────────────────────────
+step_nir <- function(ctx) {
+  if (!"nir" %in% ctx$indicators) return(invisible(NULL))
+  if (is.null(ctx$results$monthly_etc) || is.null(ctx$results$monthly_precip_peff)) return(invisible(NULL))
+
+  month_keys <- intersect(names(ctx$results$monthly_etc$rasters), names(ctx$results$monthly_precip_peff$monthly_peff))
+  if (length(month_keys) == 0) return(invisible(NULL))
+
+  monthly_nir <- list()
+  for (month_key in month_keys) {
+    etc_m <- ctx$results$monthly_etc$rasters[[month_key]]
+    peff_m <- ctx$results$monthly_precip_peff$monthly_peff[[month_key]]
+    monthly_nir[[month_key]] <- terra::ifel(etc_m > peff_m, etc_m - peff_m, 0)
+  }
+  ctx$results$monthly_nir <- list(rasters = monthly_nir)
+  ctx$results$nir <- Reduce(`+`, monthly_nir)
+  ctx$results$seasonal_nir <- ctx$results$nir
+  invisible(NULL)
+}
+
+# ── 14. Net Biomass Water Productivity Step ─────────────────────────────────
+step_nbwp <- function(ctx) {
+  if (!"nbwp" %in% ctx$indicators) return(invisible(NULL))
+  if (is.null(ctx$results$seasonal_t) || is.null(ctx$results$seasonal_biomass_t)) return(invisible(NULL))
+
+  ctx$results$nbwp_raster <- Rwapor::wapor_calc_nbwp(
+    ctx$results$seasonal_biomass_t, ctx$results$seasonal_t$raster, biomass_unit = "t/ha"
+  )
+  invisible(NULL)
+}
+
 # ── Register all default steps ──────────────────────────────────────────────
 wapor_register_indicator_step("agg_aeti", step_agg_aeti, description = "Seasonal AETI aggregation")
 wapor_register_indicator_step("agg_t", step_agg_t, description = "Seasonal Transpiration aggregation")
@@ -657,5 +706,7 @@ wapor_register_indicator_step("adequacy_p95", step_adequacy_p95, depends = "agg_
 wapor_register_indicator_step("beneficial_fraction", step_beneficial_fraction, depends = c("agg_aeti", "agg_t"), description = "Beneficial Transpiration Fraction (T/AETI)")
 wapor_register_indicator_step("peff_green_blue", step_peff_green_blue, depends = c("agg_pcp", "agg_aeti"), description = "Effective Precipitation, Green & Blue Water")
 wapor_register_indicator_step("rainfall_surplus", step_peff_green_blue, depends = c("agg_pcp", "agg_aeti"), description = "Rainfall Surplus (P - ET_rain)")
+wapor_register_indicator_step("nir", step_nir, depends = c("etc", "peff_green_blue"), description = "Net Irrigation Requirement (NIR = sum max(0, ETc - Peff))")
 wapor_register_indicator_step("cwp_bwp", step_cwp_bwp, depends = c("agg_aeti", "agg_npp"), description = "Crop and Biomass Water Productivity")
+wapor_register_indicator_step("nbwp", step_nbwp, depends = c("agg_npp", "agg_t"), description = "Net Biomass Water Productivity (NBWP = Biomass / T)")
 wapor_register_indicator_step("variability", step_variability, depends = "agg_aeti", description = "Spatial Uniformity & Variability (CV / Theil)")

@@ -464,7 +464,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if (!is.null(get_season("t"))) {
     # T is a flux (mm/day), same as AETI
-    results$seasonal_t <- list(raster = get_season("t"), by_class = by_class_mean(get_season("t"), "mean_seasonal_aeti"))
+    results$seasonal_t <- list(raster = get_season("t"), by_class = by_class_mean(get_season("t"), "mean_seasonal_t"))
   }
   if (!is.null(get_season("npp"))) {
     results$seasonal_biomass_kg <- get_season("npp") * 22.222
@@ -684,6 +684,37 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     }
   }
 
+  # Net Irrigation Requirement (NIR = sum max(0, ETc_m - Peff_m))
+  if ("nir" %in% indicators && !is.null(results$monthly_etc) && !is.null(results$monthly_precip_peff)) {
+    month_keys <- intersect(names(results$monthly_etc$rasters), names(results$monthly_precip_peff$monthly_peff))
+    if (length(month_keys) > 0) {
+      monthly_nir <- list()
+      for (month_key in month_keys) {
+        etc_m <- results$monthly_etc$rasters[[month_key]]
+        peff_m <- results$monthly_precip_peff$monthly_peff[[month_key]]
+        monthly_nir[[month_key]] <- terra::ifel(etc_m > peff_m, etc_m - peff_m, 0)
+      }
+      results$monthly_nir <- list(rasters = monthly_nir, summary = series_summary(monthly_nir, "nir_mean_mm"))
+      results$nir <- sum_monthly(results$monthly_nir)
+      results$seasonal_nir <- results$nir
+    }
+  }
+
+  # Net Biomass Water Productivity (NBWP = Biomass / Transpiration)
+  if ("nbwp" %in% indicators && !is.null(results$seasonal_t)) {
+    if (!is.null(results$seasonal_biomass_t)) {
+      nbwp_raster <- Rwapor::wapor_calc_nbwp(
+        results$seasonal_biomass_t, results$seasonal_t$raster, biomass_unit = "t/ha",
+        provenance = list(
+          biomass = make_season_validation_meta(results$seasonal_biomass_t, "t/ha"),
+          transpiration = make_season_validation_meta(results$seasonal_t$raster, "mm")
+        )
+      )
+      results$nbwp_raster <- nbwp_raster
+      results$nbwp <- wapor_masked_global_mean(nbwp_raster, valid_crop_mask, area = pixel_area_r)
+    }
+  }
+
   set_names <- .wapor_kernel_set_names(job)
   results$coverage <- Filter(Negate(is.null), lapply(
     stats::setNames(set_names, set_names),
@@ -753,6 +784,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if (!is.null(results$seasonal_biomass_t)) add_output_provenance("seasonal_biomass_t", results$seasonal_biomass_t, "npp", "t/ha", list(type = "seasonal_sum", conversion = "kg/ha_to_t/ha"))
   if (!is.null(results$yield_raster)) add_output_provenance("yield_raster", results$yield_raster, "npp", "t/ha", list(type = "yield_from_biomass_and_crop_parameters"))
   if (!is.null(results$seasonal_t)) add_output_provenance("seasonal_t", results$seasonal_t$raster, "t", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_nir)) add_output_provenance("seasonal_nir", results$seasonal_nir, c("ret", "pcp"), "mm", list(type = "net_irrigation_requirement"))
+  if (!is.null(results$nbwp_raster)) add_output_provenance("nbwp", results$nbwp_raster, c("npp", "t"), "kg/m3", list(type = "net_biomass_water_productivity"))
   add_monthly_provenance <- function(series_name, series, parent, units) {
     if (is.null(series$rasters)) return(invisible(NULL))
     for (month_key in names(series$rasters)) {
@@ -775,6 +808,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   add_monthly_provenance("monthly_aeti", results$monthly_aeti, "aeti", "mm")
   add_monthly_provenance("monthly_t", results$monthly_t, "t", "mm")
+  add_monthly_provenance("monthly_nir", results$monthly_nir, "ret", "mm")
 
   extra_steps <- setdiff(indicators, .wapor_builtin_indicator_steps())
   extra_steps <- intersect(extra_steps, wapor_list_indicator_steps())
@@ -820,11 +854,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 .wapor_needed_inputs <- function(indicators) {
   list(
     aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction", "rainfall_surplus") %in% indicators),
-    ret = any(c("agg_ret", "etc", "adequacy_etc") %in% indicators),
-    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "rainfall_surplus") %in% indicators),
-    npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp") %in% indicators),
-    t = any(c("agg_t", "beneficial_fraction") %in% indicators),
-    etc = any(c("etc", "adequacy_etc") %in% indicators)
+    ret = any(c("agg_ret", "etc", "adequacy_etc", "nir") %in% indicators),
+    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "rainfall_surplus", "nir") %in% indicators),
+    npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp", "nbwp") %in% indicators),
+    t = any(c("agg_t", "beneficial_fraction", "nbwp") %in% indicators),
+    etc = any(c("etc", "adequacy_etc", "nir") %in% indicators)
   )
 }
 

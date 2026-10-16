@@ -19,11 +19,12 @@ wapor_math_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   wapor_math_safe_divide(aeti_seasonal, etc_seasonal)
 }
 
-#' Beneficial fraction: T / AETI
+#' Beneficial fraction: T / AETI (clamped to [0, 1])
 #' @keywords internal
 #' @export
 wapor_math_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
-  wapor_math_safe_divide(t_seasonal, aeti_seasonal)
+  res <- wapor_math_safe_divide(t_seasonal, aeti_seasonal)
+  pmin(pmax(res, 0.0), 1.0)
 }
 
 #' USDA-SCS effective precipitation from monthly totals (mm)
@@ -95,6 +96,13 @@ wapor_math_cwp <- function(yield_value, aeti_mm, yield_unit = "kg/ha") {
 #' @export
 wapor_math_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha") {
   wapor_math_cwp(biomass_value, aeti_mm, yield_unit = biomass_unit)
+}
+
+#' Net biomass water productivity in kg/m3 (Biomass / Transpiration)
+#' @keywords internal
+#' @export
+wapor_math_nbwp <- function(biomass_value, t_mm, biomass_unit = "kg/ha") {
+  wapor_math_cwp(biomass_value, t_mm, yield_unit = biomass_unit)
 }
 
 #' Area-weighted mean of a numeric matrix or vector

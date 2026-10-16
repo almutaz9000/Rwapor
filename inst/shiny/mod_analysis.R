@@ -54,13 +54,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       src_choices <- c(
         "Precipitation (PCP, mm)" = "agg_pcp",
         "Peff, Green & Blue Water" = "peff_green_blue",
-        "Rainfall Surplus (P - ETRain)" = "rainfall_surplus"
+        "Rainfall Surplus (P - ETRain)" = "rainfall_surplus",
+        "Net Irrigation Req. (NIR)" = "nir"
       )
       src_choices <- src_choices[src_choices %in% all_ids]
 
       prod_choices <- c(
         "Biomass / NPP (TBP)" = "agg_npp",
         "Water Productivity (CWP / BWP)" = "cwp_bwp",
+        "Net Biomass WP (NBWP = TBP / T)" = "nbwp",
         "Uniformity (CV / Theil)" = "variability"
       )
       prod_choices <- prod_choices[prod_choices %in% all_ids]
@@ -151,8 +153,8 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
     shiny::observeEvent(input$an_sel_all, {
       shiny::updateCheckboxGroupInput(session, "an_ind_et", selected = c("agg_aeti", "agg_ret", "etc"))
       shiny::updateCheckboxGroupInput(session, "an_ind_adq", selected = c("adequacy_etc", "adequacy_p95", "agg_t", "beneficial_fraction"))
-      shiny::updateCheckboxGroupInput(session, "an_ind_src", selected = c("agg_pcp", "peff_green_blue", "rainfall_surplus"))
-      shiny::updateCheckboxGroupInput(session, "an_ind_prod", selected = c("agg_npp", "cwp_bwp", "variability"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_src", selected = c("agg_pcp", "peff_green_blue", "rainfall_surplus", "nir"))
+      shiny::updateCheckboxGroupInput(session, "an_ind_prod", selected = c("agg_npp", "cwp_bwp", "nbwp", "variability"))
     })
 
     shiny::observeEvent(input$an_sel_none, {
@@ -1104,19 +1106,19 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
 
     collect_missing_local_data <- function(state) {
       required_vars <- state$config$aeti_var
-      if (any(c("agg_ret", "etc", "adequacy_etc") %in% state$indicators)) {
+      if (any(c("agg_ret", "etc", "adequacy_etc", "nir") %in% state$indicators)) {
         required_vars <- c(required_vars, state$config$ret_var)
       }
-      if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water") %in% state$indicators)) {
+      if (any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "rainfall_surplus", "nir") %in% state$indicators)) {
         required_vars <- c(required_vars, state$config$precip_var)
       }
       if (
-        any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp") %in% state$indicators) ||
+        any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "nbwp") %in% state$indicators) ||
         ("cwp_bwp" %in% state$indicators && is.null(input$an_biomass_file))
       ) {
         required_vars <- c(required_vars, state$config$npp_var)
       }
-      if (any(c("agg_t", "beneficial_fraction") %in% state$indicators)) {
+      if (any(c("agg_t", "beneficial_fraction", "nbwp") %in% state$indicators)) {
         required_vars <- c(required_vars, state$config$t_var)
       }
 
