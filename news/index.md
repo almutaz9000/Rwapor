@@ -4,6 +4,16 @@
 
 ### Production readiness & scientific review fixes
 
+- **Climatic Kc Adjustment (FAO-56 Eq. 62 & 65)**: Added
+  [`wapor_adjust_kc_climate()`](https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_kc_climate.md),
+  [`wapor_extract_agera5_climate()`](https://almutaz9000.github.io/Rwapor/reference/wapor_extract_agera5_climate.md),
+  and
+  [`wapor_adjust_crop_params_agera5()`](https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_crop_params_agera5.md)
+  to calibrate tabulated $`K_{c,\text{mid}}`$ and $`K_{c,\text{end}}`$
+  to local climatic conditions (wind speed $`u_2`$, minimum relative
+  humidity $`RH_{\min}`$, and plant height $`h`$). Automatically derives
+  stage-specific mean climate directly from AgERA5 reanalysis via
+  [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md).
 - **Net Biomass Water Productivity (NBWP)**: New
   [`wapor_calc_nbwp()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nbwp.md)
   and

@@ -29,6 +29,8 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/linear_trend.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/run_wapor.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_add_favorite.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_crop_params_agera5.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_kc_climate.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_agent_skills.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_aggregate_kc.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_aggregate_precip.html</loc></url>
@@ -97,6 +99,7 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_download.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_enhanced_zonal_stats.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_extract_agera5_climate.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_extract_crop_classes.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_fetch_l3_regions.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_fetch_metadata.html</loc></url>

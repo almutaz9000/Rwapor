@@ -18,6 +18,10 @@
   : Run the Rwapor Shiny Dashboard
 - [`wapor_add_favorite()`](https://almutaz9000.github.io/Rwapor/reference/wapor_add_favorite.md)
   : Add a Path to Favorites
+- [`wapor_adjust_crop_params_agera5()`](https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_crop_params_agera5.md)
+  : Adjust Crop Parameters Table using AgERA5 Climate Data
+- [`wapor_adjust_kc_climate()`](https://almutaz9000.github.io/Rwapor/reference/wapor_adjust_kc_climate.md)
+  : Climate-Based Crop Coefficient (Kc) Adjustments
 - [`wapor_agent_skills()`](https://almutaz9000.github.io/Rwapor/reference/wapor_agent_skills.md)
   : Load the Rwapor Agent Skills Reference
 - [`wapor_aggregate_kc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_aggregate_kc.md)
@@ -151,6 +155,8 @@
   : Calculate Enhanced Zonal Statistics
 - [`wapor_export_analysis_outputs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.md)
   : Export Analysis Outputs to Structured Folders
+- [`wapor_extract_agera5_climate()`](https://almutaz9000.github.io/Rwapor/reference/wapor_extract_agera5_climate.md)
+  : Extract Daily Climate Time Series from AgERA5 via Rwapor
 - [`wapor_extract_crop_classes()`](https://almutaz9000.github.io/Rwapor/reference/wapor_extract_crop_classes.md)
   : Extract Unique Crop Classes from Crop Mask
 - [`wapor_fetch_l3_regions()`](https://almutaz9000.github.io/Rwapor/reference/wapor_fetch_l3_regions.md)
