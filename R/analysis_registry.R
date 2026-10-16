@@ -391,6 +391,14 @@ step_etc <- function(ctx) {
     fixed_sum <- cp$l_ini_days[1] + cp$l_mid_days[1] + cp$l_late_days[1]
     td <- profile_row$total_days
     if (td < fixed_sum) {
+      warn_key <- paste0("warn_short_", cp$class_value[1])
+      if (is.null(kc_profiles[[warn_key]])) {
+        warning(sprintf(
+          "Class %s: season length (%d days) is shorter than sum of standard stages (%d days). Proportionally scaling stage lengths.",
+          cp$class_value[1], as.integer(td), as.integer(fixed_sum)
+        ), call. = FALSE)
+        kc_profiles[[warn_key]] <- TRUE
+      }
       scale_factor <- td / (fixed_sum + 10)
       l_ini <- max(1L, as.integer(round(cp$l_ini_days[1] * scale_factor)))
       l_mid <- max(1L, as.integer(round(cp$l_mid_days[1] * scale_factor)))
