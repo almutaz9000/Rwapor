@@ -4,12 +4,22 @@
 \alias{run_wapor}
 \title{Run the Rwapor Shiny Dashboard}
 \usage{
-run_wapor(display.mode = "normal", launch.browser = interactive(), ...)
+run_wapor(
+  display.mode = "normal",
+  launch.browser = interactive(),
+  dev = NULL,
+  ...
+)
 }
 \arguments{
 \item{display.mode}{Character. Passed to \code{\link[shiny:runApp]{shiny::runApp()}}.}
 
 \item{launch.browser}{Logical. Passed to \code{\link[shiny:runApp]{shiny::runApp()}}.}
+
+\item{dev}{Logical. If \code{TRUE}, forces loading the dashboard from the local
+\code{inst/shiny} directory in the current working directory. If \code{NULL}
+(default), auto-detects if running interactively from the package root.
+If \code{FALSE}, forces loading from the installed package library.}
 
 \item{...}{Additional arguments passed to \code{\link[shiny:runApp]{shiny::runApp()}}.}
 }
