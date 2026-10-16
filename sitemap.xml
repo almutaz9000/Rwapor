@@ -34,6 +34,7 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_aggregate_precip.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_apply_climate_norm.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_apply_seasonal_mask_recalc.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_audit_etlook_mass_balance.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_available_variables.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_build_crop_assignments.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_build_kc.html</loc></url>
@@ -54,6 +55,7 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_green_water.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_rasters.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_std_rasters.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nbwp.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nir.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_p95_aeti.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_calc_peff.html</loc></url>
@@ -134,6 +136,7 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_cwp.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_et_rain.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_green_water.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_nbwp.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_npp_to_biomass.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_peff_usda.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_math_rainfall_surplus.html</loc></url>

@@ -1,6 +1,7 @@
-# Plot several raster indicators side by side
+# Comparison Plot for Multiple Spatial Rasters or Matrices
 
-Plot several raster indicators side by side
+Plots multiple spatial raster layers or numeric matrices side-by-side
+with a shared color scale.
 
 ## Usage
 

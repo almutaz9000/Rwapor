@@ -1,6 +1,6 @@
-# Beneficial fraction: T / AETI
+# Beneficial fraction: T / AETI (clamped to 0, 1)
 
-Beneficial fraction: T / AETI
+Beneficial fraction: T / AETI (clamped to 0, 1)
 
 ## Usage
 

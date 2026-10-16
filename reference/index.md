@@ -28,6 +28,8 @@
   : Apply a climate normalisation factor
 - [`wapor_apply_seasonal_mask_recalc()`](https://almutaz9000.github.io/Rwapor/reference/wapor_apply_seasonal_mask_recalc.md)
   : Apply Seasonal Adaptive Mask and Recalculate Stats
+- [`wapor_audit_etlook_mass_balance()`](https://almutaz9000.github.io/Rwapor/reference/wapor_audit_etlook_mass_balance.md)
+  : Audit ETLook Mass Balance Conservation
 - [`wapor_available_variables()`](https://almutaz9000.github.io/Rwapor/reference/wapor_available_variables.md)
   : List available WaPOR and AgERA5 variables
 - [`wapor_build_crop_assignments()`](https://almutaz9000.github.io/Rwapor/reference/wapor_build_crop_assignments.md)
@@ -66,6 +68,8 @@
   : Compute Monthly Weighted Raster Series
 - [`wapor_calc_monthly_weighted_std_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_monthly_weighted_std_rasters.md)
   : Compute Monthly Weighted Standard Deviation Raster Series
+- [`wapor_calc_nbwp()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nbwp.md)
+  : Compute Net Biomass Water Productivity (NBWP)
 - [`wapor_calc_nir()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_nir.md)
   : Net irrigation requirement
 - [`wapor_calc_p95_aeti()`](https://almutaz9000.github.io/Rwapor/reference/wapor_calc_p95_aeti.md)
@@ -202,7 +206,7 @@
 - [`wapor_plot_anomaly()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_anomaly.md)
   : Plot a z-score anomaly raster
 - [`wapor_plot_comparison()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_comparison.md)
-  : Plot several raster indicators side by side
+  : Comparison Plot for Multiple Spatial Rasters or Matrices
 - [`wapor_plot_kc_curve()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_kc_curve.md)
   : Plot a crop coefficient curve
 - [`wapor_plot_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_plot_map.md)
