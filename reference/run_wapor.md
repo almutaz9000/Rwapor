@@ -9,7 +9,12 @@ function.
 ## Usage
 
 ``` r
-run_wapor(display.mode = "normal", launch.browser = interactive(), ...)
+run_wapor(
+  display.mode = "normal",
+  launch.browser = interactive(),
+  dev = NULL,
+  ...
+)
 ```
 
 ## Arguments
@@ -23,6 +28,13 @@ run_wapor(display.mode = "normal", launch.browser = interactive(), ...)
 
   Logical. Passed to
   [`shiny::runApp()`](https://rdrr.io/pkg/shiny/man/runApp.html).
+
+- dev:
+
+  Logical. If `TRUE`, forces loading the dashboard from the local
+  `inst/shiny` directory in the current working directory. If `NULL`
+  (default), auto-detects if running interactively from the package
+  root. If `FALSE`, forces loading from the installed package library.
 
 - ...:
 
