@@ -359,12 +359,13 @@ wapor_preflight_check <- function(config, data_source = "api", folder = NULL,
     ))
     
     if (any(total_fixed >= season_days)) {
+      short_classes <- config$crop_params$class_value[total_fixed >= season_days]
       results$warnings <- c(results$warnings,
-        sprintf("Some crop classes have stage lengths >= season duration (%d days)", 
-                season_days)
+        sprintf("Crop class(es) %s have standard stage lengths >= season duration (%d days).", 
+                paste(short_classes, collapse = ", "), season_days)
       )
       results$recommendations <- c(results$recommendations,
-        "Ensure L_dev will be positive (total days - stage sum > 0)"
+        "Short-season options: (1) Proceed with automatic proportional stage scaling, (2) Manually adjust L_ini, L_mid, or L_late in Crop Parameters, or (3) Review season start/end dates if the period was set too short."
       )
     }
   }
