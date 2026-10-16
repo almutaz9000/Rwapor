@@ -4,6 +4,16 @@ _Short, agent-facing operational change summary. Complements but does not
 replace `NEWS.md` or `git log` — only major workflow changes, meaningful repo
 structure changes, and fixes that affect future sessions belong here._
 
+## 2026-10-16 — Shiny Dashboard Design, Layout, and Workflow Refactor (Antigravity)
+
+- Consolidated redundant top-level `Dual Compare` tab into `mod_visualisation.R`: the Visualisation view now hosts both "Map Explorer" (Single, Dual Overlay, Query Filter) and "Side-by-Side (Synced)" (synchronized dual Leaflet maps powered by `leaflet.extras2`). Streamlined app navbar from 6 tabs to 5 coherent primary workflows.
+- Linked Analysis outputs directly to Visualisation: `mod_analysis.R` exports reactive analysis folder (`an_folder`) and output rasters. Both `mod_visualisation.R` and `mod_dual_map.R` scan and resolve rasters from both `global_folder` (downloads) and `an_folder` (analysis outputs).
+- Pruned redundant DuckDB blob "Raster View" tab from `mod_monitoring.R`, streamlining the farm monitoring dashboard into 4 focused tabs (Farm Map, Time Series, Stress Dashboard, Data Table).
+- Migrated ~200 lines of inline CSS from `inst/shiny/app.R` to `inst/shiny/www/premium_style.css`, resolving rigid hardcoded viewport heights with flexible container scaling.
+- Modernized `mod_analysis.R` sidebar from pill navigation to a 5-step numbered accordion wizard matching the design of `mod_download.R`.
+- Added reproducible Technical Console with `shinyAce` editor, clipboard copy, and `.R` script download to `mod_timeseries.R`.
+- Verified all 12 Shiny app files parse cleanly; testthat test suite passes 107 assertions across dashboard validation and Shiny analysis with 0 errors, 0 warnings.
+
 ## 2026-10-15 - Verification and Remote Sync of Package Improvements (Antigravity)
 
 - Full test suite verified on R 4.4.1 Windows: 6,277 assertions passed, 0 failures.

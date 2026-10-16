@@ -8,20 +8,27 @@
 }
 
 mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
+  step_title <- function(n, label) {
+    shiny::tagList(
+      shiny::tags$span(as.character(n), class = "wizard-step-num"),
+      label
+    )
+  }
+
   bslib::sidebar(
     width = 350,
     open  = TRUE,
     title = "Crop Season Analysis",
     shiny::div(
-      class = "sidebar-scroll-area analysis-sidebar-pills",
-      bslib::navset_pill_list(
-        id = ns("analysis_config_nav"),
-        widths = c(12, 12), # Stacked layout within sidebar
-        well = FALSE,
+      class = "sidebar-scroll-area",
+      bslib::accordion(
+        id = ns("analysis_accordion"),
+        open = c("1", "4"),
+        multiple = TRUE,
         
-        # ── TAB 1: Data & Period ─────────────────────────────────
-        bslib::nav_panel(
-          shiny::span(shiny::icon("database"), " Data & Period"),
+        # ── STEP 1: Data & Period ─────────────────────────────────
+        bslib::accordion_panel(
+          value = "1", title = step_title(1, "Data & Period"), icon = shiny::icon("database"),
           
           # 1. Data Source
           shiny::tags$span("Data Source", class = "ctrl-group-label"),
@@ -77,9 +84,9 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           )
         ),
 
-        # ── TAB 2: Masking & Timing ──────────────────────────────
-        bslib::nav_panel(
-          shiny::span(shiny::icon("map-location-dot"), " Masking & Timing"),
+        # ── STEP 2: Masking & Timing ──────────────────────────────
+        bslib::accordion_panel(
+          value = "2", title = step_title(2, "Masking & Timing"), icon = shiny::icon("map-location-dot"),
           
           shiny::tags$span("Custom Timing (Optional)", class = "ctrl-group-label"),
           shiny::fileInput(ns("an_mask_vector"), "Boundaries (.geojson/.shp)", accept = c(".geojson", ".shp", ".zip"), width = "100%"),
@@ -111,16 +118,16 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           )
         ),
 
-        # ── TAB 3: Crop Specs ────────────────────────────────────
-        bslib::nav_panel(
-          shiny::span(shiny::icon("seedling"), " Crop Specs"),
+        # ── STEP 3: Crop Specs ────────────────────────────────────
+        bslib::accordion_panel(
+          value = "3", title = step_title(3, "Crop Specs"), icon = shiny::icon("seedling"),
           shiny::helpText("Assign Kc profiles per class. Requires a crop mask."),
           shiny::uiOutput(ns("an_crop_class_ui"))
         ),
 
-        # ── TAB 4: Analysis Targets ──────────────────────────────
-        bslib::nav_panel(
-          shiny::span(shiny::icon("chart-bar"), " Analysis Targets"),
+        # ── STEP 4: Analysis Targets ──────────────────────────────
+        bslib::accordion_panel(
+          value = "4", title = step_title(4, "Analysis Targets"), icon = shiny::icon("chart-bar"),
           
           shiny::tags$span("Primary Variables", class = "ctrl-group-label"),
           shiny::div(
@@ -160,9 +167,9 @@ mod_analysis_ui_sidebar <- function(ns, all_vars, l3_region_choices) {
           shiny::uiOutput(ns("an_indicator_registry_ui"))
         ),
 
-        # ── TAB 5: Output Folder ─────────────────────────────────
-        bslib::nav_panel(
-          shiny::span(shiny::icon("folder-open"), " Output Folder"),
+        # ── STEP 5: Output Folder ─────────────────────────────────
+        bslib::accordion_panel(
+          value = "5", title = step_title(5, "Output Folder"), icon = shiny::icon("folder-open"),
           
           shiny::div(
             class = "inline-row",

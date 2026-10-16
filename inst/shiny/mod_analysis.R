@@ -2368,7 +2368,9 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       mask_rast = an_crop_mask_rast,
       start_rast = an_start_rast,
       end_rast = an_end_rast,
-      crop_params = an_crop_params
+      crop_params = an_crop_params,
+      folder = shiny::reactive(input$an_folder),
+      results = an_results
     )
   })
 }

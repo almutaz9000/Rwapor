@@ -4,8 +4,15 @@
 mod_visualisation_ui <- function(id) {
   ns <- shiny::NS(id)
   
-  bslib::layout_sidebar(
-    sidebar = bslib::sidebar(
+  bslib::navset_card_tab(
+    id = ns("vis_main_tabs"),
+    
+    # ── Tab 1: Map Explorer (Single / Overlay / Query) ──
+    bslib::nav_panel(
+      title = "Map Explorer",
+      icon  = shiny::icon("map"),
+      bslib::layout_sidebar(
+        sidebar = bslib::sidebar(
       width = 300,
       open  = TRUE,
       title = "Raster Visualization",
@@ -181,16 +188,32 @@ mod_visualisation_ui <- function(id) {
         shiny::uiOutput(ns("raster_stat_boxes"))
       )
     )
+      )
+    ),
+
+    # ── Tab 2: Synchronized Dual Map ──
+    bslib::nav_panel(
+      title = "Side-by-Side (Synced)",
+      icon  = shiny::icon("columns"),
+      mod_dual_map_ui(ns("dual"))
+    )
   )
 }
 
 mod_visualisation_server <- function(id, global_folder, aoi_region, 
-                                    an_crop_mask_rast = shiny::reactive(NULL),
-                                    an_start_rast = shiny::reactive(NULL),
-                                    an_end_rast = shiny::reactive(NULL),
-                                    an_crop_params = shiny::reactive(NULL)) {
+                                     an_folder = shiny::reactive(NULL),
+                                     an_crop_mask_rast = shiny::reactive(NULL),
+                                     an_start_rast = shiny::reactive(NULL),
+                                     an_end_rast = shiny::reactive(NULL),
+                                     an_crop_params = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    
+    # Initialize child dual map module
+    mod_dual_map_server("dual",
+                        global_folder = global_folder,
+                        aoi_region    = aoi_region,
+                        an_folder     = an_folder)
     
     loaded_raster <- shiny::reactiveVal(NULL)
     loaded_raster2 <- shiny::reactiveVal(NULL)
@@ -415,9 +438,32 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     }
 
 
-    # ── Folder Scanning ────────────────────────────────────────────────────
+    # ── Folder Scanning & Path Resolution ──────────────────────────────────
+    .resolve_raster_path <- function(rel_path) {
+      if (is.null(rel_path) || !nzchar(rel_path)) return(NULL)
+      # Check if prefixed with [AN]
+      if (grepl("^\\[AN\\]\\s*", rel_path)) {
+        clean_rel <- sub("^\\[AN\\]\\s*", "", rel_path)
+        an_dir <- if (is.function(an_folder)) an_folder() else NULL
+        if (!is.null(an_dir) && file.exists(file.path(an_dir, clean_rel))) {
+          return(file.path(an_dir, clean_rel))
+        }
+      }
+      # Standard check in global_folder
+      dl_dir <- if (is.function(global_folder)) global_folder() else NULL
+      if (!is.null(dl_dir) && file.exists(file.path(dl_dir, rel_path))) {
+        return(file.path(dl_dir, rel_path))
+      }
+      # Fallback check in an_folder even without prefix
+      an_dir <- if (is.function(an_folder)) an_folder() else NULL
+      if (!is.null(an_dir) && file.exists(file.path(an_dir, rel_path))) {
+        return(file.path(an_dir, rel_path))
+      }
+      NULL
+    }
+
     raster_choices <- shiny::reactive({
-      folder <- global_folder()
+      folder <- if (is.function(global_folder)) global_folder() else NULL
       tif_files <- if (!is.null(folder) && dir.exists(folder)) {
         files <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
         if (isTRUE(input$only_seasonal)) {
@@ -426,15 +472,32 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
         files
       } else character(0)
       
+      an_dir <- if (is.function(an_folder)) an_folder() else NULL
+      an_tif_files <- if (!is.null(an_dir) && dir.exists(an_dir)) {
+        files <- list.files(an_dir, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+        if (isTRUE(input$only_seasonal)) {
+          files <- files[grepl("_seasonal", files)]
+        }
+        if (!is.null(folder) && identical(normalizePath(an_dir, mustWork = FALSE),
+                                          normalizePath(folder, mustWork = FALSE))) {
+          character(0)
+        } else {
+          files
+        }
+      } else character(0)
+
       analysis_layers <- list()
       if (!is.null(an_crop_mask_rast())) analysis_layers["[Analysis] Crop Mask"] <- "__analysis_crop_mask__"
       if (!is.null(an_start_rast()))     analysis_layers["[Analysis] Season Start"] <- "__analysis_season_start__"
       if (!is.null(an_end_rast()))       analysis_layers["[Analysis] Season End"] <- "__analysis_season_end__"
       
-      if (length(analysis_layers) > 0) {
-        return(list("Local Files" = tif_files, "Analysis Layers" = unlist(analysis_layers)))
-      }
-      tif_files
+      res <- list()
+      if (length(tif_files) > 0) res[["Downloads / Global"]] <- tif_files
+      if (length(an_tif_files) > 0) res[["Analysis Output"]] <- paste0("[AN] ", an_tif_files)
+      if (length(analysis_layers) > 0) res[["Analysis Layers"]] <- unlist(analysis_layers)
+      
+      if (length(res) == 0) return(character(0))
+      res
     })
 
     shiny::observe({
@@ -461,8 +524,8 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       } else if (input$raster_file == "__analysis_season_end__") {
         r <- an_end_rast()
       } else {
-        full_path <- file.path(global_folder(), input$raster_file)
-        if (!file.exists(full_path)) {
+        full_path <- .resolve_raster_path(input$raster_file)
+        if (is.null(full_path) || !file.exists(full_path)) {
           shiny::showNotification("File not found.", type = "error")
           loaded_raster(NULL)
           return()
@@ -510,8 +573,8 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
       } else if (input$raster_file2 == "__analysis_season_end__") {
         r <- an_end_rast()
       } else {
-        full_path <- file.path(global_folder(), input$raster_file2)
-        if (!file.exists(full_path)) {
+        full_path <- .resolve_raster_path(input$raster_file2)
+        if (is.null(full_path) || !file.exists(full_path)) {
           shiny::showNotification("Raster 2 file not found.", type = "error")
           loaded_raster2(NULL)
           return()
