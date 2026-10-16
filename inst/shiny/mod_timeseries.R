@@ -459,6 +459,34 @@ mod_timeseries_ui <- function(id) {
         bslib::nav_panel(
           "Summary", icon = shiny::icon("circle-info"),
           bslib::card_body(shiny::verbatimTextOutput(ns("txt_summary")))
+        ),
+
+
+        # Tab 6: Technical Console
+        bslib::nav_panel(
+          "Technical Console", icon = shiny::icon("terminal"),
+          bslib::card_body(
+            class = "console-body",
+            padding = 0,
+            shinyAce::aceEditor(
+              ns("ts_code_preview"),
+              mode = "r", theme = "monokai", readOnly = TRUE,
+              height = "100%", fontSize = 12,
+              wordWrap = TRUE, showLineNumbers = TRUE
+            )
+          ),
+          footer = shiny::div(
+            class = "d-flex justify-content-between align-items-center p-2 bg-light border-top",
+            shiny::div(
+              class = "btn-group btn-group-sm",
+              shiny::actionButton(ns("ts_copy_code"), "Copy", icon = shiny::icon("copy"), class = "btn-outline-secondary"),
+              shiny::downloadButton(ns("ts_export_script"), "Export .R", class = "btn-outline-secondary")
+            ),
+            shiny::div(
+              class = "small text-muted",
+              shiny::icon("terminal"), " Reproducible R Script"
+            )
+          )
         )
       ) # /navset_card_tab
     ) # /layout_sidebar
@@ -1490,6 +1518,117 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
       updateSelectInput(session, "vars_ts", selected = character(0))
       shiny::showNotification("Cleared.", type = "message", duration = 2)
     })
+
+    # ── 15. Technical Console (Reproducible R Script) ──────────────────────────
+    ts_script_generator <- shiny::reactive({
+      src <- input$data_source %||% "local"
+      vars <- input$vars_ts %||% "L1-AETI-D"
+      vars_code <- if (length(vars) > 1) {
+        paste0("c(", paste0('"', vars, '"', collapse = ", "), ")")
+      } else {
+        paste0('"', vars[1], '"')
+      }
+      
+      start_d <- as.character(input$period[1] %||% (Sys.Date() - 730))
+      end_d   <- as.character(input$period[2] %||% Sys.Date())
+      
+      vec_src <- input$vec_source %||% "upload"
+      id_col  <- input$vec_id_col %||% "id"
+
+      lines <- c(
+        "# =====================================================================",
+        "# Rwapor Reproducible Time Series Extraction Script",
+        sprintf("# Generated on: %s", Sys.time()),
+        "# =====================================================================",
+        "",
+        "library(Rwapor)",
+        "library(sf)",
+        "library(ggplot2)",
+        ""
+      )
+
+      if (src == "local") {
+        fld <- input$ts_folder %||% global_folder() %||% "."
+        lines <- c(
+          lines,
+          sprintf('raster_dir <- "%s"', fld),
+          sprintf('variables  <- %s', vars_code),
+          sprintf('start_date <- "%s"', start_d),
+          sprintf('end_date   <- "%s"', end_d),
+          "",
+          "# Vector boundary",
+          if (vec_src == "upload") {
+            'aoi_vec <- sf::st_read("path/to/your/boundary.geojson")'
+          } else {
+            '# Note: AOI defined from project boundary'
+          },
+          "",
+          "# Extract time series from local raster collection",
+          'ts_data <- Rwapor::wapor_ts(',
+          '  folder     = raster_dir,',
+          '  variables  = variables,',
+          '  start_date = start_date,',
+          '  end_date   = end_date,',
+          '  vector     = aoi_vec,',
+          sprintf('  id_col     = "%s"', id_col),
+          ')',
+          "",
+          "# Inspect extracted time series",
+          "head(ts_data)",
+          "",
+          "# Visualise with ggplot2",
+          "ggplot(ts_data, aes(x = as.Date(start_date), y = mean, colour = variable)) +",
+          "  geom_line(linewidth = 0.8) +",
+          "  geom_point(size = 1.5) +",
+          "  theme_minimal() +",
+          '  labs(title = "Rwapor Time Series Profile", x = "Date", y = "Value")'
+        )
+      } else if (src == "api") {
+        lines <- c(
+          lines,
+          sprintf('variables  <- %s', vars_code),
+          sprintf('start_date <- "%s"', start_d),
+          sprintf('end_date   <- "%s"', end_d),
+          "",
+          "# Direct API time series extraction (FAO WaPOR GIS Manager)",
+          'ts_data <- Rwapor::wapor_ts(',
+          '  variables  = variables,',
+          '  start_date = start_date,',
+          '  end_date   = end_date,',
+          '  vector     = aoi_vec',
+          ')',
+          "",
+          "head(ts_data)"
+        )
+      } else {
+        lines <- c(
+          lines,
+          "# Loaded from saved time series dataset",
+          '# ts_data <- read.csv("path/to/saved_ts.csv")',
+          "head(ts_data)"
+        )
+      }
+
+      paste(lines, collapse = "\n")
+    })
+
+    shiny::observe({
+      code_val <- ts_script_generator()
+      shinyAce::updateAceEditor(session, "ts_code_preview", value = code_val)
+    })
+
+    shiny::observeEvent(input$ts_copy_code, {
+      code_val <- ts_script_generator()
+      shinyjs::runjs(sprintf("navigator.clipboard.writeText(%s);", jsonlite::toJSON(code_val, auto_unbox = TRUE)))
+      shiny::showNotification("Timeseries script copied to clipboard!", type = "message")
+    })
+
+    output$ts_export_script <- shiny::downloadHandler(
+      filename = function() paste0("wapor_timeseries_", format(Sys.Date(), "%Y%m%d"), ".R"),
+      content = function(file) {
+        writeLines(ts_script_generator(), file)
+      }
+    )
 
   })  # /moduleServer
 }

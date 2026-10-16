@@ -15,10 +15,10 @@ mod_analysis_ui_body <- function(ns) {
         fill = TRUE,
         gap = "0.75rem",
         
-        # Row 1: Compact Summary (Fixed height)
+        # Row 1: Compact Summary (Responsive)
         bslib::card(
           id = ns("an_card_summary"),
-          max_height = "165px",
+          min_height = "150px",
           bslib::card_body(
             padding = 0,
             bslib::layout_column_wrap(

@@ -3,9 +3,16 @@
 _Very short handoff, optimized for token efficiency. Default first read after
 `START-HERE.md`. See `templates/session-brief.md` for the entry format._
 
-## Current Session - 2026-10-15 - Verification, Remote Sync, and Shiny Architecture Review (Antigravity)
+## Current Session - 2026-10-16 - Shiny Dashboard Design, Layout, and Workflow Refactor (Antigravity)
 
-**Verification & Remote Sync**: Executed full test suite across all recent improvements: 6,277 assertions passed, 0 failures. Modernized ggplot2 tidy evaluation in `R/viz.R` (eliminating `aes_string` deprecation warnings, verified 14/14 tests pass cleanly). Synced `docs/BRANCH_HISTORY_AND_RETIREMENT.md`. Verified full test suite (0 failures, 6 skips). Staged, committed, and pushed all verified improvements to remote `origin/version-1.0.6`.
+**Dashboard Streamlining & Redundancy Removal**:
+- Consolidated redundant top-level `Dual Compare` tab into `mod_visualisation.R`: Visualisation now hosts both "Map Explorer" (Single Raster, Dual Overlay, Query Filter) and "Side-by-Side (Synced)" (synchronized dual Leaflet maps powered by `leaflet.extras2`). Streamlined app navbar from 6 tabs to 5 coherent primary workflows.
+- Linked Analysis outputs directly to Visualisation: `mod_analysis.R` exports reactive analysis folder (`an_folder`) and output rasters. Both `mod_visualisation.R` and `mod_dual_map.R` scan and resolve rasters from both `global_folder` (downloads) and `an_folder` (analysis outputs).
+- Pruned redundant DuckDB blob "Raster View" tab from `mod_monitoring.R`, streamlining the farm monitoring dashboard into 4 focused tabs (Farm Map, Time Series, Stress Dashboard, Data Table).
+- Migrated ~200 lines of inline CSS from `inst/shiny/app.R` to `inst/shiny/www/premium_style.css`, resolving rigid hardcoded viewport heights with flexible container scaling.
+- Modernized `mod_analysis.R` sidebar from pill navigation to a 5-step numbered accordion wizard matching the design of `mod_download.R`.
+- Added reproducible Technical Console with `shinyAce` editor, clipboard copy, and `.R` script download to `mod_timeseries.R`.
+- Verified all 12 Shiny app files parse cleanly; testthat test suite passes 107 assertions across dashboard validation and Shiny analysis with 0 errors, 0 warnings.
 
 ## Previous Session - 2026-10-09 - backlog improvements (Codex)
 

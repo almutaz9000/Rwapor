@@ -113,7 +113,7 @@ mod_dual_map_ui <- function(id) {
   )
 }
 
-mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(NULL)) {
+mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(NULL), an_folder = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
     if (!.wapor_dual_map_available()) return(invisible(NULL))
@@ -121,14 +121,49 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
     loaded_left  <- shiny::reactiveVal(NULL)
     loaded_right <- shiny::reactiveVal(NULL)
 
-    # ── Folder scanning (mirrors mod_visualisation.R's raster_choices) ──────
-    raster_choices <- shiny::reactive({
-      folder <- global_folder()
-      if (!is.null(folder) && dir.exists(folder)) {
-        list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-      } else {
-        character(0)
+    # ── Folder scanning & Path resolution ───────────────────────────────────
+    .resolve_path <- function(rel_path) {
+      if (is.null(rel_path) || !nzchar(rel_path)) return(NULL)
+      if (grepl("^\\[AN\\]\\s*", rel_path)) {
+        clean_rel <- sub("^\\[AN\\]\\s*", "", rel_path)
+        an_dir <- if (is.function(an_folder)) an_folder() else NULL
+        if (!is.null(an_dir) && file.exists(file.path(an_dir, clean_rel))) {
+          return(file.path(an_dir, clean_rel))
+        }
       }
+      dl_dir <- if (is.function(global_folder)) global_folder() else NULL
+      if (!is.null(dl_dir) && file.exists(file.path(dl_dir, rel_path))) {
+        return(file.path(dl_dir, rel_path))
+      }
+      an_dir <- if (is.function(an_folder)) an_folder() else NULL
+      if (!is.null(an_dir) && file.exists(file.path(an_dir, rel_path))) {
+        return(file.path(an_dir, rel_path))
+      }
+      NULL
+    }
+
+    raster_choices <- shiny::reactive({
+      folder <- if (is.function(global_folder)) global_folder() else NULL
+      tif_files <- if (!is.null(folder) && dir.exists(folder)) {
+        list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+      } else character(0)
+
+      an_dir <- if (is.function(an_folder)) an_folder() else NULL
+      an_tif_files <- if (!is.null(an_dir) && dir.exists(an_dir)) {
+        files <- list.files(an_dir, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
+        if (!is.null(folder) && identical(normalizePath(an_dir, mustWork = FALSE),
+                                          normalizePath(folder, mustWork = FALSE))) {
+          character(0)
+        } else {
+          files
+        }
+      } else character(0)
+
+      res <- list()
+      if (length(tif_files) > 0) res[["Downloads / Global"]] <- tif_files
+      if (length(an_tif_files) > 0) res[["Analysis Output"]] <- paste0("[AN] ", an_tif_files)
+      if (length(res) == 0) return(character(0))
+      res
     })
 
     shiny::observe({
@@ -143,8 +178,8 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
 
     .load_side <- function(file_input_val, band_input_id, store) {
       shiny::req(file_input_val)
-      full_path <- file.path(global_folder(), file_input_val)
-      if (!file.exists(full_path)) {
+      full_path <- .resolve_path(file_input_val)
+      if (is.null(full_path) || !file.exists(full_path)) {
         shiny::showNotification(sprintf("File not found: %s", file_input_val), type = "error")
         store(NULL)
         return(invisible(NULL))

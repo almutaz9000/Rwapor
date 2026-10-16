@@ -4,6 +4,15 @@ _Live execution state. See `templates/task-entry.md` for the entry format._
 
 ## Active
 
+- **shiny-refactor-1.0.6: Shiny Dashboard Design, Layout, and Workflow Refactor** — DONE (Antigravity, 2026-10-16).
+  Streamlined top-level navbar from 6 tabs to 5: consolidated redundant standalone Dual Compare tab into Visualisation (`mod_visualisation.R` now hosts Map Explorer and Side-by-Side Synced child module `mod_dual_map.R`).
+  Pruned redundant DuckDB blob "Raster View" tab from `mod_monitoring.R`.
+  Migrated ~200 lines of inline CSS from `app.R` to `inst/shiny/www/premium_style.css`, fixing rigid viewport height calculations to flexible container-based scaling.
+  Modernized `mod_analysis.R` sidebar to a 5-step numbered accordion wizard and exported reactive analysis folder (`an_folder`) and results to Visualisation module.
+  Added reproducible Technical Console with Ace editor and script download to `mod_timeseries.R`.
+  All 12 Shiny app files parsed cleanly. Testthat test suite passes 107 dashboard/analysis-shiny assertions with 0 failures, 0 warnings.
+
+
 - **2.3 - Memory benchmark suite** - ACTIVE (Codex, 2026-10-09). Added fixed-tile 32x32/64x64 tiled-versus-full pixel parity and stable tile-window cell-count checks; `test-memory-scaling.R` passes 21 assertions with `NOT_CRAN=true`. Process-RSS benchmarking remains open; `peak_bytes` is only an 8-byte-per-cell payload estimate.
 
 - **prov-v1: package provenance and compatibility validation** — ACTIVE (Hermes, 2026-10-08). M1-M4 complete. Provenance is now end-to-end: temporal/schema (M1), public validator API (M2), engine source/output/mask lineage (M3), indicator calculation guards and sidecar persistence (M4). Provenance validator 31, indicators 63, engine 79, Shiny/export 96, tiled 44 pass. Remaining: Milestones 5-7 (sidecar round-trip and regression suite, ts/monitoring/Shiny workflow integration, release docs).
