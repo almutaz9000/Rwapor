@@ -2,6 +2,7 @@
 
 ## Production readiness & scientific review fixes
 
+* **Climatic Kc Adjustment (FAO-56 Eq. 62 & 65)**: Added `wapor_adjust_kc_climate()`, `wapor_extract_agera5_climate()`, and `wapor_adjust_crop_params_agera5()` to calibrate tabulated $K_{c,\text{mid}}$ and $K_{c,\text{end}}$ to local climatic conditions (wind speed $u_2$, minimum relative humidity $RH_{\min}$, and plant height $h$). Automatically derives stage-specific mean climate directly from AgERA5 reanalysis via `wapor_ts()`.
 * **Net Biomass Water Productivity (NBWP)**: New `wapor_calc_nbwp()` and `wapor_math_nbwp()` calculate Net Biomass Water Productivity ($NBWP = \text{Biomass} / (\text{Transpiration} \times 10)$ in $\text{kg/m}^3$), isolating beneficial water consumption through transpiration from non-beneficial soil evaporation and canopy interception. Fully integrated into `wapor_run_seasonal_analysis()`, `analysis_registry`, `wapor_export_analysis_outputs()`, and Shiny analysis tab.
 * **ETLook Energy Balance Mass Balance Auditor**: New `wapor_audit_etlook_mass_balance()` audits mass conservation ($AETI = E + T + I$) across rasters or numeric totals with customizable tolerance.
 * **Beneficial Fraction Clamping**: `wapor_calc_beneficial_fraction()` and `wapor_math_beneficial_fraction()` now clamp ratios strictly to $[0, 1]$ across both raster and numeric execution paths.
