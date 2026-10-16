@@ -1094,9 +1094,11 @@ mod_download_server <- function(id, l3_regions_meta) {
 
           for (i in seq_along(vars)) {
             v <- vars[i]
-            shiny::incProgress(
-              1/n_vars * 0.1, 
-              detail = sprintf("Initializing %s (%d/%d)...", v, i, n_vars)
+            base_p <- (i - 1) / n_vars
+            var_slice <- 1 / n_vars
+            shiny::setProgress(
+              value = base_p + (var_slice * 0.05),
+              detail = sprintf("[%d/%d] Preparing download for %s...", i, n_vars, v)
             )
             
             # Use the core wapor_map for each variable to provide granular progress
@@ -1111,11 +1113,13 @@ mod_download_server <- function(id, l3_regions_meta) {
               as.character(input$period)
             }
             batch_progress <- function(batch_index, batch_count) {
-              shiny::incProgress(
-                0,
+              batch_frac <- (batch_index / max(1, batch_count)) * 0.90
+              p_val <- base_p + (var_slice * (0.05 + batch_frac))
+              shiny::setProgress(
+                value = pmin(0.99, p_val),
                 detail = sprintf(
-                  "Downloaded batch %d of %d for %s...",
-                  batch_index, batch_count, v
+                  "[%d/%d] %s: downloaded batch %d of %d (%.0f%%)...",
+                  i, n_vars, v, batch_index, batch_count, (batch_index / max(1, batch_count)) * 100
                 )
               )
             }
@@ -1165,7 +1169,10 @@ mod_download_server <- function(id, l3_regions_meta) {
             }
             
             all_out_paths[[v]] <- out_path
-            shiny::incProgress(1/n_vars * 0.9)
+            shiny::setProgress(
+              value = i / n_vars,
+              detail = sprintf("[%d/%d] Finished downloading %s", i, n_vars, v)
+            )
           }
 
           # Check if any files were actually written
