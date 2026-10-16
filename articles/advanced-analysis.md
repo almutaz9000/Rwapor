@@ -112,10 +112,12 @@ wapor_export_analysis_outputs(
 )
 ```
 
-### 2.2 Multi-Year Batch Processing
+### 2.2 Multi-Year Batch Processing & Smart-Linking
 
-Pass a named list of periods to loop through multiple seasons
-automatically:
+When analyzing multi-year time horizons, rotational cropping cycles, or
+scheme audits, pass a named list of periods to
+[`wapor_run_seasonal_analysis()`](https://almutaz9000.github.io/Rwapor/reference/wapor_run_seasonal_analysis.md).
+The engine automatically activates **Batch Mode**:
 
 ``` r
 
@@ -127,8 +129,34 @@ periods <- list(
 
 config$period <- periods
 
-all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters)
+# Execute batch run across all seasons
+all_results <- wapor_run_seasonal_analysis(config, crop_params, rasters = list())
 ```
+
+#### Smart-Linking & Multi-Crop Support
+
+- **Smart-Linking**: If you have season-specific masks or phenology
+  rasters in your project directory (or in `seasonal_masks/`), the
+  engine matches them by name (e.g. `Winter2021_mask.tif` or
+  `mask_Winter2021.tif`, `Winter2021_start.tif`, `Winter2021_end.tif`).
+- **Multi-Crop Modeling**: Categorical crop masks (`1` = Wheat, `2` =
+  Maize) are seamlessly handled by combining individual crop parameter
+  profiles via
+  [`wapor_combine_crop_params()`](https://almutaz9000.github.io/Rwapor/reference/wapor_combine_crop_params.md).
+- **Cross-Year Seasons**: When harvesting occurs in the following
+  calendar year ($`\text{EOS} < \text{SOS}`$, e.g. planting DOY 305 and
+  harvest DOY 120), Rwapor automatically shifts Julian day calculations
+  by $`365`$/$`366`$ days without requiring manual date normalization.
+- **Vector & CSV Mask Generation**: If you have field boundary polygons
+  (`.geojson`/`.shp`) and planting spreadsheets (`.csv`), generate all
+  aligned seasonal rasters with
+  [`wapor_vector_to_season_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_vector_to_season_rasters.md).
+
+> \[!TIP\] For a complete step-by-step tutorial covering four real-world
+> batch analysis scenarios, directory conventions, and Shiny dashboard
+> batch workflows, see the dedicated **[Batch Seasonal Analysis
+> Tutorial](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.md)**
+> ([`vignette("batch-seasonal-analysis", package = "Rwapor")`](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.md)).
 
 ------------------------------------------------------------------------
 

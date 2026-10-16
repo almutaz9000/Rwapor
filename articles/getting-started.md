@@ -178,3 +178,7 @@ ggplot(ts_df, aes(x = start_date, y = mean, group = plot_id, color = plot_id)) +
   Vignette](https://almutaz9000.github.io/Rwapor/articles/advanced-analysis.md)**
   for seasonal water productivity modeling ($`ET_c, CWP, BWP`$), custom
   crop parameter creation, and out-of-core tiled raster processing.
+- See the **[Batch Seasonal Analysis & Multi-Crop Modeling
+  Guide](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.md)**
+  for step-by-step multi-year batch runs, smart-linking of seasonal
+  rasters, and field boundary-to-raster generation.

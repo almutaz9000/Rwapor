@@ -34,6 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/advanced-analysis.html">Advanced Analysis, Custom Crop Modeling, and Spatial Diagnostics</a></li>
+    <li><a class="dropdown-item" href="../articles/batch-seasonal-analysis.html">Batch Seasonal Analysis, Smart-Linking, and Multi-Crop Modeling</a></li>
     <li><a class="dropdown-item" href="../articles/data-catalog.html">Data Catalog: WaPOR &amp; AgERA5</a></li>
     <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started with Rwapor: Data Ingestion, Streaming, and Time-Series Extraction</a></li>
     <li><a class="dropdown-item" href="../articles/global-tiled.html">Large Areas: Size-Aware and Tiled Processing</a></li>
@@ -175,10 +176,12 @@ adequacy ratios, and crop/biomass water productivity
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="multi-year-batch-processing">2.2 Multi-Year Batch Processing<a class="anchor" aria-label="anchor" href="#multi-year-batch-processing"></a>
+<h3 id="multi-year-batch-processing-smart-linking">2.2 Multi-Year Batch Processing &amp; Smart-Linking<a class="anchor" aria-label="anchor" href="#multi-year-batch-processing-smart-linking"></a>
 </h3>
-<p>Pass a named list of periods to loop through multiple seasons
-automatically:</p>
+<p>When analyzing multi-year time horizons, rotational cropping cycles,
+or scheme audits, pass a named list of periods to
+<code><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis()</a></code>. The engine automatically
+activates <strong>Batch Mode</strong>:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">periods</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  <span class="st">"Winter2021"</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2020-10-01"</span>, <span class="st">"2021-05-31"</span><span class="op">)</span>,</span>
@@ -188,8 +191,47 @@ automatically:</p>
 <span></span>
 <span><span class="va">config</span><span class="op">$</span><span class="va">period</span> <span class="op">&lt;-</span> <span class="va">periods</span></span>
 <span></span>
-<span><span class="va">all_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span><span class="va">config</span>, <span class="va">crop_params</span>, <span class="va">rasters</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Execute batch run across all seasons</span></span>
+<span><span class="va">all_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/wapor_run_seasonal_analysis.html">wapor_run_seasonal_analysis</a></span><span class="op">(</span><span class="va">config</span>, <span class="va">crop_params</span>, rasters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="section level4">
+<h4 id="smart-linking-multi-crop-support">Smart-Linking &amp; Multi-Crop Support<a class="anchor" aria-label="anchor" href="#smart-linking-multi-crop-support"></a>
+</h4>
+<ul>
+<li>
+<strong>Smart-Linking</strong>: If you have season-specific masks or
+phenology rasters in your project directory (or in
+<code>seasonal_masks/</code>), the engine matches them by name
+(e.g. <code>Winter2021_mask.tif</code> or
+<code>mask_Winter2021.tif</code>, <code>Winter2021_start.tif</code>,
+<code>Winter2021_end.tif</code>).</li>
+<li>
+<strong>Multi-Crop Modeling</strong>: Categorical crop masks
+(<code>1</code> = Wheat, <code>2</code> = Maize) are seamlessly handled
+by combining individual crop parameter profiles via
+<code><a href="../reference/wapor_combine_crop_params.html">wapor_combine_crop_params()</a></code>.</li>
+<li>
+<strong>Cross-Year Seasons</strong>: When harvesting occurs in the
+following calendar year
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext mathvariant="normal">EOS</mtext><mo>&lt;</mo><mtext mathvariant="normal">SOS</mtext></mrow><annotation encoding="application/x-tex">\text{EOS} &lt; \text{SOS}</annotation></semantics></math>,
+e.g. planting DOY 305 and harvest DOY 120), Rwapor automatically shifts
+Julian day calculations by
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>365</mn><annotation encoding="application/x-tex">365</annotation></semantics></math>/<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>366</mn><annotation encoding="application/x-tex">366</annotation></semantics></math>
+days without requiring manual date normalization.</li>
+<li>
+<strong>Vector &amp; CSV Mask Generation</strong>: If you have field
+boundary polygons (<code>.geojson</code>/<code>.shp</code>) and planting
+spreadsheets (<code>.csv</code>), generate all aligned seasonal rasters
+with <code><a href="../reference/wapor_vector_to_season_rasters.html">wapor_vector_to_season_rasters()</a></code>.</li>
+</ul>
+<blockquote>
+<p>[!TIP] For a complete step-by-step tutorial covering four real-world
+batch analysis scenarios, directory conventions, and Shiny dashboard
+batch workflows, see the dedicated <strong><a href="batch-seasonal-analysis.html">Batch Seasonal Analysis
+Tutorial</a></strong>
+(<code><a href="../articles/batch-seasonal-analysis.html">vignette("batch-seasonal-analysis", package = "Rwapor")</a></code>).</p>
+</blockquote>
 <hr>
+</div>
 </div>
 </div>
 <div class="section level2">

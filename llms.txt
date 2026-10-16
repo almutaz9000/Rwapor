@@ -883,6 +883,8 @@ of the United Nations.
 
 - [Advanced Analysis, Custom Crop Modeling, and Spatial
   Diagnostics](https://almutaz9000.github.io/Rwapor/articles/advanced-analysis.md):
+- [Batch Seasonal Analysis, Smart-Linking, and Multi-Crop
+  Modeling](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.md):
 - [Data Catalog: WaPOR &
   AgERA5](https://almutaz9000.github.io/Rwapor/articles/data-catalog.md):
 - [Getting Started with Rwapor: Data Ingestion, Streaming, and

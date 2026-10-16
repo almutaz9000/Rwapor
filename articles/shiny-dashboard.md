@@ -32,10 +32,10 @@ The application automatically opens in your default web browser.
 
     ┌────────────────────────────────────────────────────────────────────────┐
     │                        Rwapor Shiny Dashboard                          │
-    ├──────────────┬──────────────┬──────────────┬─────────────┬─────────────┤
-    │ 📥 Download  │ 🌾 Seasonal  │ 📈 Seasonal  │ 🛰️ Field    │ 🗺️ Map      │
-    │  & Extraction│   Analysis   │  Comparison  │  Monitoring │  Visualizer │
-    └──────────────┴──────────────┴──────────────┴─────────────┴─────────────┘
+    ├──────────────┬──────────────┬──────────────────────────┬───────────────┤
+    │ 📥 Download  │ 🌾 Seasonal  │ 📊 Visualisation         │ 🛰️ Field     │
+    │  & Extraction│   Analysis   │  & Time Series Analysis  │   Monitoring  │
+    └──────────────┴──────────────┴──────────────────────────┴───────────────┘
 
 ------------------------------------------------------------------------
 
@@ -65,59 +65,101 @@ The application automatically opens in your default web browser.
 
 ------------------------------------------------------------------------
 
-### 🌾 3.2 Seasonal Analysis & Crop Water Productivity Tab
+### 🌾 3.2 Seasonal Analysis & Crop Water Productivity Hub
 
-1.  **Seasonal Calendar**:
-    - Configure single-season dates or **Batch Multi-Year** schedules.
-    - Use `Detect from Folder` to automatically discover downloaded
-      dekadal files and align dates.
-2.  **Crop Parameterization**:
-    - **FAO-56 Presets**: Select from 12 pre-configured FAO-56 crops
-      (Winter Wheat, Sorghum, Sugarbeet, Maize, Rice, Cotton, Potato,
-      Soybean, Sunflower, Barley, Alfalfa, Sugarcane).
-    - **Interactive Customization**: Modify crop coefficients
+The Seasonal Analysis module provides a structured 4-step wizard for
+configuring, parameterizing, and computing agricultural water
+performance metrics:
+
+1.  **Step 1: Seasonal Calendar & Batch Mode**:
+    - **Single Season vs. Batch Mode**: Toggle between single-season
+      dates or a multi-season schedule (`Label, Start, End`).
+    - **Smart Folder Detection (`Detect`)**: Auto-scans downloaded
+      dekadal rasters in your project directory to deduce available time
+      ranges.
+    - **Download Sync (`Copy DL`)**: Instantly imports the temporal
+      periods configured in the Download tab.
+    - **Interactive Batch Guide (`[?] Batch Guide`)**: Built-in modal
+      explaining batch syntax, directory layouts, and auto-linking
+      naming conventions.
+2.  **Step 2: Spatial Masks & Timing**:
+    - **Crop Masking**: Support for single-crop AOIs or multi-crop
+      categorical masks (`1` = Wheat, `2` = Maize, etc.).
+    - **Phenological Timing (SOS/EOS)**: Supply pixel-wise Day of Year
+      (DOY) planting and harvesting rasters. Cross-year seasons
+      ($`\text{EOS} < \text{SOS}`$) are automatically shifted by 365/366
+      days.
+    - **Custom Vector & CSV Generation**: Collapsible panel to build all
+      required seasonal rasters from parcel polygons (`.geojson`/`.shp`)
+      and survey planting spreadsheets (`.csv`) via
+      [`wapor_vector_to_season_rasters()`](https://almutaz9000.github.io/Rwapor/reference/wapor_vector_to_season_rasters.md).
+    - **Latitude-Aware Area Weighting**: Exact ellipsoidal pixel surface
+      area weighting (`cos(lat)`) for distortion-free volumetric
+      aggregations.
+3.  **Step 3: Crop Parameterization**:
+    - **FAO-56 Presets**: Choose from 12 pre-configured crops (Winter
+      Wheat, Sorghum, Sugarbeet, Maize, Rice, Cotton, Potato, Soybean,
+      Sunflower, Barley, Alfalfa, Sugarcane).
+    - **Multi-Crop Table Editor**: Customize crop coefficients
       ($`K_{c,\text{ini}}, K_{c,\text{mid}}, K_{c,\text{end}}`$), stage
-      durations, Harvest Index ($`HI`$), and Moisture Content ($`MC`$)
-      directly in the UI.
-3.  **Spatial Masks & Timing**:
-    - Upload categorical crop classification masks and Julian day
-      start/end rasters.
-    - Toggle **Latitude-Aware Area Weighting** for exact ellipsoidal
-      surface area weighting.
-4.  **Calculated Indicators**:
-    - Seasonal $`AETI, RET, PCP, NPP, T`$.
-    - Crop Evapotranspiration ($`ET_c`$) and Water Adequacy ratios.
-    - Beneficial Transpiration Fraction ($`T/AETI`$).
-    - Crop Water Productivity ($`CWP`$) and Biomass Water Productivity
-      ($`BWP`$).
-5.  **One-Click Export**:
-    - Download seasonal GeoTIFF rasters, dekadal components, and monthly
-      CSV summaries.
+      lengths, Harvest Index ($`HI`$), and Moisture Content ($`MC`$) per
+      crop class.
+4.  **Step 4: Thematic Indicator Selection**: Indicators are organized
+    into four logical thematic fieldsets with quick-select controls
+    (**`[Core]`**, **`[All]`**, **`[Clear]`**):
+    - **Evapotranspiration & Consumptive Use**: Seasonal $`AETI`$,
+      Reference $`RET`$, Transpiration $`T`$, and Crop
+      Evapotranspiration ($`ET_c`$, including class-level rasters).
+    - **Agricultural Water Adequacy**: Water Adequacy vs. RET
+      ($`AETI/RET`$), Adequacy vs. ETc ($`AETI/ET_c`$), and Relative
+      Water Deficit ($`1 - AETI/ET_c`$).
+    - **Water Accounting & Precipitation**: Seasonal Precipitation
+      ($`PCP`$), Effective Precipitation ($`P_{eff}`$ via USDA SCS or
+      FAO methods), and Net Irrigation Requirement
+      ($`NIR = \max(0, ET_c - P_{eff})`$).
+    - **Biomass Productivity & Uniformity**: Seasonal $`NPP`$, Crop
+      Water Productivity ($`CWP`$), Biomass Water Productivity
+      ($`BWP`$), Beneficial Transpiration Fraction ($`T/AETI`$), and
+      Uniformity ($`CV`$, Theil Disparity Index).
+    - **Dynamic L3 Coverage Policy**: Conditionally rendered only when
+      sub-national Level 3 datasets are selected.
+5.  **Execution & Export**:
+    - Real-time progress bar tracking multi-season execution.
+    - Unified summary metrics table and one-click export of GeoTIFF
+      rasters and CSV tables.
+
+> \[!TIP\] For advanced scripting and multi-crop batch workflows, see
+> the dedicated **[Batch Seasonal Analysis
+> Tutorial](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.md)**.
 
 ------------------------------------------------------------------------
 
-### 📈 3.3 Seasonal Comparison Tab
+### 📊 3.3 Visualisation & Time Series Hub
 
-- Evaluate multi-year trends across cropping seasons.
-- Analyze spatial variability and uniformity using Coefficient of
-  Variation ($`CV`$) and Theil Disparity Index.
-- Generate comparative violin plots, boxplots, and bar charts across
-  crop classes.
+The unified Visualisation tab combines spatial raster exploration,
+side-by-side comparison, and field-level time series diagnostics:
+
+- **Single Map Visualizer**: Interactive Leaflet map with real-time
+  cursor hover values, coordinate readouts, and perceptually uniform
+  color palettes (Viridis, Turbo, Spectral, Plasma).
+- **Dual Map Split-Screen Swipe Slider**: Compare two rasters
+  side-by-side (e.g. $`AETI`$ vs. $`ET_c`$, or 2021 vs. 2022) with a
+  draggable swipe bar to pinpoint localized water stress hotspots.
+- **Zonal Time Series & Phenology**: Extract and plot multi-field time
+  series trajectories, compute running means, and decompose seasonal
+  cycles using interactive Plotly graphics.
+- **Seasonal Comparison & Anomaly Distribution**: Multi-year violin and
+  box plots comparing water productivity across cropping seasons and
+  field parcels.
 
 ------------------------------------------------------------------------
 
 ### 🛰️ 3.4 High-Throughput Field Monitoring (DuckDB)
 
-- Ingest agricultural field polygons and crop rotation schedules.
-- Maintain an embedded local DuckDB database synchronized with WaPOR.
-- Run interactive SQL queries, temporal water stress anomaly checks, and
-  percentile filtering to remove border artifacts.
-
-------------------------------------------------------------------------
-
-### 🗺️ 3.5 Map Visualizer & Split-Screen Swipe Slider
-
-- Compare before/after rasters (e.g. $`AETI`$ vs. $`ET_c`$, or 2022
-  vs. 2023) using an interactive side-by-side swipe comparison tool.
-- Inspect pixel values dynamically with interactive hover tooltips and
-  customizable color ramps (Viridis, Turbo, Spectral).
+- **Parcels Ingestion**: Import agricultural field polygons and crop
+  rotation records.
+- **Embedded DuckDB Engine**: Synchronize WaPOR satellite data with a
+  local embedded analytical database.
+- **Field Diagnostics**: Run interactive SQL queries, temporal water
+  stress anomaly checks, and border pixel filtering to ensure pure crop
+  canopy signals.
