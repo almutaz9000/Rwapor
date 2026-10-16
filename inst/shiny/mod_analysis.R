@@ -2449,7 +2449,13 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
       }
     )
 
-    output$an_dl_params <- output$an_dl_crop_params
+    output$an_dl_params <- shiny::downloadHandler(
+      filename = function() paste0("crop_parameters_", Sys.Date(), ".csv"),
+      content = function(file) {
+        params <- an_crop_params()
+        if (!is.null(params)) utils::write.csv(params, file, row.names = FALSE)
+      }
+    )
 
     output$an_dl_results <- shiny::downloadHandler(
       filename = function() paste0("seasonal_indicators_", Sys.Date(), ".csv"),
