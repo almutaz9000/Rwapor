@@ -115,7 +115,7 @@ wapor_plan_processing(aoi = c(35, 33, 36.5, 34.5), resolution = 20,
 #>   layers      : 36 dekad(s), 13 output target(s), 1 season profile(s)
 #>   working set : 312.7 GB (budget 7.0 GB, 1 worker(s))
 #>   batch size  : 1 dekad(s)
-#>   tile size   : 1909 px
+#>   tile size   : 1912 px
 #>   reasons     :
 #>     - Estimated working set in memory: 312.7 GB (budget 7.0 GB per worker, 1 worker(s)).
 #>     - Even one layer batch over the whole area exceeds the budget: tiling.
