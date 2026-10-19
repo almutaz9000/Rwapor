@@ -75,11 +75,22 @@ testthat::test_that("fallback metadata preserves requested and resolved codes", 
   testthat::expect_identical(meta$level, "L1")
 })
 
-testthat::test_that("resolution keys use cached spatial metadata without temporal confusion", {
+testthat::test_that("resolution keys use cached spatial metadata and static fallback identically", {
   testthat::expect_identical(Rwapor:::wapor_res_key("L3-AETI-D"), "L3_20m")
   testthat::expect_identical(Rwapor:::wapor_res_key("L3-AETI-E"), "L3_10m")
   testthat::expect_identical(Rwapor:::wapor_res_key("L1-AETI-D"), "L1_300m")
   testthat::expect_identical(Rwapor:::wapor_res_key("L1-RET-D"), "L1_30000m")
+  testthat::expect_identical(Rwapor:::wapor_res_key("AGERA5-ET0-E"), "AGERA5_11000m")
+
+  testthat::local_mocked_bindings(
+    wapor_variable_metadata = function(variable) NULL,
+    .package = "Rwapor"
+  )
+  testthat::expect_identical(Rwapor:::wapor_res_key("L3-AETI-D"), "L3_20m")
+  testthat::expect_identical(Rwapor:::wapor_res_key("L3-AETI-E"), "L3_10m")
+  testthat::expect_identical(Rwapor:::wapor_res_key("L1-AETI-D"), "L1_300m")
+  testthat::expect_identical(Rwapor:::wapor_res_key("L1-RET-D"), "L1_30000m")
+  testthat::expect_identical(Rwapor:::wapor_res_key("AGERA5-ET0-E"), "AGERA5_11000m")
 })
 
 testthat::test_that("invalid metadata cannot replace an existing cache file", {
@@ -145,15 +156,18 @@ testthat::test_that("available variable discovery combines cache and AgERA5 fall
   testthat::expect_false("AGERA5-ET0-E" %in% Rwapor::wapor_available_variables(FALSE))
 })
 
-testthat::test_that("static WaPOR metadata agrees with bundled JSON on shared codes", {
+testthat::test_that("static WaPOR metadata agrees with bundled JSON on all codes and resolutions", {
   catalog <- Rwapor:::.load_metadata_catalog("all")
   static <- Rwapor::WAPOR3_VARS
-  shared <- intersect(names(static), catalog$code)
-  testthat::expect_gt(length(shared), 0)
-  for (code in shared) {
+  testthat::expect_setequal(names(static), catalog$code)
+  for (code in catalog$code) {
     row <- catalog[catalog$code == code, , drop = FALSE][1, ]
     testthat::expect_identical(as.character(static[[code]]$units), row$units)
     testthat::expect_equal(as.numeric(static[[code]]$scale), row$scale)
+    testthat::expect_equal(
+      Rwapor:::.parse_spatial_resolution_m(static[[code]]$spatial_resolution),
+      row$spatial_resolution_m
+    )
     testthat::expect_identical(strsplit(code, "-", fixed = TRUE)[[1]][1], row$level)
     testthat::expect_identical(tail(strsplit(code, "-", fixed = TRUE)[[1]], 1), row$temporal_resolution)
   }

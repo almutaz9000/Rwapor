@@ -276,7 +276,7 @@
     "requested_code": "L3-NBWP-A",
     "resolved_code": "L3-NBWP-A",
     "long_name": "Net Biomass Water Productivity",
-    "units": " kg/m³",
+    "units": "kg/m³",
     "scale": 0.001,
     "offset": 0,
     "temporal_resolution": "A",

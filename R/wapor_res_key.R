@@ -8,7 +8,8 @@
 #   L1-RET                                          : ~30 000 m (ERA5 0.25°)
 #   L1-RSM                                          : ~500 m  (Sentinel-1)
 #   L2-*                                            : ~100 m
-#   L3-*                                            : ~30 m   (varies by scheme)
+#   L3-* (A/M/D)                                    : ~20 m   (irrigation scheme)
+#   L3-*-E (daily)                                  : ~10 m   (irrigation scheme)
 #   AGERA5-*                                        : ~11 000 m (ERA5 0.1°)
 #
 # Variables within the SAME resolution key share the same native grid and can
@@ -40,8 +41,8 @@
   "L1-RSM"   = "L1_500m",    # Sentinel-1 ~500 m
   # ── L2: all on the same 100 m grid ───────────────────────────────────────
   "L2"       = "L2_100m",
-  # ── L3: all 30 m (irrigation scheme specific, but same resolution) ────────
-  "L3"       = "L3_30m",
+  # ── L3: 20 m (A/M/D) or 10 m (daily -E) ──────────────────────────────────
+  "L3"       = "L3_20m",
   # ── AgERA5: ERA5 0.1° ~11 km ─────────────────────────────────────────────
   "AGERA5"   = "AGERA5_11000m"
 )
@@ -59,8 +60,9 @@
 #'   `"L1-PCP-D"`, `"L2-AETI-D"`, `"L3-AETI-D"`, or `"AGERA5-ET0-E"`.
 #'
 #' @return A character scalar, e.g. `"L1_300m"`, `"L1_5000m"`, `"L2_100m"`,
-#'   `"L3_30m"`, `"AGERA5_11000m"`.  Returns `variable` itself (unique key) if
-#'   not recognised, which safely prevents it from being batched with others.
+#'   `"L3_20m"`, `"L3_10m"`, `"AGERA5_11000m"`.  Returns `variable` itself
+#'   (unique key) if not recognised, which safely prevents it from being batched
+#'   with others.
 #'
 #' @details
 #' Within Level 1, variables originate from different sensors:
@@ -79,7 +81,8 @@
 #' wapor_res_key("L1-PCP-D")    # "L1_5000m"
 #' wapor_res_key("L1-RET-D")    # "L1_30000m"
 #' wapor_res_key("L2-AETI-D")   # "L2_100m"
-#' wapor_res_key("L3-AETI-D")   # "L3_30m"
+#' wapor_res_key("L3-AETI-D")   # "L3_20m"
+#' wapor_res_key("L3-AETI-E")   # "L3_10m"
 #' wapor_res_key("AGERA5-ET0-E") # "AGERA5_11000m"
 #' }
 wapor_res_key <- function(variable) {
@@ -92,18 +95,16 @@ wapor_res_key <- function(variable) {
   spatial_m <- if (!is.null(meta)) meta$spatial_resolution_m else NULL
   spatial <- if (!is.null(meta)) meta$spatial_resolution else NULL
   level <- if (!is.null(meta)) meta$level else sub("-.*", "", variable)
+  if (is.null(spatial_m) || length(spatial_m) != 1L || !is.finite(spatial_m)) {
+    spatial_m <- .parse_spatial_resolution_m(spatial)
+  }
   if (!is.null(spatial_m) && length(spatial_m) == 1L && is.finite(spatial_m)) {
     return(paste0(level, "_", format(spatial_m, trim = TRUE, scientific = FALSE), "m"))
   }
-  if (!is.null(spatial) && length(spatial) == 1L && !is.na(spatial) && nzchar(spatial)) {
-    value <- suppressWarnings(as.numeric(sub("[^0-9.].*", "", spatial)))
-    unit <- tolower(sub("^[0-9.]+\\s*", "", spatial))
-    if (!is.na(value)) {
-      metres <- if (startsWith(unit, "km")) value * 1000 else value
-      return(paste0(level, "_", format(metres, trim = TRUE, scientific = FALSE), "m"))
-    }
-  }
 
+  if (grepl("^L3-.*-E$", variable)) {
+    return("L3_10m")
+  }
   lv_prefix <- sub("-[ADME]$", "", variable)
   if (lv_prefix %in% names(.WAPOR_RES_LOOKUP)) {
     return(unname(.WAPOR_RES_LOOKUP[lv_prefix]))

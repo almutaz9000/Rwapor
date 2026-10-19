@@ -99,9 +99,9 @@ wapor_fetch_metadata <- function(level) {
     code = as.character(code),
     requested_code = requested_code %||% as.character(code),
     resolved_code = as.character(code),
-    long_name = as.character(item$long_name %||% item$measureCaption %||%
-                               item$caption %||% code),
-    units = as.character(item$units %||% item$measureUnit %||% "unknown"),
+    long_name = trimws(as.character(item$long_name %||% item$measureCaption %||%
+                               item$caption %||% code)),
+    units = trimws(as.character(item$units %||% item$measureUnit %||% "unknown")),
     scale = as.numeric(item$scale %||% 1),
     offset = as.numeric(item$offset %||% 0),
     temporal_resolution = temporal,
@@ -197,11 +197,10 @@ wapor_fetch_metadata <- function(level) {
 }
 # ---------------------------------------------------------------------------
 
-#' Get the path to a metadata JSON file
+#' Get the user-writable metadata cache directory
 #'
-#' Wrapper around system.file() for testability.
-#' @param filename Character. Name of the JSON file (e.g., "wapor_L1.json").
-#' @return Character path to the file, or "" if not found.
+#' @param create Logical. Create the directory if it does not exist.
+#' @return Character path to the user metadata cache directory.
 #' @keywords internal
 #' @noRd
 .wapor_metadata_cache_dir <- function(create = FALSE) {
