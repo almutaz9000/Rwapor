@@ -2,8 +2,9 @@
 
 > **For AI Agents**: This file is the canonical guide for using the Rwapor R package in automated analysis workflows. Read this first. It tells you which functions to call, in what order, with what inputs, and what to watch out for. All code blocks are executable R; copy-paste or adapt them directly.
 
-**Package version**: 0.9.9  
+**Package version**: 1.0.6
 **Access from R**: `system.file("agent_skills", "RWAPOR_AGENT_SKILLS.md", package = "Rwapor")`  
+**Canonical Indicator Spec**: `system.file("spec", "indicators.yaml", package = "Rwapor")`
 **WaPOR Portal**: https://wapor.apps.fao.org/  
 **API Base**: https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/  
 **ETLook Methodology Wiki**: https://github.com/un-fao/wapor-et-look/wiki  

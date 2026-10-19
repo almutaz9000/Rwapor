@@ -1284,7 +1284,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             reg_info_guess <- Rwapor::wapor_parse_region(cand_reg)
             Rwapor::wapor_guess_region(input$an_aeti_var, reg_info_guess, period_context)
           }, error = function(e) NULL)
-          if (length(guess) > 0) l3_code <- guess[1]
+          if (length(guess) == 1L) l3_code <- guess[1]
         }
       }
 

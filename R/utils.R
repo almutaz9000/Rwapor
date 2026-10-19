@@ -1123,17 +1123,6 @@ log_msg <- function(...) {
   invisible(NULL)
 }
 
-#' Internal Geometry Comparison Wrapper
-#' @param x SpatRaster
-#' @param y SpatRaster
-#' @keywords internal
-#' @noRd
-compare_geom <- function(x, y) {
-  # Robust comparison that handles floating point extent differences
-  tryCatch(terra::compareGeom(x, y, stopOnError = FALSE, messages = FALSE), 
-           error = function(e) FALSE)
-}
-
 #' Assign Metadata to Raster Layers
 #'
 #' @param r SpatRaster

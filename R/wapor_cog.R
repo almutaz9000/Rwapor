@@ -194,9 +194,24 @@ wapor_write_l3_mosaic <- function(asset_paths, output_dir, output_stem) {
   terra::vrt(asset_paths, filename = vrt_path, overwrite = TRUE)
   mosaic <- terra::rast(vrt_path)
   wapor_write_cog(mosaic, cog_path, overwrite = TRUE)
-  coverage <- list(l3_codes = l3_codes, asset_paths = stats::setNames(asset_paths, l3_codes),
-                   vrt_path = vrt_path, cog_path = cog_path)
-  jsonlite::write_json(coverage, manifest_path, pretty = TRUE, auto_unbox = TRUE)
+  total_cells <- max(1, as.numeric(terra::ncell(mosaic[[1]])))
+  coverage_fraction <- stats::setNames(
+    vapply(asset_paths, function(p) {
+      r_i <- terra::rast(p)[[1]]
+      sum(!is.na(terra::values(r_i)), na.rm = TRUE) / total_cells
+    }, numeric(1)),
+    l3_codes
+  )
+  coverage <- list(
+    l3_codes = l3_codes,
+    asset_paths = stats::setNames(asset_paths, l3_codes),
+    coverage_fraction = coverage_fraction,
+    vrt_path = vrt_path,
+    cog_path = cog_path
+  )
+  coverage_json <- coverage
+  coverage_json$coverage_fraction <- as.list(coverage_fraction)
+  jsonlite::write_json(coverage_json, manifest_path, pretty = TRUE, auto_unbox = TRUE)
   list(vrt_path = vrt_path, cog_path = cog_path, manifest_path = manifest_path, coverage = coverage)
 }
 

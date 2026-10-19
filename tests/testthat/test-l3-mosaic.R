@@ -24,5 +24,6 @@ test_that("L3 mosaic writes a VRT, COG, and coverage manifest", {
   expect_true(file.exists(result$cog_path))
   expect_true(file.exists(result$manifest_path))
   expect_equal(result$coverage$l3_codes, c("AAA", "BBB"))
+  expect_equal(unname(result$coverage$coverage_fraction[c("AAA", "BBB")]), c(0.5, 0.5))
   expect_equal(terra::ncol(terra::rast(result$cog_path)), 4)
 })

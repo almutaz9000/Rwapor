@@ -33,10 +33,20 @@ jobs:
 
       - name: Test coverage
         run: |
-          covr::codecov(
+          cov <- covr::package_coverage(
             quiet = FALSE,
             clean = FALSE,
             install_path = file.path(Sys.getenv("RUNNER_TEMP"), "package")
+          )
+          pct <- covr::percent_coverage(cov)
+          cat(sprintf("Total R/ package test coverage: %.2f%%\n", pct))
+          floor_pct <- 70
+          if (is.na(pct) || pct < floor_pct) {
+            stop(sprintf("Package test coverage %.2f%% is below the %d%% floor.", pct, floor_pct), call. = FALSE)
+          }
+          tryCatch(
+            covr::codecov(coverage = cov, quiet = FALSE),
+            error = function(e) message("Codecov upload warning: ", conditionMessage(e))
           )
         shell: Rscript {0}
 

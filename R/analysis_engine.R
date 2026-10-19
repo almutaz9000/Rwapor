@@ -133,15 +133,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   precip_var  <- config$precip_var
   npp_var     <- config$npp_var
   t_var       <- config$t_var
-  l3_code     <- config$l3_code
+  l3_code     <- config$l3_code %||% config$l3_region
   l3_mode     <- config$l3_mode %||% "select"
-  # Normalize l3_code: for mosaic_all with a vector of codes, use NULL so
-  # wapor_generate_urls returns all intersecting region data; for select mode
-  # with a single code, pass it through; for mosaic_all with a single selected
-  # code, pass the single code.
-  if (identical(l3_mode, "mosaic_all") && is.character(l3_code) && length(l3_code) > 1L) {
-    l3_code <- NULL
-  }
   indicators  <- wapor_normalize_analysis_indicators(config$indicators)
   use_local   <- identical(config$data_source, "local")
   folder      <- config$folder
@@ -186,6 +179,46 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     if (!is.null(aeti_var) && nchar(aeti_var) > 0) aeti_var else precip_var
   )
 
+  needs <- .wapor_needed_inputs(indicators)
+  var_codes <- list(aeti = aeti_var, ret = ret_var, pcp = precip_var, npp = npp_var, t = t_var)
+
+  selected_l3_codes <- NULL
+  l3_coverage_records <- list()
+  if (!use_local) {
+    wanted_keys <- names(var_codes)[vapply(names(var_codes), function(k) isTRUE(needs[[k]]), logical(1))]
+    active_vars <- unique(c(
+      unlist(var_codes[wanted_keys]),
+      if (!identical(reference_layer, "crop_mask") && !identical(reference_layer, "template")) reference_var
+    ))
+    active_vars <- active_vars[!is.na(active_vars) & nzchar(active_vars)]
+    l3_vars <- active_vars[grepl("^L3-", active_vars, ignore.case = TRUE)]
+    if (length(l3_vars) > 0L) {
+      if (is.character(l3_code) && length(l3_code) > 1L) {
+        detected_l3 <- l3_code
+        user_l3 <- NULL
+      } else if (is.character(l3_code) && length(l3_code) == 1L && nzchar(l3_code) && identical(l3_mode, "select")) {
+        detected_l3 <- l3_code
+        user_l3 <- l3_code
+      } else if (!is.null(reg_info)) {
+        detected_l3 <- Rwapor::wapor_guess_region(l3_vars[1], reg_info, period)
+        user_l3 <- if (is.character(l3_code) && length(l3_code) == 1L && nzchar(l3_code)) l3_code else NULL
+      } else {
+        detected_l3 <- if (is.character(l3_code) && length(l3_code) == 1L && nzchar(l3_code)) l3_code else character(0)
+        user_l3 <- if (length(detected_l3) == 1L) detected_l3 else NULL
+      }
+      if (length(detected_l3) > 0L) {
+        selected_l3_codes <- wapor_resolve_l3_selection(
+          detected_codes = detected_l3,
+          l3_region = user_l3,
+          l3_mode = l3_mode
+        )
+        if (length(selected_l3_codes) == 1L) {
+          l3_code <- selected_l3_codes
+        }
+      }
+    }
+  }
+
   # Download-once cache: save the sources this run needs (only the missing
   # files), then continue exactly as a local run on that folder.
   if (!use_local && !is.null(config$cache_dir)) {
@@ -195,15 +228,50 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     if (identical(l3_mode, "mosaic_all")) {
       stop("config$cache_dir cannot be combined with l3_mode = \"mosaic_all\".", call. = FALSE)
     }
-    needed <- .wapor_needed_inputs(indicators)
-    codes <- list(aeti = aeti_var, ret = ret_var, pcp = precip_var, npp = npp_var, t = t_var)
-    wanted <- names(codes)[vapply(names(codes), function(k) isTRUE(needed[[k]]), logical(1))]
-    cache_vars <- unique(c(unlist(codes[wanted]), if (!identical(reference_layer, "crop_mask")) reference_var))
+    wanted <- names(var_codes)[vapply(names(var_codes), function(k) isTRUE(needs[[k]]), logical(1))]
+    cache_vars <- unique(c(unlist(var_codes[wanted]), if (!identical(reference_layer, "crop_mask")) reference_var))
     cache_vars <- cache_vars[!is.na(cache_vars) & nzchar(cache_vars)]
     progress_callback(0.03, "Saving source rasters to the cache folder...")
     wapor_download(cache_vars, aoi_region, period, config$cache_dir, l3_region = l3_code, mask = FALSE)
     use_local <- TRUE
     folder <- config$cache_dir
+  }
+
+  output_dir <- config$output_dir %||% tempfile("run-", tmpdir = file.path(tempdir(), "rwapor-runs"))
+  dekad_table <- build_dekad_table(period[1], period[2])
+  target_dates <- dekad_table$dekad_key
+
+  .resolve_l3_mosaic_paths <- function(var) {
+    mosaic_dir <- file.path(output_dir, "l3_mosaics", var)
+    dir.create(mosaic_dir, recursive = TRUE, showWarnings = FALSE)
+    by_code <- lapply(selected_l3_codes, function(code) {
+      urls <- Rwapor::wapor_generate_urls(var, l3_region = code, period = period)
+      if (!length(urls)) return(NULL)
+      srcs <- .wapor_resolve_remote_sources(urls)
+      .wapor_align_paths_to_dekads(srcs, target_dates)
+    })
+    names(by_code) <- selected_l3_codes
+    by_code <- Filter(Negate(is.null), by_code)
+    if (!length(by_code)) return(NULL)
+    out_paths <- character(length(target_dates))
+    cov_list <- list()
+    for (d_idx in seq_along(target_dates)) {
+      dk <- as.character(target_dates[d_idx])
+      assets_d <- vapply(by_code, function(p_vec) as.character(p_vec[[d_idx]]), character(1))
+      mos <- wapor_write_l3_mosaic(
+        asset_paths = assets_d,
+        output_dir = mosaic_dir,
+        output_stem = sprintf("WAPOR-3.%s.%s", var, dk)
+      )
+      out_paths[d_idx] <- mos$cog_path
+      cov_list[[dk]] <- mos$coverage
+    }
+    l3_coverage_records[[var]] <<- list(
+      l3_codes = names(by_code),
+      coverage_fraction = cov_list[[1]]$coverage_fraction,
+      by_date = cov_list
+    )
+    out_paths
   }
 
   if (identical(reference_layer, "crop_mask")) {
@@ -220,6 +288,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       paths <- wapor_local_rasters(folder, template_var, period[1], period[2])
       if (length(paths) == 0) stop(sprintf("No local files found for %s to use as template.", template_var))
       template_r <- terra::rast(paths[1])
+    } else if (grepl("^L3-", template_var, ignore.case = TRUE) && length(selected_l3_codes) > 1L) {
+      m_paths <- .resolve_l3_mosaic_paths(template_var)
+      if (length(m_paths) == 0) stop(sprintf("No data found for %s.", template_var))
+      template_r <- terra::rast(m_paths[1])
     } else {
       urls <- Rwapor::wapor_generate_urls(template_var, l3_region = l3_code, period = period)
       if (length(urls) == 0) stop(sprintf("No data found for %s.", template_var))
@@ -273,11 +345,16 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # 3. Resolve sources, aligned one per dekad
   progress_callback(0.15, "Resolving source rasters...")
-  dekad_table <- build_dekad_table(period[1], period[2])
-  target_dates <- dekad_table$dekad_key
 
   .resolve_paths <- function(var) {
     if (is.null(var) || !nzchar(var)) return(NULL)
+    if (!use_local && grepl("^L3-", var, ignore.case = TRUE) && length(selected_l3_codes) > 1L) {
+      existing_mos <- list.files(file.path(output_dir, "l3_mosaics", var), pattern = "\\.tif$", full.names = TRUE)
+      if (length(existing_mos) == length(target_dates)) {
+        return(.wapor_align_paths_to_dekads(existing_mos, target_dates))
+      }
+      return(.resolve_l3_mosaic_paths(var))
+    }
     paths <- if (use_local) {
       wapor_local_rasters(folder, var, period[1], period[2])
     } else {
@@ -288,9 +365,6 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     if (!length(paths)) return(NULL)
     .wapor_align_paths_to_dekads(paths, target_dates)
   }
-
-  needs <- .wapor_needed_inputs(indicators)
-  var_codes <- list(aeti = aeti_var, ret = ret_var, pcp = precip_var, npp = npp_var, t = t_var)
 
   kernel_vars <- list()
   for (key in names(var_codes)) {
@@ -314,7 +388,6 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # 4. Plan and aggregate
   progress_callback(0.20, "Planning processing...")
-  output_dir <- config$output_dir %||% tempfile("run-", tmpdir = file.path(tempdir(), "rwapor-runs"))
   job <- .wapor_build_kernel_job(
     period = period, reference_year = ref_year, template = template_r,
     h_mask = h_mask, h_start = h_start, h_end = h_end,
@@ -346,12 +419,16 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   log_msg(sprintf("Estimated disk use: %s.", .wapor_format_bytes(disk_need)))
   .wapor_check_disk_space(disk_need, c(output_dir, terra::terraOptions(print = FALSE)$tempdir))
 
+  manifest_extra <- utils::modifyList(
+    list(indicators = sort(unique(as.character(indicators)))),
+    config$manifest_extra %||% list()
+  )
   run <- .wapor_run_kernel(
     job, template_r, plan,
     output_dir = output_dir,
     cog = isTRUE(config$cog),
     resume = isTRUE(config$resume),
-    manifest_extra = config$manifest_extra %||% list(),
+    manifest_extra = manifest_extra,
     progress_callback = function(v, d) progress_callback(0.20 + 0.40 * v, d)
   )
   agg <- run$rasters
@@ -432,6 +509,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   results$monthly_aeti <- monthly_series("aeti", "aeti_mean_mm")
   results$monthly_ret <- monthly_series("ret", "ret_mean_mm")
   results$monthly_t <- monthly_series("t", "t_mean_mm")
+  results$monthly_npp <- monthly_series("npp", "npp_mean_gc_m2")
   if (!is.null(get_season("pcp"))) {
     pcp_m <- monthly_series("pcp", "pcp_mean_mm")
     peff_m <- lapply(pcp_m$rasters, .wapor_usda_peff)
@@ -467,6 +545,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
     results$seasonal_t <- list(raster = get_season("t"), by_class = by_class_mean(get_season("t"), "mean_seasonal_t"))
   }
   if (!is.null(get_season("npp"))) {
+    results$seasonal_npp <- list(raster = get_season("npp"), by_class = by_class_mean(get_season("npp"), "mean_seasonal_npp"))
     results$seasonal_biomass_kg <- get_season("npp") * 22.222
     results$seasonal_biomass_t  <- results$seasonal_biomass_kg / 1000
     results$seasonal_biomass    <- results$seasonal_biomass_kg
@@ -513,6 +592,17 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 
   # Derived Indicators
   progress_callback(0.70, "Computing derived indicators...")
+
+  series_summary <- function(rs, value_name) {
+    out <- data.frame(
+      month_key = names(rs),
+      year = as.integer(substr(names(rs), 1, 4)),
+      month = as.integer(substr(names(rs), 6, 7)),
+      stringsAsFactors = FALSE
+    )
+    out[[value_name]] <- vapply(rs, function(r) wapor_masked_global_mean(r, valid_crop_mask), numeric(1))
+    out
+  }
 
   # ETc: the kernel already applied each pixel's own Kc profile.
   combined_etc <- get_season("etc")
@@ -578,16 +668,6 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       )
     }
 
-    series_summary <- function(rs, value_name) {
-      out <- data.frame(
-        month_key = names(rs),
-        year = as.integer(substr(names(rs), 1, 4)),
-        month = as.integer(substr(names(rs), 6, 7)),
-        stringsAsFactors = FALSE
-      )
-      out[[value_name]] <- vapply(rs, function(r) wapor_masked_global_mean(r, valid_crop_mask), numeric(1))
-      out
-    }
     results$monthly_green_water <- list(rasters = monthly_green, summary = series_summary(monthly_green, "green_mean_mm"))
     results$monthly_blue_water <- list(rasters = monthly_blue, summary = series_summary(monthly_blue, "blue_mean_mm"))
   }
@@ -606,8 +686,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   if ("green_water" %in% indicators) results$green_water <- sum_monthly(results$monthly_green_water)
   if ("blue_water" %in% indicators)  results$blue_water <- sum_monthly(results$monthly_blue_water)
 
-  # Rainfall surplus from gross P (not Peff). Split each month, then sum.
-  if ("rainfall_surplus" %in% indicators && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
+  # Rainfall surplus and ET_rain from gross P (not Peff). Split each month, then sum.
+  if (any(c("rainfall_surplus", "et_rain") %in% indicators) && !is.null(results$monthly_aeti) && !is.null(results$monthly_precip_peff)) {
     month_keys <- intersect(names(results$monthly_aeti$rasters), names(results$monthly_precip_peff$monthly_pcp))
     monthly_et_rain <- list()
     monthly_surplus <- list()
@@ -630,9 +710,11 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       )
     }
     results$monthly_et_rain <- list(rasters = monthly_et_rain, summary = series_summary(monthly_et_rain, "et_rain_mean_mm"))
-    results$monthly_rainfall_surplus <- list(rasters = monthly_surplus, summary = series_summary(monthly_surplus, "surplus_mean_mm"))
     results$et_rain <- sum_monthly(results$monthly_et_rain)
-    results$rainfall_surplus <- sum_monthly(results$monthly_rainfall_surplus)
+    if ("rainfall_surplus" %in% indicators) {
+      results$monthly_rainfall_surplus <- list(rasters = monthly_surplus, summary = series_summary(monthly_surplus, "surplus_mean_mm"))
+      results$rainfall_surplus <- sum_monthly(results$monthly_rainfall_surplus)
+    }
   }
 
   # Yield and CWP/BWP
@@ -662,6 +744,8 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
 
   if ("cwp_bwp" %in% indicators && !is.null(results$seasonal_aeti)) {
+    cwp_raster <- NULL
+    bwp_raster <- NULL
     if (!is.null(results$yield_raster)) {
       cwp_raster <- Rwapor::wapor_calc_cwp(
         results$yield_raster, results$seasonal_aeti$raster, yield_unit = "t/ha",
@@ -670,6 +754,7 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
           aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm")
         )
       )
+      results$cwp_raster <- cwp_raster
       results$cwp <- wapor_masked_global_mean(cwp_raster, valid_crop_mask, area = pixel_area_r)
     }
     if (!is.null(results$seasonal_biomass_t)) {
@@ -680,7 +765,27 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
           aeti = make_season_validation_meta(results$seasonal_aeti$raster, "mm")
         )
       )
+      results$bwp_raster <- bwp_raster
       results$bwp <- wapor_masked_global_mean(bwp_raster, valid_crop_mask, area = pixel_area_r)
+    }
+    if (!is.null(cwp_raster) || !is.null(bwp_raster)) {
+      cls_ids <- sort(unique(as.integer(crop_params$class_value)))
+      cwp_by_cls <- vapply(cls_ids, function(cls) {
+        if (is.null(cwp_raster)) return(NA_real_)
+        cls_m <- terra::ifel(h_mask == cls, 1L, NA)
+        wapor_masked_global_mean(cwp_raster, cls_m, area = pixel_area_r)
+      }, numeric(1))
+      bwp_by_cls <- vapply(cls_ids, function(cls) {
+        if (is.null(bwp_raster)) return(NA_real_)
+        cls_m <- terra::ifel(h_mask == cls, 1L, NA)
+        wapor_masked_global_mean(bwp_raster, cls_m, area = pixel_area_r)
+      }, numeric(1))
+      results$cwp_summary <- data.frame(
+        class_value = cls_ids,
+        cwp_kg_m3 = cwp_by_cls,
+        bwp_kg_m3 = bwp_by_cls,
+        stringsAsFactors = FALSE
+      )
     }
   }
 
@@ -713,6 +818,14 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       results$nbwp_raster <- nbwp_raster
       results$nbwp <- wapor_masked_global_mean(nbwp_raster, valid_crop_mask, area = pixel_area_r)
     }
+  }
+
+  # Spatial Uniformity & Equity (CV and Theil index on seasonal AETI)
+  if ("cv_aeti" %in% indicators && !is.null(results$seasonal_aeti)) {
+    results$cv_aeti <- Rwapor::wapor_calc_cv(results$seasonal_aeti$raster, h_mask)
+  }
+  if ("theil_aeti" %in% indicators && !is.null(results$seasonal_aeti)) {
+    results$theil_aeti <- Rwapor::wapor_calc_theil(results$seasonal_aeti$raster, h_mask)
   }
 
   set_names <- .wapor_kernel_set_names(job)
@@ -758,7 +871,14 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
       source = if (length(source$paths)) source$paths[[1]] else NULL
     )
   }
-  results$provenance <- list(sources = source_provenance, outputs = list())
+  if (length(l3_coverage_records) > 0L) {
+    results$l3_coverage <- l3_coverage_records
+  }
+  results$provenance <- list(
+    sources = source_provenance,
+    outputs = list(),
+    l3_coverage = if (length(l3_coverage_records) > 0L) l3_coverage_records else NULL
+  )
   add_output_provenance <- function(name, raster, parents, units, operation) {
     if (!inherits(raster, "SpatRaster")) return(invisible(NULL))
     parent_ids <- lapply(parents, function(parent) source_provenance[[parent]]$dataset_id)
@@ -779,11 +899,23 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
   }
   if (!is.null(results$seasonal_aeti)) add_output_provenance("seasonal_aeti", results$seasonal_aeti$raster, "aeti", "mm", list(type = "seasonal_sum"))
   if (!is.null(results$seasonal_ret)) add_output_provenance("seasonal_ret", results$seasonal_ret$raster, "ret", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_pcp)) add_output_provenance("seasonal_pcp", results$seasonal_pcp, "pcp", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_peff)) add_output_provenance("seasonal_peff", results$seasonal_peff, "pcp", "mm", list(type = "monthly_peff_sum"))
   if (!is.null(results$seasonal_etc)) add_output_provenance("seasonal_etc", results$seasonal_etc, "etc", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$seasonal_npp)) add_output_provenance("seasonal_npp", results$seasonal_npp$raster, "npp", "gC/m2", list(type = "seasonal_sum"))
   if (!is.null(results$seasonal_biomass_kg)) add_output_provenance("seasonal_biomass_kg", results$seasonal_biomass_kg, "npp", "kg/ha", list(type = "seasonal_sum", conversion = "gC/m2_to_kg/ha"))
   if (!is.null(results$seasonal_biomass_t)) add_output_provenance("seasonal_biomass_t", results$seasonal_biomass_t, "npp", "t/ha", list(type = "seasonal_sum", conversion = "kg/ha_to_t/ha"))
   if (!is.null(results$yield_raster)) add_output_provenance("yield_raster", results$yield_raster, "npp", "t/ha", list(type = "yield_from_biomass_and_crop_parameters"))
   if (!is.null(results$seasonal_t)) add_output_provenance("seasonal_t", results$seasonal_t$raster, "t", "mm", list(type = "seasonal_sum"))
+  if (!is.null(results$adequacy_etc)) add_output_provenance("adequacy_etc", results$adequacy_etc, c("aeti", "ret"), "1", list(type = "adequacy_etc"))
+  if (!is.null(results$adequacy_p95)) add_output_provenance("adequacy_p95", results$adequacy_p95, "aeti", "1", list(type = "adequacy_p95"))
+  if (!is.null(results$beneficial_fraction)) add_output_provenance("beneficial_fraction", results$beneficial_fraction, c("t", "aeti"), "1", list(type = "beneficial_fraction"))
+  if (!is.null(results$green_water)) add_output_provenance("green_water", results$green_water, c("aeti", "pcp"), "mm", list(type = "monthly_green_water_sum"))
+  if (!is.null(results$blue_water)) add_output_provenance("blue_water", results$blue_water, c("aeti", "pcp"), "mm", list(type = "monthly_blue_water_sum"))
+  if (!is.null(results$et_rain)) add_output_provenance("et_rain", results$et_rain, c("aeti", "pcp"), "mm", list(type = "monthly_et_rain_sum"))
+  if (!is.null(results$rainfall_surplus)) add_output_provenance("rainfall_surplus", results$rainfall_surplus, c("aeti", "pcp"), "mm", list(type = "monthly_rainfall_surplus_sum"))
+  if (!is.null(results$cwp_raster)) add_output_provenance("cwp_raster", results$cwp_raster, c("npp", "aeti"), "kg/m3", list(type = "crop_water_productivity"))
+  if (!is.null(results$bwp_raster)) add_output_provenance("bwp_raster", results$bwp_raster, c("npp", "aeti"), "kg/m3", list(type = "biomass_water_productivity"))
   if (!is.null(results$seasonal_nir)) add_output_provenance("seasonal_nir", results$seasonal_nir, c("ret", "pcp"), "mm", list(type = "net_irrigation_requirement"))
   if (!is.null(results$nbwp_raster)) add_output_provenance("nbwp", results$nbwp_raster, c("npp", "t"), "kg/m3", list(type = "net_biomass_water_productivity"))
   add_monthly_provenance <- function(series_name, series, parent, units) {
@@ -853,10 +985,10 @@ wapor_run_seasonal_analysis <- function(config, crop_params, rasters, aoi_region
 #' @noRd
 .wapor_needed_inputs <- function(indicators) {
   list(
-    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction", "rainfall_surplus") %in% indicators),
+    aeti = any(c("agg_aeti", "etc", "adequacy_etc", "adequacy_p95", "cwp_bwp", "green_water", "blue_water", "beneficial_fraction", "et_rain", "rainfall_surplus", "cv_aeti", "theil_aeti") %in% indicators),
     ret = any(c("agg_ret", "etc", "adequacy_etc", "nir") %in% indicators),
-    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "rainfall_surplus", "nir") %in% indicators),
-    npp = any(c("agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp", "nbwp") %in% indicators),
+    pcp = any(c("agg_pcp", "agg_peff", "green_water", "blue_water", "et_rain", "rainfall_surplus", "nir") %in% indicators),
+    npp = any(c("agg_npp", "agg_biomass_kg", "agg_biomass_t", "yield_npp", "cwp_bwp", "nbwp") %in% indicators),
     t = any(c("agg_t", "beneficial_fraction", "nbwp") %in% indicators),
     etc = any(c("etc", "adequacy_etc", "nir") %in% indicators)
   )

@@ -468,6 +468,28 @@ wapor_suggest_tile_size <- function(n_layers,
   TRUE
 }
 
+#' Indicators supported by the tiled seasonal analysis engine
+#'
+#' Lists all indicator step IDs supported by `wapor_run_seasonal_analysis(processing = "tiled")`
+#' and `wapor_run_seasonal_analysis_tiled()`.
+#' - Seasonal/monthly totals (`agg_aeti`, `agg_t`, `agg_ret`, `agg_pcp`, `agg_npp`, `etc`,
+#'   `agg_peff`, `green_water`, `blue_water`) are reduced per tile and assembled into global VRTs.
+#' - Derived ratios and balances (`adequacy_etc`, `beneficial_fraction`, `et_rain`,
+#'   `rainfall_surplus`, `nir`, `agg_biomass_kg`, `agg_biomass_t`, `yield_npp`, `cwp_bwp`, `nbwp`)
+#'   are computed out-of-core on the assembled VRTs.
+#' - Global class percentiles and spatial inequality (`adequacy_p95`, `cv_aeti`, `theil_aeti`)
+#'   are computed via exact block-wise passes on the assembled `seasonal_aeti` VRT.
+#' @keywords internal
+#' @noRd
+.wapor_tiled_supported_indicators <- c(
+  "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
+  "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
+  "peff_green_blue", "green_water", "blue_water",
+  "et_rain", "rainfall_surplus", "nir",
+  "cwp_bwp", "nbwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
+  "variability", "cv_aeti", "theil_aeti"
+)
+
 #' Run Windowed / Tiled Seasonal Analysis Engine
 #'
 #' Runs [wapor_run_seasonal_analysis()] with `processing = "tiled"`: the
@@ -506,10 +528,23 @@ wapor_run_seasonal_analysis_tiled <- function(
   if (is.list(config$period)) {
     stop("wapor_run_seasonal_analysis_tiled() runs one season; call it once per period.", call. = FALSE)
   }
+  norm_ind <- wapor_normalize_analysis_indicators(config$indicators %||% "agg_aeti")
+  allowed_ind <- unique(c(.wapor_tiled_supported_indicators, wapor_list_indicator_steps()))
+  unsupported <- setdiff(norm_ind, allowed_ind)
+  if (length(unsupported) > 0L) {
+    stop(
+      sprintf(
+        "Indicator(s) not supported by the tiled engine: %s.",
+        paste(unsupported, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   }
   cfg <- config
+  cfg$indicators <- norm_ind
   cfg$processing <- "tiled"
   cfg$tile_size <- as.integer(tile_size)
   cfg$output_dir <- output_dir
@@ -543,19 +578,72 @@ wapor_run_seasonal_analysis_tiled <- function(
     saved_files$seasonal_aeti_vrt <- file.path(output_dir, "seasonal_aeti.vrt")
     saved_files$seasonal_aeti <- write_out(aeti, file.path(output_dir, "seasonal_aeti.tif"))
   }
-  if (!is.null(res$seasonal_biomass)) {
-    saved_files$seasonal_biomass <- write_out(res$seasonal_biomass, file.path(output_dir, "seasonal_biomass.tif"))
-  }
-  if (!is.null(res$adequacy_etc)) {
-    saved_files$adequacy_etc <- write_out(res$adequacy_etc, file.path(output_dir, "adequacy_etc.tif"))
+
+  raster_slots <- list(
+    seasonal_ret = res$seasonal_ret$raster,
+    seasonal_pcp = res$seasonal_pcp,
+    seasonal_peff = res$seasonal_peff,
+    seasonal_t = res$seasonal_t$raster,
+    seasonal_npp = res$seasonal_npp$raster,
+    seasonal_biomass = res$seasonal_biomass,
+    seasonal_biomass_kg = res$seasonal_biomass_kg,
+    seasonal_biomass_t = res$seasonal_biomass_t,
+    seasonal_etc = res$seasonal_etc,
+    adequacy_etc = res$adequacy_etc,
+    adequacy_p95 = res$adequacy_p95,
+    beneficial_fraction = res$beneficial_fraction,
+    green_water = res$green_water,
+    blue_water = res$blue_water,
+    et_rain = res$et_rain,
+    rainfall_surplus = res$rainfall_surplus,
+    yield_raster = res$yield_raster,
+    cwp_raster = res$cwp_raster,
+    bwp_raster = res$bwp_raster,
+    seasonal_nir = res$seasonal_nir,
+    nbwp_raster = res$nbwp_raster
+  )
+  for (nm in names(raster_slots)) {
+    if (!is.null(raster_slots[[nm]])) {
+      saved_files[[nm]] <- write_out(raster_slots[[nm]], file.path(output_dir, paste0(nm, ".tif")))
+    }
   }
 
+  out_results <- list(
+    seasonal_aeti = if (!is.null(aeti)) list(raster = aeti, by_class = res$seasonal_aeti$by_class) else NULL,
+    seasonal_ret = res$seasonal_ret,
+    seasonal_pcp = res$seasonal_pcp,
+    seasonal_peff = res$seasonal_peff,
+    seasonal_t = res$seasonal_t,
+    seasonal_npp = res$seasonal_npp,
+    seasonal_biomass = res$seasonal_biomass,
+    seasonal_biomass_kg = res$seasonal_biomass_kg,
+    seasonal_biomass_t = res$seasonal_biomass_t,
+    seasonal_etc = res$seasonal_etc,
+    adequacy_etc = res$adequacy_etc,
+    adequacy_p95 = res$adequacy_p95,
+    p95_table = res$p95_table,
+    beneficial_fraction = res$beneficial_fraction,
+    green_water = res$green_water,
+    blue_water = res$blue_water,
+    et_rain = res$et_rain,
+    rainfall_surplus = res$rainfall_surplus,
+    yield_raster = res$yield_raster,
+    yield_by_class = res$yield_by_class,
+    cwp_raster = res$cwp_raster,
+    bwp_raster = res$bwp_raster,
+    cwp_summary = res$cwp_summary,
+    cwp = res$cwp,
+    bwp = res$bwp,
+    seasonal_nir = res$seasonal_nir,
+    nir = res$nir,
+    nbwp_raster = res$nbwp_raster,
+    nbwp = res$nbwp,
+    cv_aeti = res$cv_aeti,
+    theil_aeti = res$theil_aeti
+  )
+
   list(
-    results = list(
-      seasonal_aeti = list(raster = aeti),
-      seasonal_biomass = res$seasonal_biomass,
-      adequacy_etc = res$adequacy_etc
-    ),
+    results = out_results,
     saved_files = saved_files,
     manifest_path = res$processing_run$manifest_path,
     n_tiles = res$processing_run$n_tiles,

@@ -1,0 +1,10 @@
+linters: linters_with_defaults(
+    defaults = list(
+      equals_na_linter = equals_na_linter()
+    )
+  )
+exclusions: list(
+    "inst/shiny",
+    "tests/manual",
+    "vignettes"
+  )

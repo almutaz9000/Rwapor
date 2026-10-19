@@ -1,0 +1,319 @@
+schema_version: 1
+package: Rwapor
+version: "1.0.6"
+description: >
+  Canonical cross-implementation specification of seasonal agricultural water
+  accounting, energy balance, biomass, and irrigation performance indicators
+  shared between Rwapor (R) and waporbox (Python).
+indicators:
+  - id: agg_aeti
+    label: "Seasonal Actual Evapotranspiration and Interception (AETI)"
+    category: "evapotranspiration"
+    formula: "sum_d(AETI_d * days_d * w_d)"
+    units_in: "mm/day"
+    units_out: "mm/season"
+    dekad_rule: "multiply_by_dekad_days_once"
+    inputs: ["aeti"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_run_seasonal_analysis"
+    py_function: "run_seasonal_analysis"
+    status: "implemented"
+
+  - id: agg_t
+    label: "Seasonal Transpiration (T)"
+    category: "evapotranspiration"
+    formula: "sum_d(T_d * days_d * w_d)"
+    units_in: "mm/day"
+    units_out: "mm/season"
+    dekad_rule: "multiply_by_dekad_days_once"
+    inputs: ["t"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_run_seasonal_analysis"
+    py_function: "run_seasonal_analysis"
+    status: "implemented"
+
+  - id: agg_ret
+    label: "Seasonal Reference Evapotranspiration (RET)"
+    category: "evapotranspiration"
+    formula: "sum_d(RET_d * days_d * w_d)"
+    units_in: "mm/day"
+    units_out: "mm/season"
+    dekad_rule: "multiply_by_dekad_days_once"
+    inputs: ["ret"]
+    citation: "Allen, R. G., Pereira, L. S., Raes, D., & Smith, M. (1998). Crop evapotranspiration: Guidelines for computing crop water requirements. FAO Irrigation and Drainage Paper 56."
+    r_function: "wapor_run_seasonal_analysis"
+    py_function: "run_seasonal_analysis"
+    status: "implemented"
+
+  - id: agg_pcp
+    label: "Seasonal Gross Precipitation (PCP)"
+    category: "water_supply"
+    formula: "sum_d(PCP_d * days_d * w_d)"
+    units_in: "mm/day"
+    units_out: "mm/season"
+    dekad_rule: "multiply_by_dekad_days_once"
+    inputs: ["pcp"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_run_seasonal_analysis"
+    py_function: "run_seasonal_analysis"
+    status: "implemented"
+
+  - id: agg_npp
+    label: "Seasonal Net Primary Production (NPP)"
+    category: "biomass_yield"
+    formula: "sum_d(NPP_d * days_d * w_d)"
+    units_in: "gC/m2/day"
+    units_out: "gC/m2/season"
+    dekad_rule: "multiply_by_dekad_days_once"
+    inputs: ["npp"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_run_seasonal_analysis"
+    py_function: "run_seasonal_analysis"
+    status: "implemented"
+
+  - id: agg_peff
+    label: "Seasonal Effective Precipitation (Peff, USDA SCS / Brouwer & Heibloem)"
+    category: "water_supply"
+    formula: "sum_m(Peff(P_m)), where Peff(P_m) = P_m * (125 - 0.2 * P_m) / 125 for P_m <= 250 mm else 125 + 0.1 * P_m"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "aggregate_to_monthly_then_apply_peff"
+    inputs: ["pcp"]
+    citation: "Brouwer, C., & Heibloem, M. (1986). Irrigation Water Management: Irrigation Water Needs. Training Manual No. 3, FAO, Rome."
+    r_function: "wapor_calc_monthly_precip_peff_rasters"
+    py_function: "calc_monthly_peff"
+    status: "implemented"
+
+  - id: etc
+    label: "Seasonal Crop Water Requirement (ETc)"
+    category: "evapotranspiration"
+    formula: "sum_d(Kc(d) * RET_d * days_d * w_d)"
+    units_in: "mm/day"
+    units_out: "mm/season"
+    dekad_rule: "stage_weighted_kc_times_dekad_ret"
+    inputs: ["aeti", "ret"]
+    citation: "Allen, R. G., Pereira, L. S., Raes, D., & Smith, M. (1998). FAO Irrigation and Drainage Paper 56, Eq. 56 & 62."
+    r_function: "wapor_calc_etc_by_class"
+    py_function: "calc_seasonal_etc"
+    status: "implemented"
+
+  - id: adequacy_etc
+    label: "ETc-based Water Adequacy (Relative Evapotranspiration)"
+    category: "irrigation_performance"
+    formula: "AETI_seasonal / ETc_seasonal (masked where ETc <= 0)"
+    units_in: "mm/season"
+    units_out: "1"
+    dekad_rule: "ratio_of_seasonal_totals"
+    inputs: ["aeti", "ret"]
+    citation: "Molden, D., & Gates, T. K. (1990). Performance measures for evaluation of irrigation-water-delivery systems. Journal of Irrigation and Drainage Engineering, 116(6), 804-823; Bos, M. G., Burton, M. A., & Molden, D. J. (2005). Irrigation and Drainage Performance Assessment: Practical Guidelines. CABI."
+    r_function: "wapor_calc_adequacy_etc"
+    py_function: "calc_adequacy_etc"
+    status: "implemented"
+
+  - id: adequacy_p95
+    label: "P95-based Relative Water Adequacy"
+    category: "irrigation_performance"
+    formula: "AETI_seasonal / P95_class(AETI_seasonal)"
+    units_in: "mm/season"
+    units_out: "1"
+    dekad_rule: "ratio_to_global_class_p95"
+    inputs: ["aeti"]
+    citation: "Bastiaanssen, W. G. M., & Bos, M. G. (1999). Irrigation performance indicators based on remotely sensed data: a review of literature. Irrigation and Drainage Systems, 13(4), 291-311."
+    r_function: "wapor_calc_adequacy_p95"
+    py_function: "calc_adequacy_p95"
+    status: "implemented"
+
+  - id: beneficial_fraction
+    label: "Beneficial Transpiration Fraction (T / AETI)"
+    category: "irrigation_performance"
+    formula: "pmin(1, pmax(0, T_seasonal / AETI_seasonal))"
+    units_in: "mm/season"
+    units_out: "1"
+    dekad_rule: "ratio_of_seasonal_totals"
+    inputs: ["aeti", "t"]
+    citation: "Karimi, P., Bastiaanssen, W. G. M., & Molden, D. (2013). Water Accounting Plus (WA+) - a water accounting procedure for complex river basins based on satellite measurements. Hydrology and Earth System Sciences, 17(7), 2459-2472."
+    r_function: "wapor_calc_beneficial_fraction"
+    py_function: "calc_beneficial_fraction"
+    status: "implemented"
+
+  - id: peff_green_blue
+    label: "Effective Precipitation, Green & Blue Water Partitioning"
+    category: "water_supply"
+    formula: "Composite step computing seasonal_peff, green_water = sum_m(min(AETI_m, Peff_m)), and blue_water = sum_m(max(0, AETI_m - Peff_m))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_split_then_seasonal_sum"
+    inputs: ["aeti", "pcp"]
+    citation: "Hoekstra, A. Y., Chapagain, A. K., Aldaya, M. M., & Mekonnen, M. M. (2011). The Water Footprint Assessment Manual. Earthscan; Karimi et al. (2013)."
+    r_function: "wapor_calc_green_water"
+    py_function: "calc_green_blue_water"
+    status: "implemented"
+
+  - id: green_water
+    label: "Seasonal Green Water Evapotranspiration (ET_green)"
+    category: "water_supply"
+    formula: "sum_m(pmin(AETI_m, Peff_m))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_split_then_seasonal_sum"
+    inputs: ["aeti", "pcp"]
+    citation: "Hoekstra, A. Y., Chapagain, A. K., Aldaya, M. M., & Mekonnen, M. M. (2011). The Water Footprint Assessment Manual. Earthscan."
+    r_function: "wapor_calc_green_water"
+    py_function: "calc_green_water"
+    status: "implemented"
+
+  - id: blue_water
+    label: "Seasonal Blue Water Evapotranspiration (ET_blue)"
+    category: "water_supply"
+    formula: "sum_m(pmax(0, AETI_m - Peff_m))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_split_then_seasonal_sum"
+    inputs: ["aeti", "pcp"]
+    citation: "Hoekstra, A. Y., Chapagain, A. K., Aldaya, M. M., & Mekonnen, M. M. (2011). The Water Footprint Assessment Manual. Earthscan."
+    r_function: "wapor_calc_blue_water"
+    py_function: "calc_blue_water"
+    status: "implemented"
+
+  - id: et_rain
+    label: "Rain-fed Evapotranspiration Component (ET_rain)"
+    category: "water_supply"
+    formula: "sum_m(pmin(AETI_m, P_m))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_split_then_seasonal_sum"
+    inputs: ["aeti", "pcp"]
+    citation: "Karimi, P., Bastiaanssen, W. G. M., & Molden, D. (2013). Water Accounting Plus (WA+). Hydrology and Earth System Sciences, 17(7), 2459-2472."
+    r_function: "wapor_calc_et_rain"
+    py_function: "calc_et_rain"
+    status: "implemented"
+
+  - id: rainfall_surplus
+    label: "Seasonal Rainfall Surplus (P - ET_rain)"
+    category: "water_supply"
+    formula: "sum_m(pmax(0, P_m - pmin(AETI_m, P_m)))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_split_then_seasonal_sum"
+    inputs: ["aeti", "pcp"]
+    citation: "Karimi, P., Bastiaanssen, W. G. M., & Molden, D. (2013). Water Accounting Plus (WA+). Hydrology and Earth System Sciences, 17(7), 2459-2472."
+    r_function: "wapor_calc_rainfall_surplus"
+    py_function: "calc_rainfall_surplus"
+    status: "implemented"
+
+  - id: nir
+    label: "Net Irrigation Requirement (NIR)"
+    category: "irrigation_performance"
+    formula: "sum_m(pmax(0, ETc_m - Peff_m))"
+    units_in: "mm/month"
+    units_out: "mm/season"
+    dekad_rule: "monthly_deficit_then_seasonal_sum"
+    inputs: ["ret", "pcp"]
+    citation: "Allen, R. G., Pereira, L. S., Raes, D., & Smith, M. (1998). FAO Irrigation and Drainage Paper 56; Brouwer & Heibloem (1986)."
+    r_function: "wapor_calc_nir_et"
+    py_function: "calc_nir"
+    status: "implemented"
+
+  - id: agg_biomass_kg
+    label: "Seasonal Total Biomass Production (TBP, kg/ha)"
+    category: "biomass_yield"
+    formula: "NPP_seasonal * 22.222 (where 22.222 = 10 / 0.45 gC/gDM)"
+    units_in: "gC/m2/season"
+    units_out: "kg/ha"
+    dekad_rule: "scale_seasonal_npp_by_22_222"
+    inputs: ["npp"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_calc_biomass_from_npp"
+    py_function: "calc_biomass_kg_ha"
+    status: "implemented"
+
+  - id: agg_biomass_t
+    label: "Seasonal Total Biomass Production (TBP, t/ha)"
+    category: "biomass_yield"
+    formula: "(NPP_seasonal * 22.222) / 1000"
+    units_in: "gC/m2/season"
+    units_out: "t/ha"
+    dekad_rule: "scale_seasonal_npp_by_0_022222"
+    inputs: ["npp"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO."
+    r_function: "wapor_calc_biomass_from_npp"
+    py_function: "calc_biomass_t_ha"
+    status: "implemented"
+
+  - id: yield_npp
+    label: "Fresh Crop Yield from NPP"
+    category: "biomass_yield"
+    formula: "(NPP_seasonal * 22.222 * fc * AOT * HI) / ((1 - MC) * 1000)"
+    units_in: "gC/m2/season"
+    units_out: "t/ha"
+    dekad_rule: "from_seasonal_npp"
+    inputs: ["npp"]
+    citation: "Villalobos, F. J., & Fereres, E. (2016). Principles of Agronomy for Sustainable Agriculture. Springer; FAO (2020) WaPOR v2 Methodology."
+    r_function: "wapor_calc_yield_npp"
+    py_function: "calc_yield_npp"
+    status: "implemented"
+
+  - id: cwp_bwp
+    label: "Crop and Biomass Water Productivity (CWP & BWP)"
+    category: "water_productivity"
+    formula: "CWP = (Yield_t_ha * 1000) / (AETI_mm * 10); BWP = (Biomass_t_ha * 1000) / (AETI_mm * 10)"
+    units_in: "t/ha, mm/season"
+    units_out: "kg/m3"
+    dekad_rule: "ratio_of_seasonal_totals"
+    inputs: ["aeti", "npp"]
+    citation: "Molden, D. (1997). Accounting for Water Use and Productivity. SWIM Paper 1, IWMI; Zwart, S. J., & Bastiaanssen, W. G. M. (2004). Agricultural Water Management, 69(2), 115-133."
+    r_function: "wapor_calc_cwp"
+    py_function: "calc_cwp_bwp"
+    status: "implemented"
+
+  - id: nbwp
+    label: "Net Biomass Water Productivity (NBWP = Biomass / T)"
+    category: "water_productivity"
+    formula: "(Biomass_t_ha * 1000) / (T_mm * 10)"
+    units_in: "t/ha, mm/season"
+    units_out: "kg/m3"
+    dekad_rule: "ratio_of_seasonal_totals"
+    inputs: ["npp", "t"]
+    citation: "FAO (2020). WaPOR Database Methodology: Version 2 Release, April 2020. Rome, FAO; Steduto, P., Hsiao, T. C., Raes, D., & Fereres, E. (2009). AquaCrop. Agronomy Journal, 101(3), 426-437."
+    r_function: "wapor_calc_nbwp"
+    py_function: "calc_nbwp"
+    status: "implemented"
+
+  - id: variability
+    label: "Spatial Uniformity and Equity (CV & Theil Index)"
+    category: "irrigation_performance"
+    formula: "Composite step computing cv_aeti (100 * sd / mean) and theil_aeti (mean((x_i / mu) * ln(x_i / mu)))"
+    units_in: "mm/season"
+    units_out: "%, 1"
+    dekad_rule: "spatial_statistics_on_seasonal_aeti"
+    inputs: ["aeti"]
+    citation: "Bos, M. G., Burton, M. A., & Molden, D. J. (2005). Irrigation and Drainage Performance Assessment. CABI; Theil, H. (1967). Economics and Information Theory. North-Holland."
+    r_function: "wapor_calc_cv"
+    py_function: "calc_variability"
+    status: "implemented"
+
+  - id: cv_aeti
+    label: "Spatial Coefficient of Variation of AETI (CV)"
+    category: "irrigation_performance"
+    formula: "100 * sd(AETI_class) / mean(AETI_class)"
+    units_in: "mm/season"
+    units_out: "%"
+    dekad_rule: "spatial_statistics_on_seasonal_aeti"
+    inputs: ["aeti"]
+    citation: "Bos, M. G., Burton, M. A., & Molden, D. J. (2005). Irrigation and Drainage Performance Assessment: Practical Guidelines. CABI."
+    r_function: "wapor_calc_cv"
+    py_function: "calc_cv"
+    status: "implemented"
+
+  - id: theil_aeti
+    label: "Theil Entropy Index of Spatial Water Equity (T)"
+    category: "irrigation_performance"
+    formula: "(1 / N) * sum_i((AETI_i / mean(AETI)) * ln(AETI_i / mean(AETI)))"
+    units_in: "mm/season"
+    units_out: "1"
+    dekad_rule: "spatial_statistics_on_seasonal_aeti"
+    inputs: ["aeti"]
+    citation: "Theil, H. (1967). Economics and Information Theory. North-Holland; Bastiaanssen & Bos (1999)."
+    r_function: "wapor_calc_theil"
+    py_function: "calc_theil"
+    status: "implemented"

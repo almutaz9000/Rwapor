@@ -758,7 +758,8 @@
         list(s$variable, basename(s$paths), s$method, lapply(s$sets, `[[`, "coef"))
       }),
       tile_size = as.integer(tile_size),
-      grid = grid
+      grid = grid,
+      indicators = manifest_extra$indicators
     ),
     algo = "sha256"
   )

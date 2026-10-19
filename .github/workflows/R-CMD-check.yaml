@@ -76,7 +76,8 @@ jobs:
           extra-packages: any::lintr, any::styler
           needs: check
       - name: Run lintr
-        run: Rscript -e 'lintr::lint_package()'
+        run: |
+          Rscript -e 'lints <- lintr::lint_package(); print(lints); if (length(lints) > 0) quit(status = 1)'
       - name: Check styler compliance
         run: Rscript -e 'styler::style_pkg(dry = "on", filetype = "R")'
 

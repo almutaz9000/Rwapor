@@ -53,7 +53,7 @@ wapor_get_indicator_step <- function(name) {
     "agg_aeti", "agg_t", "agg_ret", "agg_pcp", "agg_npp", "agg_peff",
     "etc", "adequacy_etc", "adequacy_p95", "beneficial_fraction",
     "peff_green_blue", "green_water", "blue_water",
-    "rainfall_surplus", "nir",
+    "et_rain", "rainfall_surplus", "nir",
     "cwp_bwp", "nbwp", "yield_npp", "agg_biomass_kg", "agg_biomass_t",
     "variability", "cv_aeti", "theil_aeti"
   )

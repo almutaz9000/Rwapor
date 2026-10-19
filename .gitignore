@@ -33,17 +33,7 @@ test_*.R
 libs/
 nul
 
-# Agent/AI Configuration (local development only)
-# NOTE: agent-workflow/ and .github/workflows/ are intentionally NOT ignored:
-# agent-workflow/ is the shared, repo-owned coordination layer that all
-# agents/models are expected to read and update (see
-# docs/superpowers/specs/2026-05-11-agent-workflow-design.md), and
-# .github/workflows/ holds the actual CI definitions, which must be tracked
-# for GitHub Actions to run at all.
-# AGENTS.md and CLAUDE.md stay tracked as the canonical, short entry-point
-# pointers (both just point to agent-workflow/START-HERE.md). Every other
-# per-tool adapter below carries a full duplicate copy of the same guidance
-# for tools that can't load a shared skill, and is dev-local only.
+# Agent/AI Configuration & Development Workflow (local development only)
 .github/*
 !.github/workflows/
 .claude/
@@ -65,17 +55,35 @@ nul
 .hermes/
 .rules
 .goosehints
+.graphifyignore
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
 CONVENTIONS.md
 GEMINI.md
+IMPROVEMENT_PLAN.md
 QWEN.md
+STATE.md
 WARP.md
+_smoke_check.R
 replit.md
 skills/
+agent-workflow/
+dev-archive/
+dev-tools/
+docs/agents/
+docs/plans/
+docs/research/
+docs/reviews/
+docs/superpowers/
+docs/BRANCH_HISTORY_AND_RETIREMENT.md
+Rwapor_Systematic_Review_Report.html
 graphify-out/
 .vscode/
 memories/
 .obsidian/
 .worktrees/
+.streamlit/
 
 # Development artifacts
 archived_reports/
@@ -98,14 +106,6 @@ tests/l3_urls.txt
 *.duckdb
 *.duckdb.wal
 .positai
-
-# agent-workflow/dashboard (Streamlit) -- app.py, requirements.txt and
-# agents-board.json ARE tracked (shared coordination layer); local Python
-# cache/venv/config are not.
-agent-workflow/dashboard/__pycache__/
-agent-workflow/dashboard/*.pyc
-agent-workflow/dashboard/.venv/
-.streamlit/
 
 # Training folder: only the notebook source is tracked. Data, downloads, images,
 # rendered output, setup scripts and participant documents stay local.

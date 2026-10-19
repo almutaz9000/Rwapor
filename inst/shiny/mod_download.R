@@ -1124,6 +1124,10 @@ mod_download_server <- function(id, l3_regions_meta) {
               )
             }
 
+            l3_sel <- input$l3_region %||% ""
+            l3_mode_val <- if (identical(l3_sel, "__MOSAIC_ALL__")) "mosaic_all" else "select"
+            l3_reg_val <- if (nzchar(l3_sel) && !identical(l3_sel, "__MOSAIC_ALL__")) l3_sel else NULL
+
             # Dual-stage if both selected
             if (isTRUE(input$seasonal) && isTRUE(input$separate_files)) {
               shiny::incProgress(0, detail = sprintf("Stage 1 of 2: Individual files for %s...", v))
@@ -1136,6 +1140,8 @@ mod_download_server <- function(id, l3_regions_meta) {
                 seasonal = FALSE,
                 separate_files = TRUE,
                 mask = aoi$mask(),
+                l3_region = l3_reg_val,
+                l3_mode = l3_mode_val,
                 on_batch_done = batch_progress
               )
               
@@ -1150,6 +1156,8 @@ mod_download_server <- function(id, l3_regions_meta) {
                 fun = seasonal_fun,
                 separate_files = FALSE,
                 mask = aoi$mask(),
+                l3_region = l3_reg_val,
+                l3_mode = l3_mode_val,
                 on_batch_done = batch_progress
               )
               out_path <- c(unlist(out_path_ind), unlist(out_path_sea))
@@ -1164,6 +1172,8 @@ mod_download_server <- function(id, l3_regions_meta) {
                 fun = seasonal_fun,
                 separate_files = input$separate_files,
                 mask = aoi$mask(),
+                l3_region = l3_reg_val,
+                l3_mode = l3_mode_val,
                 on_batch_done = batch_progress
               )
             }

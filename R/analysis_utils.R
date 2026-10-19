@@ -381,8 +381,43 @@ wapor_normalize_analysis_indicators <- function(indicators) {
   }
 
   indicators <- as.character(indicators)
-  indicators[indicators == "peff"] <- "agg_peff"
-  unique(indicators[!is.na(indicators) & nzchar(indicators)])
+  indicators <- indicators[!is.na(indicators) & nzchar(indicators)]
+  if (!length(indicators)) {
+    return(character(0))
+  }
+
+  alias_map <- list(
+    peff = "agg_peff",
+    biomass = c("agg_biomass_kg", "agg_biomass_t"),
+    yield = "yield_npp",
+    nir_et = "nir",
+    cv = "cv_aeti",
+    theil = "theil_aeti",
+    peff_green_blue = c("agg_peff", "green_water", "blue_water"),
+    variability = c("cv_aeti", "theil_aeti")
+  )
+
+  expanded <- unlist(lapply(indicators, function(ind) {
+    if (!is.null(alias_map[[ind]])) alias_map[[ind]] else ind
+  }), use.names = FALSE)
+  out <- unique(expanded)
+
+  valid_steps <- unique(c(
+    .wapor_builtin_indicator_steps(),
+    wapor_list_indicator_steps()
+  ))
+  unsupported <- setdiff(out, valid_steps)
+  if (length(unsupported) > 0L) {
+    stop(
+      sprintf(
+        "Indicator(s) not supported by the tiled engine or seasonal analysis: %s.",
+        paste(unsupported, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  out
 }
 
 #' Generate an R script for standalone analysis
@@ -660,7 +695,7 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     gsub("[^a-zA-Z0-9_-]", "_", x)
   }
 
-  write_raster <- function(r, out_dir, prefix, suffix) {
+  write_raster <- function(r, out_dir, prefix, suffix, units = NULL) {
     if (is.null(r)) return(invisible(NULL))
     if (wapor_canonical_export_is_kc(suffix) || wapor_canonical_export_is_kc(prefix)) {
       warning(
@@ -668,6 +703,10 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
         call. = FALSE
       )
       return(invisible(NULL))
+    }
+    if (!is.null(units) && nzchar(units)) {
+      r <- terra::deepcopy(r)
+      terra::units(r) <- rep(as.character(units), terra::nlyr(r))
     }
     path <- file.path(out_dir, paste0(prefix, "_", suffix, ".tif"))
     if (isTRUE(cog) && exists("wapor_write_cog", mode = "function")) {
@@ -695,13 +734,13 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     utils::write.csv(x, file.path(out_dir, paste0(prefix, "_", suffix, ".csv")), row.names = FALSE)
   }
 
-    write_monthly_series <- function(series, out_dir, prefix, suffix) {
+    write_monthly_series <- function(series, out_dir, prefix, suffix, units = NULL) {
       if (is.null(series) || is.null(series$rasters) || length(series$rasters) == 0) return()
       series_dir <- file.path(out_dir, suffix)
       dir.create(series_dir, recursive = TRUE, showWarnings = FALSE)
       for (month_key in names(series$rasters)) {
         month_suffix <- paste0(suffix, "_", gsub("-", "_", month_key))
-        write_raster(series$rasters[[month_key]], series_dir, prefix, month_suffix)
+        write_raster(series$rasters[[month_key]], series_dir, prefix, month_suffix, units = units)
       }
     }
 
@@ -722,10 +761,14 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
   }
 
   build_summary_metrics <- function(results) {
+    cv_val <- if (is.list(results$cv_aeti)) results$cv_aeti$overall else results$cv_aeti
+    th_val <- if (is.list(results$theil_aeti)) results$theil_aeti$overall else results$theil_aeti
     metrics <- list(
       cwp = results$cwp %||% NA_real_,
       bwp = results$bwp %||% NA_real_,
-      nbwp = results$nbwp %||% NA_real_
+      nbwp = results$nbwp %||% NA_real_,
+      cv_aeti = cv_val %||% NA_real_,
+      theil_aeti = th_val %||% NA_real_
     )
     data.frame(
       metric = names(metrics),
@@ -758,44 +801,80 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     if (include_monthly) dir.create(monthly_dir, recursive = TRUE, showWarnings = FALSE)
     if (include_monthly) dir.create(monthly_raster_dir, recursive = TRUE, showWarnings = FALSE)
 
-    write_raster(results$seasonal_aeti$raster, seasonal_raster_dir, prefix, "seasonal_aeti")
-    write_raster(results$seasonal_ret$raster, seasonal_raster_dir, prefix, "seasonal_ret")
-    write_raster(results$seasonal_pcp, seasonal_raster_dir, prefix, "seasonal_pcp")
-    write_raster(results$seasonal_peff, seasonal_raster_dir, prefix, "seasonal_peff")
-    write_raster(results$seasonal_t$raster, seasonal_raster_dir, prefix, "seasonal_transpiration")
-    write_raster(results$beneficial_fraction, seasonal_raster_dir, prefix, "beneficial_fraction")
-    write_raster(results$green_water, seasonal_raster_dir, prefix, "green_water")
-    write_raster(results$blue_water, seasonal_raster_dir, prefix, "blue_water")
-    write_raster(results$et_rain, seasonal_raster_dir, prefix, "et_rain")
-    write_raster(results$rainfall_surplus, seasonal_raster_dir, prefix, "rainfall_surplus")
-    write_raster(results$yield_raster, seasonal_raster_dir, prefix, "yield_raster_t_ha")
-    write_raster(results$seasonal_nir, seasonal_raster_dir, prefix, "seasonal_nir")
-    write_raster(results$nbwp_raster, seasonal_raster_dir, prefix, "nbwp")
+    metadata_key <- function(suffix) {
+      aliases <- c(
+        seasonal_transpiration = "seasonal_t",
+        seasonal_biomass_kg_ha = "seasonal_biomass_kg",
+        seasonal_biomass_t_ha = "seasonal_biomass_t",
+        yield_raster_t_ha = "yield_raster",
+        cwp = "cwp_raster",
+        bwp = "bwp_raster"
+      )
+      if (suffix %in% names(aliases)) return(unname(aliases[[suffix]]))
+      if (is.list(results$provenance) && suffix %in% names(results$provenance$outputs)) return(suffix)
+      month_match <- regexec("^(monthly_[A-Za-z0-9]+)_([0-9]{4})_([0-9]{2})$", suffix)
+      parts <- regmatches(suffix, month_match)[[1]]
+      if (length(parts) == 4L) return(paste0(parts[[2]], "_", parts[[3]], "-", parts[[4]]))
+      NULL
+    }
+
+    output_units <- function(suffix, fallback = NULL) {
+      key <- metadata_key(suffix)
+      if (!is.null(key) && is.list(results$provenance) &&
+          !is.null(results$provenance$outputs[[key]]$units)) {
+        return(as.character(results$provenance$outputs[[key]]$units))
+      }
+      fallback
+    }
+
+    write_seasonal_raster <- function(r, suffix, fallback_units = NULL) {
+      write_raster(r, seasonal_raster_dir, prefix, suffix,
+                   units = output_units(suffix, fallback_units))
+    }
+
+    write_seasonal_raster(results$seasonal_aeti$raster, "seasonal_aeti", "mm")
+    write_seasonal_raster(results$seasonal_ret$raster, "seasonal_ret", "mm")
+    write_seasonal_raster(results$seasonal_pcp, "seasonal_pcp", "mm")
+    write_seasonal_raster(results$seasonal_peff, "seasonal_peff", "mm")
+    write_seasonal_raster(results$seasonal_npp$raster, "seasonal_npp", "gC/m2")
+    write_seasonal_raster(results$seasonal_t$raster, "seasonal_transpiration", "mm")
+    write_seasonal_raster(results$beneficial_fraction, "beneficial_fraction", "1")
+    write_seasonal_raster(results$green_water, "green_water", "mm")
+    write_seasonal_raster(results$blue_water, "blue_water", "mm")
+    write_seasonal_raster(results$et_rain, "et_rain", "mm")
+    write_seasonal_raster(results$rainfall_surplus, "rainfall_surplus", "mm")
+    write_seasonal_raster(results$yield_raster, "yield_raster_t_ha", "t/ha")
+    write_seasonal_raster(results$cwp_raster, "cwp", "kg/m3")
+    write_seasonal_raster(results$bwp_raster, "bwp", "kg/m3")
+    write_seasonal_raster(results$seasonal_nir, "seasonal_nir", "mm")
+    write_seasonal_raster(results$nbwp_raster, "nbwp", "kg/m3")
 
     if (any(c("agg_biomass_kg", "yield_npp") %in% indicators)) {
-      write_raster(results$seasonal_biomass_kg, seasonal_raster_dir, prefix, "seasonal_biomass_kg_ha")
+      write_seasonal_raster(results$seasonal_biomass_kg, "seasonal_biomass_kg_ha", "kg/ha")
     }
     if (any(c("agg_biomass_t", "yield_npp") %in% indicators)) {
-      write_raster(results$seasonal_biomass_t, seasonal_raster_dir, prefix, "seasonal_biomass_t_ha")
+      write_seasonal_raster(results$seasonal_biomass_t, "seasonal_biomass_t_ha", "t/ha")
     }
 
-    write_raster(results$adequacy_etc, seasonal_raster_dir, prefix, "adequacy_etc")
-    write_raster(results$adequacy_p95, seasonal_raster_dir, prefix, "adequacy_p95")
-    write_raster(results$seasonal_etc, seasonal_raster_dir, prefix, "seasonal_etc")
+    write_seasonal_raster(results$adequacy_etc, "adequacy_etc", "1")
+    write_seasonal_raster(results$adequacy_p95, "adequacy_p95", "1")
+    write_seasonal_raster(results$seasonal_etc, "seasonal_etc", "mm")
 
     if (!is.null(results$etc_by_class)) {
       for (cls in names(results$etc_by_class)) {
-        write_raster(results$etc_by_class[[cls]]$etc_seasonal, seasonal_raster_dir, prefix, paste0("etc_class_", cls))
+        write_seasonal_raster(results$etc_by_class[[cls]]$etc_seasonal, paste0("etc_class_", cls), "mm")
       }
     }
 
     if (include_seasonal_tables) {
       write_table(results$seasonal_aeti$by_class, seasonal_table_dir, prefix, "seasonal_aeti_by_class")
       write_table(results$seasonal_ret$by_class, seasonal_table_dir, prefix, "seasonal_ret_by_class")
+      write_table(results$seasonal_npp$by_class, seasonal_table_dir, prefix, "seasonal_npp_by_class")
       write_table(results$seasonal_biomass_by_class, seasonal_table_dir, prefix, "seasonal_biomass_by_class")
       write_table(results$p95_table, seasonal_table_dir, prefix, "p95_table")
       write_table(results$mask_class_stats, seasonal_table_dir, prefix, "mask_class_stats")
       write_table(summarize_yield_by_class(results), seasonal_table_dir, prefix, "yield_by_class")
+      write_table(results$cwp_summary, seasonal_table_dir, prefix, "cwp_by_class")
       write_table(build_summary_metrics(results), seasonal_table_dir, prefix, "summary_metrics")
     }
 
@@ -813,22 +892,24 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     }
 
     if (include_monthly) {
-      write_monthly_series(results$monthly_aeti, monthly_raster_dir, prefix, "monthly_aeti")
-      write_monthly_series(results$monthly_ret, monthly_raster_dir, prefix, "monthly_ret")
-      write_monthly_series(results$monthly_t, monthly_raster_dir, prefix, "monthly_t")
-      write_monthly_series(results$monthly_etc, monthly_raster_dir, prefix, "monthly_etc")
-      write_monthly_series(results$monthly_green_water, monthly_raster_dir, prefix, "monthly_green_water")
-      write_monthly_series(results$monthly_blue_water, monthly_raster_dir, prefix, "monthly_blue_water")
-      write_monthly_series(results$monthly_nir, monthly_raster_dir, prefix, "monthly_nir")
+      write_monthly_series(results$monthly_aeti, monthly_raster_dir, prefix, "monthly_aeti", units = "mm")
+      write_monthly_series(results$monthly_ret, monthly_raster_dir, prefix, "monthly_ret", units = "mm")
+      write_monthly_series(results$monthly_npp, monthly_raster_dir, prefix, "monthly_npp", units = "gC/m2")
+      write_monthly_series(results$monthly_t, monthly_raster_dir, prefix, "monthly_t", units = "mm")
+      write_monthly_series(results$monthly_etc, monthly_raster_dir, prefix, "monthly_etc", units = "mm")
+      write_monthly_series(results$monthly_green_water, monthly_raster_dir, prefix, "monthly_green_water", units = "mm")
+      write_monthly_series(results$monthly_blue_water, monthly_raster_dir, prefix, "monthly_blue_water", units = "mm")
+      write_monthly_series(results$monthly_nir, monthly_raster_dir, prefix, "monthly_nir", units = "mm")
 
       if (!is.null(results$monthly_precip_peff)) {
-        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_pcp), monthly_raster_dir, prefix, "monthly_pcp")
-        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_peff), monthly_raster_dir, prefix, "monthly_peff")
+        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_pcp), monthly_raster_dir, prefix, "monthly_pcp", units = "mm")
+        write_monthly_series(list(rasters = results$monthly_precip_peff$monthly_peff), monthly_raster_dir, prefix, "monthly_peff", units = "mm")
       }
 
       write_table(results$monthly_precip_peff$summary, monthly_dir, prefix, "monthly_pcp_peff")
       write_table(results$monthly_aeti$summary, monthly_dir, prefix, "monthly_aeti")
       write_table(results$monthly_ret$summary, monthly_dir, prefix, "monthly_ret")
+      write_table(results$monthly_npp$summary, monthly_dir, prefix, "monthly_npp")
       write_table(results$monthly_t$summary, monthly_dir, prefix, "monthly_t")
       write_table(results$monthly_etc$summary, monthly_dir, prefix, "monthly_etc")
       write_table(results$monthly_green_water$summary, monthly_dir, prefix, "monthly_green_water")
@@ -837,20 +918,6 @@ wapor_export_analysis_outputs <- function(results, folder, indicators = characte
     }
 
     if (is.list(results$provenance) && length(results$provenance$outputs)) {
-      metadata_key <- function(suffix) {
-        aliases <- c(
-          seasonal_transpiration = "seasonal_t",
-          seasonal_biomass_kg_ha = "seasonal_biomass_kg",
-          seasonal_biomass_t_ha = "seasonal_biomass_t",
-          yield_raster_t_ha = "yield_raster"
-        )
-        if (suffix %in% names(aliases)) return(unname(aliases[[suffix]]))
-        if (suffix %in% names(results$provenance$outputs)) return(suffix)
-        month_match <- regexec("^(monthly_[A-Za-z0-9]+)_([0-9]{4})_([0-9]{2})$", suffix)
-        parts <- regmatches(suffix, month_match)[[1]]
-        if (length(parts) == 4L) return(paste0(parts[[2]], "_", parts[[3]], "-", parts[[4]]))
-        NULL
-      }
       raster_files <- list.files(season_dir, pattern = "\\.tif$", recursive = TRUE, full.names = TRUE)
       file_map <- list()
       root <- normalizePath(season_dir, winslash = "/", mustWork = TRUE)
