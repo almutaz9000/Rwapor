@@ -61,6 +61,9 @@ AGERA5_VARS[["AGERA5-ET0-E"]]
 #> $scale
 #> [1] 1
 #> 
+#> $spatial_resolution
+#> [1] "11km"
+#> 
 
 # List all AgERA5 variables
 names(AGERA5_VARS)

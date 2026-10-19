@@ -105,24 +105,29 @@ codes, <code><a href="wapor_variable_metadata.html">wapor_variable_metadata()</a
 <span class="r-out co"><span class="r-pr">#&gt;</span> $scale</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0.1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $spatial_resolution</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "300m"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># List all available variables</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rspatial.github.io/terra/reference/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">WAPOR3_VARS</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "L1-AETI-A" "L1-AETI-D" "L1-AETI-M" "L1-E-A"    "L1-E-D"    "L1-GBWP-A"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  [7] "L1-I-A"    "L1-I-D"    "L1-NBWP-A" "L1-NPP-D"  "L1-NPP-M"  "L1-PCP-A" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [13] "L1-PCP-D"  "L1-PCP-E"  "L1-PCP-M"  "L1-RET-D"  "L1-RET-E"  "L1-RSM-D" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [19] "L1-T-A"    "L1-T-D"    "L1-TBP-A"  "L2-AETI-A" "L2-AETI-D" "L2-AETI-M"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [25] "L2-E-A"    "L2-E-D"    "L2-GBWP-A" "L2-I-A"    "L2-I-D"    "L2-NBWP-A"</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [31] "L2-NPP-D"  "L2-NPP-M"  "L2-RSM-D"  "L2-T-A"    "L2-T-D"    "L2-TBP-A" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [37] "L3-AETI-A" "L3-AETI-D" "L3-AETI-M" "L3-AETI-E" "L3-E-A"    "L3-E-D"   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [43] "L3-E-E"    "L3-GBWP-A" "L3-I-E"    "L3-NPP-D"  "L3-NPP-M"  "L3-NPP-E" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [49] "L3-RSM-D"  "L3-RSM-E"  "L3-T-A"    "L3-T-D"    "L3-T-E"    "L3-TBP-A" </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [13] "L1-PCP-D"  "L1-PCP-E"  "L1-PCP-M"  "L1-RET-A"  "L1-RET-D"  "L1-RET-E" </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [19] "L1-RET-M"  "L1-RSM-D"  "L1-T-A"    "L1-T-D"    "L1-TBP-A"  "L2-AETI-A"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [25] "L2-AETI-D" "L2-AETI-M" "L2-E-A"    "L2-E-D"    "L2-GBWP-A" "L2-I-A"   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [31] "L2-I-D"    "L2-NBWP-A" "L2-NPP-D"  "L2-NPP-M"  "L2-RSM-D"  "L2-T-A"   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [37] "L2-T-D"    "L2-TBP-A"  "L3-AETI-A" "L3-AETI-D" "L3-AETI-M" "L3-AETI-E"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [43] "L3-E-A"    "L3-E-D"    "L3-E-E"    "L3-GBWP-A" "L3-I-A"    "L3-I-D"   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [49] "L3-I-E"    "L3-NBWP-A" "L3-NPP-D"  "L3-NPP-M"  "L3-NPP-E"  "L3-RSM-D" </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [55] "L3-RSM-E"  "L3-T-A"    "L3-T-D"    "L3-T-E"    "L3-TBP-A" </span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># List L3 variables only</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grep</a></span><span class="op">(</span><span class="st">"^L3-"</span>, <span class="fu"><a href="https://rspatial.github.io/terra/reference/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">WAPOR3_VARS</span><span class="op">)</span>, value <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  [1] "L3-AETI-A" "L3-AETI-D" "L3-AETI-M" "L3-AETI-E" "L3-E-A"    "L3-E-D"   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  [7] "L3-E-E"    "L3-GBWP-A" "L3-I-E"    "L3-NPP-D"  "L3-NPP-M"  "L3-NPP-E" </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [13] "L3-RSM-D"  "L3-RSM-E"  "L3-T-A"    "L3-T-D"    "L3-T-E"    "L3-TBP-A" </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [7] "L3-E-E"    "L3-GBWP-A" "L3-I-A"    "L3-I-D"    "L3-I-E"    "L3-NBWP-A"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [13] "L3-NPP-D"  "L3-NPP-M"  "L3-NPP-E"  "L3-RSM-D"  "L3-RSM-E"  "L3-T-A"   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [19] "L3-T-D"    "L3-T-E"    "L3-TBP-A" </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

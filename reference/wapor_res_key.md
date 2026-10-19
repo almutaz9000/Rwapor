@@ -21,8 +21,9 @@ wapor_res_key(variable)
 ## Value
 
 A character scalar, e.g. `"L1_300m"`, `"L1_5000m"`, `"L2_100m"`,
-`"L3_30m"`, `"AGERA5_11000m"`. Returns `variable` itself (unique key) if
-not recognised, which safely prevents it from being batched with others.
+`"L3_20m"`, `"L3_10m"`, `"AGERA5_11000m"`. Returns `variable` itself
+(unique key) if not recognised, which safely prevents it from being
+batched with others.
 
 ## Details
 
@@ -47,7 +48,8 @@ wapor_res_key("L1-AETI-D")   # "L1_300m"
 wapor_res_key("L1-PCP-D")    # "L1_5000m"
 wapor_res_key("L1-RET-D")    # "L1_30000m"
 wapor_res_key("L2-AETI-D")   # "L2_100m"
-wapor_res_key("L3-AETI-D")   # "L3_30m"
+wapor_res_key("L3-AETI-D")   # "L3_20m"
+wapor_res_key("L3-AETI-E")   # "L3_10m"
 wapor_res_key("AGERA5-ET0-E") # "AGERA5_11000m"
 } # }
 ```
