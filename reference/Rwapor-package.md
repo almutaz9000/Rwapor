@@ -72,12 +72,5 @@ Useful links:
 
 ## Author
 
-**Maintainer**: Almutaz Mohammed <almutaz.mohammed@fao.org>
-
-Authors:
-
-- WaPOR-DL Contributors <wapor@fao.org>
-
-Other contributors:
-
-- FAO \[copyright holder\]
+**Maintainer**: Almutaz Mohammed <almutaz.mohammed@fao.org> \[copyright
+holder\]

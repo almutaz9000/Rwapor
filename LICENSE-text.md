@@ -1,4 +1,4 @@
 # License
 
     YEAR: 2025
-    COPYRIGHT HOLDER: WaPOR-DL Contributors
+    COPYRIGHT HOLDER: Almutaz Mohammed
