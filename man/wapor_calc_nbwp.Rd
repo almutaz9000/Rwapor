@@ -28,7 +28,7 @@ Known incompatibilities always stop the calculation.}
 Numeric or SpatRaster. NBWP in kg/m3.
 }
 \description{
-Net Biomass Water Productivity (NBWP) = Biomass (kg/ha) / \link{Transpiration (mm) * 10}.
+Net Biomass Water Productivity (NBWP) = \code{Biomass (kg/ha) / (Transpiration (mm) * 10)}.
 Measures the biomass produced per unit of water beneficially consumed through crop
 transpiration alone, isolating beneficial water consumption from non-beneficial evaporation
 and canopy interception losses.

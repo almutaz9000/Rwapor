@@ -210,3 +210,72 @@ test_that("complete-series contract rejects known incomplete coverage", {
   expect_equal(report$status, "failed")
   expect_match(paste(report$errors, collapse = " "), "coverage")
 })
+
+test_that("tabular series and monitoring join validate time-series and monitoring tables", {
+  ts_a <- data.frame(
+    farm_id = c("F1", "F1"),
+    season_id = c("2023-01-01/2023-01-20", "2023-01-01/2023-01-20"),
+    variable = c("L1-AETI-D", "L1-AETI-D"),
+    start_date = c("2023-01-01", "2023-01-11"),
+    end_date = c("2023-01-10", "2023-01-20"),
+    mean_val = c(2.1, 2.4),
+    units = c("mm/day", "mm/day"),
+    stringsAsFactors = FALSE
+  )
+  ts_b <- data.frame(
+    farm_id = c("F1", "F1"),
+    season_id = c("2023-01-01/2023-01-20", "2023-01-01/2023-01-20"),
+    variable = c("L1-NPP-D", "L1-NPP-D"),
+    start_date = c("2023-01-01", "2023-01-11"),
+    end_date = c("2023-01-10", "2023-01-20"),
+    mean_val = c(15.0, 18.0),
+    units = c("kg/ha/day", "kg/ha/day"),
+    stringsAsFactors = FALSE
+  )
+
+  ok <- wapor_validate_compatibility(
+    list(aeti = ts_a, npp = ts_b),
+    operation = "monitoring_join"
+  )
+  expect_equal(ok$status, "passed")
+
+  ts_diff_season <- ts_b
+  ts_diff_season$season_id <- "2024-01-01/2024-01-20"
+  bad_season <- wapor_validate_compatibility(
+    list(aeti = ts_a, npp = ts_diff_season),
+    operation = "monitoring_join"
+  )
+  expect_equal(bad_season$status, "failed")
+  expect_match(paste(bad_season$errors, collapse = " "), "Season|Analysis periods differ")
+
+  ts_diff_interval <- ts_b
+  ts_diff_interval$end_date <- c("2023-01-15", "2023-01-20")
+  bad_iv <- wapor_validate_compatibility(
+    list(aeti = ts_a, npp = ts_diff_interval),
+    operation = "tabular_series"
+  )
+  expect_equal(bad_iv$status, "failed")
+  expect_match(paste(bad_iv$errors, collapse = " "), "interval")
+})
+
+test_that("wapor_zonal_stats propagates provenance and period when known", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  skip_if_not_installed("exactextractr")
+
+  r <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 4, ymin = 0, ymax = 4,
+                   crs = "EPSG:4326", vals = 1:16)
+  names(r) <- "WAPOR-3.L1-AETI-M.2023-01.tif"
+  terra::units(r) <- "mm"
+  poly <- sf::st_sf(
+    farm_id = "F1",
+    geometry = sf::st_sfc(sf::st_polygon(list(rbind(c(0, 0), c(4, 0), c(4, 4), c(0, 4), c(0, 0)))), crs = 4326)
+  )
+
+  zs <- wapor_zonal_stats(r, poly, id = "farm_id", stats = "mean", aoi = FALSE)
+  expect_s3_class(attr(zs, "provenance"), "wapor_provenance")
+  expect_equal(unique(zs$period), "2023-01-01/2023-01-31")
+
+  zw <- wapor_zonal_wide(zs)
+  expect_s3_class(attr(zw, "provenance"), "wapor_provenance")
+})

@@ -93,6 +93,73 @@
   sidecar <- if (inherits(x, "SpatRaster")) .wapor_read_raster_sidecar_provenance(x) else NULL
   if (inherits(sidecar, "wapor_provenance")) return(sidecar)
   if (is.list(x) && inherits(x$provenance, "wapor_provenance")) return(x$provenance)
+  if (is.list(x) && is.list(x$provenance) && is.list(x$provenance$outputs) && length(x$provenance$outputs) > 0L) {
+    first_out <- x$provenance$outputs[[1]]
+    if (inherits(first_out, "wapor_provenance")) return(first_out)
+  }
+  if (inherits(attr(x, "provenance"), "wapor_provenance")) return(attr(x, "provenance"))
+  if (is.data.frame(x) && all(c("start_date", "end_date") %in% names(x))) {
+    variable <- attr(x, "variable")
+    if (is.null(variable) && "variable" %in% names(x)) {
+      v <- unique(as.character(x$variable[!is.na(x$variable)]))
+      variable <- if (length(v) == 1L) v else NULL
+    }
+    iv_raw <- unique(data.frame(
+      start_date = as.character(x$start_date),
+      end_date = as.character(x$end_date),
+      stringsAsFactors = FALSE
+    ))
+    iv_raw <- iv_raw[!is.na(iv_raw$start_date) & !is.na(iv_raw$end_date), , drop = FALSE]
+    if (nrow(iv_raw) > 0L) {
+      ord <- order(iv_raw$start_date, iv_raw$end_date)
+      iv_raw <- iv_raw[ord, , drop = FALSE]
+    }
+    tcode <- if (!is.null(variable) && grepl("-[ADEHM]$", variable)) {
+      sub("^.*-([ADEHM])$", "\\1", variable)
+    } else NA_character_
+    intervals <- if (nrow(iv_raw) > 0L) {
+      data.frame(
+        layer = seq_len(nrow(iv_raw)),
+        start_date = iv_raw$start_date,
+        end_date = iv_raw$end_date,
+        temporal_code = tcode,
+        metadata_source = "table",
+        stringsAsFactors = FALSE
+      )
+    } else NULL
+    period <- attr(x, "period")
+    season_def <- NULL
+    if ("season_id" %in% names(x)) {
+      sid <- unique(as.character(x$season_id[!is.na(x$season_id) & nzchar(as.character(x$season_id))]))
+      if (length(sid) == 1L) {
+        season_def <- list(id = sid)
+        if (is.null(period) && grepl("^\\d{4}-\\d{2}-\\d{2}/\\d{4}-\\d{2}-\\d{2}$", sid)) {
+          period <- strsplit(sid, "/", fixed = TRUE)[[1]]
+        }
+      } else if (length(sid) > 1L) {
+        season_def <- list(id = paste(sort(sid), collapse = ";"))
+      }
+    } else if ("season_name" %in% names(x)) {
+      sn <- unique(as.character(x$season_name[!is.na(x$season_name) & nzchar(as.character(x$season_name))]))
+      if (length(sn) == 1L) season_def <- list(id = sn)
+    }
+    if (is.null(period) && nrow(iv_raw) > 0L) {
+      period <- c(min(iv_raw$start_date), max(iv_raw$end_date))
+    }
+    units <- attr(x, "units")
+    if ((is.null(units) || identical(units, "unknown")) && "units" %in% names(x)) {
+      u_col <- unique(as.character(x$units[!is.na(x$units) & nzchar(as.character(x$units))]))
+      units <- if (length(u_col) == 1L) u_col else NULL
+    }
+    if (identical(units, "unknown")) units <- NULL
+    return(.wapor_new_provenance(
+      variable = variable,
+      intervals = intervals,
+      period = period,
+      units = units,
+      season_definition = season_def
+    ))
+  }
   if (inherits(x, "SpatRaster")) {
     nm <- names(x)
     variable <- if (length(nm)) .wapor_variable_code_from_name(nm[[1]]) else NA_character_
@@ -161,8 +228,10 @@
   if (u %in% c("kg/ha", "t/ha", "kgdm/ha", "gc/m2")) return("mass_per_area")
   if (u %in% c("kg/ha/day", "t/ha/day", "gc/m2/day")) return("mass_per_area_rate")
   if (u %in% c("kg/m3", "kg/m^3")) return("mass_per_volume")
-  if (u %in% c("%", "percent", "1", "dimensionless")) return("dimensionless")
+  if (u %in% c("%", "percent", "1", "0-1", "dimensionless")) return("dimensionless")
   if (u %in% c("k", "degc", "celsius")) return("temperature")
+  if (u %in% c("j/m2/day", "mj/m2/day")) return("energy_flux")
+  if (u %in% c("m/s")) return("velocity")
   NA_character_
 }
 
@@ -189,7 +258,7 @@
 #'   containing provenance. Meaningful names improve diagnostics.
 #' @param operation One of `same_period`, `harmonized_units`, `harmonized_pair`, `harmonized_series`,
 #'   `ratio`, `ratio_series`, `add`, `add_series`, `seasonal_ratio`,
-#'   `time_series`, `complete_series`, or `water_productivity`.
+#'   `time_series`, `complete_series`, `water_productivity`, `tabular_series`, or `monitoring_join`.
 #' @param mode Missing-metadata policy: `"warn"` (default) or `"strict"`.
 #' @return List with status (`passed`, `warning`, or `failed`), errors, warnings,
 #'   and check records.
@@ -200,7 +269,7 @@
 #'                              operation = "water_productivity")
 #' }
 wapor_validate_compatibility <- function(inputs,
-  operation = c("same_period", "harmonized_units", "harmonized_pair", "harmonized_series", "ratio", "ratio_series", "add", "add_series", "seasonal_ratio", "time_series", "complete_series", "water_productivity"),
+  operation = c("same_period", "harmonized_units", "harmonized_pair", "harmonized_series", "ratio", "ratio_series", "add", "add_series", "seasonal_ratio", "time_series", "complete_series", "water_productivity", "tabular_series", "monitoring_join"),
   mode = c("warn", "strict")) {
   operation <- match.arg(operation)
   mode <- match.arg(mode)
@@ -223,7 +292,9 @@ wapor_validate_compatibility <- function(inputs,
     add = c("period", "grid", "units_equal"),
     time_series = c("intervals", "grid", "units_known"),
     complete_series = c("intervals", "grid", "units_known", "coverage"),
-    water_productivity = c("period", "intervals", "grid", "water_productivity_units", "season")
+    water_productivity = c("period", "intervals", "grid", "water_productivity_units", "season"),
+    tabular_series = c("intervals", "units_known"),
+    monitoring_join = c("period", "intervals", "units_known", "season")
   )
   checks <- list(); errors <- character(); warnings <- character()
   add <- function(id, status, message, observed = NULL) {

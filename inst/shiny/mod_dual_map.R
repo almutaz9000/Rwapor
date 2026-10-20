@@ -149,6 +149,7 @@ mod_dual_map_ui <- function(id) {
           selected = "plasma"),
 
         shiny::tags$hr(class = "ctrl-divider"),
+        shiny::uiOutput(ns("dual_compat_ui")),
         shiny::sliderInput(ns("raster_opacity"), "Raster Opacity",
           min = 0, max = 1, value = 0.8, step = 0.05, ticks = FALSE),
         shiny::selectInput(ns("basemap"), "Basemap",
@@ -270,6 +271,28 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
 
     shiny::observeEvent(input$raster_left,  .load_side(input$raster_left,  "band_left",  loaded_left))
     shiny::observeEvent(input$raster_right, .load_side(input$raster_right, "band_right", loaded_right))
+
+    output$dual_compat_ui <- shiny::renderUI({
+      rl <- loaded_left()
+      rr <- loaded_right()
+      if (is.null(rl) || is.null(rr)) return(NULL)
+      report <- tryCatch(
+        suppressWarnings(wapor_validate_compatibility(
+          list(left = rl, right = rr),
+          operation = "same_period",
+          mode = "warn"
+        )),
+        error = function(e) NULL
+      )
+      if (is.null(report) || length(report$errors) == 0L) return(NULL)
+      shiny::div(
+        class = "alert alert-warning py-1 px-2 mb-2",
+        style = "font-size: 0.78rem;",
+        shiny::icon("triangle-exclamation", class = "me-1"),
+        shiny::strong("Comparison note: "),
+        paste(report$errors, collapse = " ")
+      )
+    })
 
     .palette_fn <- function(vals, pal_name) {
       pal_colors <- grDevices::colorRampPalette(

@@ -82,3 +82,6 @@
 ^.*\.zip$
 ^.*\.tar\.gz$
 ^Rwapor_Systematic_Review_Report\.html$
+^\.worktrees$
+^\.obsidian$
+^\.streamlit$

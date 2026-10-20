@@ -48,7 +48,7 @@ it explicitly with `options(Rwapor.memory_budget_mb = 4096)`.
 `wapor_run_seasonal_analysis()` plans and runs the job in one call. Leave
 `processing` at `"auto"`, or force a mode.
 
-```{r}
+```{r, eval = FALSE}
 crop_mask <- wapor_load_crop_mask("scheme_crop_mask.tif")
 
 config <- list(
@@ -77,7 +77,7 @@ resampling, every value is a raw WaPOR value or a sum of raw values. For
 example, AgERA5-based reference ET at about 9 km is summed on its own grid and
 then assigned to the 20 m pixels inside each cell. To interpolate instead:
 
-```{r}
+```{r, eval = FALSE}
 config$resampling_method <- list(ret = "bilinear", pcp = "bilinear")
 ```
 
@@ -90,7 +90,7 @@ treated as 0 mm. Allow partial seasons with, for example,
 Tiles run in parallel under the active `future` plan. terra and GDAL caches are
 divided between the workers automatically.
 
-```{r}
+```{r, eval = FALSE}
 future::plan(future::multisession, workers = 4)
 result <- wapor_run_seasonal_analysis(config, params, rasters = list(crop_mask = crop_mask))
 ```
@@ -102,7 +102,7 @@ manifest with a checksum for every tile. If a run is interrupted, rerun it with
 `resume = TRUE`: finished tiles are reused and only the missing ones are
 computed.
 
-```{r}
+```{r, eval = FALSE}
 tiled <- wapor_run_seasonal_analysis_tiled(
   config, params, rasters = list(crop_mask = crop_mask),
   output_dir = "scheme_tiles", tile_size = 1024L, cog = TRUE, resume = TRUE

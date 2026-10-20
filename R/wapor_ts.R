@@ -230,6 +230,7 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
       attr(final_multi_df, "units") <- attr(first_res, "units")
       attr(final_multi_df, "long_name") <- attr(first_res, "long_name")
       attr(final_multi_df, "aggregation_rule") <- attr(first_res, "aggregation_rule")
+      attr(final_multi_df, "provenance") <- tryCatch(.wapor_input_provenance(final_multi_df), error = function(e) attr(first_res, "provenance"))
       
       return(final_multi_df)
     }
@@ -417,6 +418,28 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
     attr(result_df, "plan") <- plan
     attr(result_df, "aggregation_rule") <- if (isTRUE(seasonal_summary$explicit)) seasonal_summary$fun else aggregation_rule
     attr(result_df, "missing_periods") <- seasonal_data$missing_periods
+    attr(result_df, "variable") <- variable
+    attr(result_df, "provenance") <- .wapor_new_provenance(
+      variable = variable,
+      intervals = data.frame(
+        layer = 1L,
+        start_date = as.character(period[1]),
+        end_date = as.character(period[2]),
+        temporal_code = .wapor_temporal_code(variable),
+        metadata_source = "seasonal_plan",
+        stringsAsFactors = FALSE
+      ),
+      period = period,
+      units = if (identical(attr(result_df, "units"), "unknown")) NULL else attr(result_df, "units"),
+      coverage = list(
+        complete = length(seasonal_data$missing_periods) == 0L,
+        missing_periods = seasonal_data$missing_periods
+      ),
+      operation = list(
+        type = "seasonal_zonal_summary",
+        aggregation_rule = attr(result_df, "aggregation_rule")
+      )
+    )
 
     return(result_df)
   }
@@ -680,6 +703,27 @@ wapor_ts <- function(region, variable, period, identifier = NULL, unit_conversio
   failed_urls <- unique(unlist(lapply(failed_batches, function(r) r$urls)))
   attr(final_df, "partial") <- length(failed_urls) > 0L
   attr(final_df, "failed_layers") <- failed_urls
+  attr(final_df, "variable") <- variable
+  attr(final_df, "provenance") <- .wapor_new_provenance(
+    variable = variable,
+    intervals = if (is.data.frame(meta_df) && nrow(meta_df) > 0L) {
+      data.frame(
+        layer = seq_len(nrow(meta_df)),
+        start_date = as.character(meta_df$start_date),
+        end_date = as.character(meta_df$end_date),
+        temporal_code = tres,
+        metadata_source = "url",
+        stringsAsFactors = FALSE
+      )
+    } else NULL,
+    period = period,
+    units = if (identical(attr(final_df, "units"), "unknown")) NULL else attr(final_df, "units"),
+    coverage = list(
+      complete = length(failed_urls) == 0L,
+      failed_layers = failed_urls
+    ),
+    operation = list(type = "zonal_time_series")
+  )
 
   if (length(failed_batches) > 0) {
     failed_csv <- file.path(tempdir(), paste0(variable, "_failed_layers.csv"))

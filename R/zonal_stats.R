@@ -355,6 +355,16 @@ wapor_zonal_stats <- function(x, zones, id, stats = c("mean", "area_ha", "mask_f
     parts <- vapply(id_values, function(v) v[j], character(1))
     paste(toupper(trimws(parts[!is.na(parts)])), collapse = "|")
   }, character(1)) else zone_id
+  prov_in <- tryCatch(.wapor_input_provenance(x), error = function(e) NULL)
+  period_str <- if (inherits(prov_in, "wapor_provenance") &&
+    is.list(prov_in$period) &&
+    !is.null(prov_in$period$start) && !is.null(prov_in$period$end) &&
+    !is.na(prov_in$period$start) && !is.na(prov_in$period$end) &&
+    nzchar(as.character(prov_in$period$start)) && nzchar(as.character(prov_in$period$end))) {
+    paste(prov_in$period$start, prov_in$period$end, sep = "/")
+  } else {
+    NA_character_
+  }
   season_value <- if (is.null(season)) NA_character_ else as.character(season)
   days_of <- function(k) {
     if (is.null(days)) return(NA_real_)
@@ -540,11 +550,12 @@ wapor_zonal_stats <- function(x, zones, id, stats = c("mean", "area_ha", "mask_f
   ans <- if (length(zone_index)) {
     data.frame(level = z$.level[zone_index], zone_id = zone_id[zone_index], zone_key = zone_key[zone_index],
                lapply(id_values, function(v) v[zone_index]),
-               season = season_value, variable = variable, period = NA_character_,
+               season = season_value, variable = variable, period = period_str,
                stat = stat, class = class_col, value = value, unit = unit,
                stringsAsFactors = FALSE, check.names = FALSE)
   } else data.frame()
   class(ans) <- c("wapor_zonal", "data.frame")
+  if (inherits(prov_in, "wapor_provenance")) attr(ans, "provenance") <- prov_in
   attr(ans, "wapor_zonal_call") <- list(
     stats = stats, sd_type = sd_type, id = id, probs = probs, mask = !is.null(mask), weights = !is.null(weights),
     min_coverage = min_coverage, min_cell_fraction = min_cell_fraction, min_mask_area_ha = min_mask_area_ha,
@@ -556,6 +567,7 @@ wapor_zonal_stats <- function(x, zones, id, stats = c("mean", "area_ha", "mask_f
   }
   if (format == "long") return(ans)
   wide <- wapor_zonal_wide(ans)
+  if (inherits(prov_in, "wapor_provenance")) attr(wide, "provenance") <- prov_in
   if (format == "wide") return(wide)
   # sf: the finest level and the AOI, one row per zone and variable, with the zone geometry.
   wide <- wide[wide$level %in% c(0L, max(z$.level)), , drop = FALSE]
@@ -581,6 +593,7 @@ wapor_zonal_wide <- function(z) {
   rows <- !duplicated(row_key)
   out <- z[rows, keys, drop = FALSE]
   rownames(out) <- NULL
+  if (inherits(attr(z, "provenance"), "wapor_provenance")) attr(out, "provenance") <- attr(z, "provenance")
   for (nm in unique(column)) {
     hit <- column == nm
     out[[nm]] <- z$value[hit][match(row_key[rows], row_key[hit])]

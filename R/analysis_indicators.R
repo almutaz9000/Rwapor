@@ -767,7 +767,7 @@ wapor_calc_bwp <- function(biomass_value, aeti_mm, biomass_unit = "kg/ha",
 
 #' Compute Net Biomass Water Productivity (NBWP)
 #'
-#' Net Biomass Water Productivity (NBWP) = Biomass (kg/ha) / [Transpiration (mm) * 10].
+#' Net Biomass Water Productivity (NBWP) = `Biomass (kg/ha) / (Transpiration (mm) * 10)`.
 #' Measures the biomass produced per unit of water beneficially consumed through crop
 #' transpiration alone, isolating beneficial water consumption from non-beneficial evaporation
 #' and canopy interception losses.

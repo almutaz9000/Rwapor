@@ -380,6 +380,22 @@ wapor_run_monitoring <- function(con, farms_sf, variables, period,
         if (!is.null(ts_df) && nrow(ts_df) > 0) {
           # Get harmonized units from the resulting data frame attribute
           var_units <- attr(ts_df, "units") %||% NA_character_
+          season_id_val <- paste(period[1], period[2], sep = "/")
+          existing_units <- tryCatch(
+            DBI::dbGetQuery(
+              con,
+              "SELECT DISTINCT units FROM farm_timeseries WHERE variable = ? AND season_id = ? AND units IS NOT NULL AND units <> ''",
+              params = list(var, season_id_val)
+            )$units,
+            error = function(e) character()
+          )
+          if (length(existing_units) > 0L && !is.na(var_units) && nzchar(var_units) &&
+              any(.wapor_unit_label(existing_units) != .wapor_unit_label(var_units))) {
+            stop(sprintf(
+              "Monitoring unit conflict for %s in season %s: existing units (%s) vs incoming (%s).",
+              var, season_id_val, paste(existing_units, collapse = ", "), var_units
+            ), call. = FALSE)
+          }
 
           # Prepare for insertion (Match full schema to avoid append errors)
           insert_df <- data.frame(

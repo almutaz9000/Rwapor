@@ -8,7 +8,7 @@ wapor_validate_compatibility(
   inputs,
   operation = c("same_period", "harmonized_units", "harmonized_pair",
     "harmonized_series", "ratio", "ratio_series", "add", "add_series", "seasonal_ratio",
-    "time_series", "complete_series", "water_productivity"),
+    "time_series", "complete_series", "water_productivity", "tabular_series", "monitoring_join"),
   mode = c("warn", "strict")
 )
 }
@@ -18,7 +18,7 @@ containing provenance. Meaningful names improve diagnostics.}
 
 \item{operation}{One of \code{same_period}, \code{harmonized_units}, \code{harmonized_pair}, \code{harmonized_series},
 \code{ratio}, \code{ratio_series}, \code{add}, \code{add_series}, \code{seasonal_ratio},
-\code{time_series}, \code{complete_series}, or \code{water_productivity}.}
+\code{time_series}, \code{complete_series}, \code{water_productivity}, \code{tabular_series}, or \code{monitoring_join}.}
 
 \item{mode}{Missing-metadata policy: \code{"warn"} (default) or \code{"strict"}.}
 }

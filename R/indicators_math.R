@@ -19,7 +19,7 @@ wapor_math_adequacy_etc <- function(aeti_seasonal, etc_seasonal) {
   wapor_math_safe_divide(aeti_seasonal, etc_seasonal)
 }
 
-#' Beneficial fraction: T / AETI (clamped to [0, 1])
+#' Beneficial fraction: T / AETI (clamped to `[0, 1]`)
 #' @keywords internal
 #' @export
 wapor_math_beneficial_fraction <- function(t_seasonal, aeti_seasonal) {
