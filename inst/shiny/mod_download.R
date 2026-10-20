@@ -194,6 +194,11 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
               shiny::checkboxInput(ns("seasonal"),       "Seasonal aggregate",       FALSE),
               shiny::checkboxInput(ns("separate_files"), "Save per-timestep files",  TRUE)
             ),
+            shiny::checkboxInput(
+              ns("partial"),
+              "Allow partial period (skip unpublished recent timesteps)",
+              TRUE
+            ),
             shiny::conditionalPanel(
               condition = "input.seasonal && input.separate_files",
               ns = ns,
@@ -281,6 +286,7 @@ mod_download_ui <- function(id, all_vars, default_var, l3_region_choices) {
 
 mod_download_server <- function(id, l3_regions_meta) {
   shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     roots <- get_shinyfiles_roots()
 
     # ── Guide Modals ──────────────────────────────────────────────────────────
@@ -1016,6 +1022,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "  seasonal = TRUE,\n",
             "  fun = %s,\n",
             "  separate_files = FALSE,\n",
+            "  partial = %s,\n",
             "  mask = %s\n",
             ")"
           ),
@@ -1027,6 +1034,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           mask_str,
           unit_conv,
           fun_str,
+          isTRUE(input$partial),
           mask_str
         )
       } else {
@@ -1046,6 +1054,7 @@ mod_download_server <- function(id, l3_regions_meta) {
             "  seasonal = %s,\n",
             "  fun = %s,\n",
             "  separate_files = %s,\n",
+            "  partial = %s,\n",
             "  mask = %s\n",
             ")"
           ),
@@ -1057,6 +1066,7 @@ mod_download_server <- function(id, l3_regions_meta) {
           input$seasonal,
           fun_str,
           input$separate_files,
+          isTRUE(input$partial),
           mask_str
         )
       }
@@ -1142,6 +1152,7 @@ mod_download_server <- function(id, l3_regions_meta) {
                 mask = aoi$mask(),
                 l3_region = l3_reg_val,
                 l3_mode = l3_mode_val,
+                partial = isTRUE(input$partial),
                 on_batch_done = batch_progress
               )
               
@@ -1158,6 +1169,7 @@ mod_download_server <- function(id, l3_regions_meta) {
                 mask = aoi$mask(),
                 l3_region = l3_reg_val,
                 l3_mode = l3_mode_val,
+                partial = isTRUE(input$partial),
                 on_batch_done = batch_progress
               )
               out_path <- c(unlist(out_path_ind), unlist(out_path_sea))
@@ -1174,6 +1186,7 @@ mod_download_server <- function(id, l3_regions_meta) {
                 mask = aoi$mask(),
                 l3_region = l3_reg_val,
                 l3_mode = l3_mode_val,
+                partial = isTRUE(input$partial),
                 on_batch_done = batch_progress
               )
             }

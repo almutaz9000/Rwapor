@@ -911,7 +911,8 @@ mod_timeseries_server <- function(id, global_folder, aoi_region) {
                 period     = .period,
                 identifier = .id_col,
                 seasonal   = TRUE,
-                fun        = .seasonal_fun
+                fun        = .seasonal_fun,
+                partial    = TRUE
               )
               df$variable <- v
               df

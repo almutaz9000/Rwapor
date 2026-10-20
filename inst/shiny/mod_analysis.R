@@ -17,6 +17,7 @@ mod_analysis_ui <- function(id, all_vars, l3_region_choices) {
 
 mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons = shiny::reactive(list())) {
   shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     # Helper to collect all active indicators across structured groups
     get_active_indicators <- function() {
       unique(c(

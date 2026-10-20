@@ -127,6 +127,7 @@ mod_aoi_server <- function(id,
                            global_folder = shiny::reactive(NULL),
                            l3_regions_meta = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     user_roi <- shiny::reactiveVal(NULL)
     upload_roi <- shiny::reactiveVal(NULL)
     manual_clicks <- shiny::reactiveVal(
