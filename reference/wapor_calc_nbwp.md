@@ -1,10 +1,10 @@
 # Compute Net Biomass Water Productivity (NBWP)
 
-Net Biomass Water Productivity (NBWP) = Biomass (kg/ha) / Transpiration
-(mm) \* 10. Measures the biomass produced per unit of water beneficially
-consumed through crop transpiration alone, isolating beneficial water
-consumption from non-beneficial evaporation and canopy interception
-losses.
+Net Biomass Water Productivity (NBWP) =
+`Biomass (kg/ha) / (Transpiration (mm) * 10)`. Measures the biomass
+produced per unit of water beneficially consumed through crop
+transpiration alone, isolating beneficial water consumption from
+non-beneficial evaporation and canopy interception losses.
 
 ## Usage
 
