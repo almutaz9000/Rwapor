@@ -3,16 +3,12 @@ citHeader("To cite Rwapor in publications use:")
 bibentry(
   bibtype  = "Manual",
   title    = "Rwapor: Download and Process WaPOR and AgERA5 Data",
-  author   = c(
-    person("Almutaz", "Mohammed"),
-    person("WaPOR-DL", "Contributors"),
-    person("FAO")
-  ),
+  author   = person("Almutaz", "Mohammed"),
   year     = "2026",
   note     = "R package version 1.0.6",
   url      = "https://github.com/almutaz9000/Rwapor",
   textVersion = paste(
-    "Mohammed, A., WaPOR-DL Contributors, & FAO (2026).",
+    "Mohammed, A. (2026).",
     "Rwapor: Download and Process WaPOR and AgERA5 Data.",
     "R package version 1.0.6.",
     "https://github.com/almutaz9000/Rwapor"

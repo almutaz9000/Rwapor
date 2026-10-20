@@ -34,17 +34,7 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Almutaz Mohammed \email{almutaz.mohammed@fao.org}
-
-Authors:
-\itemize{
-  \item WaPOR-DL Contributors \email{wapor@fao.org}
-}
-
-Other contributors:
-\itemize{
-  \item FAO [copyright holder]
-}
+\strong{Maintainer}: Almutaz Mohammed \email{almutaz.mohammed@fao.org} [copyright holder]
 
 }
 \keyword{internal}

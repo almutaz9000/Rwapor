@@ -1,12 +1,8 @@
 Package: Rwapor
 Title: Download WaPOR and AgERA5 Data
 Version: 1.0.6
-Authors@R: c(
-    person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre")),
-    person("WaPOR-DL", "Contributors", email = "wapor@fao.org", role = "aut"),
-    person("FAO", role = "cph")
-  )
-Author: Almutaz Mohammed [aut, cre], WaPOR-DL Contributors [aut], FAO [cph]
+Authors@R: person("Almutaz", "Mohammed", email = "almutaz.mohammed@fao.org", role = c("aut", "cre", "cph"))
+Author: Almutaz Mohammed [aut, cre, cph]
 Maintainer: Almutaz Mohammed <almutaz.mohammed@fao.org>
 Description: Downloads and processes WaPOR (Water Productivity Open-access portal)
     and AgERA5 raster data from the FAO GIS Manager API. Provides functions for
