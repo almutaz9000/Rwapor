@@ -341,6 +341,7 @@ test_that("the AOI defaults to the crop mask extent and is logged", {
 })
 
 test_that("keep_intermediates controls dekadal stacks and registry steps still see them lazily", {
+  defer_indicator_registry_cleanup()
   fx <- processing_fixture()
   on.exit(unlink(fx$root, recursive = TRUE, force = TRUE), add = TRUE)
   step_name <- paste0("probe_", as.integer(stats::runif(1, 1, 1e6)))
