@@ -10,6 +10,43 @@
   digest::digest(x, algo = "sha256")
 }
 
+# Write one complete URL-cache entry before publishing it at its cache key.
+# The temporary file is a sibling of the destination so it stays on the same
+# filesystem; the cache key is never pointed at an RDS file still being written.
+.wapor_write_url_cache <- function(value, cache_file) {
+  cache_dir <- dirname(cache_file)
+  tmp_file <- tempfile(
+    pattern = paste0(".", basename(cache_file), "-"),
+    tmpdir = cache_dir,
+    fileext = ".tmp"
+  )
+  on.exit(unlink(tmp_file), add = TRUE)
+
+  saved <- tryCatch({
+    saveRDS(value, tmp_file)
+    identical(readRDS(tmp_file), value)
+  }, error = function(e) FALSE)
+  if (!isTRUE(saved)) return(FALSE)
+
+  published <- suppressWarnings(tryCatch(
+    file.rename(tmp_file, cache_file),
+    error = function(e) FALSE
+  ))
+
+  # Some platforms do not replace an existing destination with file.rename().
+  # The complete temp file is already closed and validated, so a best-effort
+  # remove-then-rename can create only a brief cache miss, never a partial RDS.
+  if (!isTRUE(published) && file.exists(cache_file) && !dir.exists(cache_file)) {
+    unlink(cache_file)
+    published <- suppressWarnings(tryCatch(
+      file.rename(tmp_file, cache_file),
+      error = function(e) FALSE
+    ))
+  }
+
+  isTRUE(published)
+}
+
 #' @keywords internal
 #' @noRd
 .wapor_retry_is_transient <- function(resp) {
@@ -127,7 +164,7 @@ collect_responses <- function(url, info = "downloadUrl", use_cache = TRUE, reque
       age <- as.numeric(difftime(Sys.time(), finfo$mtime, units = "secs"))
       if (!is.na(age) && age < ttl_seconds) {
         cached_data <- tryCatch(readRDS(cache_file), error = function(e) NULL)
-        if (!is.null(cached_data)) return(cached_data)
+        if (is.list(cached_data)) return(cached_data)
       }
     }
   }
@@ -189,7 +226,7 @@ collect_responses <- function(url, info = "downloadUrl", use_cache = TRUE, reque
   }
 
   if (isTRUE(use_cache) && !is.null(cache_file) && length(all_items) > 0) {
-    tryCatch(saveRDS(all_items, cache_file), error = function(e) NULL)
+    .wapor_write_url_cache(all_items, cache_file)
   }
 
   return(all_items)
