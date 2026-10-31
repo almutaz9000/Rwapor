@@ -625,8 +625,7 @@ wapor_map <- function(
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
           r_out <- .wapor_prepare_map_output(r[[i]], var, current_unit_conv)
           .wapor_retry_remote_operation(
-            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
-                                          gdal = .wapor_gtiff_options()),
+            function() .wapor_write_then_publish(r_out, out_path),
             label = sprintf("%s output", var)
           )
           out_path
@@ -715,9 +714,8 @@ wapor_map <- function(
       out_path <- file.path(var_folder, current_filename)
       r_out <- .wapor_prepare_map_output(r_all, var, current_unit_conv)
 
-      # One streamed write from the lazily stacked chunk files; NAflag writes NA as -9999.
-      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
-                                          gdal = .wapor_gtiff_options()))
+      # Publish only after the complete stack has been written to a sibling temp file.
+      .wapor_write_then_publish(r_out, out_path)
       output_paths <- out_path
     }
 
