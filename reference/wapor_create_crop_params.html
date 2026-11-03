@@ -120,11 +120,13 @@ parameters for a specific raster class, without relying on FAO default datasets.
 
 
 <dt id="arg-fc">fc<a class="anchor" aria-label="anchor" href="#arg-fc"></a></dt>
-<dd><p>Numeric. Ground cover / light interception factor (default: 1.0).</p></dd>
+<dd><p>Numeric. Light use efficiency (LUE) correction factor: crop LUE divided
+by the reference LUE used for the WaPOR NPP product (default: 1.0).</p></dd>
 
 
 <dt id="arg-aot">AOT<a class="anchor" aria-label="anchor" href="#arg-aot"></a></dt>
-<dd><p>Numeric. Aboveground to total biomass ratio (default: 0.8).</p></dd>
+<dd><p>Numeric. Crop-specific biomass fraction used by the yield method (default: 0.8);
+define it consistently with the chosen crop method and harvest-index convention.</p></dd>
 
 
 <dt id="arg-region">region<a class="anchor" aria-label="anchor" href="#arg-region"></a></dt>

@@ -366,9 +366,21 @@ crop_params <- wapor_combine_crop_params(custom_crop, custom_maize)
 
 ### 3. Run End-to-End Seasonal Analysis
 
+**Required inputs:** this example assumes local rasters for the
+requested variables and dates are already available in `wapor_data/`,
+and `crop_mask.tif` is in your working directory with pixel value `1`
+identifying maize.
+
 ``` r
 
 library(Rwapor)
+
+# Use the built-in maize profile for class 1 in the crop mask
+crop_params <- wapor_custom_crop(
+  base_crop   = "Maize",
+  class_value = 1L,
+  crop_name   = "Maize"
+)
 
 config <- list(
   period        = c("2023-10-01", "2024-05-31"),
@@ -505,7 +517,7 @@ comparison.
 | **Level 1** | ~5 km | Global | `L1-PCP-D` |
 | **Level 1** | ~30 km | Global | `L1-RET-D` |
 | **Level 2** | ~100 m | Africa & Near East | `L2-AETI-D`, `L2-E-D`, `L2-I-D`, `L2-NPP-D`, `L2-T-D`, `L2-GBWP-A`, `L2-NBWP-A` |
-| **Level 3** | ~20 m | 30+ Irrigation Schemes | `L3-AETI-D`, `L3-E-D`, `L3-I-D`, `L3-NPP-D`, `L3-T-D` (e.g. Awash, Bekaa, Gezira, Nile) |
+| **Level 3** | 20 m (selected daily products: 10 m) | 30+ Irrigation Schemes | `L3-AETI-D`, `L3-E-D`, `L3-I-D`, `L3-NPP-D`, `L3-T-D` (e.g. Awash, Bekaa, Gezira, Nile) |
 | **AgERA5** | 0.1° (~10 km) | Global | `AGERA5-ET0-E`, `AGERA5-TMIN-E`, `AGERA5-TMAX-E`, `AGERA5-PRECIP-E` |
 
 > `L1-PCP-D` (precipitation) and `L1-RET-D` (reference
@@ -545,11 +557,12 @@ vignette("shiny-dashboard", package = "Rwapor")
 vignette("advanced-analysis", package = "Rwapor")
 vignette("wheat-water-productivity", package = "Rwapor")
 vignette("data-catalog", package = "Rwapor")
+vignette("batch-seasonal-analysis", package = "Rwapor")
+vignette("global-tiled", package = "Rwapor")
 ```
 
-If the [pkgdown site](https://almutaz9000.github.io/Rwapor/) is
-published for this repository, the same vignettes are also available
-online:
+The vignettes are also available on the [pkgdown
+site](https://almutaz9000.github.io/Rwapor/):
 
 - **[Getting
   Started](https://almutaz9000.github.io/Rwapor/articles/getting-started.html)**:
@@ -567,6 +580,13 @@ online:
 - **[Data
   Catalog](https://almutaz9000.github.io/Rwapor/articles/data-catalog.html)**:
   Complete variable definitions, scale factors, and units.
+- **[Batch Seasonal
+  Analysis](https://almutaz9000.github.io/Rwapor/articles/batch-seasonal-analysis.html)**:
+  Multi-season and multi-crop workflows with automatic season linking.
+- **[Large Areas: Size-Aware and Tiled
+  Processing](https://almutaz9000.github.io/Rwapor/articles/global-tiled.html)**:
+  Preview processing plans and choose a memory-safe workflow for large
+  areas.
 
 ------------------------------------------------------------------------
 
@@ -594,9 +614,9 @@ accounting projects, please cite:
 @software{Rwapor,
   title  = {{Rwapor}: An {R} Package for Downloading and Analyzing {FAO WaPOR} Data},
   author = {Mohammed, Almutaz},
-  year   = {2024},
+  year   = {2026},
   url    = {https://github.com/almutaz9000/Rwapor},
-  note   = {R package version 1.0.0}
+  note   = {R package version 1.0.6}
 }
 ```
 

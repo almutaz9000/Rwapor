@@ -45,9 +45,14 @@ Country-level monitoring for selected countries.
 | **Moisture** | Rel. Soil Moisture | `L2-RSM` | D | % | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-RSM-D) |
 | **Productivity** | Biomass Water Prod. | `L2-GBWP` | A | kg/m³ | 0.001 | 2018+ | [Links](https://wapor.apps.fao.org/catalog/WAPOR_3/1/L2-GBWP-A) |
 
-### Level 3: Sub-national (30m / 10m)
+### Level 3: Sub-national (typically 20 m; 10 m for selected daily products)
 
 High-resolution data for specific irrigation schemes and river basins.
+WaPOR v3 Level 3 products are generally provided at 20 m; selected daily
+products, such as the Jendouba pilot, are available at 10 m. Check the
+product and area in the [FAO WaPOR
+catalog](https://www.fao.org/in-action/remote-sensing-for-water-productivity/wapor-data/)
+before comparing grids.
 
 | Category | Variable Name | ID | Resolutions | Units | Scale | Period | Portal |
 |:---|:---|:---|:---|:---|:---|:---|:---|
@@ -113,5 +118,13 @@ and
   calendar days in each individual dekad (10 days for D1 and D2; 8, 9,
   10, or 11 days for D3 depending on the month and leap year).
 - **Output Units**: The final data defaults to `mm/dekad` or
-  `gC/m²/dekad` unless the user explicitly requests another unit (e.g.,
-  `unit_conversion = "day"` to keep `mm/day`).
+  `gC/m²/dekad`. To preserve the raw API units (for example, `mm/day`)
+  in
+  [`wapor_ts()`](https://almutaz9000.github.io/Rwapor/reference/wapor_ts.md)
+  or
+  [`wapor_map()`](https://almutaz9000.github.io/Rwapor/reference/wapor_map.md),
+  set `unit_conversion = "none"`. The separate conversion helpers,
+  [`wapor_convert_units()`](https://almutaz9000.github.io/Rwapor/reference/wapor_convert_units.md)
+  and
+  [`wapor_convert_raster()`](https://almutaz9000.github.io/Rwapor/reference/wapor_convert_raster.md),
+  accept target units such as `"day"`.

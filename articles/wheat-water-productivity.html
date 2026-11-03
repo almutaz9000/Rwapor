@@ -239,15 +239,14 @@ from <code>config$ref_year</code> (day 1 = Jan 1 of
 <span>    season_end   <span class="op">=</span> <span class="va">season_end</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>I verified this against the package source and a live test run
-(<code>R/analysis_engine.R</code>): setting
-<code>config$use_season_rasters = TRUE</code> and providing per-pixel
-<code>season_start</code>/<code>season_end</code> measurably changes the
-seasonal aggregation window per pixel — a shortened per-pixel season
-produces a proportionally smaller seasonal
+<p>When per-pixel season-start and season-end rasters are supplied and
+<code>config$use_season_rasters = TRUE</code>, the analysis uses those
+dates at each pixel instead of applying the full configured period
+everywhere. A shorter growing season can therefore produce a lower
+seasonal
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mi>E</mi><mi>T</mi><mi>I</mi></mrow><annotation encoding="application/x-tex">AETI</annotation></semantics></math>
-than the full <code>config$period</code> window, exactly as
-expected.</p>
+total than the full <code>config$period</code> window, all else being
+equal.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -316,18 +315,15 @@ value; a season with no file falls back to whatever you passed in
 <span>  <span class="co"># own *_mask.tif (Wheat_Winter2023 in this example)</span></span>
 <span>  rasters     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>crop_mask <span class="op">=</span> <span class="va">wheat_mask</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>I verified this “Smart-Linking” behavior directly
-(<code>R/analysis_engine.R</code>) with a synthetic multi-season test:
-two seasons were given non-overlapping masks (one covering the left half
-of the grid, one the right half) via this exact
-<code>seasonal_masks/</code> convention, and each season’s result
-correctly used only its own mask — a third season with no
-season-specific file correctly fell back to the shared mask passed in
-<code>rasters</code>. The same convention applies to
-<code>&lt;SeasonName&gt;_start.tif</code>/<code>&lt;SeasonName&gt;_end.tif</code>:
-a season-specific file overrides <code>config$use_season_rasters</code>
-to <code>TRUE</code> for that season alone, even when the global config
-default is <code>FALSE</code>.</p>
+<p>For each named season, the analysis checks the configured folder and
+its <code>seasonal_masks/</code> subfolder for matching season-specific
+mask and timing rasters. A matching mask is used for that season; if
+none is found, the shared <code>rasters$crop_mask</code> is used as a
+fallback. Season-specific <code>&lt;SeasonName&gt;_start.tif</code> and
+<code>&lt;SeasonName&gt;_end.tif</code> files enable per-pixel timing
+for that season, even when the global
+<code>config$use_season_rasters</code> setting is
+<code>FALSE</code>.</p>
 <hr>
 </div>
 <div class="section level2">

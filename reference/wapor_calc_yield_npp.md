@@ -27,7 +27,9 @@ wapor_calc_yield_npp(npp_gc_m2, mc, fc, aot, hi)
 
 - aot:
 
-  Numeric. Above ground over total biomass production ratio.
+  Numeric. Crop-specific biomass ratio used by the yield method; its
+  meaning must align with the selected crop and harvest-index definition
+  (default method uses the above-ground/total ratio).
 
 - hi:
 
@@ -45,17 +47,30 @@ where:
 
 - `1 / (1 - MC)` adjusts dry matter to fresh storage moisture content.
 
-- `AOT` is the above-ground over total biomass ratio (e.g. 0.8).
+- `AOT` is the crop-specific proportion of total biomass used to derive
+  the biomass relevant to the yield estimate: typically
+  above-ground/total for non-root crops; some WaPOR methods use
+  below-ground/total for root and tuber crops. Match its meaning to the
+  selected crop method and harvest-index definition.
 
 - `fc` is the light use efficiency / crop-specific correction factor
   (typically 1.0).
 
 - `1000` converts kg/ha to t/ha.
 
-- `HI` is the Harvest Index (ratio of economic yield to above-ground
-  biomass).
+- `HI` is the Harvest Index (ratio of economic yield to the
+  corresponding biomass).
 
 ## References
+
+Mul, M. & Bastiaanssen, W. (2019). WaPOR Quality Assessment: Technical
+report on the data quality of the WaPOR FAO Database version 1.0. FAO,
+Rome.
+
+Chukalla, A. D., et al. (2022). A framework for irrigation performance
+assessment using WaPOR data: the case of a sugarcane estate in
+Mozambique. Hydrology and Earth System Sciences, 26, 2759-2778.
+https://doi.org/10.5194/hess-26-2759-2022
 
 Steduto, P., Hsiao, T. C., Fereres, E., & Raes, D. (2012). Crop yield
 response to water. FAO Irrigation and Drainage Paper 66. Food and

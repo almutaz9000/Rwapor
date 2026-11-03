@@ -68,11 +68,12 @@ extent.
 ## Accuracy
 
 Seasonal and monthly totals are summed at each source’s own resolution
-and resampled once onto the analysis grid. With the default
-nearest-neighbour resampling, every value is a raw WaPOR value or a sum
-of raw values. For example, AgERA5-based reference ET at about 9 km is
-summed on its own grid and then assigned to the 20 m pixels inside each
-cell. To interpolate instead:
+and resampled once onto the analysis grid. The defaults differ by
+variable: reference evapotranspiration (RET) uses nearest-neighbour,
+while precipitation (PCP) uses bilinear interpolation. WaPOR Level 1 RET
+is a coarse product at about 30 km resolution, so its values are much
+coarser than a typical 20 m analysis grid. To request bilinear
+interpolation for RET as well:
 
 ``` r
 

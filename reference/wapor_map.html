@@ -164,7 +164,9 @@ coverage-bearing mosaic for every intersecting L3 region.</p></dd>
 
 <dt id="arg-partial">partial<a class="anchor" aria-label="anchor" href="#arg-partial"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, incomplete temporal coverage is allowed
-and recorded. Default <code>FALSE</code> fails the request.</p></dd>
+and recorded; a partial result has <code>status = "partial"</code>, while an all-failed
+request returns no paths with <code>status = "failed"</code>. Default <code>FALSE</code> fails
+requests with any missing layer.</p></dd>
 
 
 <dt id="arg-cog">cog<a class="anchor" aria-label="anchor" href="#arg-cog"></a></dt>
@@ -194,10 +196,12 @@ overlapping source layer once without scaling partial layers.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Character vector of output GeoTIFF paths (one multi-band file, or
 one file per time step with <code>separate_files = TRUE</code>); with several
-variables, a named list of such vectors. Per-variable run details
-(<code>status</code>, <code>failed_layers</code>, chunk counts) are in
-<code>attr(x, "wapor_status")</code>. In seasonal mode with <code>separate_files = TRUE</code>,
-a list with <code>seasonal_aggregate</code> and <code>seasonal_components</code>.</p>
+variables, a named list of such vectors. Per-variable run details are in
+<code>attr(x, "wapor_status")</code>: <code>status</code> (<code>"ok"</code>, <code>"partial"</code>, or <code>"failed"</code>),
+<code>complete</code>, expected/received layer counts, failed layer identifiers,
+<code>coverage_fraction</code>, requested period, received layer names, and chunk counts.
+In seasonal mode with <code>separate_files = TRUE</code>, a list with
+<code>seasonal_aggregate</code> and <code>seasonal_components</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

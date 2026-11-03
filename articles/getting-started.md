@@ -31,9 +31,12 @@ library(Rwapor)
 
 ## 2. API Streaming & Disk Caching
 
-Rwapor optimizes GDAL `/vsicurl/` settings automatically on package load
-(using 10 MB chunk reads instead of GDAL’s default 16 KB), cutting HTTP
-round-trips by up to 1000×.
+Rwapor uses GDAL’s normal HTTP chunking behavior for remote rasters by
+default. Earlier versions set a 10 MB chunk size automatically, but this
+was removed after testing showed it downloaded substantially more data
+and was slower. If you need to tune GDAL for your setup, use
+[`wapor_configure_gdal()`](https://almutaz9000.github.io/Rwapor/reference/wapor_configure_gdal.md)
+before the first remote raster read; see its help page for options.
 
 Additionally, API endpoint responses are automatically cached to disk
 with a 24-hour Time-To-Live (TTL) under your user cache directory. You
@@ -57,7 +60,7 @@ Explore available variables in WaPOR v3 and AgERA5:
 names(WAPOR3_VARS)
 
 # Retrieve metadata for a specific variable
-get_variable_metadata("L2-AETI-D")
+wapor_variable_metadata("L2-AETI-D")
 # $long_name: "Actual EvapoTranspiration and Interception"
 # $units: "mm/day"
 # $scale: 0.1

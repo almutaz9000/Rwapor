@@ -154,11 +154,12 @@ crop mask extent.</p>
 <h2 id="accuracy">Accuracy<a class="anchor" aria-label="anchor" href="#accuracy"></a>
 </h2>
 <p>Seasonal and monthly totals are summed at each source’s own
-resolution and resampled once onto the analysis grid. With the default
-nearest-neighbour resampling, every value is a raw WaPOR value or a sum
-of raw values. For example, AgERA5-based reference ET at about 9 km is
-summed on its own grid and then assigned to the 20 m pixels inside each
-cell. To interpolate instead:</p>
+resolution and resampled once onto the analysis grid. The defaults
+differ by variable: reference evapotranspiration (RET) uses
+nearest-neighbour, while precipitation (PCP) uses bilinear
+interpolation. WaPOR Level 1 RET is a coarse product at about 30 km
+resolution, so its values are much coarser than a typical 20 m analysis
+grid. To request bilinear interpolation for RET as well:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">config</span><span class="op">$</span><span class="va">resampling_method</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>ret <span class="op">=</span> <span class="st">"bilinear"</span>, pcp <span class="op">=</span> <span class="st">"bilinear"</span><span class="op">)</span></span></code></pre></div>
 <p>A pixel whose season is missing any dekad is <code>NA</code> by

@@ -123,7 +123,9 @@ wapor_map(
 - partial:
 
   Logical. If `TRUE`, incomplete temporal coverage is allowed and
-  recorded. Default `FALSE` fails the request.
+  recorded; a partial result has `status = "partial"`, while an
+  all-failed request returns no paths with `status = "failed"`. Default
+  `FALSE` fails requests with any missing layer.
 
 - cog:
 
@@ -154,11 +156,12 @@ wapor_map(
 
 Character vector of output GeoTIFF paths (one multi-band file, or one
 file per time step with `separate_files = TRUE`); with several
-variables, a named list of such vectors. Per-variable run details
-(`status`, `failed_layers`, chunk counts) are in
-`attr(x, "wapor_status")`. In seasonal mode with
-`separate_files = TRUE`, a list with `seasonal_aggregate` and
-`seasonal_components`.
+variables, a named list of such vectors. Per-variable run details are in
+`attr(x, "wapor_status")`: `status` (`"ok"`, `"partial"`, or
+`"failed"`), `complete`, expected/received layer counts, failed layer
+identifiers, `coverage_fraction`, requested period, received layer
+names, and chunk counts. In seasonal mode with `separate_files = TRUE`,
+a list with `seasonal_aggregate` and `seasonal_components`.
 
 ## Details
 

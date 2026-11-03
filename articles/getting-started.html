@@ -100,9 +100,12 @@ Managing disk caching and automatic unit conversions.</p>
 <div class="section level2">
 <h2 id="api-streaming-disk-caching">2. API Streaming &amp; Disk Caching<a class="anchor" aria-label="anchor" href="#api-streaming-disk-caching"></a>
 </h2>
-<p>Rwapor optimizes GDAL <code>/vsicurl/</code> settings automatically
-on package load (using 10 MB chunk reads instead of GDAL’s default 16
-KB), cutting HTTP round-trips by up to 1000×.</p>
+<p>Rwapor uses GDAL’s normal HTTP chunking behavior for remote rasters
+by default. Earlier versions set a 10 MB chunk size automatically, but
+this was removed after testing showed it downloaded substantially more
+data and was slower. If you need to tune GDAL for your setup, use
+<code><a href="../reference/wapor_configure_gdal.html">wapor_configure_gdal()</a></code> before the first remote raster read;
+see its help page for options.</p>
 <p>Additionally, API endpoint responses are automatically cached to disk
 with a 24-hour Time-To-Live (TTL) under your user cache directory. You
 can purge this cache at any time:</p>
@@ -120,7 +123,7 @@ can purge this cache at any time:</p>
 <span><span class="fu"><a href="https://rspatial.github.io/terra/reference/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">WAPOR3_VARS</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Retrieve metadata for a specific variable</span></span>
-<span><span class="fu">get_variable_metadata</span><span class="op">(</span><span class="st">"L2-AETI-D"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/wapor_variable_metadata.html">wapor_variable_metadata</a></span><span class="op">(</span><span class="st">"L2-AETI-D"</span><span class="op">)</span></span>
 <span><span class="co"># $long_name: "Actual EvapoTranspiration and Interception"</span></span>
 <span><span class="co"># $units: "mm/day"</span></span>
 <span><span class="co"># $scale: 0.1</span></span>

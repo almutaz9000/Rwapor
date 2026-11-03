@@ -75,11 +75,15 @@ wapor_create_crop_params(
 
 - fc:
 
-  Numeric. Ground cover / light interception factor (default: 1.0).
+  Numeric. Light use efficiency (LUE) correction factor: crop LUE
+  divided by the reference LUE used for the WaPOR NPP product (default:
+  1.0).
 
 - AOT:
 
-  Numeric. Aboveground to total biomass ratio (default: 0.8).
+  Numeric. Crop-specific biomass fraction used by the yield method
+  (default: 0.8); define it consistently with the chosen crop method and
+  harvest-index convention.
 
 - region:
 

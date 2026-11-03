@@ -301,10 +301,14 @@ resolution.</p>
 </table>
 </div>
 <div class="section level3">
-<h3 id="level-3-sub-national-30m-10m">Level 3: Sub-national (30m / 10m)<a class="anchor" aria-label="anchor" href="#level-3-sub-national-30m-10m"></a>
+<h3 id="level-3-sub-national-typically-20-m-10-m-for-selected-daily-products">Level 3: Sub-national (typically 20 m; 10 m for selected daily
+products)<a class="anchor" aria-label="anchor" href="#level-3-sub-national-typically-20-m-10-m-for-selected-daily-products"></a>
 </h3>
 <p>High-resolution data for specific irrigation schemes and river
-basins.</p>
+basins. WaPOR v3 Level 3 products are generally provided at 20 m;
+selected daily products, such as the Jendouba pilot, are available at 10
+m. Check the product and area in the <a href="https://www.fao.org/in-action/remote-sensing-for-water-productivity/wapor-data/" class="external-link">FAO
+WaPOR catalog</a> before comparing grids.</p>
 <table class="table">
 <colgroup>
 <col width="12%">
@@ -545,9 +549,12 @@ each individual dekad (10 days for D1 and D2; 8, 9, 10, or 11 days for
 D3 depending on the month and leap year).</li>
 <li>
 <strong>Output Units</strong>: The final data defaults to
-<code>mm/dekad</code> or <code>gC/m²/dekad</code> unless the user
-explicitly requests another unit (e.g.,
-<code>unit_conversion = "day"</code> to keep <code>mm/day</code>).</li>
+<code>mm/dekad</code> or <code>gC/m²/dekad</code>. To preserve the raw
+API units (for example, <code>mm/day</code>) in <code><a href="../reference/wapor_ts.html">wapor_ts()</a></code>
+or <code><a href="../reference/wapor_map.html">wapor_map()</a></code>, set <code>unit_conversion = "none"</code>.
+The separate conversion helpers, <code><a href="../reference/wapor_convert_units.html">wapor_convert_units()</a></code> and
+<code><a href="../reference/wapor_convert_raster.html">wapor_convert_raster()</a></code>, accept target units such as
+<code>"day"</code>.</li>
 </ul>
 </div>
 </div>
