@@ -10,32 +10,102 @@
   digest::digest(x, algo = "sha256")
 }
 
+# Write one complete URL-cache entry before publishing it at its cache key.
+# The temporary file is a sibling of the destination so it stays on the same
+# filesystem; the cache key is never pointed at an RDS file still being written.
+.wapor_write_url_cache <- function(value, cache_file) {
+  cache_dir <- dirname(cache_file)
+  tmp_file <- tempfile(
+    pattern = paste0(".", basename(cache_file), "-"),
+    tmpdir = cache_dir,
+    fileext = ".tmp"
+  )
+  on.exit(unlink(tmp_file), add = TRUE)
+
+  saved <- tryCatch({
+    saveRDS(value, tmp_file)
+    identical(readRDS(tmp_file), value)
+  }, error = function(e) FALSE)
+  if (!isTRUE(saved)) return(FALSE)
+
+  published <- suppressWarnings(tryCatch(
+    file.rename(tmp_file, cache_file),
+    error = function(e) FALSE
+  ))
+
+  # Some platforms do not replace an existing destination with file.rename().
+  # The complete temp file is already closed and validated, so a best-effort
+  # remove-then-rename can create only a brief cache miss, never a partial RDS.
+  if (!isTRUE(published) && file.exists(cache_file) && !dir.exists(cache_file)) {
+    unlink(cache_file)
+    published <- suppressWarnings(tryCatch(
+      file.rename(tmp_file, cache_file),
+      error = function(e) FALSE
+    ))
+  }
+
+  isTRUE(published)
+}
+
+#' @keywords internal
+#' @noRd
+.WAPOR_TRANSIENT_HTTP_STATUS <- c(429L, 500L, 502L, 503L, 504L)
+
+#' @keywords internal
+#' @noRd
+.wapor_is_transient_http_status <- function(status) {
+  is.numeric(status) && length(status) == 1L && !is.na(status) &&
+    status %in% .WAPOR_TRANSIENT_HTTP_STATUS
+}
+
 #' @keywords internal
 #' @noRd
 .wapor_retry_is_transient <- function(resp) {
-  status <- httr2::resp_status(resp)
-  status == 429 || status >= 500
+  .wapor_is_transient_http_status(httr2::resp_status(resp))
 }
 
 #' @keywords internal
 #' @noRd
 .wapor_retry_after <- function(resp) {
-  ra <- httr2::resp_header(resp, "Retry-After")
-  if (is.null(ra)) return(NA)
-  wait <- suppressWarnings(as.numeric(ra))
-  if (is.na(wait) || wait < 0) NA else wait
+  wait <- suppressWarnings(tryCatch(
+    httr2::resp_retry_after(resp),
+    error = function(e) NA_real_
+  ))
+  if (length(wait) != 1L || !is.numeric(wait) || !is.finite(wait) || wait < 0) {
+    return(NA_real_)
+  }
+  wait
 }
 
 #' @keywords internal
 #' @noRd
+.wapor_bounded_full_jitter_backoff <- function(attempt, base_delay = 2, max_delay = 30) {
+  if (length(attempt) != 1L || !is.numeric(attempt) || !is.finite(attempt) || attempt < 1) {
+    stop("'attempt' must be a positive number", call. = FALSE)
+  }
+  if (length(base_delay) != 1L || !is.numeric(base_delay) ||
+      !is.finite(base_delay) || base_delay < 0) {
+    stop("'base_delay' must be a non-negative number", call. = FALSE)
+  }
+  upper <- min(base_delay * 2^(attempt - 1), max_delay)
+  if (upper <= 0) return(0)
+  stats::runif(1L, min = 0, max = upper)
+}
+
+# httr2 requires retry callbacks to have exactly one formal argument.
 .wapor_retry_backoff <- function(attempt) {
-  min(2^attempt, 30)
+  .wapor_bounded_full_jitter_backoff(attempt)
+}
+
+.wapor_remote_retry_backoff <- function(attempt, base_delay) {
+  .wapor_bounded_full_jitter_backoff(attempt, base_delay = base_delay)
 }
 
 #' Apply the shared GISMGR API retry policy to an httr2 request
 #'
-#' Exponential backoff (capped at 30s), honors a numeric `Retry-After`
-#' header when the API sends one, and treats HTTP 429/5xx as transient.
+#' Bounded exponential full-jitter backoff (maximum 30 seconds), honoring
+#' `Retry-After` in either delay-seconds or HTTP-date form; HTTP 429 and selected
+#' transient 5xx responses are retried.
 #'
 #' @keywords internal
 #' @noRd
@@ -127,7 +197,7 @@ collect_responses <- function(url, info = "downloadUrl", use_cache = TRUE, reque
       age <- as.numeric(difftime(Sys.time(), finfo$mtime, units = "secs"))
       if (!is.na(age) && age < ttl_seconds) {
         cached_data <- tryCatch(readRDS(cache_file), error = function(e) NULL)
-        if (!is.null(cached_data)) return(cached_data)
+        if (is.list(cached_data)) return(cached_data)
       }
     }
   }
@@ -189,7 +259,7 @@ collect_responses <- function(url, info = "downloadUrl", use_cache = TRUE, reque
   }
 
   if (isTRUE(use_cache) && !is.null(cache_file) && length(all_items) > 0) {
-    tryCatch(saveRDS(all_items, cache_file), error = function(e) NULL)
+    .wapor_write_url_cache(all_items, cache_file)
   }
 
   return(all_items)

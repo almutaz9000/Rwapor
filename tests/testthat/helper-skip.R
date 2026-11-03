@@ -33,3 +33,14 @@ skip_if_wapor_offline <- function(host = "https://data.apps.fao.org",
     testthat::skip(paste0("WaPOR API not reachable (", host, "). Skipping network test."))
   }
 }
+
+# Remove indicators registered by a test so the package-level registry does
+# not leak test-only steps into later tests (for example, the YAML sync test).
+defer_indicator_registry_cleanup <- function() {
+  registry <- get(".indicator_registry", envir = asNamespace("Rwapor"))
+  registered_before <- ls(registry, all.names = TRUE)
+  withr::defer({
+    added <- setdiff(ls(registry, all.names = TRUE), registered_before)
+    if (length(added)) rm(list = added, envir = registry)
+  }, envir = parent.frame())
+}

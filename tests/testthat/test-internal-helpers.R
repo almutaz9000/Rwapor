@@ -122,9 +122,16 @@ test_that("wapor_map returns file paths usable by terra::rast and the dashboard"
       files[i]
     )
   }
+  atomic_writer <- Rwapor:::.wapor_write_then_publish
+  atomic_write_paths <- character()
   local_mocked_bindings(
     wapor_generate_urls = function(...) files,
-    .wapor_resolve_remote_sources = function(urls, ...) urls
+    .wapor_resolve_remote_sources = function(urls, ...) urls,
+    .wapor_write_then_publish = function(r, target) {
+      atomic_write_paths <<- c(atomic_write_paths, target)
+      atomic_writer(r, target)
+    },
+    .package = "Rwapor"
   )
   run <- function(...) suppressMessages(wapor_map(
     c(35.2, 33.2, 35.8, 33.8), "L1-AETI-D", c("2023-01-01", "2023-01-31"),
@@ -136,9 +143,13 @@ test_that("wapor_map returns file paths usable by terra::rast and the dashboard"
   expect_length(stack, 1L)
   expect_equal(terra::nlyr(terra::rast(stack)), 3)
   expect_identical(attr(stack, "wapor_status")$status, "ok")
+  expect_identical(atomic_write_paths, as.character(stack))
 
   separate <- run(separate_files = TRUE)
   expect_length(separate, 3L)
+  expect_length(atomic_write_paths[-1], 3L)
+  expect_true(all(grepl("^\\.wapor-map-stage-", basename(dirname(atomic_write_paths[-1])))))
+  expect_false(any(vapply(dirname(atomic_write_paths[-1]), dir.exists, logical(1))))
   # The dashboard checks unlist(result) with file.exists().
   expect_true(all(file.exists(unlist(list(`L1-AETI-D` = separate)))))
 })

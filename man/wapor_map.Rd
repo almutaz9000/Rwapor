@@ -87,7 +87,9 @@ when several regions intersect; \code{"mosaic_all"} writes source assets and a
 coverage-bearing mosaic for every intersecting L3 region.}
 
 \item{partial}{Logical. If \code{TRUE}, incomplete temporal coverage is allowed
-and recorded. Default \code{FALSE} fails the request.}
+and recorded; a partial result has \code{status = "partial"}, while an all-failed
+request returns no paths with \code{status = "failed"}. Default \code{FALSE} fails
+requests with any missing layer.}
 
 \item{cog}{Logical. Write GeoTIFF outputs with \code{\link[=wapor_write_cog]{wapor_write_cog()}}. Default \code{FALSE}.}
 
@@ -107,10 +109,12 @@ overlapping source layer once without scaling partial layers.}
 \value{
 Character vector of output GeoTIFF paths (one multi-band file, or
 one file per time step with \code{separate_files = TRUE}); with several
-variables, a named list of such vectors. Per-variable run details
-(\code{status}, \code{failed_layers}, chunk counts) are in
-\code{attr(x, "wapor_status")}. In seasonal mode with \code{separate_files = TRUE},
-a list with \code{seasonal_aggregate} and \code{seasonal_components}.
+variables, a named list of such vectors. Per-variable run details are in
+\code{attr(x, "wapor_status")}: \code{status} (\code{"ok"}, \code{"partial"}, or \code{"failed"}),
+\code{complete}, expected/received layer counts, failed layer identifiers,
+\code{coverage_fraction}, requested period, received layer names, and chunk counts.
+In seasonal mode with \code{separate_files = TRUE}, a list with
+\code{seasonal_aggregate} and \code{seasonal_components}.
 }
 \description{
 Downloads WaPOR or AgERA5 raster data for a specified region and time period,
