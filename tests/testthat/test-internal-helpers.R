@@ -147,7 +147,9 @@ test_that("wapor_map returns file paths usable by terra::rast and the dashboard"
 
   separate <- run(separate_files = TRUE)
   expect_length(separate, 3L)
-  expect_setequal(atomic_write_paths[-1], as.character(separate))
+  expect_length(atomic_write_paths[-1], 3L)
+  expect_true(all(grepl("^\\.wapor-map-stage-", basename(dirname(atomic_write_paths[-1])))))
+  expect_false(any(vapply(dirname(atomic_write_paths[-1]), dir.exists, logical(1))))
   # The dashboard checks unlist(result) with file.exists().
   expect_true(all(file.exists(unlist(list(`L1-AETI-D` = separate)))))
 })

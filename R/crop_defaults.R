@@ -140,8 +140,10 @@ wapor_validate_crop_defaults <- function(df) {
 #' @param max_height_m Numeric. Maximum crop height in meters (default: 1.0).
 #' @param HI Numeric. Harvest Index (0.0 - 1.0, default: 0.45).
 #' @param MC Numeric. Moisture Content of harvested crop (0.0 - 1.0, default: 0.12).
-#' @param fc Numeric. Ground cover / light interception factor (default: 1.0).
-#' @param AOT Numeric. Aboveground to total biomass ratio (default: 0.8).
+#' @param fc Numeric. Light use efficiency (LUE) correction factor: crop LUE divided
+#'   by the reference LUE used for the WaPOR NPP product (default: 1.0).
+#' @param AOT Numeric. Crop-specific biomass fraction used by the yield method (default: 0.8);
+#'   define it consistently with the chosen crop method and harvest-index convention.
 #' @param region Character. Geographic or agronomic region description.
 #' @param notes Character. User notes or metadata.
 #' @return A validated single-row data.frame ready for use in `wapor_run_seasonal_analysis()`.

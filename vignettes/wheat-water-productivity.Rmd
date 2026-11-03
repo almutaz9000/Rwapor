@@ -181,12 +181,11 @@ wheat_season_custom_dates <- wapor_run_seasonal_analysis(
 )
 ```
 
-I verified this against the package source and a live test run
-(`R/analysis_engine.R`): setting `config$use_season_rasters = TRUE` and
-providing per-pixel `season_start`/`season_end` measurably changes the
-seasonal aggregation window per pixel — a shortened per-pixel season
-produces a proportionally smaller seasonal $AETI$ than the full
-`config$period` window, exactly as expected.
+When per-pixel season-start and season-end rasters are supplied and
+`config$use_season_rasters = TRUE`, the analysis uses those dates at each
+pixel instead of applying the full configured period everywhere. A shorter
+growing season can therefore produce a lower seasonal $AETI$ total than the
+full `config$period` window, all else being equal.
 
 ---
 
@@ -251,15 +250,13 @@ wheat_by_season_mask <- wapor_run_seasonal_analysis(
 )
 ```
 
-I verified this "Smart-Linking" behavior directly (`R/analysis_engine.R`)
-with a synthetic multi-season test: two seasons were given non-overlapping
-masks (one covering the left half of the grid, one the right half) via this
-exact `seasonal_masks/` convention, and each season's result correctly used
-only its own mask — a third season with no season-specific file correctly
-fell back to the shared mask passed in `rasters`. The same convention
-applies to `<SeasonName>_start.tif`/`<SeasonName>_end.tif`: a season-specific
-file overrides `config$use_season_rasters` to `TRUE` for that season alone,
-even when the global config default is `FALSE`.
+For each named season, the analysis checks the configured folder and its
+`seasonal_masks/` subfolder for matching season-specific mask and timing
+rasters. A matching mask is used for that season; if none is found, the
+shared `rasters$crop_mask` is used as a fallback. Season-specific
+`<SeasonName>_start.tif` and `<SeasonName>_end.tif` files enable per-pixel
+timing for that season, even when the global
+`config$use_season_rasters` setting is `FALSE`.
 
 ---
 
