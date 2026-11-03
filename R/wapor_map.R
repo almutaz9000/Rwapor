@@ -102,17 +102,21 @@
 #'   when several regions intersect; `"mosaic_all"` writes source assets and a
 #'   coverage-bearing mosaic for every intersecting L3 region.
 #' @param partial Logical. If `TRUE`, incomplete temporal coverage is allowed
-#'   and recorded. Default `FALSE` fails the request.
+#'   and recorded; a partial result has `status = "partial"`, while an all-failed
+#'   request returns no paths with `status = "failed"`. Default `FALSE` fails
+#'   requests with any missing layer.
 #' @param cog Logical. Write GeoTIFF outputs with [wapor_write_cog()]. Default `FALSE`.
 #' @param on_batch_done Optional function called after each processed batch with
 #'   `(batch_index, batch_count)`. Callback errors are ignored.
 #'
 #' @return Character vector of output GeoTIFF paths (one multi-band file, or
 #'   one file per time step with `separate_files = TRUE`); with several
-#'   variables, a named list of such vectors. Per-variable run details
-#'   (`status`, `failed_layers`, chunk counts) are in
-#'   `attr(x, "wapor_status")`. In seasonal mode with `separate_files = TRUE`,
-#'   a list with `seasonal_aggregate` and `seasonal_components`.
+#'   variables, a named list of such vectors. Per-variable run details are in
+#'   `attr(x, "wapor_status")`: `status` (`"ok"`, `"partial"`, or `"failed"`),
+#'   `complete`, expected/received layer counts, failed layer identifiers,
+#'   `coverage_fraction`, requested period, received layer names, and chunk counts.
+#'   In seasonal mode with `separate_files = TRUE`, a list with
+#'   `seasonal_aggregate` and `seasonal_components`.
 #'
 #' @details
 #' The function performs the following steps:
@@ -485,6 +489,11 @@ wapor_map <- function(
     if (!dir.exists(var_folder)) {
       dir.create(var_folder, recursive = TRUE)
     }
+    staging_dir <- tempfile(pattern = ".wapor-map-stage-", tmpdir = var_folder)
+    if (!dir.create(staging_dir, recursive = TRUE, showWarnings = FALSE)) {
+      stop(sprintf("Could not create temporary staging directory for %s", var), call. = FALSE)
+    }
+    on.exit(unlink(staging_dir, recursive = TRUE, force = TRUE), add = TRUE)
 
     current_unit_conv <- get_current_unit_conv(var, unit_conversion)
     if ((is.null(unit_conversion) || identical(unit_conversion, "unit_conversion")) &&
@@ -548,26 +557,17 @@ wapor_map <- function(
         log_msg(sprintf("  %s: opening %d remote layer(s)...", chunk_label, length(chunk_urls)))
       }
       t0_chunk_open <- proc.time()
-      r <- NULL
       err <- NULL
-      max_retries <- 3
-      for (attempt in seq_len(max_retries)) {
-        r <- tryCatch({
-          suppressWarnings(terra::rast(chunk_urls))
-        }, error = function(e) {
-          if (attempt < max_retries) {
-            Sys.sleep(attempt * 2)
-            return(NULL)
-          } else {
-            return(e)
-          }
-        })
-        if (inherits(r, "error")) {
-          err <- r
-          r <- NULL
+      r <- tryCatch(
+        .wapor_retry_remote_operation(
+          function() suppressWarnings(terra::rast(chunk_urls)),
+          label = sprintf("%s chunk open", var)
+        ),
+        error = function(e) {
+          err <<- e
+          NULL
         }
-        if (!is.null(r)) break
-      }
+      )
 
       if (is.null(r)) {
         return(list(
@@ -615,26 +615,33 @@ wapor_map <- function(
       names(r) <- layer_names
 
       if (separate_files) {
-        chunk_paths <- vapply(seq_len(terra::nlyr(r)), function(i) {
+        chunk_paths <- character(terra::nlyr(r))
+        staged_paths <- character(terra::nlyr(r))
+        for (i in seq_len(terra::nlyr(r))) {
           if (!parallel) {
             log_msg(sprintf(
-              "  %s: writing layer %d/%d (%s)...",
+              "  %s: staging layer %d/%d (%s)...",
               chunk_label, i, terra::nlyr(r), names(r)[i]
             ))
           }
           out_path <- file.path(var_folder, paste0(prefix, product_base, ".", names(r)[i], ".tif"))
+          stage_path <- file.path(
+            staging_dir,
+            sprintf("chunk-%04d-%s", chunk_idx, basename(out_path))
+          )
           r_out <- .wapor_prepare_map_output(r[[i]], var, current_unit_conv)
           .wapor_retry_remote_operation(
-            function() terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
-                                          gdal = .wapor_gtiff_options()),
-            label = sprintf("%s output", var)
+            function() .wapor_write_then_publish(r_out, stage_path),
+            label = sprintf("%s staged output", var)
           )
-          out_path
-        }, character(1))
+          chunk_paths[[i]] <- out_path
+          staged_paths[[i]] <- stage_path
+        }
         return(list(status = "ok", chunk_idx = chunk_idx, urls = chunk_urls,
-                    paths = chunk_paths, layer_names = layer_names))
+                    paths = chunk_paths, staged_paths = staged_paths,
+                    layer_names = layer_names))
       } else {
-        tmp_path <- tempfile(fileext = ".tif")
+        tmp_path <- file.path(staging_dir, sprintf("chunk-%04d-stack.tif", chunk_idx))
         .wapor_retry_remote_operation(
           function() terra::writeRaster(r, tmp_path, overwrite = TRUE, NAflag = -9999,
                                         gdal = .wapor_gtiff_options()),
@@ -664,37 +671,32 @@ wapor_map <- function(
       }
     })
 
-    # Classify results: ok chunks and failed chunks
-    ok_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "ok"), logical(1))]
-    failed_chunks <- chunk_results[vapply(chunk_results, function(r) identical(r$status, "failed"), logical(1))]
+    chunk_summary <- .wapor_map_chunk_summary(
+      chunk_results,
+      expected_urls = urls,
+      requested_period = period,
+      partial = partial
+    )
+    ok_chunks <- chunk_summary$ok_chunks
+    failed_chunks <- chunk_summary$failed_chunks
+    failed_urls <- chunk_summary$failed_urls
+    status <- chunk_summary$status
 
-    if (length(ok_chunks) == 0) {
-      failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
+    if (length(ok_chunks) == 0L) {
       warning(sprintf("All chunks failed to process for %s (%d layer(s) affected).",
                       var, length(failed_urls)), call. = FALSE)
-      return(.wapor_map_paths(character(0), list(
-        status = "failed",
-        variable = var,
-        failed_layers = failed_urls,
-        n_ok_chunks = 0L,
-        n_failed_chunks = length(chunk_results)
-      )))
+      return(.wapor_map_paths(character(0), c(status, list(variable = var))))
     }
 
-    failed_urls <- unique(unlist(lapply(failed_chunks, function(r) r$urls)))
-    if (length(failed_urls) > 0 && !isTRUE(partial)) {
-      stop(sprintf(
-        "%d raster batch(es) failed for %s; refusing incomplete output. Set partial = TRUE to allow it.",
-        length(failed_chunks), var
-      ), call. = FALSE)
-    }
-    if (length(failed_urls) > 0 && isTRUE(partial)) {
+    if (length(failed_urls) > 0L) {
       warning(sprintf("Returning partial output for %s: %d raster layer(s) failed.",
                       var, length(failed_urls)), call. = FALSE)
     }
 
     if (separate_files) {
-      output_paths <- unlist(lapply(ok_chunks, function(res) res$paths))
+      staged_paths <- unlist(lapply(ok_chunks, `[[`, "staged_paths"), use.names = FALSE)
+      output_paths <- unlist(lapply(ok_chunks, `[[`, "paths"), use.names = FALSE)
+      .wapor_publish_file_set(staged_paths, output_paths)
     } else {
       temp_files <- vapply(ok_chunks, function(res) res$filepath, character(1))
       on.exit(unlink(temp_files), add = TRUE)
@@ -715,9 +717,8 @@ wapor_map <- function(
       out_path <- file.path(var_folder, current_filename)
       r_out <- .wapor_prepare_map_output(r_all, var, current_unit_conv)
 
-      # One streamed write from the lazily stacked chunk files; NAflag writes NA as -9999.
-      suppressWarnings(terra::writeRaster(r_out, out_path, overwrite = TRUE, NAflag = -9999,
-                                          gdal = .wapor_gtiff_options()))
+      # Publish only after the complete stack has been written to a sibling temp file.
+      .wapor_write_then_publish(r_out, out_path)
       output_paths <- out_path
     }
 
@@ -737,13 +738,7 @@ wapor_map <- function(
 
     log_msg(sprintf("  Variable %s completed in %.1f seconds",
                     var, (proc.time() - t0_var)[["elapsed"]]))
-    return(.wapor_map_paths(output_paths, list(
-      status = "ok",
-      variable = var,
-      failed_layers = failed_urls,
-      n_ok_chunks = length(ok_chunks),
-      n_failed_chunks = length(failed_chunks)
-    )))
+    return(.wapor_map_paths(output_paths, c(status, list(variable = var))))
   }
 
   # Process all variables
@@ -758,11 +753,185 @@ wapor_map <- function(
   }
 }
 
+#' Summarize requested, received, and failed map layers
+#'
+#' @param expected_urls All requested source URLs.
+#' @param received_urls URLs from completed chunks.
+#' @param failed_urls URLs from failed chunks.
+#' @param received_layer_names Names of returned raster layers.
+#' @param requested_period Requested start and end dates.
+#' @return Coverage metadata for the `wapor_status` attribute.
+#' @keywords internal
+#' @noRd
+.wapor_map_completion_status <- function(expected_urls, received_urls, failed_urls,
+                                         received_layer_names, requested_period) {
+  expected <- unique(as.character(expected_urls))
+  expected <- expected[!is.na(expected)]
+  received <- intersect(unique(as.character(received_urls)), expected)
+  missing <- setdiff(expected, received)
+  failed <- setdiff(unique(c(as.character(failed_urls), missing)), received)
+  failed <- intersect(failed, expected)
+
+  status <- if (!length(expected) || !length(received)) {
+    "failed"
+  } else if (length(failed) > 0L) {
+    "partial"
+  } else {
+    "ok"
+  }
+
+  list(
+    status = status,
+    complete = identical(status, "ok"),
+    expected_layers = as.integer(length(expected)),
+    received_layers = as.integer(length(received)),
+    failed_layers = failed,
+    coverage_fraction = if (length(expected)) length(received) / length(expected) else 0,
+    requested_period = as.character(requested_period),
+    received_layer_names = sort(unique(as.character(received_layer_names)))
+  )
+}
+
+#' Classify map chunks and enforce the partial-output policy
+#'
+#' @param chunk_results Results returned by each chunk worker.
+#' @param expected_urls All source URLs planned for the request.
+#' @param requested_period Requested start and end dates.
+#' @param partial Whether incomplete output is explicitly allowed.
+#' @return Successful chunks, failed chunks, failed URLs, and coverage metadata.
+#' @keywords internal
+#' @noRd
+.wapor_map_chunk_summary <- function(chunk_results, expected_urls,
+                                     requested_period, partial = FALSE) {
+  ok_chunks <- chunk_results[vapply(chunk_results, function(x) identical(x$status, "ok"), logical(1))]
+  failed_chunks <- chunk_results[vapply(chunk_results, function(x) identical(x$status, "failed"), logical(1))]
+  received_urls <- unique(unlist(lapply(ok_chunks, `[[`, "urls"), use.names = FALSE))
+  received_layer_names <- unique(unlist(lapply(ok_chunks, `[[`, "layer_names"), use.names = FALSE))
+  failed_urls <- unique(unlist(lapply(failed_chunks, `[[`, "urls"), use.names = FALSE))
+  status <- .wapor_map_completion_status(
+    expected_urls = expected_urls,
+    received_urls = received_urls,
+    failed_urls = failed_urls,
+    received_layer_names = received_layer_names,
+    requested_period = requested_period
+  )
+  status$n_ok_chunks <- as.integer(length(ok_chunks))
+  status$n_failed_chunks <- as.integer(length(failed_chunks))
+  failed_urls <- status$failed_layers
+
+  if (length(ok_chunks) == 0L && !isTRUE(partial)) {
+    stop(sprintf(
+      "All chunks failed for the requested period (%d layer(s)); refusing incomplete output. Set partial = TRUE to allow it.",
+      length(failed_urls)
+    ), call. = FALSE)
+  }
+  if (length(failed_urls) > 0L && !isTRUE(partial)) {
+    stop(sprintf(
+      "%d raster batch(es) failed for the requested period; refusing incomplete output. Set partial = TRUE to allow it.",
+      length(failed_chunks)
+    ), call. = FALSE)
+  }
+
+  list(
+    ok_chunks = ok_chunks,
+    failed_chunks = failed_chunks,
+    failed_urls = failed_urls,
+    status = status
+  )
+}
+
+#' Publish a set of staged per-date rasters with rollback on failure
+#'
+#' All staged outputs are complete before this function is called. Existing
+#' targets are backed up as siblings, and any later publication failure removes
+#' newly published files and restores the prior set.
+#' @param staged_paths Completed staging files.
+#' @param target_paths Final output paths.
+#' @param rename_fn Rename callback, primarily for deterministic failure tests.
+#' @return The final paths, invisibly.
+#' @keywords internal
+#' @noRd
+.wapor_publish_file_set <- function(staged_paths, target_paths, rename_fn = file.rename) {
+  if (!is.character(staged_paths) || !is.character(target_paths) ||
+      length(staged_paths) == 0L || length(staged_paths) != length(target_paths) ||
+      anyNA(staged_paths) || anyNA(target_paths) ||
+      any(!nzchar(staged_paths)) || any(!nzchar(target_paths))) {
+    stop("'staged_paths' and 'target_paths' must be non-empty character vectors of equal length",
+         call. = FALSE)
+  }
+  if (!is.function(rename_fn)) stop("'rename_fn' must be a function", call. = FALSE)
+  if (anyDuplicated(target_paths)) stop("'target_paths' must be unique", call. = FALSE)
+  if (any(staged_paths == target_paths)) stop("Staged and target paths must differ", call. = FALSE)
+  if (any(!file.exists(staged_paths)) || any(dir.exists(staged_paths))) {
+    stop("Every staged output must be an existing file", call. = FALSE)
+  }
+  info <- file.info(staged_paths)
+  if (anyNA(info$size) || any(info$size <= 0)) {
+    stop("Every staged output must be non-empty", call. = FALSE)
+  }
+  if (any(!dir.exists(dirname(target_paths)))) {
+    stop("Every target directory must already exist", call. = FALSE)
+  }
+  if (any(dir.exists(target_paths))) stop("A target path is a directory", call. = FALSE)
+
+  backups <- rep(NA_character_, length(target_paths))
+  published <- rep(FALSE, length(target_paths))
+  committed <- FALSE
+  on.exit({
+    if (!committed) {
+      for (i in rev(seq_along(target_paths))) {
+        if (published[[i]] && file.exists(target_paths[[i]])) {
+          unlink(target_paths[[i]], force = TRUE)
+        }
+        if (!is.na(backups[[i]]) && file.exists(backups[[i]])) {
+          restored <- suppressWarnings(tryCatch(
+            rename_fn(backups[[i]], target_paths[[i]]),
+            error = function(e) FALSE
+          ))
+          if (!isTRUE(restored)) {
+            warning(sprintf("Could not restore previous output '%s' from '%s'",
+                            target_paths[[i]], backups[[i]]), call. = FALSE)
+          }
+        }
+      }
+    }
+  }, add = TRUE)
+
+  for (i in seq_along(target_paths)) {
+    target <- target_paths[[i]]
+    if (file.exists(target)) {
+      backup <- tempfile(
+        pattern = paste0(".", basename(target), "-"),
+        tmpdir = dirname(target),
+        fileext = ".backup"
+      )
+      backed_up <- suppressWarnings(tryCatch(rename_fn(target, backup), error = function(e) FALSE))
+      if (!isTRUE(backed_up)) {
+        stop(sprintf("Could not preserve existing output '%s'", target), call. = FALSE)
+      }
+      backups[[i]] <- backup
+    }
+    moved <- suppressWarnings(tryCatch(
+      rename_fn(staged_paths[[i]], target),
+      error = function(e) FALSE
+    ))
+    if (!isTRUE(moved)) {
+      stop(sprintf("Could not publish completed output '%s'", target), call. = FALSE)
+    }
+    published[[i]] <- TRUE
+  }
+
+  committed <- TRUE
+  backup_files <- backups[!is.na(backups)]
+  if (length(backup_files)) unlink(backup_files, force = TRUE)
+  invisible(target_paths)
+}
+
 #' Character output paths of one wapor_map() variable, with run details
 #'
-#' Keeps the documented return type (file paths, usable in `terra::rast()`)
-#' and attaches the chunk status as attribute `"wapor_status"`: `status`,
-#' `variable`, `failed_layers`, `n_ok_chunks`, `n_failed_chunks`.
+#' Keeps the documented return type (file paths, usable in `terra::rast()`) and
+#' attaches run status with completion state, expected/received/failed layer
+#' details, period and coverage metadata, plus chunk counts.
 #' @keywords internal
 #' @noRd
 .wapor_map_paths <- function(paths, status) {

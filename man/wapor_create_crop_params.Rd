@@ -45,9 +45,11 @@ wapor_create_crop_params(
 
 \item{MC}{Numeric. Moisture Content of harvested crop (0.0 - 1.0, default: 0.12).}
 
-\item{fc}{Numeric. Ground cover / light interception factor (default: 1.0).}
+\item{fc}{Numeric. Light use efficiency (LUE) correction factor: crop LUE divided
+by the reference LUE used for the WaPOR NPP product (default: 1.0).}
 
-\item{AOT}{Numeric. Aboveground to total biomass ratio (default: 0.8).}
+\item{AOT}{Numeric. Crop-specific biomass fraction used by the yield method (default: 0.8);
+define it consistently with the chosen crop method and harvest-index convention.}
 
 \item{region}{Character. Geographic or agronomic region description.}
 

@@ -272,6 +272,7 @@ test_that("seasonal analysis engine masks indicator rasters outside crop mask", 
 })
 
 test_that("seasonal analysis engine runs a registered dummy indicator without touching the engine body", {
+  defer_indicator_registry_cleanup()
   skip_if_not_installed("terra")
 
   analysis_dir <- tempfile("rwapor-analysis-dummy-")

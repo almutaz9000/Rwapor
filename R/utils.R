@@ -1064,19 +1064,77 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
   out
 }
 
+#' Classify errors that can be retried after GDAL's request-level retries
+#'
+#' GDAL already retries its configured HTTP status codes. This outer retry is
+#' only for a remote operation that still reports a transient HTTP/network
+#' failure; local filesystem, validation, and unknown errors are not retried.
+#' @param error Condition returned by the remote operation.
+#' @return `TRUE` for recognized transient HTTP or libcurl failures.
+#' @keywords internal
+#' @noRd
+.wapor_is_transient_remote_error <- function(error) {
+  if (!inherits(error, "condition")) return(FALSE)
+  message <- conditionMessage(error)
+  http_pattern <- sprintf(
+    "HTTP[^\\n]*\\b(%s)\\b",
+    paste(.WAPOR_TRANSIENT_HTTP_STATUS, collapse = "|")
+  )
+  http_status <- grepl(
+    http_pattern,
+    message,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+  curl_code <- grepl(
+    "CURL[^0-9]*(92|56|55|52|28|18|16|7|6|5)\\b",
+    message,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+  network_message <- grepl(
+    paste(
+      "could not resolve host", "failed to connect", "operation timed out",
+      "connection timed out", "connection reset by peer", "empty reply from server",
+      "failure when receiving data", "network is unreachable", sep = "|"
+    ),
+    message,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+  http_status || curl_code || network_message
+}
+
+#' Clear GDAL's VSI cache before retrying a failed remote operation
+#'
+#' A failed `/vsicurl/` open can be cached by GDAL under the same URL. Clear the
+#' process-local VSI cache so the next bounded retry performs a fresh request.
+#' @keywords internal
+#' @noRd
+.wapor_clear_vsi_cache <- function() {
+  try(terra::clearVSIcache(), silent = TRUE)
+  invisible(NULL)
+}
+
 #' Retry a complete remote raster operation
 #'
 #' The operation must include all work that forces pixel I/O. Retrying only
 #' terra::rast() is insufficient because rast() can return a lazy reference.
+#' Only recognized transient HTTP/network errors are retried; local filesystem,
+#' validation, and unrecognized errors are returned immediately.
 #' @param operation Zero-argument function that performs the complete operation.
 #' @param label Short label used in retry messages.
 #' @param max_retries Positive integer number of attempts.
-#' @param retry_delay Numeric base delay in seconds; delay grows linearly.
+#' @param retry_delay Numeric base delay in seconds; waits use bounded exponential
+#'   full jitter up to 30 seconds.
+#' @param retry_cleanup Zero-argument function called before each transient retry.
+#'   Defaults to clearing GDAL's process-local VSI cache.
 #' @return The value returned by `operation()`.
 #' @keywords internal
 #' @noRd
 .wapor_retry_remote_operation <- function(operation, label = "remote raster operation",
-                                           max_retries = 3L, retry_delay = 2) {
+                                           max_retries = 3L, retry_delay = 2,
+                                           retry_cleanup = .wapor_clear_vsi_cache) {
   if (!is.function(operation)) stop("'operation' must be a function", call. = FALSE)
   if (length(max_retries) != 1L || is.na(max_retries) || max_retries < 1) {
     stop("'max_retries' must be a positive integer", call. = FALSE)
@@ -1084,16 +1142,28 @@ get_url_chunks <- function(urls, batching = TRUE, batch_size = 12L) {
   if (length(retry_delay) != 1L || is.na(retry_delay) || retry_delay < 0) {
     stop("'retry_delay' must be a non-negative number", call. = FALSE)
   }
+  if (!is.function(retry_cleanup)) {
+    stop("'retry_cleanup' must be a function", call. = FALSE)
+  }
   max_retries <- as.integer(max_retries)
   last_error <- NULL
   for (attempt in seq_len(max_retries)) {
+    last_error <- NULL
     result <- tryCatch(operation(), error = function(e) {
       last_error <<- e
       NULL
     })
     if (!is.null(result)) return(result)
+    if (is.null(last_error)) {
+      last_error <- simpleError("remote operation returned NULL")
+    }
+    if (!.wapor_is_transient_remote_error(last_error)) {
+      stop(sprintf("%s failed after %d attempt(s): %s", label, attempt,
+                   conditionMessage(last_error)), call. = FALSE)
+    }
     if (attempt < max_retries) {
-      delay <- retry_delay * attempt
+      try(retry_cleanup(), silent = TRUE)
+      delay <- .wapor_remote_retry_backoff(attempt, base_delay = retry_delay)
       .wapor_inform(sprintf("Attempt %d/%d failed for %s; retrying in %.1f seconds: %s",
                       attempt, max_retries, label, delay,
                       conditionMessage(last_error)))

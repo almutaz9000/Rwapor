@@ -19,6 +19,19 @@
 .dl_box <- c(35.2, 33.2, 35.8, 33.8)
 .dl_period <- c("2023-01-01", "2023-01-31")
 
+test_that("atomic raster publication preserves the previous output on write failure", {
+  skip_if_not_installed("terra")
+  out_dir <- withr::local_tempdir()
+  target <- file.path(out_dir, "product.tif")
+  original <- terra::rast(nrows = 2, ncols = 2, vals = c(1, 2, 3, 4))
+  terra::writeRaster(original, target, overwrite = TRUE)
+
+  expect_error(Rwapor:::.wapor_write_then_publish(NULL, target))
+  expect_equal(as.numeric(terra::values(terra::rast(target))), c(1, 2, 3, 4))
+  expect_length(list.files(out_dir, pattern = "[.]part$"), 0L)
+  expect_length(list.files(out_dir, pattern = "[.]backup$"), 0L)
+})
+
 test_that("wapor_download saves one scaled file per date and skips what is there", {
   skip_if_not_installed("sf")
   files <- .dl_sources()

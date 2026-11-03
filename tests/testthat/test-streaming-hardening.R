@@ -1,9 +1,16 @@
-test_that("remote operation retry covers a forced operation", {
+test_that("catalogue retry status policy distinguishes transient and permanent HTTP codes", {
+  expect_true(Rwapor:::.wapor_is_transient_http_status(429L))
+  expect_true(Rwapor:::.wapor_is_transient_http_status(503L))
+  expect_false(Rwapor:::.wapor_is_transient_http_status(404L))
+  expect_false(Rwapor:::.wapor_is_transient_http_status(501L))
+})
+
+test_that("remote operation retry covers a forced transient network operation", {
   attempts <- 0L
   result <- Rwapor:::.wapor_retry_remote_operation(
     function() {
       attempts <<- attempts + 1L
-      if (attempts < 3L) stop("transient pixel read")
+      if (attempts < 3L) stop("CURL error 28: Operation timed out")
       "read complete"
     },
     label = "fixture crop",
@@ -14,19 +21,93 @@ test_that("remote operation retry covers a forced operation", {
   expect_equal(attempts, 3L)
 })
 
+test_that("remote retries clear cached VSI failures before another attempt", {
+  attempts <- 0L
+  cache_clears <- 0L
+  result <- Rwapor:::.wapor_retry_remote_operation(
+    function() {
+      attempts <<- attempts + 1L
+      if (attempts == 1L) stop("HTTP response code: 503")
+      "retried successfully"
+    },
+    label = "fixture cached read",
+    max_retries = 2L,
+    retry_delay = 0,
+    retry_cleanup = function() cache_clears <<- cache_clears + 1L
+  )
+
+  expect_identical(result, "retried successfully")
+  expect_equal(attempts, 2L)
+  expect_equal(cache_clears, 1L)
+})
+
+test_that("remote operation retry does not repeat a permanent local error", {
+  attempts <- 0L
+  cache_clears <- 0L
+  expect_error(
+    Rwapor:::.wapor_retry_remote_operation(
+      function() {
+        attempts <<- attempts + 1L
+        stop("Permission denied while writing output")
+      },
+      label = "fixture output",
+      max_retries = 3L,
+      retry_delay = 0,
+      retry_cleanup = function() cache_clears <<- cache_clears + 1L
+    ),
+    "fixture output failed after 1 attempt"
+  )
+  expect_equal(attempts, 1L)
+  expect_equal(cache_clears, 0L)
+})
+
+test_that("remote operation returning NULL fails explicitly without retry", {
+  attempts <- 0L
+  expect_error(
+    Rwapor:::.wapor_retry_remote_operation(
+      function() {
+        attempts <<- attempts + 1L
+        NULL
+      },
+      label = "fixture reader",
+      max_retries = 3L,
+      retry_delay = 0
+    ),
+    "fixture reader failed after 1 attempt.*returned NULL"
+  )
+  expect_equal(attempts, 1L)
+})
+
+test_that("remote operation retry does not repeat a non-transient HTTP status", {
+  attempts <- 0L
+  expect_error(
+    Rwapor:::.wapor_retry_remote_operation(
+      function() {
+        attempts <<- attempts + 1L
+        stop("HTTP response code: 501")
+      },
+      label = "fixture service",
+      max_retries = 3L,
+      retry_delay = 0
+    ),
+    "fixture service failed after 1 attempt"
+  )
+  expect_equal(attempts, 1L)
+})
+
 test_that("remote operation retry reports the final error", {
   attempts <- 0L
   expect_error(
     Rwapor:::.wapor_retry_remote_operation(
       function() {
         attempts <<- attempts + 1L
-        stop("persistent pixel read")
+        stop("HTTP response code: 503")
       },
       label = "fixture extraction",
       max_retries = 2L,
       retry_delay = 0
     ),
-    "fixture extraction failed after 2 attempt\\(s\\): persistent pixel read"
+    "fixture extraction failed after 2 attempt\\(s\\): HTTP response code: 503"
   )
   expect_equal(attempts, 2L)
 })
@@ -43,6 +124,10 @@ test_that("remote operation retry validates its controls", {
   expect_error(
     Rwapor:::.wapor_retry_remote_operation(identity, retry_delay = -1),
     "retry_delay.*non-negative"
+  )
+  expect_error(
+    Rwapor:::.wapor_retry_remote_operation(identity, retry_cleanup = NULL),
+    "retry_cleanup.*function"
   )
 })
 
