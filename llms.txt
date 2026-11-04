@@ -17,6 +17,9 @@ walks you through everything from scratch, and the [Quick
 Start](#quick-start-launch-the-interactive-dashboard) section gets you
 to a point-and-click dashboard with no coding at all.
 
+![Rwapor Interactive Shiny
+Dashboard](reference/figures/dashboard_screenshot.png)
+
 ------------------------------------------------------------------------
 
 ## Table of Contents

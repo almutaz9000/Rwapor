@@ -93,6 +93,9 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_detect_folder_seasons.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_diagnose_agent_setup.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_download.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_dual_map_can_sync.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_dual_map_dom_ids.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_dual_map_ready.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_enhanced_zonal_stats.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_extract_agera5_climate.html</loc></url>
@@ -115,11 +118,13 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_harmonize_raster.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_init_monitoring_db.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_is_favorite.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_is_seasonal_raster_path.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_is_seasonally_summable.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_l3_extent.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_l3_regions_to_df.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_list_crops.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_list_indicator_steps.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_list_visualisation_rasters.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_load_crop_mask.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_load_season_raster.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_local_rasters.html</loc></url>
@@ -190,6 +195,9 @@
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_validate_data_coverage.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_variable_metadata.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_vector_to_season_rasters.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_vis_overlay_clear_groups.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_vis_overlay_ready.html</loc></url>
+<url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_visualisation_raster_choices.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_weighted_class_mean.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_write_cog.html</loc></url>
 <url><loc>https://almutaz9000.github.io/Rwapor/reference/wapor_write_l3_mosaic.html</loc></url>
