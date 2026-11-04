@@ -8,6 +8,7 @@ test_that("wapor_list_indicator_steps returns expected steps", {
 })
 
 test_that("wapor_register_indicator_step registers custom step", {
+  defer_indicator_registry_cleanup()
   custom_called <- FALSE
   wapor_register_indicator_step("test_custom_step", function(ctx) {
     custom_called <<- TRUE
@@ -26,6 +27,7 @@ test_that("wapor_register_indicator_step registers custom step", {
 })
 
 test_that("wapor_ordered_indicator_steps respects depends", {
+  defer_indicator_registry_cleanup()
   wapor_register_indicator_step("test_order_leaf", function(ctx) NULL, description = "leaf")
   wapor_register_indicator_step(
     "test_order_mid",
@@ -45,6 +47,7 @@ test_that("wapor_ordered_indicator_steps respects depends", {
 })
 
 test_that("wapor_ordered_indicator_steps errors on a dependency cycle", {
+  defer_indicator_registry_cleanup()
   wapor_register_indicator_step("test_cycle_a", function(ctx) NULL, depends = "test_cycle_b")
   wapor_register_indicator_step("test_cycle_b", function(ctx) NULL, depends = "test_cycle_a")
   expect_error(
@@ -54,6 +57,7 @@ test_that("wapor_ordered_indicator_steps errors on a dependency cycle", {
 })
 
 test_that("wapor_run_indicator_steps executes registered steps in dependency order", {
+  defer_indicator_registry_cleanup()
   order_seen <- character()
   wapor_register_indicator_step("test_run_base", function(ctx) {
     order_seen <<- c(order_seen, "test_run_base")

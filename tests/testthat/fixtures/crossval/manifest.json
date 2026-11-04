@@ -2,7 +2,7 @@
   "schema_version": 1,
   "files": {
     "crop_mask.tif": "aa65a554ded318f56311a6c463772b2a7ad111743fa4e287d2e82f502e25924a",
-    "expected.json": "9465d4064ae8d11bcdbcbd4ea5d85d29e3c79ba30321f5908ceb79240bb67a42",
+    "expected.json": "d783da3b2a29e2890f535bb53170b189b98cde70f0be1b9d32447759b91e4297",
     "L1-AETI-D/WAPOR-3.L1-AETI-D.2022-01-01.tif": "f0c7df70ea35c454f732ab5e4aeff62bc82aa1070df44eff5f4983395f110531",
     "L1-AETI-D/WAPOR-3.L1-AETI-D.2022-01-11.tif": "8af916180d86f9e5a445f385669bb88093e0c00e0bef585b0b1509f3ac1760d3",
     "L1-AETI-D/WAPOR-3.L1-AETI-D.2022-01-21.tif": "2bbe48f3e348d6982a7e3f89fe7822d06ae0b70646b27c1ab364ca0766d3a22e",

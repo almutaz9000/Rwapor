@@ -6,14 +6,23 @@
 # 2 crop classes, per-pixel seasons, 14 indicators).
 #
 # Usage:
-#   Rscript disk_footprint_benchmark.R <pkg_path> <label> [default|TRUE|FALSE]
+#   Rscript disk_footprint_benchmark.R <pkg_path> <label> [default|TRUE|FALSE] [results_csv]
 #   env BENCH_N    grid side in cells (default 1000)
 #   env BENCH_ROOT folder for the generated inputs (reused between runs)
-# The third argument sets config$keep_intermediates.
+# The third argument sets config$keep_intermediates; the optional fourth path
+# keeps a machine-readable result outside R's temporary directory.
 # Reference results: docs/superpowers/plans/2026-09-28-production-readiness-plan.md
 args <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 2L) {
+  stop("Usage: Rscript disk_footprint_benchmark.R <pkg_path> <label> [default|TRUE|FALSE] [results_csv]",
+       call. = FALSE)
+}
 pkg <- args[[1]]; label <- args[[2]]
 keep <- if (length(args) >= 3) args[[3]] else "default"
+results_csv <- if (length(args) >= 4) args[[4]] else Sys.getenv("BENCH_RESULTS_CSV", "")
+if (!nzchar(results_csv)) results_csv <- file.path(tempdir(), "disk_footprint_benchmark.csv")
+results_csv <- path.expand(results_csv)
+dir.create(dirname(results_csv), recursive = TRUE, showWarnings = FALSE)
 suppressMessages(pkgload::load_all(pkg, quiet = TRUE))
 
 dir_mb <- function(p) {
@@ -24,12 +33,12 @@ dir_mb <- function(p) {
 n <- as.integer(Sys.getenv("BENCH_N", "1000"))
 root <- file.path(Sys.getenv("BENCH_ROOT", tempdir()), "data")
 period <- c("2023-01-01", "2023-06-30")
+dekads <- Rwapor:::build_dekad_table(period[1], period[2])$dekad_key
 if (!dir.exists(root)) {
   set.seed(1)
   dir.create(root, recursive = TRUE)
   template <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = 1, ymin = 0, ymax = 1, crs = "EPSG:4326")
   coarse <- terra::rast(nrows = 20, ncols = 20, xmin = -0.1, xmax = 1.1, ymin = -0.1, ymax = 1.1, crs = "EPSG:4326")
-  dekads <- Rwapor:::build_dekad_table(period[1], period[2])$dekad_key
   write_var <- function(var, grid, lo, hi, dt) {
     d <- file.path(root, var); dir.create(d)
     for (k in dekads) {
@@ -78,7 +87,7 @@ gc(reset = TRUE)
 t0 <- proc.time()[["elapsed"]]
 res <- suppressMessages(wapor_run_seasonal_analysis(config, crop_params, rasters))
 t_run <- proc.time()[["elapsed"]] - t0
-mem_mb <- sum(gc()[, 6])
+r_heap_after_run_mb <- sum(gc()[, 6])
 exp_dir <- tempfile("bench-export-")
 t1 <- proc.time()[["elapsed"]]
 suppressWarnings(suppressMessages(
@@ -87,10 +96,36 @@ suppressWarnings(suppressMessages(
 t_exp <- proc.time()[["elapsed"]] - t1
 tifs <- list.files(exp_dir, "\\.tif$", recursive = TRUE, full.names = TRUE)
 dtypes <- table(vapply(tifs, function(f) terra::datatype(terra::rast(f))[1], ""))
+mean_aeti <- terra::global(res$seasonal_aeti$raster, "mean", na.rm = TRUE)$mean
+soft_versions <- sf::sf_extSoftVersion()
+result <- data.frame(
+  label = label,
+  keep_intermediates = keep,
+  grid_nrow = n,
+  dekads = length(dekads),
+  run_seconds = t_run,
+  export_seconds = t_exp,
+  r_heap_after_run_mb = r_heap_after_run_mb,
+  terra_temp_mb = dir_mb(tmp_terra),
+  output_dir_mb = dir_mb(out),
+  export_mb = dir_mb(exp_dir),
+  export_tif_count = length(tifs),
+  export_datatypes = paste(names(dtypes), dtypes, sep = "=", collapse = ","),
+  dekadal_stacks_kept = !is.null(res$dekadal_stacks),
+  mean_aeti = mean_aeti,
+  r_version = R.version.string,
+  terra_version = as.character(utils::packageVersion("terra")),
+  gdal_version = unname(soft_versions[["GDAL"]]),
+  proj_version = unname(soft_versions[["PROJ"]]),
+  platform = R.version$platform,
+  cache_condition = "fresh R process; local synthetic rasters; OS page cache uncontrolled",
+  stringsAsFactors = FALSE
+)
 cat(sprintf(
-  "RESULT %s | keep=%s | cells=%d | run %.1fs | export %.1fs | peak R heap %.0f MB | terra temp %.1f MB | output_dir %.1f MB | export %.1f MB (%d tif; %s) | dekadal_stacks kept: %s | AETI mean %.6f\n",
-  label, keep, n * n, t_run, t_exp, mem_mb, dir_mb(tmp_terra), dir_mb(out), dir_mb(exp_dir),
+  "RESULT %s | keep=%s | cells=%d | run %.1fs | export %.1fs | R heap after analysis %.0f MB | terra temp %.1f MB | output_dir %.1f MB | export %.1f MB (%d tif; %s) | dekadal_stacks kept: %s | AETI mean %.6f\n",
+  label, keep, n * n, t_run, t_exp, r_heap_after_run_mb, dir_mb(tmp_terra), dir_mb(out), dir_mb(exp_dir),
   length(tifs), paste(names(dtypes), dtypes, sep = "=", collapse = ","),
-  !is.null(res$dekadal_stacks),
-  terra::global(res$seasonal_aeti$raster, "mean", na.rm = TRUE)$mean
+  !is.null(res$dekadal_stacks), mean_aeti
 ))
+utils::write.csv(result, results_csv, row.names = FALSE)
+cat("Results written to", results_csv, "\n")

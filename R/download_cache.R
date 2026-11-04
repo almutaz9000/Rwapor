@@ -175,14 +175,55 @@ wapor_download <- function(variable, region, period, folder, l3_region = NULL,
 #' @keywords internal
 #' @noRd
 .wapor_write_then_publish <- function(r, target) {
-  tmp <- paste0(target, ".part")
-  on.exit(if (file.exists(tmp)) unlink(tmp, force = TRUE), add = TRUE)
+  if (dir.exists(target)) {
+    stop(sprintf("Output path '%s' is a directory", target), call. = FALSE)
+  }
+  out_dir <- dirname(target)
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile(
+    pattern = paste0(".", basename(target), "-"),
+    tmpdir = out_dir,
+    fileext = ".part"
+  )
+  backup <- NULL
+  on.exit({
+    if (file.exists(tmp)) unlink(tmp, force = TRUE)
+    if (!is.null(backup) && file.exists(backup) && !file.exists(target)) {
+      restored <- suppressWarnings(file.rename(backup, target))
+      if (!isTRUE(restored)) {
+        warning(sprintf("Previous output could not be restored from '%s'", backup), call. = FALSE)
+      }
+    }
+  }, add = TRUE)
+
   terra::writeRaster(r, tmp, overwrite = TRUE, filetype = "GTiff", datatype = "FLT4S",
                      NAflag = -9999, gdal = .wapor_float_gtiff_options())
-  if (file.exists(target)) unlink(target, force = TRUE)
-  if (!file.rename(tmp, target) && !file.copy(tmp, target, overwrite = TRUE)) {
-    stop(sprintf("Could not write '%s'", target), call. = FALSE)
+  info <- file.info(tmp)
+  if (!file.exists(tmp) || is.na(info$size) || info$size <= 0) {
+    stop(sprintf("Raster writer did not create a complete temporary file for '%s'", target), call. = FALSE)
   }
+
+  published <- suppressWarnings(file.rename(tmp, target))
+  if (!isTRUE(published) && file.exists(target)) {
+    backup <- tempfile(
+      pattern = paste0(".", basename(target), "-"),
+      tmpdir = out_dir,
+      fileext = ".backup"
+    )
+    if (!suppressWarnings(file.rename(target, backup))) {
+      backup <- NULL
+      stop(sprintf("Could not preserve the existing output '%s'", target), call. = FALSE)
+    }
+    published <- suppressWarnings(file.rename(tmp, target))
+    if (!isTRUE(published)) {
+      if (suppressWarnings(file.rename(backup, target))) backup <- NULL
+      stop(sprintf("Could not publish the completed raster to '%s'", target), call. = FALSE)
+    }
+  }
+  if (!isTRUE(published)) {
+    stop(sprintf("Could not publish the completed raster to '%s'", target), call. = FALSE)
+  }
+  if (!is.null(backup) && file.exists(backup)) unlink(backup, force = TRUE)
   invisible(target)
 }
 
