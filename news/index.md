@@ -39,7 +39,9 @@
   cross-implementation golden fixture
   (`tests/testthat/fixtures/crossval/`) verified across `memory`,
   `stream`, and `tiled` modes
-  (`tests/testthat/test-crossval-waporbox.R`).
+  (`tests/testthat/test-crossval-waporbox.R`). `inst/spec/README.md` is
+  the GitHub-readable table view of that YAML (equations, units,
+  citations).
 - **Exported GeoTIFF Unit Stamping & Offline Seasonal Pipeline Test
   (`R-07`)**:
   [`wapor_export_analysis_outputs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.md)

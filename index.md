@@ -496,6 +496,12 @@ comparison.
 
 ## Supported Agricultural & Water Indicators
 
+The short table below is an overview. The full catalogue of 24 built-in
+indicators, with equations, units, and literature citations, is in
+[`inst/spec/README.md`](https://almutaz9000.github.io/Rwapor/inst/spec/README.md).
+That page is the GitHub-readable view of
+[`inst/spec/indicators.yaml`](https://almutaz9000.github.io/Rwapor/inst/spec/indicators.yaml).
+
 | Indicator | Code | Description | Formula / Method |
 |----|----|----|----|
 | **Seasonal AETI** | `agg_aeti` | Total seasonal actual evapotranspiration | $`\sum (AETI_i \times w_i \times \text{mult}_i)`$ (mm) |
