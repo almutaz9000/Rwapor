@@ -39,4 +39,18 @@ test_that("inst/spec/indicators.yaml is in sync with wapor_list_indicator_steps(
     expect_true(nzchar(as.character(entry$units_out)))
     expect_true(as.character(entry$status) %in% c("implemented", "planned"))
   }
+
+  readme_path <- file.path(dirname(spec_path), "README.md")
+  expect_true(file.exists(readme_path))
+  readme <- paste(readLines(readme_path, warn = FALSE), collapse = "\n")
+  for (id in yaml_ids) {
+    expect_true(
+      grepl(paste0("`", id, "`"), readme, fixed = TRUE),
+      info = paste("inst/spec/README.md is missing indicator id:", id)
+    )
+    expect_true(
+      grepl(as.character(by_id[[id]]$formula), readme, fixed = TRUE),
+      info = paste("inst/spec/README.md is missing formula for:", id)
+    )
+  }
 })
