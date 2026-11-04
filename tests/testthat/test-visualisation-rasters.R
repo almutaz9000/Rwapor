@@ -99,12 +99,19 @@ test_that("dual map namespaced ids match leaflet DOM ids", {
   expect_equal(unname(ids[["right"]]), "vis-dual-map_right")
 })
 
-test_that("dual map module attaches sync after maps exist and does not poll then give up", {
+test_that("dual map module attaches sync cleanly and guards state without thrashing", {
+  expect_true(wapor_dual_map_ready(3, 4))
+  expect_false(wapor_dual_map_ready(NULL, 4))
+  expect_false(wapor_dual_map_ready(3, NA))
+
   src_path <- testthat::test_path("..", "..", "inst", "shiny", "mod_dual_map.R")
   src <- paste(readLines(src_path), collapse = "\n")
   expect_match(src, "wapor_dual_map_can_sync")
   expect_match(src, "map_left_zoom")
   expect_match(src, "map_right_zoom")
+  expect_match(src, "sync_attached")
+  expect_match(src, "shiny::isolate\\(input\\$sync_maps\\)")
+  expect_match(src, "shiny::observeEvent\\(input\\$sync_maps")
   expect_false(grepl("attempts > 30", src, fixed = TRUE))
 })
 

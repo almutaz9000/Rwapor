@@ -12,6 +12,10 @@ It provides both a complete **programmatic R API** and an **interactive Shiny da
 
 No programming experience? The [Installation](#installation) guide below walks you through everything from scratch, and the [Quick Start](#quick-start-launch-the-interactive-dashboard) section gets you to a point-and-click dashboard with no coding at all.
 
+<p align="center">
+  <img src="man/figures/dashboard_screenshot.png" alt="Rwapor Interactive Shiny Dashboard" width="100%"/>
+</p>
+
 ---
 
 ## Table of Contents

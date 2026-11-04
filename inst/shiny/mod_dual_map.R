@@ -269,13 +269,13 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
       unname(c(map_ids[["left"]], map_ids[["right"]]))
     }
 
-    .attach_dual_sync <- function() {
+    .attach_dual_sync <- function(no_initial_sync = FALSE) {
       ids <- .dual_sync_ids()
       leaflet::leafletProxy("map_left", session) |>
         leaflet.extras2::addLeafletsync(
           ids = ids,
           options = leaflet.extras2::leafletsyncOptions(
-            noInitialSync = FALSE,
+            noInitialSync = isTRUE(no_initial_sync),
             syncCursor = TRUE
           )
         )
@@ -289,31 +289,43 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
         leaflet.extras2::unsync(id = ids[[2]], unsyncids = ids[[1]])
     }
 
+    sync_attached <- shiny::reactiveVal(FALSE)
+
+    # Initial lock: attach once when both maps exist and report zoom
     shiny::observe({
+      if (isTRUE(sync_attached())) return()
       can_sync <- Rwapor:::wapor_dual_map_can_sync(
         input$sync_maps, input$map_left_zoom, input$map_right_zoom
       )
       if (isTRUE(can_sync)) {
-        .attach_dual_sync()
-      } else if (!isTRUE(input$sync_maps) &&
-                 !is.null(input$map_left_zoom) &&
-                 !is.null(input$map_right_zoom)) {
-        .detach_dual_sync()
+        .attach_dual_sync(no_initial_sync = FALSE)
+        sync_attached(TRUE)
       }
     })
 
+    # Responding to user selecting/unselecting "Lock pan & zoom between maps"
     shiny::observeEvent(input$sync_maps, {
-      if (!Rwapor:::wapor_dual_map_can_sync(
+      maps_ready <- Rwapor:::wapor_dual_map_can_sync(
         TRUE, input$map_left_zoom, input$map_right_zoom
-      )) {
-        return()
-      }
-      if (!isTRUE(input$sync_maps)) return()
-      ctr <- input$map_left_center
-      z <- input$map_left_zoom
-      if (is.list(ctr) && is.numeric(ctr$lng) && is.numeric(ctr$lat) && is.finite(as.numeric(z)[1L])) {
-        leaflet::leafletProxy("map_right", session) |>
-          leaflet::setView(lng = ctr$lng, lat = ctr$lat, zoom = z)
+      )
+      if (!isTRUE(maps_ready)) return()
+
+      if (isTRUE(input$sync_maps)) {
+        if (!isTRUE(sync_attached())) {
+          ctr <- input$map_left_center
+          z <- input$map_left_zoom
+          if (is.list(ctr) && is.numeric(ctr$lng) && is.numeric(ctr$lat) && is.finite(as.numeric(z)[1L])) {
+            leaflet::leafletProxy("map_right", session) |>
+              leaflet::setView(lng = ctr$lng, lat = ctr$lat, zoom = z)
+          }
+          .attach_dual_sync(no_initial_sync = TRUE)
+          sync_attached(TRUE)
+        }
+      } else {
+        if (isTRUE(sync_attached())) {
+          .detach_dual_sync()
+          sync_attached(FALSE)
+        }
       }
     }, ignoreInit = TRUE)
 
@@ -376,16 +388,9 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
 
     shiny::observe({
       .render_side("map_left", loaded_left(), "band_left", "palette_left", fit = TRUE)
-      if (Rwapor:::wapor_dual_map_can_sync(
-        shiny::isolate(input$sync_maps),
-        shiny::isolate(input$map_left_zoom),
-        shiny::isolate(input$map_right_zoom)
-      )) {
-        .attach_dual_sync()
-      }
     })
     shiny::observe({
-      locked <- isTRUE(input$sync_maps)
+      locked <- isTRUE(shiny::isolate(input$sync_maps))
       fit_right <- !locked || is.null(loaded_left())
       .render_side("map_right", loaded_right(), "band_right", "palette_right", fit = fit_right)
     })
