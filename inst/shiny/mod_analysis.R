@@ -265,6 +265,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           shiny::tags$h6(class = "fw-bold text-primary", "1. Crop Coefficient (Kc) Curve"),
           shiny::p("Potential Crop Evapotranspiration is modeled using the FAO-56 standard: ",
                    shiny::tags$code("ETc = Kc * RET"), ". The Kc curve transitions across 4 distinct phenological growth stages:"),
+          shiny::tags$img(
+            src = "fao56_kc_curve.png",
+            alt = "FAO-56 four-stage crop coefficient curve: Initial (L_ini, Kc_ini), Crop development (L_dev), Mid-season (L_mid, Kc_mid), Late season (L_late, Kc_end)",
+            style = "width:100%; max-width:760px; display:block; margin:0.4rem auto 0.35rem auto;"
+          ),
+          shiny::tags$p(
+            class = "small text-muted mb-2",
+            "Schematic FAO-56 single crop coefficient curve (Kc_ini = 0.30, Kc_mid = 1.15, Kc_end = 0.65). Stage lengths and Kc values are crop-specific; Rwapor presets can be edited per project."
+          ),
           shiny::tags$ul(
             shiny::tags$li(shiny::tags$strong("Initial Stage (L_ini, Kc_ini):"), " From planting/sowing to ~10% ground cover. Soil evaporation dominates (Kc ~ 0.3 - 0.5)."),
             shiny::tags$li(shiny::tags$strong("Crop Development (L_dev):"), " From 10% cover to effective full canopy cover (~70-80%). Kc increases linearly from Kc_ini to Kc_mid."),
@@ -300,6 +309,15 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             shiny::tags$strong("FAO-56 Equations 62 & 65: "),
             "Tabulated Kc values represent sub-humid conditions (u2 = 2.0 m/s, RHmin = 45%). ",
             "For arid, windy, or humid conditions, Kc_mid and Kc_end can be adjusted based on local wind speed, minimum relative humidity, and crop height."
+          ),
+          shiny::tags$img(
+            src = "fao56_kc_climate_adjust.png",
+            alt = "FAO-56 tabulated versus climate-adjusted Kc curves. Kc_ini is unchanged; Kc_mid and Kc_end rise under arid windy climate (Example 26).",
+            style = "width:100%; max-width:760px; display:block; margin:0.2rem auto 0.35rem auto;"
+          ),
+          shiny::tags$p(
+            class = "small text-muted mb-3",
+            "Dashed line: tabulated FAO-56 Kc (sub-humid default, u2 = 2 m/s, RHmin = 45%). Solid line: same curve after Eq. 62 and 65 for an arid, windy climate (FAO-56 Example 26). Kc_ini does not change. Kc_end is not adjusted when the tabulated value is 0.45 or lower."
           ),
           bslib::navset_card_pill(
             id = ns("kc_adjust_tabs"),
