@@ -4,7 +4,7 @@
 
 **Package version**: 1.0.6
 **Access from R**: `system.file("agent_skills", "RWAPOR_AGENT_SKILLS.md", package = "Rwapor")`  
-**Canonical Indicator Spec**: `system.file("spec", "indicators.yaml", package = "Rwapor")`
+**Canonical Indicator Spec**: `system.file("spec", "indicators.yaml", package = "Rwapor")` (GitHub-readable tables: `inst/spec/README.md`)
 **WaPOR Portal**: https://wapor.apps.fao.org/  
 **API Base**: https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/  
 **ETLook Methodology Wiki**: https://github.com/un-fao/wapor-et-look/wiki  

@@ -85,3 +85,4 @@
 ^\.worktrees$
 ^\.obsidian$
 ^\.streamlit$
+^Screenshot.*\.png$

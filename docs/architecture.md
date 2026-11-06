@@ -8,7 +8,8 @@
 
 The single canonical machine-readable specification for all seasonal and biophysical indicators in `Rwapor` (and cross-validated with `waporbox`) lives at:
 
-- [`inst/spec/indicators.yaml`](../inst/spec/indicators.yaml)
+- Machine-readable: [`inst/spec/indicators.yaml`](../inst/spec/indicators.yaml)
+- GitHub-readable tables (equations, units, citations): [`inst/spec/README.md`](../inst/spec/README.md)
 
 Every built-in indicator step registered in `R/analysis_registry.R` (`.wapor_builtin_indicator_steps()` and `wapor_list_indicator_steps()`) is documented in `inst/spec/indicators.yaml` with:
 

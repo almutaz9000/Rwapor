@@ -8,7 +8,8 @@ wapor_validate_compatibility(
   inputs,
   operation = c("same_period", "harmonized_units", "harmonized_pair",
     "harmonized_series", "ratio", "ratio_series", "add", "add_series", "seasonal_ratio",
-    "time_series", "complete_series", "water_productivity", "tabular_series", "monitoring_join"),
+    "time_series", "complete_series", "water_productivity", "tabular_series",
+    "monitoring_join"),
   mode = c("warn", "strict")
 )
 }

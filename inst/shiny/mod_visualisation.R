@@ -59,7 +59,10 @@ mod_visualisation_ui <- function(id) {
               class = "inline-row mb-1",
               shiny::div(
                 class = "flex-1",
-                shiny::selectizeInput(ns("raster_file"), "Raster 1", choices = NULL)
+                shiny::selectizeInput(
+                  ns("raster_file"), "Raster 1", choices = NULL,
+                  options = list(maxOptions = 100000L, placeholder = "Select a raster...")
+                )
               ),
               shiny::actionButton(
                 ns("scan_rasters"), NULL,
@@ -230,6 +233,8 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     loaded_raster <- shiny::reactiveVal(NULL)
     loaded_raster2 <- shiny::reactiveVal(NULL)
     query_result_raster <- shiny::reactiveVal(NULL)
+    scan_nonce <- shiny::reactiveVal(0L)
+    last_raster_file <- shiny::reactiveVal(NULL)
     
     # ── Dynamic UI Rendering (fixes conditionalPanel module issues) ────────
     
@@ -511,59 +516,48 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     }
 
     raster_choices <- shiny::reactive({
+      scan_nonce()
       folder <- if (is.function(global_folder)) global_folder() else NULL
-      tif_files <- if (!is.null(folder) && dir.exists(folder)) {
-        files <- list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-        if (isTRUE(input$only_seasonal)) {
-          files <- files[grepl("_seasonal", files)]
-        }
-        files
-      } else character(0)
-      
       an_dir <- if (is.function(an_folder)) an_folder() else NULL
-      an_tif_files <- if (!is.null(an_dir) && dir.exists(an_dir)) {
-        files <- list.files(an_dir, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-        if (isTRUE(input$only_seasonal)) {
-          files <- files[grepl("_seasonal", files)]
-        }
-        if (!is.null(folder) && identical(normalizePath(an_dir, mustWork = FALSE),
-                                          normalizePath(folder, mustWork = FALSE))) {
-          character(0)
-        } else {
-          files
-        }
-      } else character(0)
+      res <- Rwapor:::wapor_visualisation_raster_choices(
+        folder, an_folder = an_dir, only_seasonal = isTRUE(input$only_seasonal)
+      )
 
       analysis_layers <- list()
       if (!is.null(an_crop_mask_rast())) analysis_layers["[Analysis] Crop Mask"] <- "__analysis_crop_mask__"
       if (!is.null(an_start_rast()))     analysis_layers["[Analysis] Season Start"] <- "__analysis_season_start__"
       if (!is.null(an_end_rast()))       analysis_layers["[Analysis] Season End"] <- "__analysis_season_end__"
-      
-      res <- list()
-      if (length(tif_files) > 0) res[["Downloads / Global"]] <- tif_files
-      if (length(an_tif_files) > 0) res[["Analysis Output"]] <- paste0("[AN] ", an_tif_files)
-      if (length(analysis_layers) > 0) res[["Analysis Layers"]] <- unlist(analysis_layers)
-      
+      if (length(analysis_layers) > 0) {
+        if (!is.list(res) || length(res) == 0L) res <- list()
+        res[["Analysis Layers"]] <- unlist(analysis_layers)
+      }
+
       if (length(res) == 0) return(character(0))
       res
     })
 
     shiny::observe({
       choices <- raster_choices()
-      current <- input$raster_file
-      current2 <- input$raster_file2
-      shiny::updateSelectizeInput(session, "raster_file", choices = choices, selected = current, server = TRUE)
-      shiny::updateSelectizeInput(session, "raster_file2", choices = choices, selected = current2, server = TRUE)
+      current <- shiny::isolate(input$raster_file)
+      current2 <- shiny::isolate(input$raster_file2)
+      shiny::updateSelectizeInput(session, "raster_file", choices = choices, selected = current, server = FALSE)
+      shiny::updateSelectizeInput(session, "raster_file2", choices = choices, selected = current2, server = FALSE)
     })
 
     shiny::observeEvent(input$scan_rasters, {
-      shiny::showNotification("Raster list updated from folder and analysis layers.", type = "message")
+      scan_nonce(scan_nonce() + 1L)
+      n <- length(unlist(raster_choices(), use.names = FALSE))
+      shiny::showNotification(
+        sprintf("Raster list updated (%d file(s) in the project folder).", n),
+        type = "message"
+      )
     })
 
     # ── Load Raster 1 ──────────────────────────────────────────────────────
     shiny::observeEvent(input$raster_file, {
       shiny::req(input$raster_file)
-      
+      if (identical(input$raster_file, last_raster_file())) return()
+
       r <- NULL
       if (input$raster_file == "__analysis_crop_mask__") {
         r <- an_crop_mask_rast()
@@ -589,6 +583,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
 
       tryCatch({
         loaded_raster(r)
+        last_raster_file(input$raster_file)
         n <- terra::nlyr(r)
         band_names <- names(r)
         if (is.null(band_names) || all(band_names == "")) band_names <- paste("Band", seq_len(n))
@@ -893,164 +888,163 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
     shiny::observe({
       mode <- input$viz_mode
       shiny::req(mode)
-      
-      proxy <- leaflet::leafletProxy("analysis_map", session = session)
-      
-      # Clear ALL existing layers first - more aggressive clearing
-      proxy <- proxy |> 
-        leaflet::clearImages() |> 
-        leaflet::clearGroup("raster") |>
-        leaflet::clearGroup("raster1") |>
-        leaflet::clearGroup("raster2") |>
-        leaflet::clearGroup("raster_intersection") |>
-        leaflet::clearGroup("raster_query") |>
-        leaflet::removeControl("leg_raster") |>
-        leaflet::removeControl("leg_raster2") |>
-        leaflet::removeControl("leg_query") |>
-        leaflet::clearGroup("aoi_overlay")
-      
-      # ── Single Raster Mode ──────────────────────────────────────────
+
+      r_band <- r_band1 <- r_band2 <- r_query <- NULL
+      pal <- pal1 <- pal2 <- pal_query <- NULL
+      vals <- vals1 <- vals2 <- NULL
+      display_mode <- "overlay"
+      raster_opacity2_val <- 0.6
+      match_col <- "red"
+      nomatch_col <- "gray"
+      query_opacity <- 0.7
+      result <- NULL
+
       if (mode == "single") {
         r_band <- selected_band()
         shiny::req(r_band)
         pal <- raster_pal()
         shiny::req(pal)
         vals <- terra::values(r_band, na.rm = TRUE)
-        
-        proxy <- proxy |>
-          leaflet::addRasterImage(
-            r_band, 
-            colors = pal, 
-            opacity = input$raster_opacity, 
-            group = "raster"
-          ) |>
-          leaflet::addLegend(
-            position = "bottomright", 
-            pal = pal, 
-            values = vals, 
-            title = names(r_band), 
-            opacity = input$raster_opacity, 
-            layerId = "leg_raster"
-          )
-      }
-      
-      # ── Dual Raster Mode ────────────────────────────────────────────
-      else if (mode == "dual") {
+      } else if (mode == "dual") {
         r_band1 <- selected_band()
         r_band2 <- selected_band2()
         shiny::req(r_band1, r_band2)
-        
         pal1 <- raster_pal()
         pal2 <- raster_pal2()
         shiny::req(pal1, pal2)
-        
         vals1 <- terra::values(r_band1, na.rm = TRUE)
         vals2 <- terra::values(r_band2, na.rm = TRUE)
-        
         display_mode <- input$dual_display_mode
-        if (is.null(display_mode) || length(display_mode) == 0) {
-          display_mode <- "overlay"  # Default when UI hasn't loaded yet
-        }
-        
+        if (is.null(display_mode) || length(display_mode) == 0) display_mode <- "overlay"
         raster_opacity2_val <- input$raster_opacity2
         if (is.null(raster_opacity2_val) || length(raster_opacity2_val) == 0) {
-          raster_opacity2_val <- 0.6  # Default opacity for raster 2
+          raster_opacity2_val <- 0.6
         }
-        
-        if (display_mode == "intersection") {
-          # Create intersection mask (only show where both have values)
-          if (!terra::compareGeom(r_band1, r_band2, stopOnError = FALSE)) {
-            r_band2 <- terra::resample(r_band2, r_band1, method = "bilinear")
-          }
-          
-          mask1 <- !is.na(terra::values(r_band1))
-          mask2 <- !is.na(terra::values(r_band2))
-          intersection_mask <- mask1 & mask2
-          
-          r_intersection <- r_band1
-          vals_int <- terra::values(r_intersection)
-          vals_int[!intersection_mask] <- NA
-          terra::values(r_intersection) <- vals_int
-          
-          proxy <- proxy |>
-            leaflet::addRasterImage(
-              r_intersection, 
-              colors = pal1, 
-              opacity = input$raster_opacity, 
-              group = "raster_intersection"
-            ) |>
-            leaflet::addLegend(
-              position = "bottomright", 
-              pal = pal1, 
-              values = vals_int[!is.na(vals_int)], 
-              title = paste("Intersection:", names(r_band1)), 
-              opacity = input$raster_opacity, 
-              layerId = "leg_raster"
-            )
-        } else {
-          # Overlay mode - show both rasters
-          proxy <- proxy |>
-            leaflet::addRasterImage(
-              r_band1, 
-              colors = pal1, 
-              opacity = input$raster_opacity, 
-              group = "raster1"
-            ) |>
-            leaflet::addRasterImage(
-              r_band2, 
-              colors = pal2, 
-              opacity = raster_opacity2_val, 
-              group = "raster2"
-            ) |>
-            leaflet::addLegend(
-              position = "bottomright", 
-              pal = pal1, 
-              values = vals1, 
-              title = paste("R1:", names(r_band1)), 
-              opacity = input$raster_opacity, 
-              layerId = "leg_raster"
-            ) |>
-            leaflet::addLegend(
-              position = "bottomleft", 
-              pal = pal2, 
-              values = vals2, 
-              title = paste("R2:", names(r_band2)), 
-              opacity = raster_opacity2_val, 
-              layerId = "leg_raster2"
-            )
+        if (identical(display_mode, "intersection") &&
+            !terra::compareGeom(r_band1, r_band2, stopOnError = FALSE)) {
+          r_band2 <- terra::resample(r_band2, r_band1, method = "bilinear")
         }
-      }
-      
-      # ── Query Mode ──────────────────────────────────────────────────
-      else if (mode == "query") {
+      } else if (mode == "query") {
         result <- query_result_raster()
         shiny::req(result)
         shiny::req(result$success)
-        
         r_query <- result$raster
         shiny::req(r_query)
-        
-        # Create categorical palette for match/no-match
         match_col <- input$match_color
         nomatch_col <- input$nomatch_color
         query_opacity <- input$query_opacity
-        
-        # Provide defaults if UI hasn't loaded yet
         if (is.null(match_col) || length(match_col) == 0) match_col <- "red"
         if (is.null(nomatch_col) || length(nomatch_col) == 0) nomatch_col <- "gray"
         if (is.null(query_opacity) || length(query_opacity) == 0) query_opacity <- 0.7
-        
         pal_query <- leaflet::colorFactor(
           palette = c(nomatch_col, match_col),
           domain = c(0, 1),
           na.color = "transparent"
         )
-        
+      }
+
+      ready <- Rwapor:::wapor_vis_overlay_ready(
+        mode,
+        r1 = if (mode == "dual") r_band1 else r_band,
+        r2 = r_band2,
+        query = result
+      )
+      if (!isTRUE(ready)) return()
+
+      overlay_groups <- Rwapor:::wapor_vis_overlay_clear_groups(mode)
+      proxy <- leaflet::leafletProxy("analysis_map", session = session)
+      for (grp in overlay_groups) {
+        proxy <- leaflet::clearGroup(proxy, grp)
+      }
+      proxy <- proxy |>
+        leaflet::removeControl("leg_raster") |>
+        leaflet::removeControl("leg_raster2") |>
+        leaflet::removeControl("leg_query") |>
+        leaflet::clearGroup("aoi_overlay")
+
+      if (mode == "single") {
         proxy <- proxy |>
           leaflet::addRasterImage(
-            r_query, 
-            colors = pal_query, 
-            opacity = query_opacity, 
+            r_band,
+            colors = pal,
+            opacity = input$raster_opacity,
+            group = "raster"
+          ) |>
+          leaflet::addLegend(
+            position = "bottomright",
+            pal = pal,
+            values = vals,
+            title = names(r_band),
+            opacity = input$raster_opacity,
+            layerId = "leg_raster"
+          )
+      }
+
+      # ── Dual Raster Mode ────────────────────────────────────────────
+      else if (mode == "dual") {
+        if (identical(display_mode, "intersection")) {
+          mask1 <- !is.na(terra::values(r_band1))
+          mask2 <- !is.na(terra::values(r_band2))
+          intersection_mask <- mask1 & mask2
+          r_intersection <- r_band1
+          vals_int <- terra::values(r_intersection)
+          vals_int[!intersection_mask] <- NA
+          terra::values(r_intersection) <- vals_int
+
+          proxy <- proxy |>
+            leaflet::addRasterImage(
+              r_intersection,
+              colors = pal1,
+              opacity = input$raster_opacity,
+              group = "raster_intersection"
+            ) |>
+            leaflet::addLegend(
+              position = "bottomright",
+              pal = pal1,
+              values = vals_int[!is.na(vals_int)],
+              title = paste("Intersection:", names(r_band1)),
+              opacity = input$raster_opacity,
+              layerId = "leg_raster"
+            )
+        } else {
+          proxy <- proxy |>
+            leaflet::addRasterImage(
+              r_band1,
+              colors = pal1,
+              opacity = input$raster_opacity,
+              group = "raster1"
+            ) |>
+            leaflet::addRasterImage(
+              r_band2,
+              colors = pal2,
+              opacity = raster_opacity2_val,
+              group = "raster2"
+            ) |>
+            leaflet::addLegend(
+              position = "bottomright",
+              pal = pal1,
+              values = vals1,
+              title = paste("R1:", names(r_band1)),
+              opacity = input$raster_opacity,
+              layerId = "leg_raster"
+            ) |>
+            leaflet::addLegend(
+              position = "bottomleft",
+              pal = pal2,
+              values = vals2,
+              title = paste("R2:", names(r_band2)),
+              opacity = raster_opacity2_val,
+              layerId = "leg_raster2"
+            )
+        }
+      }
+
+      else if (mode == "query") {
+        proxy <- proxy |>
+          leaflet::addRasterImage(
+            r_query,
+            colors = pal_query,
+            opacity = query_opacity,
             group = "raster_query"
           ) |>
           leaflet::addLegend(
@@ -1058,7 +1052,7 @@ mod_visualisation_server <- function(id, global_folder, aoi_region,
             colors = c(match_col, nomatch_col),
             labels = c("Match", "No Match"),
             title = "Query Result",
-            opacity = input$query_opacity,
+            opacity = query_opacity,
             layerId = "leg_query"
           )
       }

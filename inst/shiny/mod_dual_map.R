@@ -52,78 +52,15 @@ mod_dual_map_ui <- function(id) {
         shiny::checkboxInput(ns("sync_maps"), "Lock pan & zoom between maps", TRUE),
         shiny::helpText("Both maps share one viewport when locked; unlock to compare independently."),
 
-        shiny::tags$script(shiny::HTML(sprintf('
-          (function() {
-            function getMap(id) {
-              var el = document.getElementById(id);
-              if (!el) return null;
-              var w = typeof HTMLWidgets !== "undefined" ? HTMLWidgets.find("#" + id) : null;
-              return (w && w.getMap) ? w.getMap() : null;
-            }
-
-            function applyDualSync() {
-              var leftId = "%s";
-              var rightId = "%s";
-              var syncId = "%s";
-              var ml = getMap(leftId);
-              var mr = getMap(rightId);
-              if (!ml || !mr) return;
-
-              try {
-                ml.invalidateSize();
-                mr.invalidateSize();
-              } catch(e) {}
-
-              var isLocked = $("#" + syncId).is(":checked");
-              if (isLocked) {
-                try {
-                  if (mr.setView && ml.getCenter) {
-                    mr.setView(ml.getCenter(), ml.getZoom(), { animate: false });
-                  }
-                  if (ml.sync && !ml.isSynced(mr)) ml.sync(mr);
-                  if (mr.sync && !mr.isSynced(ml)) mr.sync(ml);
-                } catch(err) {
-                  console.warn("Dual map sync warning:", err);
-                }
-              } else {
-                try {
-                  if (ml.unsync && ml.isSynced(mr)) ml.unsync(mr);
-                  if (mr.unsync && mr.isSynced(ml)) mr.unsync(ml);
-                } catch(err) {
-                  console.warn("Dual map unsync warning:", err);
-                }
-              }
-            }
-
-            $(document).on("change", "#%s", function() {
-              applyDualSync();
-            });
-
-            $(document).on("shown.bs.tab", function() {
-              setTimeout(applyDualSync, 200);
-            });
-
-            var attempts = 0;
-            var timer = setInterval(function() {
-              attempts++;
-              var ml = getMap("%s");
-              var mr = getMap("%s");
-              if (ml && mr) {
-                applyDualSync();
-                clearInterval(timer);
-              } else if (attempts > 30) {
-                clearInterval(timer);
-              }
-            }, 300);
-          })();
-        ', ns("map_left"), ns("map_right"), ns("sync_maps"), ns("sync_maps"), ns("map_left"), ns("map_right")))),
-
         shiny::tags$hr(class = "ctrl-divider"),
 
         shiny::tags$span("Left Map", class = "ctrl-group-label req-label"),
         shiny::div(
           class = "inline-row mb-1",
-          shiny::div(class = "flex-1", shiny::selectizeInput(ns("raster_left"), "Raster", choices = NULL)),
+          shiny::div(class = "flex-1", shiny::selectizeInput(
+            ns("raster_left"), "Raster", choices = NULL,
+            options = list(maxOptions = 100000L, placeholder = "Select a raster...")
+          )),
           shiny::actionButton(
             ns("scan_rasters"), NULL,
             icon  = shiny::icon("rotate"),
@@ -141,7 +78,10 @@ mod_dual_map_ui <- function(id) {
         shiny::tags$hr(class = "ctrl-divider"),
 
         shiny::tags$span("Right Map", class = "ctrl-group-label req-label"),
-        shiny::selectizeInput(ns("raster_right"), "Raster", choices = NULL),
+        shiny::selectizeInput(
+          ns("raster_right"), "Raster", choices = NULL,
+          options = list(maxOptions = 100000L, placeholder = "Select a raster...")
+        ),
         shiny::selectInput(ns("band_right"), "Band / Layer", choices = NULL),
         shiny::selectInput(ns("palette_right"), "Palette",
           choices  = c("viridis", "magma", "plasma", "inferno", "cividis",
@@ -191,6 +131,7 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
 
     loaded_left  <- shiny::reactiveVal(NULL)
     loaded_right <- shiny::reactiveVal(NULL)
+    scan_nonce <- shiny::reactiveVal(0L)
 
     # ── Folder scanning & Path resolution ───────────────────────────────────
     .resolve_path <- function(rel_path) {
@@ -214,37 +155,33 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
     }
 
     raster_choices <- shiny::reactive({
+      scan_nonce()
       folder <- if (is.function(global_folder)) global_folder() else NULL
-      tif_files <- if (!is.null(folder) && dir.exists(folder)) {
-        list.files(folder, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-      } else character(0)
-
       an_dir <- if (is.function(an_folder)) an_folder() else NULL
-      an_tif_files <- if (!is.null(an_dir) && dir.exists(an_dir)) {
-        files <- list.files(an_dir, pattern = "\\.tif$", recursive = TRUE, full.names = FALSE)
-        if (!is.null(folder) && identical(normalizePath(an_dir, mustWork = FALSE),
-                                          normalizePath(folder, mustWork = FALSE))) {
-          character(0)
-        } else {
-          files
-        }
-      } else character(0)
-
-      res <- list()
-      if (length(tif_files) > 0) res[["Downloads / Global"]] <- tif_files
-      if (length(an_tif_files) > 0) res[["Analysis Output"]] <- paste0("[AN] ", an_tif_files)
+      res <- Rwapor:::wapor_visualisation_raster_choices(folder, an_folder = an_dir)
       if (length(res) == 0) return(character(0))
       res
     })
 
     shiny::observe({
       choices <- raster_choices()
-      shiny::updateSelectizeInput(session, "raster_left",  choices = choices, selected = input$raster_left,  server = TRUE)
-      shiny::updateSelectizeInput(session, "raster_right", choices = choices, selected = input$raster_right, server = TRUE)
+      shiny::updateSelectizeInput(
+        session, "raster_left", choices = choices,
+        selected = shiny::isolate(input$raster_left), server = FALSE
+      )
+      shiny::updateSelectizeInput(
+        session, "raster_right", choices = choices,
+        selected = shiny::isolate(input$raster_right), server = FALSE
+      )
     })
 
     shiny::observeEvent(input$scan_rasters, {
-      shiny::showNotification("Raster list updated from project folder.", type = "message")
+      scan_nonce(scan_nonce() + 1L)
+      n <- length(unlist(raster_choices(), use.names = FALSE))
+      shiny::showNotification(
+        sprintf("Raster list updated (%d file(s) in the project folder).", n),
+        type = "message"
+      )
     })
 
     .load_side <- function(file_input_val, band_input_id, store) {
@@ -325,27 +262,72 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
         leaflet::setView(lng = 0, lat = 20, zoom = 2)
     })
 
-    # ── Safe Sync / Unsync Observer ──────────────────────────────────────────
-    shiny::observeEvent(input$sync_maps, {
-      if (isTRUE(input$sync_maps)) {
-        tryCatch({
-          leaflet::leafletProxy("map_left", session) |>
-            leaflet.extras2::addLeafletsync(ids = c(ns("map_left"), ns("map_right")))
-        }, error = function(e) {
-          # Silently handled if client JS managed sync
-          NULL
-        })
-      } else {
-        tryCatch({
-          leaflet::leafletProxy("map_left", session) |>
-            leaflet.extras2::unsync(id = ns("map_left"), unsyncids = ns("map_right"))
-          leaflet::leafletProxy("map_right", session) |>
-            leaflet.extras2::unsync(id = ns("map_right"), unsyncids = ns("map_left"))
-        }, error = function(e) {
-          NULL
-        })
+    # ── Pan/zoom lock: wait until both maps exist, then attach extras2 sync ──
+    map_ids <- Rwapor:::wapor_dual_map_dom_ids(ns)
+
+    .dual_sync_ids <- function() {
+      unname(c(map_ids[["left"]], map_ids[["right"]]))
+    }
+
+    .attach_dual_sync <- function(no_initial_sync = FALSE) {
+      ids <- .dual_sync_ids()
+      leaflet::leafletProxy("map_left", session) |>
+        leaflet.extras2::addLeafletsync(
+          ids = ids,
+          options = leaflet.extras2::leafletsyncOptions(
+            noInitialSync = isTRUE(no_initial_sync),
+            syncCursor = TRUE
+          )
+        )
+    }
+
+    .detach_dual_sync <- function() {
+      ids <- .dual_sync_ids()
+      leaflet::leafletProxy("map_left", session) |>
+        leaflet.extras2::unsync(id = ids[[1]], unsyncids = ids[[2]])
+      leaflet::leafletProxy("map_right", session) |>
+        leaflet.extras2::unsync(id = ids[[2]], unsyncids = ids[[1]])
+    }
+
+    sync_attached <- shiny::reactiveVal(FALSE)
+
+    # Initial lock: attach once when both maps exist and report zoom
+    shiny::observe({
+      if (isTRUE(sync_attached())) return()
+      can_sync <- Rwapor:::wapor_dual_map_can_sync(
+        input$sync_maps, input$map_left_zoom, input$map_right_zoom
+      )
+      if (isTRUE(can_sync)) {
+        .attach_dual_sync(no_initial_sync = FALSE)
+        sync_attached(TRUE)
       }
-    }, ignoreInit = FALSE)
+    })
+
+    # Responding to user selecting/unselecting "Lock pan & zoom between maps"
+    shiny::observeEvent(input$sync_maps, {
+      maps_ready <- Rwapor:::wapor_dual_map_can_sync(
+        TRUE, input$map_left_zoom, input$map_right_zoom
+      )
+      if (!isTRUE(maps_ready)) return()
+
+      if (isTRUE(input$sync_maps)) {
+        if (!isTRUE(sync_attached())) {
+          ctr <- input$map_left_center
+          z <- input$map_left_zoom
+          if (is.list(ctr) && is.numeric(ctr$lng) && is.numeric(ctr$lat) && is.finite(as.numeric(z)[1L])) {
+            leaflet::leafletProxy("map_right", session) |>
+              leaflet::setView(lng = ctr$lng, lat = ctr$lat, zoom = z)
+          }
+          .attach_dual_sync(no_initial_sync = TRUE)
+          sync_attached(TRUE)
+        }
+      } else {
+        if (isTRUE(sync_attached())) {
+          .detach_dual_sync()
+          sync_attached(FALSE)
+        }
+      }
+    }, ignoreInit = TRUE)
 
     # ── Sync Guide Modal ─────────────────────────────────────────────────────
     shiny::observeEvent(input$sync_guide_btn, {
@@ -381,9 +363,7 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
       ))
     })
 
-    .render_side <- function(map_id, r, band_input_id, pal_input_id) {
-      proxy <- leaflet::leafletProxy(map_id, session)
-      proxy |> leaflet::clearImages() |> leaflet::clearControls()
+    .render_side <- function(map_id, r, band_input_id, pal_input_id, fit = TRUE) {
       if (is.null(r)) return(invisible(NULL))
       band <- suppressWarnings(as.integer(input[[band_input_id]]))
       if (is.na(band) || band < 1 || band > terra::nlyr(r)) band <- 1
@@ -396,18 +376,23 @@ mod_dual_map_server <- function(id, global_folder, aoi_region = shiny::reactive(
       vals <- terra::values(r_band, na.rm = TRUE)
       if (length(vals) == 0 || all(is.na(vals))) return(invisible(NULL))
       pal_fn <- .palette_fn(vals, input[[pal_input_id]] %||% "viridis")
+      proxy <- leaflet::leafletProxy(map_id, session)
+      proxy |> leaflet::clearImages() |> leaflet::clearControls()
       proxy |>
         leaflet::addRasterImage(r_band, colors = pal_fn, opacity = input$raster_opacity %||% 0.8, project = TRUE) |>
         leaflet::addLegend(pal = pal_fn, values = vals, position = "bottomright")
+      if (!isTRUE(fit)) return(invisible(NULL))
       e <- terra::ext(r_band)
       proxy |> leaflet::fitBounds(as.numeric(e$xmin), as.numeric(e$ymin), as.numeric(e$xmax), as.numeric(e$ymax))
     }
 
     shiny::observe({
-      .render_side("map_left", loaded_left(), "band_left", "palette_left")
+      .render_side("map_left", loaded_left(), "band_left", "palette_left", fit = TRUE)
     })
     shiny::observe({
-      .render_side("map_right", loaded_right(), "band_right", "palette_right")
+      locked <- isTRUE(shiny::isolate(input$sync_maps))
+      fit_right <- !locked || is.null(loaded_left())
+      .render_side("map_right", loaded_right(), "band_right", "palette_right", fit = fit_right)
     })
 
     shiny::observeEvent(input$basemap, {
