@@ -155,6 +155,8 @@
   : Calculate Enhanced Zonal Statistics
 - [`wapor_export_analysis_outputs()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_analysis_outputs.md)
   : Export Analysis Outputs to Structured Folders
+- [`wapor_export_netcdf()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_netcdf.md)
+  : Export Downloaded WaPOR Rasters as a NetCDF Cube
 - [`wapor_extract_agera5_climate()`](https://almutaz9000.github.io/Rwapor/reference/wapor_extract_agera5_climate.md)
   : Extract Daily Climate Time Series from AgERA5 via Rwapor
 - [`wapor_extract_crop_classes()`](https://almutaz9000.github.io/Rwapor/reference/wapor_extract_crop_classes.md)

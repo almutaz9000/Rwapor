@@ -2,6 +2,22 @@
 
 ## Rwapor 1.0.6
 
+### NetCDF export
+
+- New
+  [`wapor_export_netcdf()`](https://almutaz9000.github.io/Rwapor/reference/wapor_export_netcdf.md)
+  exports a completed \[wapor_download()\] cache as a single CF-1.6
+  NetCDF-4 cube
+  (`<folder>/netcdf/<variable>/<variable>.<start>_<end>.nc`). The
+  GeoTIFF cache is preserved unchanged; this is an additional export for
+  interchange with Python (xarray, CDO, Panoply) and climate tools. Time
+  is encoded as days since 1970-01-01 with a `time_bnds` auxiliary
+  coordinate variable that records each dekad’s true start and end date
+  (8-11 days for the last dekad of a month). Values, units, CRS, and
+  extent are carried through from the GeoTIFF source. Writes are atomic;
+  the destination is not overwritten unless `overwrite = TRUE`. Requires
+  `ncdf4` (Suggests).
+
 ### Production readiness & scientific review fixes
 
 - **Full Tiled Indicator Parity & Loud Validation (`R-01` & `R-02`)**:
