@@ -4,7 +4,7 @@
 #' keeps that scale "pending" through crop, arithmetic and metadata assignment
 #' differs between terra versions, which made map outputs either raw integers
 #' or scaled twice. Clearing it here makes terra return raw values, and
-#' [.wapor_apply_source_scale()] applies it exactly once after cropping.
+#' `.wapor_apply_source_scale()` applies it exactly once after cropping.
 #'
 #' @param r SpatRaster opened from the source files.
 #' @return A list with `raster` (scale/offset cleared) and the per-layer
@@ -37,7 +37,7 @@
 
 #' Assign output metadata to a map raster
 #'
-#' Values must already be physical: [.wapor_apply_source_scale()] applied the
+#' Values must already be physical: `.wapor_apply_source_scale()` applied the
 #' source file scale. The catalogue scale is deliberately not applied here,
 #' because it would scale values a second time (and would rescale local
 #' Float32 copies that are already in physical units).

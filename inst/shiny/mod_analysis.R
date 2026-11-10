@@ -266,7 +266,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
           shiny::p("Potential Crop Evapotranspiration is modeled using the FAO-56 standard: ",
                    shiny::tags$code("ETc = Kc * RET"), ". The Kc curve transitions across 4 distinct phenological growth stages:"),
           shiny::tags$img(
-            src = "fao56_kc_curve.png",
+            src = "fao56_kc_curve.svg",
             alt = "FAO-56 four-stage crop coefficient curve: Initial (L_ini, Kc_ini), Crop development (L_dev), Mid-season (L_mid, Kc_mid), Late season (L_late, Kc_end)",
             style = "width:100%; max-width:760px; display:block; margin:0.4rem auto 0.35rem auto;"
           ),
@@ -311,7 +311,7 @@ mod_analysis_server <- function(id, global_folder, aoi_region, download_seasons 
             "For arid, windy, or humid conditions, Kc_mid and Kc_end can be adjusted based on local wind speed, minimum relative humidity, and crop height."
           ),
           shiny::tags$img(
-            src = "fao56_kc_climate_adjust.png",
+            src = "fao56_kc_climate_adjust.svg",
             alt = "FAO-56 tabulated versus climate-adjusted Kc curves. Kc_ini is unchanged; Kc_mid and Kc_end rise under arid windy climate (Example 26).",
             style = "width:100%; max-width:760px; display:block; margin:0.2rem auto 0.35rem auto;"
           ),

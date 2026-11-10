@@ -442,7 +442,7 @@ resolve_seasonal_summary_function <- function(variable, fun = NULL) {
 #'
 #' @param values Numeric vector of source-layer values.
 #' @param fun Character summary function returned by
-#'   [resolve_seasonal_summary_function()].
+#'   `resolve_seasonal_summary_function()`.
 #' @return A scalar summary, or `NA_real_` when there are insufficient values.
 #' @keywords internal
 #' @noRd

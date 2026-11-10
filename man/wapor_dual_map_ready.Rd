@@ -2,30 +2,17 @@
 % Please edit documentation in R/visualisation_rasters.R
 \name{wapor_dual_map_ready}
 \alias{wapor_dual_map_ready}
-\title{Whether dual-map pan/zoom lock can be attached}
+\title{Whether both dual-map instances exist in DOM}
 \usage{
 wapor_dual_map_ready(left_zoom, right_zoom)
 }
 \arguments{
 \item{left_zoom, right_zoom}{Numeric zoom from \verb{input$map_*_zoom}, or NULL.}
-
-\item{locked}{Logical. The "Lock pan & zoom" checkbox.}
 }
 \value{
 Logical.
-
-Logical.
 }
 \description{
-Leaflet.extras2 \code{addLeafletsync} looks up widgets with \code{HTMLWidgets.find}.
-That fails if the Side-by-Side tab has not created the maps yet. Wait until
-both maps have reported a zoom (they exist in the DOM) before syncing.
+Whether both dual-map instances exist in DOM
 }
-\keyword{DOM}
-\keyword{Whether}
-\keyword{both}
-\keyword{dual-map}
-\keyword{exist}
-\keyword{in}
-\keyword{instances}
 \keyword{internal}

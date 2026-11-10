@@ -419,6 +419,11 @@ wapor_suggest_tile_size <- function(n_layers,
   )
   # Exclude the full-engine reference run from the tiled-window measurement.
   options(Rwapor.tiled_max_cells = 0)
+  rss_start <- if (requireNamespace("ps", quietly = TRUE)) {
+    tryCatch(as.numeric(ps::ps_memory_info()[["rss"]]), error = function(e) NA_real_)
+  } else {
+    NA_real_
+  }
   tiled <- wapor_run_seasonal_analysis_tiled(
     config = config,
     crop_params = crop_params,
@@ -426,6 +431,11 @@ wapor_suggest_tile_size <- function(n_layers,
     output_dir = out_dir,
     tile_size = tile_size
   )
+  rss_end <- if (requireNamespace("ps", quietly = TRUE)) {
+    tryCatch(as.numeric(ps::ps_memory_info()[["rss"]]), error = function(e) NA_real_)
+  } else {
+    NA_real_
+  }
   max_cells <- getOption("Rwapor.tiled_max_cells", 0)
   full_values <- terra::values(full$seasonal_aeti$raster, mat = FALSE)
   tiled_values <- terra::values(tiled$results$seasonal_aeti$raster, mat = FALSE)
@@ -442,6 +452,8 @@ wapor_suggest_tile_size <- function(n_layers,
     peak_bytes = as.numeric(max_cells) * 8,
     max_window_cells = as.numeric(max_cells),
     full_aoi_bytes = as.numeric(nrow) * as.numeric(ncol) * as.numeric(n_layers) * 8,
+    rss_bytes = rss_end,
+    rss_start = rss_start,
     pixel_parity = is.finite(max_abs_diff) && max_abs_diff <= 1e-6,
     max_abs_diff = max_abs_diff
   )

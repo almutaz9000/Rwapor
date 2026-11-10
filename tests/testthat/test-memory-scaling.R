@@ -28,6 +28,13 @@ test_that("tiled memory stays bounded as the AOI grows and matches full-engine p
   expect_gt(large$full_aoi_bytes, small$full_aoi_bytes)
   expect_lt(large$peak_bytes, large$full_aoi_bytes)
   expect_equal(large$n_tiles, 16L)
+
+  if (requireNamespace("ps", quietly = TRUE)) {
+    expect_type(small$rss_bytes, "double")
+    expect_gt(small$rss_bytes, 0)
+    expect_type(large$rss_bytes, "double")
+    expect_gt(large$rss_bytes, 0)
+  }
 })
 
 test_that("tile-size recommendation decreases as layer count increases", {

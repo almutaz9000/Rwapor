@@ -86,3 +86,4 @@
 ^\.obsidian$
 ^\.streamlit$
 ^Screenshot.*\.png$
+^\.mailmap$
