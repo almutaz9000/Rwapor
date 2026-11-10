@@ -1,9 +1,6 @@
-# Whether dual-map pan/zoom lock can be attached
+# Whether both dual-map instances exist in DOM
 
-Leaflet.extras2 `addLeafletsync` looks up widgets with
-`HTMLWidgets.find`. That fails if the Side-by-Side tab has not created
-the maps yet. Wait until both maps have reported a zoom (they exist in
-the DOM) before syncing.
+Whether both dual-map instances exist in DOM
 
 ## Usage
 
@@ -17,12 +14,6 @@ wapor_dual_map_ready(left_zoom, right_zoom)
 
   Numeric zoom from `input$map_*_zoom`, or NULL.
 
-- locked:
-
-  Logical. The "Lock pan & zoom" checkbox.
-
 ## Value
-
-Logical.
 
 Logical.
